@@ -1,0 +1,39 @@
+
+                <div class="article-card" >
+                    <div class="article-card-thumb" >
+
+                        <a href="{{namespace}}/saves/{{slug}}/index.html">
+                            <object data="{{namespace}}/saves/{{slug}}/images/thumbnail.webp" class="thumb">
+
+                                {{#static}}
+                                <img src="article_bw.webp" alt="thumbnail">
+                                {{/static}}
+                                {{^static}}
+                                <img src="{{namespace}}/static/article_bw.webp" alt="thumbnail">
+                                {{/static}}
+                                
+                            </object>
+                        </a>
+
+                    </div>
+                    <div class="article-card-content" >
+                        <a href="{{namespace}}/saves/{{slug}}/index.html">{{title}}</a>
+                        <p class="card-info">{{infoForCard}}</p>
+
+                        {{^static}}
+                        <div class="update-buttons">
+
+                            {{#isReadable}}
+                            <a href="{{namespace}}/setstate/archived/{{slug}}">archive</a>
+                            {{/isReadable}}
+                            {{#isArchived}}
+                            <a href="{{namespace}}/setstate/unread/{{slug}}">unarchive</a>
+                            {{/isArchived}}
+                            
+                             | <a href="{{namespace}}/setstate/deleted/{{slug}}">delete</a>
+                        </div>
+                        {{/static}}
+
+                    </div>
+                </div>
+                

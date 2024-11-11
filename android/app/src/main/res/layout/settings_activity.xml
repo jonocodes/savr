@@ -1,0 +1,10 @@
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/my_settings"
+        android:layout_width="216dp"
+        android:layout_height="217dp"
+        android:orientation="vertical"></LinearLayout>
+</LinearLayout>

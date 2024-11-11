@@ -1,0 +1,104 @@
+{
+    "$schema": "http://json-schema.org/draft-06/schema#",
+    "$ref": "#/definitions/Savr",
+    "definitions": {
+        "Etc": {
+            "type": "object",
+            "title": "Etc",
+            "additionalProperties": false,
+            "prpoerties": {
+                "progress": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
+                }
+            },
+            "required": [
+                "progress"
+            ]
+        },
+        "Savr": {
+            "type": "object",
+            "title": "Root",
+            "additionalProperties": false,
+            "properties": {
+                "articles": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/Article"
+                    }
+                }
+            },
+            "required": [
+                "articles"
+            ]
+        },
+        "Article": {
+            "type": "object",
+            "title": "Article",
+            "additionalProperties": false,
+            "properties": {
+                "slug": {
+                    "type": "string"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "url": {
+                    "type": "string",
+                    "format": "uri"
+                },
+                "state": {
+                    "$ref": "#/definitions/State"
+                },
+                "publication": {
+                    "type": "string"
+                },
+                "author": {
+                    "type": "string"
+                },
+                "ingestDate": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "ingestPlatform": {
+                    "type": "string"
+                },
+                "ingestSource": {
+                    "type": "string"
+                },
+                "mimeType": {
+                    "type": "string"
+                },
+                "publishedDate": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "readTimeMinutes": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0
+                }
+            },
+            "required": [
+                "slug",
+                "state",
+                "title",
+                "ingestPlatform",
+                "ingestDate",
+                "mimeType",
+                "ingestSource"
+            ]
+        },
+        "State": {
+            "type": "string",
+            "title": "State",
+            "enum": [
+                "deleted",
+                "unread",
+                "archived",
+                "reading",
+                "finished"
+            ]
+        }
+    }
+}

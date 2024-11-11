@@ -1,0 +1,1 @@
+javascript:(function(){const url='http://localhost:8080/save?url='+window.location;console.log(url);fetch(url).then(response=>response.text()).then(data=>{console.log('Response:',data);}).catch(err=>{console.error('Error:',err);});})();

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+  <head>
+    <title>
+      Savr - {{ title }}
+    </title>
+    <meta content="text/html; charset=UTF-8" http-equiv="content-type">
+
+    <!-- <link rel="stylesheet" href="/public/ffStyle.css">  -->
+
+    <!--
+    savr meta:
+      parser: readability?
+    -->
+
+    <!-- this is only used for rendering the local html file. not when running the service or app -->
+    <link rel="stylesheet" href="../../static/web.css" />
+
+    <!-- this is for when rendering in the web app -->
+    <link rel="stylesheet" href="../../static/shared/web.css" />
+
+    {{{ head }}}
+
+  </head>
+  <body>
+
+    <div id="savr-root">
+      <div id="savr-metadata">
+        <h1>{{ title }}</h1>
+        <div id="savr-byline">{{ byline }}</div>
+        <div id="savr-published">{{{ published }}}</div>
+        <div id="savr-readTime">{{ readTime }}</div>
+        <hr />
+        <div id="savr-content">
+          {{{ content }}}
+        </div>
+      </div>
+    </div>
+
+  </body>
+</html>

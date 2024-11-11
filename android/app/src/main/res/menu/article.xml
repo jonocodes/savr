@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item android:id="@+id/archive"
+        android:icon="@drawable/baseline_archive_24"
+        android:title="Send to archive"
+        app:showAsAction="always" />
+
+    <item android:id="@+id/text_increase"
+        android:icon="@drawable/baseline_text_increase_24"
+        android:title="Increase font size"
+        app:showAsAction="always"/>
+
+    <item android:id="@+id/text_decrease"
+        android:icon="@drawable/baseline_text_decrease_24"
+        android:title="Decrease font size"
+        app:showAsAction="always"/>
+
+    <item android:id="@+id/help"
+        android:icon="@drawable/baseline_language_24"
+        android:title="View original" />
+
+    <item android:id="@+id/find"
+        android:icon="@drawable/baseline_search_24"
+        android:title="Find in page" />
+
+    <item android:id="@+id/summarize"
+        android:icon="@drawable/baseline_summarize_24"
+        android:title="Summarize" />
+
+    <item android:id="@+id/listen"
+        android:icon="@drawable/baseline_headphones_24"
+        android:title="Listen" />
+
+    <item android:id="@+id/share"
+        android:icon="@drawable/baseline_share_24"
+        android:title="Share" />
+
+    <item android:id="@+id/delete"
+        android:icon="@drawable/baseline_delete_24"
+        android:title="Delete" />
+
+</menu>

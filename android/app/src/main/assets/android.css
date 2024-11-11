@@ -1,0 +1,52 @@
+#savr-root {
+
+    max-width: 725px;
+    line-height: 1.5;
+    /* font-size: 25px; */
+    /* font-family: Blanco OSF; */
+
+    margin: 2.5em auto;
+    width: 100%;
+
+    font-family: Helvetica, Arial, sans-serif;
+}
+
+h1#savr-title {
+
+    font-size: 1.6em;
+    line-height: 1.25em;
+    width: 100%;
+    margin: 0px 0px 30px 0px;
+    padding: 0;
+
+    /* font-size: 40px;
+    font-weight: 500;
+    text-align: center;
+    line-height: 1.2;
+    padding-bottom: 0.625em;
+    margin: 0px; */
+}
+
+img {
+    max-width: 100%;
+    max-height: 100%;
+}
+
+hr {
+    margin-top: 30px;
+    margin-bottom: 30px;
+}
+
+#savr-byline {
+    font-style: italic;
+}
+
+#savr-published {
+    font-size: smaller;
+    margin-top: 5px;
+    margin-bottom: 5px;
+}
+
+#savr-readTime {
+    font-size: smaller;
+}

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist", // Output directory for compiled files
+    "module": "ESNext",
+    "target": "ES2020",
+    "declaration": true, // Generates .d.ts files for type definitions
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "moduleResolution": "node",
+    "sourceMap": true
+  },
+  "include": [
+    "bin/**/*.ts"
+  ], //"lib/index.cjs" Specify the source directory
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
