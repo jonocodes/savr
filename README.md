@@ -48,7 +48,6 @@ Build and debug using Andoid Studio.
 More details TBD...
 
 
-
 # Desktop
 
 
@@ -59,7 +58,7 @@ It is a simple site designed to render well on small screens and text browsers.
 
 # Web
 
-![screenshot](./screenshots/web.png)
+<div style="text-align:center"><img src="./screenshots/web.png" /></div>
 
 ## Use
 
@@ -131,7 +130,8 @@ TBD
 
 # Bookmarklet
 
-![screenshot](./screenshots/bookmarklet.png)
+<div style="text-align:center"><img src="./screenshots/bookmarklet.png" /></div>
+
 
 There are several ways of creating a button in your browser to save the article you currently have open.
 
@@ -151,17 +151,28 @@ Edit that variable as needed to make sure that it is pointing to the URL of your
 http://[::1]:8080/savr/static/demo.html
 
 
-# CLI/TUI
+# CLI
 
 You can use the CLI for ingestion if you want.
 
-> cd web
-> npm install
-> tsx ./src/cli.ts <url>
+```bash
+cd web
+npm install
+tsx ./src/cli.ts <url>
+
+savr ingest <url>
+```
+
+
+# TUI
+
+<div style="text-align:center"><img src="./screenshots/tui.png" /></div>
+
+Since the web service is run to render well in text browsers the TUI command is mostly a wrapper to your locally installed browser app...
 
 
 savr gui --browser=firefox # defaults to lynx
-savr ingest <url>
+
 
 SAVR_SERVICE=http://localhost..., ... , ...
 SAVR_DATA=/home/...
@@ -172,13 +183,22 @@ then see if DATA is set
 more info TBD
 
 
+If you know exactly how you want to browse, you can skip the TUI command. For example:
+
+    browsh http://localhost:8080/savr
+
+<div style="text-align:center"><img src="./screenshots/browsh.png" /></div>
+
+
+
 # Offline Use
 
 The Savr apps do not need an internet connection to read content, since it has all been downloaded. Additionally you dont even need the app to read the articles since the HTML archive is self contained.
 
 Just open ${DATA_DIR}/list.html in a web browser.
 
-![screenshot](./screenshots/offline.png)
+<div style="text-align:center"><img src="./screenshots/offline.png" /></div>
+
 
 Of course you wont be able to modify your collection when the app is not running. Have a look at your data directory. It is simply organized so you can copy out single articles if needed.
 
