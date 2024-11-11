@@ -12,7 +12,6 @@ data class Article(
     val title: String,
     val url: String?,
     var state: String = "unread", // unread, reading, finished, archived, deleted, ingesting
-//    val subtitle: String? = null,
     val publication: String? = null,
     val author: String? = null,
     val publishedDate: String? = null, // TODO: perhaps this should be a datetime object
@@ -21,6 +20,7 @@ data class Article(
     val ingestSource: String, // url, raw
     val mimeType: String,
     val readTimeMinutes: Int? = null,
+    val progress: Int = 0,
 ) {
 
     fun isArchived(): Boolean {

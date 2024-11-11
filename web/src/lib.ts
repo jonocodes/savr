@@ -11,6 +11,8 @@ import sharp from "sharp";
 import url from "url";
 import { JSONFileSyncPreset } from "lowdb/node";
 import Mustache from "mustache";
+import { Articles, ArticleType } from "./models";
+import Handlebars from "handlebars";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -22,45 +24,32 @@ const dbFile = dataDir + "/db.json";
 const savesDir = dataDir + "/saves";
 
 
-// TODO: remove use of sharedDir and use symlinks instead. this way packaging the js will work.
-// const sharedDir = process.env.HOME + "/sync/more/savr/shared";
-
-
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
-
-type ArticleType = {
-  slug: string;
-  title: string;
-  url: string | null;
-  state: string; //"unread", // unread, reading, finished, archived, deleted, ingesting
-  // subtitle: string | null;
-  publication: string | null;
-  author: string | null;
-  publishedDate: string | null | undefined; // TODO: perhaps this should be a datetime object
-  ingestDate: string;
-  ingestPlatform: string; // platform/web
-  ingestSource: string;
-  mimeType: String;
-  readTimeMinutes: number | null;
-  // html: string | null; // TODO: load this only in the article screen
-};
-
-
-// type ArticleRenderType = {
-//   link: string;
-//   thumbnail: string;
-//   isReadable: boolean;
-//   isArchived: boolean;
-//   infoForCard: string;
-// } & ArticleType
-
-
-type Articles = {
-  articles: ArticleType[];
-};
 
 
 const defaultData: Articles = { articles: [] };
+
+
+Handlebars.registerHelper("isArchived", function (article: ArticleType, options) {
+  if (article.state === "archived") {
+      return options.fn(this); // Render the enclosed block if the article's state is "archived"
+  } else {
+      return options.inverse(this); // Render the `else` block if present
+  }
+});
+
+Handlebars.registerHelper("isReadable", function (article: ArticleType, options) {
+  if (article.state != "archived" && article.state != 'deleted') {
+      return options.fn(this);
+  } else {
+      return options.inverse(this);
+  }
+});
+
+Handlebars.registerHelper("infoForCard", function (article: ArticleType) {
+  return generateInfoForCard(article)
+});
+
 
 function extractDomain(url: string): string | null {
   try {
@@ -315,20 +304,6 @@ export function dirList() {
   return dirs;
 }
 
-export async function articleList() {
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-  return db.data.articles;
-}
-
-export function renderTemplate(templateName: string, view: object) {
-  const mustacheTemplatePath = `${__dirname}/templates/${templateName}.mustache`;
-
-  const mustacheTemplate = fs.readFileSync(mustacheTemplatePath, "utf-8");
-
-  return Mustache.render(mustacheTemplate, view);
-}
-
-
 export function generateInfoForCard(article: ArticleType): string {
 
   var result = ""
@@ -352,6 +327,23 @@ export function generateInfoForCard(article: ArticleType): string {
   return result
 }
 
+export async function articleList() {
+  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+  return db.data.articles;
+}
+
+export function renderTemplate(templateName: string, view: object) {
+  const mustacheTemplatePath = `${__dirname}/templates/${templateName}.mustache`;
+
+  const mustacheTemplate = fs.readFileSync(mustacheTemplatePath, "utf-8");
+
+  const template = Handlebars.compile(mustacheTemplate);
+  return template(view);
+
+  // return Mustache.render(mustacheTemplate, view);
+}
+
+
 function copyStaticFiles() {
   // TODO: figure out how to make this copy content, instead of symlink
   if (!fs.existsSync(dataDir + "/static"))
@@ -373,15 +365,15 @@ export async function createLocalHtmlList() {
     // rootPath: rootPath,
     namespace: rootPath,
     static: true,
-    isArchived: function() {
-      return this.state == "archived"
-    },
-    isReadable: function() {
-      return this.state != "archived" && this.state != "deleted"
-    },
-    infoForCard: function() {
-      return generateInfoForCard(this)
-    }
+    // isArchived: function() {
+    //   return this.state == "archived"
+    // },
+    // isReadable: function() {
+    //   return this.state != "archived" && this.state != "deleted"
+    // },
+    // infoForCard: function() {
+    //   return generateInfoForCard(this)
+    // }
   });
 
   fs.writeFileSync(htmlOutfile, rendered);
@@ -513,7 +505,7 @@ export async function ingest(
     ingestSource: "url",
     mimeType: "text/html",
     readTimeMinutes: Math.round(readingStats.minutes),
-    // html: null, // TODO: load this only in the article screen
+    progress: 0,
   };
 
   if (existingArticleIndex != -1) {

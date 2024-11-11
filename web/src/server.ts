@@ -96,15 +96,15 @@ server.register(
           // rootPath: rootPath,
           namespace: namespace,
           static: false,
-          isArchived: function() {
-            return this.state == "archived"
-          },
-          isReadable: function() {
-            return this.state != "archived" && this.state != "deleted"
-          },
-          infoForCard: function() {
-            return generateInfoForCard(this)
-          }
+          // isArchived: function() {
+          //   return this.state == "archived"
+          // },
+          // isReadable: function() {
+          //   return this.state != "archived" && this.state != "deleted"
+          // },
+          // infoForCard: function() {
+          //   return generateInfoForCard(this)
+          // }
         });
 
         reply.type("text/html").send(rendered);

@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8" />
+
+        <title>Savr Catalog</title>
+
+        {{#static}}
+        <link rel="stylesheet" href="./static/web.css" />
+        {{/static}}
+        {{^static}}
+        <link rel="stylesheet" href="./static/shared/web.css" />
+        <script src="./static/savr-remote.js"></script>
+        {{/static}}
+
+    </head>
+    <body>
+
+        <div id="savr-root">
+            <h1>Savr Catalog</h1>
+
+            {{^static}}
+            <div id="add-url">
+                <form id="url-form" action="">
+                    <input id="url" name="url" size="40">
+                    <input type="submit" name="submit" value="Add URL">
+                </form>
+            </div>
+
+            <hr />
+            {{/static}}
+
+            <h2>Saves</h2>
+            <div class="savr-list">
+
+                {{#each articles}}
+                {{#isReadable this}}
+                <div class="article-card" >
+                    <div class="article-card-thumb" >
+
+                        <a href="{{../namespace}}/saves/{{slug}}/index.html">
+                            <object data="{{../namespace}}/saves/{{slug}}/images/thumbnail.webp" class="thumb">
+
+                                {{#static}}
+                                <img src="./static/article_bw.webp" alt="thumbnail">
+                                {{/static}}
+                                {{^static}}
+                                <img src="{{../namespace}}/static/shared/article_bw.webp" alt="thumbnail">
+                                {{/static}}
+                                
+                            </object>
+                        </a>
+
+                    </div>
+                    <div class="article-card-content" >
+                        <a href="{{../namespace}}/saves/{{slug}}/index.html">{{title}}</a>
+                        <p class="card-info">{{infoForCard .}}</p>
+
+                        {{^static}}
+                        <div class="update-buttons">
+                            <a href="{{../namespace}}/setstate/archived/{{slug}}">archive</a> | <a href="{{../namespace}}/setstate/deleted/{{slug}}">delete</a>
+                        </div>
+                        {{/static}}
+
+                    </div>
+                </div>
+                {{/isReadable}}
+                {{/each}}
+
+            </div>
+
+            <hr />
+
+            <h2>Archive</h2>
+            <div class="savr-list">
+
+                {{#articles}}
+                {{#isArchived this}}
+                <div class="article-card" >
+                    <div class="article-card-thumb" >
+
+                        <a href="{{../namespace}}/saves/{{slug}}/index.html">
+                            <object data="{{../namespace}}/saves/{{slug}}/images/thumbnail.webp" class="thumb">
+                                {{#static}}
+                                <img src="./static/article_bw.webp" alt="thumbnail">
+                                {{/static}}
+                                {{^static}}
+                                <img src="{{../namespace}}/static/shared/article_bw.webp" alt="thumbnail">
+                                {{/static}}
+                            </object>
+                        </a>
+
+                    </div>
+                    <div class="article-card-content" >
+                        <a href="{{../namespace}}/saves/{{slug}}/index.html">{{title}}</a>
+                        <p class="card-info">{{infoForCard .}}</p>
+
+                        {{^static}}
+                        <div class="update-buttons">
+                            <a href="{{../namespace}}/setstate/unread/{{slug}}">unarchive</a> | <a href="{{../namespace}}/setstate/deleted/{{slug}}">delete</a>
+                        </div>
+                        {{/static}}
+
+                    </div>
+                </div>
+                {{/isArchived}}
+                {{/articles}}
+
+            </div>
+        </div>
+        
+    </body>
+
+    <script>
+
+        function formSubmit(event) {
+            const url = document.getElementById("url").value;
+
+            if (typeof savr !== 'undefined' && typeof savr.startSSE === 'function') {
+                savr.startSSE('.', url);
+                // TODO: reload the page here to show the new article
+            } else {
+                alert('Error: startSSE function not found in loaded script');
+            }
+
+            event.preventDefault();
+        }
+
+        (function(){
+            const form = document.getElementById("url-form");
+            form.addEventListener("submit", formSubmit);
+        })()
+
+    </script>
+
+</html>

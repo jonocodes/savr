@@ -24,7 +24,7 @@ Use something like [Nextcloud](https://nextcloud.com/) for a centralized option 
 
 # Current state of development
 
-Basic features have been implemented (scraping, viewing, sharing, archiving, dark theme), but I would consider this in alpha. It still has a bunch of rough edges and needs work on features, bugs, and styling.
+Basic features have been implemented, but I would consider this in a beta stage. While in the 0.x version number range, features will be stabilizing, along with the API contract and database schema.
 
 
 # Android
@@ -130,7 +130,10 @@ TBD
 
 # Bookmarklet
 
-<div style="text-align:center"><img src="./screenshots/bookmarklet.png" /></div>
+<img src="./screenshots/bookmarklet.png" style="display:block;
+            margin-left:auto;
+            margin-right:auto;
+            ">
 
 
 There are several ways of creating a button in your browser to save the article you currently have open.
@@ -197,7 +200,10 @@ The Savr apps do not need an internet connection to read content, since it has a
 
 Just open ${DATA_DIR}/list.html in a web browser.
 
-<div style="text-align:center"><img src="./screenshots/offline.png" /></div>
+
+<p align="center" width="100%">
+<img src="./screenshots/offline.png" />
+</p>
 
 
 Of course you wont be able to modify your collection when the app is not running. Have a look at your data directory. It is simply organized so you can copy out single articles if needed.

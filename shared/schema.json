@@ -6,7 +6,7 @@
             "type": "object",
             "title": "Etc",
             "additionalProperties": false,
-            "prpoerties": {
+            "properties": {
                 "progress": {
                     "type": "integer",
                     "minimum": 0,
@@ -77,6 +77,11 @@
                 "readTimeMinutes": {
                     "type": "integer",
                     "exclusiveMinimum": 0
+                },
+                "progress": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 100
                 }
             },
             "required": [
@@ -86,7 +91,8 @@
                 "ingestPlatform",
                 "ingestDate",
                 "mimeType",
-                "ingestSource"
+                "ingestSource",
+                "progress"
             ]
         },
         "State": {
