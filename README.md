@@ -73,9 +73,11 @@ env vars ...
 
 ## Development
 
-> cd web
-> npm install
-> npm run dev
+```bash
+cd web
+npm install
+npm run web:dev
+```
 
 ...
 
@@ -130,10 +132,11 @@ TBD
 
 # Bookmarklet
 
-<img src="./screenshots/bookmarklet.png" style="display:block;
-            margin-left:auto;
-            margin-right:auto;
-            ">
+<div align="center" width="100%">
+
+![bookmarklet](./screenshots/bookmarklet.png)
+
+</div>
 
 
 There are several ways of creating a button in your browser to save the article you currently have open.
@@ -169,7 +172,11 @@ savr ingest <url>
 
 # TUI
 
-<div style="text-align:center"><img src="./screenshots/tui.png" /></div>
+<div style="text-align:center; width:100%">
+
+![TUI](./screenshots/tui.png)
+
+</div>
 
 Since the web service is run to render well in text browsers the TUI command is mostly a wrapper to your locally installed browser app...
 
@@ -190,7 +197,11 @@ If you know exactly how you want to browse, you can skip the TUI command. For ex
 
     browsh http://localhost:8080/savr
 
-<div style="text-align:center"><img src="./screenshots/browsh.png" /></div>
+<div style="text-align:center" width="100%">
+
+![Browsh](./screenshots/browsh.png)
+
+</div>
 
 
 

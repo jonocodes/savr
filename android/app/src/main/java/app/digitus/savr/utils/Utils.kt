@@ -3,6 +3,7 @@ package app.digitus.savr.utils
 
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
@@ -17,6 +18,8 @@ import app.digitus.savr.SavrApplication.Companion.appDataDir
 import app.digitus.savr.SavrApplication.Companion.appSavesDir
 import app.digitus.savr.data.JsonDb
 import app.digitus.savr.model.Article
+import app.digitus.savr.model.ArticleAndRender
+import app.digitus.savr.model.ArticleRenderExtra
 import app.digitus.savr.model.ReadabilityResult
 import com.github.mustachejava.DefaultMustacheFactory
 import com.google.gson.Gson
@@ -134,6 +137,25 @@ fun arePermissionsGranted(context: Context, uriString: String): Boolean {
     return false
 }
 
+
+fun getAppVersionInfo(context: Context): String {
+    val packageInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        context.packageManager.getPackageInfo(context.packageName, PackageManager.PackageInfoFlags.of(0))
+    } else {
+        @Suppress("DEPRECATION")
+        context.packageManager.getPackageInfo(context.packageName, 0)
+    }
+
+    val versionName = packageInfo.versionName
+    val versionCode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        packageInfo.longVersionCode
+    } else {
+        @Suppress("DEPRECATION")
+        packageInfo.versionCode.toLong()
+    }
+
+    return "Version Name: $versionName, Version Code: $versionCode"
+}
 
 
 fun setDirectories(context: Context) {
@@ -560,6 +582,47 @@ fun copyAssetsDirectory(context: Context, assetDir: String, targetDir: DocumentF
     }
 }
 
+fun getByline(article: Article): String {
+
+    val uri = URI(article.url)
+    val domain: String = uri.host.removePrefix("www.")
+
+    if (article.author == null) {
+        return domain
+    }
+    return article.author
+}
+
+
+
+fun toArticleAndRender(article: Article): ArticleAndRender {
+
+    val extra = ArticleRenderExtra(infoForCard = generateInfoForCard(article))
+
+    return ArticleAndRender(
+        article=article,
+        extra
+    )
+}
+
+fun articlesToRender(articles: List<Article>): Pair<List<ArticleAndRender>, List<ArticleAndRender>> {
+
+    val readable = mutableListOf<ArticleAndRender>()
+    val archived = mutableListOf<ArticleAndRender>()
+
+    for (article in articles) {
+
+        val articleAndRender = toArticleAndRender(article)
+
+        if (article.state == "archived")
+            archived.add(articleAndRender)
+        else if (article.state != "deleted")
+            readable.add(articleAndRender)
+    }
+
+    return Pair(readable, archived)
+}
+
 
 fun createLocalHtmlList(context: Context) {
 
@@ -567,22 +630,19 @@ fun createLocalHtmlList(context: Context) {
 
     val allArticles = JsonDb(context).getEverything()
 
-    val articles = allArticles.articles
-
-//    TODO: switch to handlebars since mustache is not evaluating lambdas
-//      or try another mustache implementation: https://github.com/samskivert/jmustache
+    val (readable, archived) = articlesToRender(allArticles.articles)
 
     val data = mapOf(
-
-        "articles" to articles,
+        "readable" to readable,
+        "archived" to archived,
         "namespace" to rootPath,
         "static" to true,
 
-        "isArchived" to { article: Article -> article.state == "archived" },
-        "isReadable" to {
-            article: Article -> (article.state != "archived" && article.state != "deleted")
-                        },
-        "infoForCard" to { article: Article -> generateInfoForCard(article) },
+//        "isArchived" to { article: Article -> article.state == "archived" },
+//        "isReadable" to {
+//            article: Article -> (article.state != "archived" && article.state != "deleted")
+//                        },
+//        "infoForCard" to { article: Article -> generateInfoForCard(article) },
     )
 
     val rendered = renderTemplate(context, "list", data)
@@ -592,7 +652,7 @@ fun createLocalHtmlList(context: Context) {
         file.delete()
     }
 
-    file = appDataDir?.createFile("*/html", "list.html")
+    file = appDataDir?.createFile("text/html", "list.html")
     if (file != null && file.canWrite()) {
         Log.d(LOGTAG, "file.uri = ${file.uri.toString()}")
         if (!writeText(context, file.uri, rendered)) {
@@ -661,8 +721,6 @@ fun readabilityToArticleMeta(readabilityResult: ReadabilityResult, url: String) 
         author = author,
         readTimeMinutes = calcReadingTime(readabilityResult.textContent  ?: error("Empty article text content")),
         publishedDate = date,
-//        html = content,
-//        html = "(saved in readability.html)",
         ingestPlatform = "android",
         ingestDate = nowString,
         ingestSource = "url",
@@ -1043,11 +1101,12 @@ suspend fun scrapeReadabilityAssets(
         val readabilityResult: ReadabilityResult =
             Gson().fromJson(result, ReadabilityResult::class.java)
 
-        val article = readabilityToArticleMeta(readabilityResult, url)
+        var article = readabilityToArticleMeta(readabilityResult, url)
+        article.ingestPlatform = "${article.ingestPlatform} (${getAppVersionInfo(context)})"
 
         try {
 
-            if (app.digitus.savr.data.JsonDb(context).articleInDb(article) != null)
+            if (JsonDb(context).articleInDb(article) != null)
                 throw Exception("Article already exists")
 
             createFileText(
@@ -1058,12 +1117,12 @@ suspend fun scrapeReadabilityAssets(
                 article.slug
             )
 
-            createFileText(
-                context,
-                "readability.html",
-                readabilityResult.content ?: error("Parsed content is empty"),
-                article.slug
-            )
+//            createFileText(
+//                context,
+//                "readability.html",
+//                readabilityResult.content ?: error("Parsed content is empty"),
+//                article.slug
+//            )
 
             val articleDir = appSavesDir?.findFile(article.slug)
 
@@ -1083,17 +1142,14 @@ suspend fun scrapeReadabilityAssets(
 
             createFileText(
                 context,
-                "localRefs.html",
+                "content.html",
                 updatedHtml,
                 article.slug
             )
 
             onProgress(98, "formatting")
 
-//            val html = formatHtmlForLocal(article, article.html)
             val html = renderArticleHtml(context, article, updatedHtml)
-
-//            article.html = "(saved in readability.html)"
 
             JsonDb(context).addArticle(article)
 

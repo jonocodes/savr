@@ -1,4 +1,4 @@
-export type ArticleType = {
+export type Article = {
     slug: string;
     title: string;
     url: string | null;
@@ -13,17 +13,29 @@ export type ArticleType = {
     readTimeMinutes: number | null;
     progress: number;
 };
-  
-  
-  // type ArticleRenderType = {
-  //   link: string;
-  //   thumbnail: string;
-  //   isReadable: boolean;
-  //   isArchived: boolean;
-  //   infoForCard: string;
-  // } & ArticleType
-  
+
+
+// export type ArticleRenderType = {
+//     // link: string;
+//     // thumbnail: string;
+//     // isReadable: boolean;
+//     // isArchived: boolean;
+//     infoForCard: string;
+// } & ArticleType
+
+export type ArticleRenderExtra = {
+    // link: string;
+    // thumbnail: string;
+    // isReadable: boolean;
+    // isArchived: boolean;
+    infoForCard: string;
+}
+
+export type ArticleAndRender = {
+    article: Article,
+    extra: ArticleRenderExtra
+}
   
 export type Articles = {
-    articles: ArticleType[];
+    articles: Article[];
 };

@@ -186,7 +186,7 @@ fun DisplayWebView(article: Article) {
 
     val articleDir = appSavesDir?.findFile(article.slug)
 
-    val contentFile = articleDir?.findFile("localRefs.html")
+    val contentFile = articleDir?.findFile("content.html")
 
     var html = """<h2>Content not found</h2>"""
 

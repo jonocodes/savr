@@ -2,6 +2,7 @@ import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import fetch from "node-fetch";
 import fs from "fs";
+import * as path from 'path';
 import { dirname } from "path";
 import { fileURLToPath } from "url";
 // import Parser from "@postlight/parser";
@@ -11,13 +12,15 @@ import sharp from "sharp";
 import url from "url";
 import { JSONFileSyncPreset } from "lowdb/node";
 import Mustache from "mustache";
-import { Articles, ArticleType } from "./models";
-import Handlebars from "handlebars";
+import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
+// const { version } = require('./package.json')
+import { version } from '../package.json';
+
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const dataDir = process.env.DATA_DIR || process.env.HOME + "/sync/more/savr_data";
+export const dataDir = process.env.DATA_DIR || process.env.HOME + "/sync/savr_data";
 
 const dbFile = dataDir + "/db.json";
 
@@ -28,27 +31,6 @@ type ImageData = [string, string, HTMLImageElement]; // url, path, image
 
 
 const defaultData: Articles = { articles: [] };
-
-
-Handlebars.registerHelper("isArchived", function (article: ArticleType, options) {
-  if (article.state === "archived") {
-      return options.fn(this); // Render the enclosed block if the article's state is "archived"
-  } else {
-      return options.inverse(this); // Render the `else` block if present
-  }
-});
-
-Handlebars.registerHelper("isReadable", function (article: ArticleType, options) {
-  if (article.state != "archived" && article.state != 'deleted') {
-      return options.fn(this);
-  } else {
-      return options.inverse(this);
-  }
-});
-
-Handlebars.registerHelper("infoForCard", function (article: ArticleType) {
-  return generateInfoForCard(article)
-});
 
 
 function extractDomain(url: string): string | null {
@@ -219,7 +201,6 @@ async function createThumbnail(imageData: ImageData[], outputDirPath: string) {
   const maxDimensionThumb = 200;
 
   // Find the largest and squarest image as the thumbnail
-  // let thumbnail: ImageData | null = null;
   let chosenFile: string | null = null;
   let largestArea = 0;
 
@@ -271,6 +252,8 @@ async function createThumbnail(imageData: ImageData[], outputDirPath: string) {
     }
   }
 
+  // TODO: can we use the favicon or something. useful for things like wikipedia
+
   // Create thumbnail
   if (chosenFile === null) return;
 
@@ -304,7 +287,7 @@ export function dirList() {
   return dirs;
 }
 
-export function generateInfoForCard(article: ArticleType): string {
+export function generateInfoForCard(article: Article): string {
 
   var result = ""
 
@@ -332,22 +315,93 @@ export async function articleList() {
   return db.data.articles;
 }
 
+// function extendArticleToRender(article: ArticleType): ArticleRenderType {
+//   const newValues = {
+//     infoForCard: generateInfoForCard(article)
+//   }
+
+//   return {...article, ...newValues}
+// }
+
+
+function toArticleAndRender(article: Article): ArticleAndRender {
+  const newValues: ArticleRenderExtra = {
+    infoForCard: generateInfoForCard(article)
+  }
+
+  return {
+    article: article,
+    extra: newValues
+  }
+}
+
+
+export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
+
+  // const readable: ArticleRenderType[] = []
+  // const archived: ArticleRenderType[] = []
+
+  const readable: ArticleAndRender[] = []
+  const archived: ArticleAndRender[] = []
+
+  for (const article of articles) {
+
+    // const extendedArticle = extendArticleToRender(article)
+    const articleAndRender = toArticleAndRender(article)
+
+    if (article.state === "archived")
+      archived.push(articleAndRender)
+    else if (article.state != "deleted")
+      readable.push(articleAndRender)
+  }
+
+  return [readable, archived]
+
+}
+
 export function renderTemplate(templateName: string, view: object) {
   const mustacheTemplatePath = `${__dirname}/templates/${templateName}.mustache`;
 
   const mustacheTemplate = fs.readFileSync(mustacheTemplatePath, "utf-8");
 
-  const template = Handlebars.compile(mustacheTemplate);
-  return template(view);
+  // const template = Handlebars.compile(mustacheTemplate);
+  // return template(view);
 
-  // return Mustache.render(mustacheTemplate, view);
+  return Mustache.render(mustacheTemplate, view);
 }
 
+/**
+ * Recursively copies all files and directories from the source directory to the destination directory.
+ * @param srcDir - Path to the source directory.
+ * @param destDir - Path to the destination directory.
+ */
+function copyDirectorySync(srcDir: string, destDir: string): void {
+  // Ensure the destination directory exists, creating it if needed
+  if (!fs.existsSync(destDir)) {
+    fs.mkdirSync(destDir, { recursive: true });
+  }
+
+  // Read all entries in the source directory
+  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+
+  for (const entry of entries) {
+    const srcPath = path.join(srcDir, entry.name);
+    const destPath = path.join(destDir, entry.name);
+
+    if (entry.isDirectory()) {
+      // Recursively copy subdirectories
+      copyDirectorySync(srcPath, destPath);
+    } else {
+      // Copy files
+      fs.copyFileSync(srcPath, destPath);
+    }
+  }
+
+  console.log(`All files have been copied from ${srcDir} to ${destDir}`);
+}
 
 function copyStaticFiles() {
-  // TODO: figure out how to make this copy content, instead of symlink
-  if (!fs.existsSync(dataDir + "/static"))
-    fs.cpSync(__dirname + "/static/shared", dataDir + "/static", {recursive: true})
+  copyDirectorySync(__dirname + "/static/shared", dataDir + "/static")
 }
 
 export async function createLocalHtmlList() {
@@ -358,10 +412,12 @@ export async function createLocalHtmlList() {
 
   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const articles = db.data.articles
+  const [readable, archived] = articlesToRender(db.data.articles)
   
   const rendered = renderTemplate("list", {
-    articles: articles,
+    // articles: articles,
+    readable,
+    archived,
     // rootPath: rootPath,
     namespace: rootPath,
     static: true,
@@ -449,13 +505,13 @@ export async function ingest(
     fs.mkdirSync(saveDir, { recursive: true });
   }
 
-  const rawFile = saveDir + "/raw.html";
+  // const rawFile = saveDir + "/raw.html";
 
-  fs.writeFileSync(rawFile, body);
+  // fs.writeFileSync(rawFile, body);
 
   fs.writeFileSync(saveDir + "/readability.json", JSON.stringify(readabilityResult, null, 2));
 
-  fs.writeFileSync(saveDir + "/readability.html", readabilityResult.content);
+  // fs.writeFileSync(saveDir + "/readability.html", readabilityResult.content);
 
   // const postlightResult = await Parser.parse(url, { html: body });
   // fs.writeFileSync(saveDir + "/postlight.json", JSON.stringify(postlightResult, null, 2));
@@ -464,6 +520,8 @@ export async function ingest(
   sendMessage(15, "collecting images");
 
   const content = await processHtmlAndImages(url, readabilityResult.content, saveDir, sendMessage);
+
+  fs.writeFileSync(saveDir + '/content.html', content)
 
   // create a page with the html
 
@@ -480,7 +538,7 @@ export async function ingest(
 
   const author = readabilityResult.byline;
 
-  const formatted = renderTemplate("article", {
+  const rendered = renderTemplate("article", {
     title: readabilityResult.title,
     byline: author,
     published: `<a href=${url}>${domain}</a> &#x2022; ${pubDate?.toDateString()}`,
@@ -489,9 +547,9 @@ export async function ingest(
     // namespace: rootPath,
   });
 
-  fs.writeFileSync(saveDir + "/index.html", formatted);
+  fs.writeFileSync(saveDir + "/index.html", rendered);
 
-  const article: ArticleType = {
+  const article: Article = {
     slug: slug,
     title: readabilityResult.title,
     url: url,
@@ -501,7 +559,7 @@ export async function ingest(
     author: author,
     publishedDate: pubDate?.toISOString(),
     ingestDate: new Date().toISOString(),
-    ingestPlatform: "typescript (version)?",
+    ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: "text/html",
     readTimeMinutes: Math.round(readingStats.minutes),

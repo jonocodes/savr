@@ -33,13 +33,12 @@
             <h2>Saves</h2>
             <div class="savr-list">
 
-                {{#articles}}
-                {{#isReadable}}
+                {{#readable}}
                 <div class="article-card" >
                     <div class="article-card-thumb" >
 
-                        <a href="{{namespace}}/saves/{{slug}}/index.html">
-                            <object data="{{namespace}}/saves/{{slug}}/images/thumbnail.webp" class="thumb">
+                        <a href="{{namespace}}/saves/{{article.slug}}/index.html">
+                            <object data="{{namespace}}/saves/{{article.slug}}/images/thumbnail.webp" class="thumb">
 
                                 {{#static}}
                                 <img src="./static/article_bw.webp" alt="thumbnail">
@@ -53,19 +52,18 @@
 
                     </div>
                     <div class="article-card-content" >
-                        <a href="{{namespace}}/saves/{{slug}}/index.html">{{title}}</a>
-                        <p class="card-info">{{infoForCard}}</p>
+                        <a href="{{namespace}}/saves/{{article.slug}}/index.html">{{article.title}}</a>
+                        <p class="card-info">{{extra.infoForCard}}</p>
 
                         {{^static}}
                         <div class="update-buttons">
-                            <a href="{{namespace}}/setstate/archived/{{slug}}">archive</a> | <a href="{{namespace}}/setstate/deleted/{{slug}}">delete</a>
+                            <a href="{{namespace}}/setstate/archived/{{article.slug}}">archive</a> | <a href="{{namespace}}/setstate/deleted/{{article.slug}}">delete</a>
                         </div>
                         {{/static}}
 
                     </div>
                 </div>
-                {{/isReadable}}
-                {{/articles}}
+                {{/readable}}
 
             </div>
 
@@ -74,13 +72,12 @@
             <h2>Archive</h2>
             <div class="savr-list">
 
-                {{#articles}}
-                {{#isArchived}}
+                {{#archived}}
                 <div class="article-card" >
                     <div class="article-card-thumb" >
 
-                        <a href="{{namespace}}/saves/{{slug}}/index.html">
-                            <object data="{{namespace}}/saves/{{slug}}/images/thumbnail.webp" class="thumb">
+                        <a href="{{namespace}}/saves/{{article.slug}}/index.html">
+                            <object data="{{namespace}}/saves/{{article.slug}}/images/thumbnail.webp" class="thumb">
                                 {{#static}}
                                 <img src="./static/article_bw.webp" alt="thumbnail">
                                 {{/static}}
@@ -92,19 +89,18 @@
 
                     </div>
                     <div class="article-card-content" >
-                        <a href="{{namespace}}/saves/{{slug}}/index.html">{{title}}</a>
-                        <p class="card-info">{{infoForCard}}</p>
+                        <a href="{{namespace}}/saves/{{article.slug}}/index.html">{{article.title}}</a>
+                        <p class="card-info">{{extra.infoForCard}}</p>
 
                         {{^static}}
                         <div class="update-buttons">
-                            <a href="{{namespace}}/setstate/unread/{{slug}}">unarchive</a> | <a href="{{namespace}}/setstate/deleted/{{slug}}">delete</a>
+                            <a href="{{namespace}}/setstate/unread/{{article.slug}}">unarchive</a> | <a href="{{namespace}}/setstate/deleted/{{article.slug}}">delete</a>
                         </div>
                         {{/static}}
 
                     </div>
                 </div>
-                {{/isArchived}}
-                {{/articles}}
+                {{/archived}}
 
             </div>
         </div>

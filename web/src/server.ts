@@ -4,7 +4,7 @@ import path from "path";
 import { join } from "path";
 import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
-import { ingest, articleList, renderTemplate, setState, generateInfoForCard } from "./lib";
+import { ingest, articleList, renderTemplate, setState, generateInfoForCard, articlesToRender, dataDir } from "./lib";
 import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
 import cors from "@fastify/cors";
@@ -27,7 +27,7 @@ const server = Fastify({
   logger: true,
 });
 
-const dataDir = process.env.SAVR_DATA || process.env.HOME + "/sync/more/savr_data";
+// const dataDir = process.env.SAVR_DATA || process.env.HOME + "/sync/more/savr_data";
 
 const savesDir = join(dataDir, "/saves");
 
@@ -83,28 +83,18 @@ server.register(
       }
 
       const articles = await articleList();
-      // articles.reverse()
 
       const rootPath = namespace
 
-      // const saves = articlesToRender(articles, rootPath, false)
-      const saves = articles
+      const [readable, archived] = articlesToRender(articles)
 
       try {
         const rendered = renderTemplate("list", {
-          articles: saves,
+          readable, 
+          archived,
           // rootPath: rootPath,
           namespace: namespace,
           static: false,
-          // isArchived: function() {
-          //   return this.state == "archived"
-          // },
-          // isReadable: function() {
-          //   return this.state != "archived" && this.state != "deleted"
-          // },
-          // infoForCard: function() {
-          //   return generateInfoForCard(this)
-          // }
         });
 
         reply.type("text/html").send(rendered);
