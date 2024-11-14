@@ -13,7 +13,6 @@ import url from "url";
 import { JSONFileSyncPreset } from "lowdb/node";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
-// const { version } = require('./package.json')
 import { version } from '../package.json';
 
 
@@ -338,15 +337,11 @@ function toArticleAndRender(article: Article): ArticleAndRender {
 
 export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
 
-  // const readable: ArticleRenderType[] = []
-  // const archived: ArticleRenderType[] = []
-
   const readable: ArticleAndRender[] = []
   const archived: ArticleAndRender[] = []
 
   for (const article of articles) {
 
-    // const extendedArticle = extendArticleToRender(article)
     const articleAndRender = toArticleAndRender(article)
 
     if (article.state === "archived")
@@ -415,21 +410,11 @@ export async function createLocalHtmlList() {
   const [readable, archived] = articlesToRender(db.data.articles)
   
   const rendered = renderTemplate("list", {
-    // articles: articles,
     readable,
     archived,
     // rootPath: rootPath,
     namespace: rootPath,
     static: true,
-    // isArchived: function() {
-    //   return this.state == "archived"
-    // },
-    // isReadable: function() {
-    //   return this.state != "archived" && this.state != "deleted"
-    // },
-    // infoForCard: function() {
-    //   return generateInfoForCard(this)
-    // }
   });
 
   fs.writeFileSync(htmlOutfile, rendered);
@@ -449,7 +434,8 @@ export async function setState(slug: string, state: string) {
 
   await db.write();
 
-  // TODO: delete files if status set to "deleted"
+  if (state == 'deleted')
+    fs.rmdirSync(savesDir + "/" + slug, { recursive: true })
 
   await createLocalHtmlList();
 

@@ -1101,6 +1101,8 @@ suspend fun scrapeReadabilityAssets(
         val readabilityResult: ReadabilityResult =
             Gson().fromJson(result, ReadabilityResult::class.java)
 
+        readabilityResult.content ?: error("Parsed content is empty")
+
         var article = readabilityToArticleMeta(readabilityResult, url)
         article.ingestPlatform = "${article.ingestPlatform} (${getAppVersionInfo(context)})"
 
