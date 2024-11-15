@@ -71,6 +71,7 @@ import app.digitus.savr.utils.readTextFromUri
 import app.digitus.savr.utils.renderArticleHtml
 import app.digitus.savr.utils.shareArticle
 import app.digitus.savr.utils.unarchiveArticle
+import org.jsoup.Jsoup
 
 
 var pageWebView : WebView? = null   // TODO: dont use global (memory leak?)
@@ -95,6 +96,19 @@ fun ArticleScreen(
             }
         },
     )
+}
+
+
+fun extractElementContent(htmlContent: String, elementId: String): String? {
+    // Parse the HTML file
+
+    val document = Jsoup.parse(htmlContent, "UTF-8")
+
+    // Select the element by ID
+    val element = document.getElementById(elementId)
+
+    // Return the content as a string or null if the element is not found
+    return element?.html()
 }
 
 
@@ -186,13 +200,28 @@ fun DisplayWebView(article: Article) {
 
     val articleDir = appSavesDir?.findFile(article.slug)
 
-    val contentFile = articleDir?.findFile("content.html")
+    var html = """<h2>Content File not found</h2>"""
 
-    var html = """<h2>Content not found</h2>"""
+//    val contentFile = articleDir?.findFile("content.html")
+//
+////    TODO: extract content from index.html instead of content.html
+//    //  and explain why we are doing that
+
+
+
+    val contentFile = articleDir?.findFile("index.html")
 
     if (contentFile != null) {
         html = readTextFromUri(context, contentFile.uri)
     }
+
+    val document = Jsoup.parse(html, "UTF-8")
+
+    // Select the element by ID
+    val element = document.getElementById("readability-page-1")
+
+    // Return the content as a string or null if the element is not found
+    html = element?.html() ?: """<h2>Content ID not found</h2>"""
 
     val chosenTheme = getChosenTheme(context)
 

@@ -287,108 +287,6 @@ fun readTextFromUri(context: Context, uri: Uri): String {
     return stringBuilder.toString()
 }
 
-//
-//fun formatHtmlRoot(article: Article, html: String?): String {
-//
-//    var byline = ""
-//
-//    if (article.author != null) {
-//        byline = """<div id="savr-byline">${article.author}</div>"""
-//    }
-//
-//    return """
-//          <div id="savr-root">
-//            <div id="savr-metadata">
-//                <h1 id="savr-title">${article.title}</h1>
-//                ${byline}
-//                <div id="savr-published">${article.domain()} • ${article.publishedDateReadable() ?: ""}</div>
-//                <div id="savr-readTime">${article.readTimeMinutes} minute read</div>
-//            </div>
-//            <hr />
-//            ${html}
-//          </div>
-//      """
-//}
-//
-//
-//fun formatHtmlRootCompressed(article: Article, html: String?): String {
-//
-//    var metaSubhead = """<a href="${article.url}">${article.domain()}</a> • ${article.readTimeMinutes} min"""
-//
-//    if (article.author != null) {
-//        metaSubhead = "By <b>${article.author}</b> • $metaSubhead"
-//    }
-//    metaSubhead = """<div id="savr-published">$metaSubhead</div>"""
-//
-//    var metaDate = ""
-//
-//    var renderedDate = article.publishedDateReadable()
-//    if (renderedDate != null) {
-//        metaDate = """<div id="savr-readTime">$renderedDate</div>"""
-//    }
-//
-//    return """
-//          <div id="savr-root">
-//            <div id="savr-metadata">
-//                    <h1 id="savr-title">${article.title}</h1>
-//                    ${metaSubhead}
-//                    ${metaDate}
-//            </div>
-//            <hr />
-//            ${html}
-//          </div>
-//      """
-//}
-
-
-//
-//fun formatHtmlForLocal(article: Article, html: String?): String {
-//
-//    val formatted = """
-//      <!DOCTYPE html>
-//      <head>
-//       <title>
-//          Savr - ${article.title}
-//       </title>
-//       <meta content="text/html; charset=UTF-8" http-equiv="content-type">
-//       <link rel="stylesheet" href="../local.css">
-//
-//       <!--
-//        savr metadata
-//            download platform: android
-//            parser: readability
-//       -->
-//
-//       </head>
-//
-//       <body>
-//       ${formatHtmlRootCompressed(article, html)}
-//       </body></html>
-//      """
-//
-//    return formatted
-//}
-//
-//
-//fun formatHtmlAndroid(article: Article, html: String?, fontSize: Int, theme: String = "light"): String {
-//
-//    return """
-//      <!DOCTYPE html>
-//      <head>
-//        <meta content="text/html; charset=UTF-8" http-equiv="content-type">
-//        <link rel="stylesheet" href="file:///android_asset/android.css">
-//        <link rel="stylesheet" href="file:///android_asset/${theme}.css">
-//        <style>
-//            #savr-root { font-size: ${fontSize}px; }
-//        </style>
-//      </head>
-//
-//      <body>
-//      ${formatHtmlRootCompressed(article, html)}
-//      </body></html>
-//      """
-//}
-
 
 fun renderTemplate(context: Context, templateName: String, data: Map<String, Any?>): String {
 
@@ -425,14 +323,6 @@ fun extractDomain(url: String?): String? {
 
 fun renderArticleHtml(context: Context, article: Article, content: String?, fontSize: Int? = null, theme: String = "light"): String {
 
-    //fun formatHtmlAndroid(article: Article, html: String?, fontSize: Int, theme: String = "light"): String {
-//
-    //        <link rel="stylesheet" href="file:///android_asset/android.css">
-//        <link rel="stylesheet" href="file:///android_asset/${theme}.css">
-//        <style>
-//            #savr-root { font-size: ${fontSize}px; }
-//        </style>
-
     var head = ""
 
     if (fontSize != null) {
@@ -460,6 +350,7 @@ fun renderArticleHtml(context: Context, article: Article, content: String?, font
         "state" to article.state,
         "content" to content,
         "head" to head,
+        "metadata" to "ingestPlatform: ${getAppVersionInfo(context)}",
 
         "published" to "<a href=${article.url}>${domain}</a> &#x2022; ${pubDate}",
         "readTime" to "${article.readTimeMinutes} minute read",
@@ -515,33 +406,6 @@ fun copyStaticFiles(context: Context) {
     copyAssetsDirectory(context, "shared/static", targetDir)
 
 }
-
-//fun copyFile(context: Context, sourceUri: Uri, targetUri: Uri) {
-//    try {
-//        // Open input stream to read from the source URI
-//        val inputStream: InputStream? = context.contentResolver.openInputStream(sourceUri)
-//        // Open output stream to write to the target URI
-//        val outputStream: OutputStream? = context.contentResolver.openOutputStream(targetUri)
-//
-//        if (inputStream != null && outputStream != null) {
-//            // Buffer for efficient copying
-//            val buffer = ByteArray(1024)
-//            var bytesRead: Int
-//
-//            // Read from input and write to output
-//            while (inputStream.read(buffer).also { bytesRead = it } != -1) {
-//                outputStream.write(buffer, 0, bytesRead)
-//            }
-//
-//            // Close the streams
-//            inputStream.close()
-//            outputStream.close()
-//        }
-//    } catch (e: Exception) {
-//        e.printStackTrace()
-//        // Handle error if needed
-//    }
-//}
 
 fun getMimeTypeFromFilename(fileName: String): String {
     // Extract the file extension
@@ -637,12 +501,7 @@ fun createLocalHtmlList(context: Context) {
         "archived" to archived,
         "namespace" to rootPath,
         "static" to true,
-
-//        "isArchived" to { article: Article -> article.state == "archived" },
-//        "isReadable" to {
-//            article: Article -> (article.state != "archived" && article.state != "deleted")
-//                        },
-//        "infoForCard" to { article: Article -> generateInfoForCard(article) },
+        "metadata" to "ingestPlatform: ${getAppVersionInfo(context)}",
     )
 
     val rendered = renderTemplate(context, "list", data)
@@ -1142,12 +1001,12 @@ suspend fun scrapeReadabilityAssets(
                 readabilityResult.content, imagesDir.uri, onProgress
             )
 
-            createFileText(
-                context,
-                "content.html",
-                updatedHtml,
-                article.slug
-            )
+//            createFileText(
+//                context,
+//                "content.html",
+//                updatedHtml,
+//                article.slug
+//            )
 
             onProgress(98, "formatting")
 
@@ -1165,14 +1024,6 @@ suspend fun scrapeReadabilityAssets(
                 Toast.LENGTH_LONG
             ).show()
 
-//        } catch (e: ScrapeException) {
-//            Log.e(LOGTAG, e.toString())
-//            Log.e(LOGTAG, e.stackTraceToString())
-//            Toast.makeText(
-//                context,
-//                "Error saving article: ${e.message}",
-//                Toast.LENGTH_LONG
-//            ).show()
         } catch (e: Exception) {
             Log.e(LOGTAG, e.toString())
             Log.e(LOGTAG, e.stackTraceToString())

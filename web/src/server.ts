@@ -9,6 +9,7 @@ import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import { version } from '../package.json';
 
 // Get the current directory path in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -95,6 +96,7 @@ server.register(
           // rootPath: rootPath,
           namespace: namespace,
           static: false,
+          metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
         });
 
         reply.type("text/html").send(rendered);

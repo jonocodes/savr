@@ -36,12 +36,12 @@ Basic features have been implemented, but I would consider this in a beta stage.
 
 Since this is pre-release software, I have not put it in any app store. For now you can do one of the following:
 
-- [Install the APK directly from the relases page](https://github.com/jonocodes/savr/releases/latest).
 - Use [Obtanium](https://obtainium.imranr.dev/) with the source URL: https://github.com/jonocodes/savr
+- [Install the APK directly from the releases page](https://github.com/jonocodes/savr/releases/latest).
 
 ## Development
 
-Uses Kotlin and depends heavily on the Storage Access Framework and Android WebView.
+The [android app](./android/) uses Kotlin and depends heavily on the Storage Access Framework and Android WebView.
 
 Build and debug using Andoid Studio.
 
@@ -51,14 +51,16 @@ More details TBD...
 # Desktop
 
 
-There currently is no desktop specific application. However the web app is intended for running locally to serve your desktop needs.
-
-It is a simple site designed to render well on small screens and text browsers.
+There currently is no desktop specific application. However the web app is intended for running locally to serve your desktop needs. It is a simple site designed to render well on small screens and text browsers.
 
 
 # Web
 
-<div style="text-align:center"><img src="./screenshots/web.png" /></div>
+<div align="center" width="100%">
+
+![web](./screenshots/web.png)
+
+</div>
 
 ## Use
 
@@ -69,14 +71,14 @@ To manually ingest an article enter the URL at the top of the page. If you want 
 
 ## Configuration
 
-env vars ...
+Set your local environment variable 'DATA_DIR' to be pointing an existing directory where you want Savr to store the database and content.
 
 ## Development
 
 ```bash
 cd web
 npm install
-npm run web:dev
+DATA_DIR=$HOME/savrdata npm run web:dev
 ```
 
 ...
@@ -172,7 +174,7 @@ savr ingest <url>
 
 # TUI
 
-<div style="text-align:center; width:100%">
+<div align="center" width="100%">
 
 ![TUI](./screenshots/tui.png)
 
@@ -197,12 +199,11 @@ If you know exactly how you want to browse, you can skip the TUI command. For ex
 
     browsh http://localhost:8080/savr
 
-<div style="text-align:center" width="100%">
+<div align="center" width="100%">
 
 ![Browsh](./screenshots/browsh.png)
 
 </div>
-
 
 
 # Offline Use
@@ -211,11 +212,11 @@ The Savr apps do not need an internet connection to read content, since it has a
 
 Just open ${DATA_DIR}/list.html in a web browser.
 
+<div align="center" width="100%">
 
-<p align="center" width="100%">
-<img src="./screenshots/offline.png" />
-</p>
+![offline](./screenshots/offline.png)
 
+</div>
 
 Of course you wont be able to modify your collection when the app is not running. Have a look at your data directory. It is simply organized so you can copy out single articles if needed.
 

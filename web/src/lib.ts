@@ -19,7 +19,14 @@ import { version } from '../package.json';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-export const dataDir = process.env.DATA_DIR || process.env.HOME + "/sync/savr_data";
+export const dataDir = process.env.DATA_DIR
+
+if (dataDir === undefined)
+  throw new Error("DATA_DIR env var not set")
+
+if (!fs.existsSync(dataDir)) {
+  throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
+}
 
 const dbFile = dataDir + "/db.json";
 
@@ -415,6 +422,7 @@ export async function createLocalHtmlList() {
     // rootPath: rootPath,
     namespace: rootPath,
     static: true,
+    metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
   });
 
   fs.writeFileSync(htmlOutfile, rendered);
@@ -507,7 +515,7 @@ export async function ingest(
 
   const content = await processHtmlAndImages(url, readabilityResult.content, saveDir, sendMessage);
 
-  fs.writeFileSync(saveDir + '/content.html', content)
+  // fs.writeFileSync(saveDir + '/content.html', content)
 
   // create a page with the html
 
@@ -530,6 +538,7 @@ export async function ingest(
     published: `<a href=${url}>${domain}</a> &#x2022; ${pubDate?.toDateString()}`,
     readTime: `${Math.round(readingStats.minutes)} minute read`,
     content: content,
+    metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
     // namespace: rootPath,
   });
 
