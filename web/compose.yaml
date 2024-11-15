@@ -1,0 +1,9 @@
+services:
+  server:
+    build:
+      context: .
+    environment:
+      NODE_ENV: production
+      DATA_DIR: set_this_value
+    ports:
+      - 8080:8080

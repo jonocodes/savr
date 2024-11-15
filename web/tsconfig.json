@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "outDir": "./dist", // Output directory for compiled files
+    // "rootDir": "./src", // Maintain source structure
+    "baseUrl": "./src", // Optional, for module resolution relative to src
     "module": "ESNext",
     "target": "ES2020",
     "declaration": true, // Generates .d.ts files for type definitions
@@ -9,10 +11,13 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
-    "sourceMap": true
+    "sourceMap": true,
+    "resolveJsonModule": true
   },
   "include": [
-    "bin/**/*.ts"
+    "**/*.ts",
+    // "**/*.js",
+    // "**/static"
   ], //"lib/index.cjs" Specify the source directory
   "exclude": [
     "node_modules",

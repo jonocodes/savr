@@ -31,11 +31,11 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.6.3"
   },
-  "name": "savr-lib-typescript",
+  "name": "savr",
   "version": "0.2.0",
-  "description": "Shared functions for savr",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "description": "Savr server, cli, and lib",
+  "main": "dist/src/cli.js",
+  "types": "dist/src/cli.d.ts",
   "type": "module",
   "bin": {
     "savr": "lib/cli.ts"
@@ -43,13 +43,11 @@
   "scripts": {
     "test": "jest",
     "build": "tsc -p tsconfig.json",
-    "watch": "tsc --watch",
     "ingestSample": "tsx ./src/cli.ts https://www.apalrd.net/posts/2023/network_ipv6/",
-    "serve": "node dist/index.js",
-    "dev0": "tsx watch -r tsconfig-paths/register src/server.ts",
     "web": "tsx ./src/cli.ts --start-server",
     "web:dev": "tsx watch -r tsconfig-paths/register ./src/cli.ts --start-server",
     "ui": "tsx ./src/cli.ts --ui",
+    "cli": "tsx ./src/cli.ts",
     "clean": "rm -rf node_modules dist"
   },
   "author": "Jono",

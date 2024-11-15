@@ -4,12 +4,20 @@ import path from "path";
 import { join } from "path";
 import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
-import { ingest, articleList, renderTemplate, setState, generateInfoForCard, articlesToRender, dataDir } from "./lib";
+import {
+  ingest,
+  articleList,
+  renderTemplate,
+  setState,
+  generateInfoForCard,
+  articlesToRender,
+  dataDir,
+} from "./lib";
 import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
-import { version } from '../package.json';
+import { version } from "../package.json" with { type: "json" };
 
 // Get the current directory path in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -20,8 +28,8 @@ interface IIngestQuerystring {
 }
 
 interface IStathChangePathstring {
-  state: string,
-  slug: string,
+  state: string;
+  slug: string;
 }
 
 const server = Fastify({
@@ -29,6 +37,8 @@ const server = Fastify({
 });
 
 // const dataDir = process.env.SAVR_DATA || process.env.HOME + "/sync/more/savr_data";
+
+if (dataDir === undefined) throw new Error("DATA_DIR env var not set");
 
 const savesDir = join(dataDir, "/saves");
 
@@ -60,21 +70,21 @@ server.register(FastifySSEPlugin);
 
 server.register(
   function (app, _, done) {
+    app.get<{ Params: IStathChangePathstring }>(
+      "/setstate/:state/:slug",
+      async (request, reply) => {
+        const { state, slug } = request.params;
 
-    app.get<{ Params: IStathChangePathstring }>("/setstate/:state/:slug", async (request, reply) => {
+        // TODO: validate state and show error
 
-      const { state, slug } = request.params;
+        await setState(slug, state);
 
-      // TODO: validate state and show error
-
-      await setState(slug, state)
-
-      reply.redirect(namespace);
-      return;
-    });
+        reply.redirect(namespace);
+        return;
+      }
+    );
 
     app.get("/", async (request, reply) => {
-
       // if url does not end with slash, redirect so it does
       //   this is only needed to help resolve a local css file
 
@@ -85,18 +95,18 @@ server.register(
 
       const articles = await articleList();
 
-      const rootPath = namespace
+      const rootPath = namespace;
 
-      const [readable, archived] = articlesToRender(articles)
+      const [readable, archived] = articlesToRender(articles);
 
       try {
         const rendered = renderTemplate("list", {
-          readable, 
+          readable,
           archived,
           // rootPath: rootPath,
           namespace: namespace,
           static: false,
-          metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+          metadata: JSON.stringify({ ingestPlatform: version }, null, 2),
         });
 
         reply.type("text/html").send(rendered);
@@ -153,9 +163,7 @@ if (namespace != "")
     // return reply.view("index", { dirs: dirList(), namespace });
   });
 
-
 export async function startServer() {
-
   server.listen({ port: 8080 }, (err, address) => {
     // TODO: make address configurable
     if (err) {
@@ -165,5 +173,4 @@ export async function startServer() {
     }
     console.log(`Savr service running at ${address}${namespace}`);
   });
-
 }

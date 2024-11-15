@@ -13,11 +13,13 @@ import url from "url";
 import { JSONFileSyncPreset } from "lowdb/node";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
-import { version } from '../package.json';
+import { version } from '../package.json' with { type: "json" };
 
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+// export version
 
 export const dataDir = process.env.DATA_DIR
 
