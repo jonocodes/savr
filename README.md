@@ -66,7 +66,7 @@ There currently is no desktop specific application. However the web app is inten
 
 The [web](./web/) project provides a local web app that can be used to save, read, and administer your articles. By default it runs at: http://localhost:8080/savr
 
-To manually ingest an article enter the URL at the top of the page. If you want something less manual, use the bookmarklet.
+To manually ingest an article enter the URL at the top of the page. If you want something less manual, use the [bookmarklet](#bookmarklet).
 
 
 ## Configuration
@@ -75,13 +75,14 @@ Set your local environment variable 'DATA_DIR' to be pointing an existing direct
 
 ## Development
 
+Here is how you may bring up the server locally.
+
 ```bash
 cd web
 npm install
+mkdir $HOME/savrdata
 DATA_DIR=$HOME/savrdata npm run web:dev
 ```
-
-...
 
 
 ## Security
