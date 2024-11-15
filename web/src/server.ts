@@ -47,7 +47,12 @@ const namespace: string = "/savr"; // TODO: make configurable
 
 await server.register(cors, {
   origin: "*",
-});
+}).then(text => {
+  console.log(text);
+})
+// .catch(err => {
+//   // Deal with the fact the chain failed
+// });
 
 server.register(helmet, {
   contentSecurityPolicy: false,

@@ -1,7 +1,8 @@
 services:
   server:
     build:
-      context: .
+      context: ../
+      dockerfile: web/Dockerfile
     environment:
       NODE_ENV: production
       DATA_DIR: set_this_value
