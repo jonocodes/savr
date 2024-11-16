@@ -26,11 +26,9 @@ Use something like [Nextcloud](https://nextcloud.com/) for a centralized option 
 
 Basic features have been implemented, but I would consider this in a beta stage. While in the 0.x version number range, features will be stabilizing, along with the API contract and database schema.
 
-
 # Android
 
 ![screenshot](./screenshots/screenshots.png)
-
 
 ## Installation
 
@@ -47,12 +45,9 @@ Build and debug using Andoid Studio.
 
 More details TBD...
 
-
 # Desktop
 
-
 There currently is no desktop specific application. However the web app is intended for running locally to serve your desktop needs. It is a simple site designed to render well on small screens and text browsers.
-
 
 # Web
 
@@ -68,7 +63,6 @@ The [web](./web/) project provides a local web app that can be used to save, rea
 
 To manually ingest an article enter the URL at the top of the page. If you want something less manual, use the [bookmarklet](#bookmarklet).
 
-
 ## Configuration
 
 Set your local environment variable 'DATA_DIR' to be pointing an existing directory where you want Savr to store the database and content.
@@ -78,12 +72,25 @@ Set your local environment variable 'DATA_DIR' to be pointing an existing direct
 Here is how you may bring up the server locally.
 
 ```bash
+DATA_DIR=$HOME/savrdata  # or choose a different data location
+mkdir $DATA_DIR
+
 cd web
 npm install
-mkdir $HOME/savrdata
-DATA_DIR=$HOME/savrdata npm run web:dev
+npm run web:dev
 ```
 
+## Production
+
+For now the simplest way to use the web project as a long running backend service is with docker.
+
+```bash
+DATA_DIR=$HOME/savrdata
+mkdir $DATA_DIR
+
+cd web
+docker compose up -d
+```
 
 ## Security
 
@@ -109,7 +116,6 @@ This is mostly a feature to deter port scanners, so use at your own risk.
 
 You can put this behind a [reverse proxy](https://fastify.dev/docs/latest/Guides/Recommendations/) with an SSL certificate.
 
-
 ## Topologies
 
 Here are some suggestions of how you may want to run your service. The following presumes you support a single user with multiple devices, and you want the same content on all devices.
@@ -132,7 +138,6 @@ If you want to access it outside your network ...
 
 TBD
 
-
 # Bookmarklet
 
 <div align="center" width="100%">
@@ -140,7 +145,6 @@ TBD
 ![bookmarklet](./screenshots/bookmarklet.png)
 
 </div>
-
 
 There are several ways of creating a button in your browser to save the article you currently have open.
 
@@ -154,11 +158,9 @@ const hosts = ["http://localhost:8080/savr"];
 
 Edit that variable as needed to make sure that it is pointing to the URL of your running web app/service.
 
-
 ## Development
 
 http://[::1]:8080/savr/static/demo.html
-
 
 # CLI
 
@@ -172,7 +174,6 @@ tsx ./src/cli.ts <url>
 savr ingest <url>
 ```
 
-
 # TUI
 
 <div align="center" width="100%">
@@ -183,9 +184,7 @@ savr ingest <url>
 
 Since the web service is run to render well in text browsers the TUI command is mostly a wrapper to your locally installed browser app...
 
-
 savr gui --browser=firefox # defaults to lynx
-
 
 SAVR_SERVICE=http://localhost..., ... , ...
 SAVR_DATA=/home/...
@@ -194,7 +193,6 @@ first see if SERVICE is set
 then see if DATA is set
 
 more info TBD
-
 
 If you know exactly how you want to browse, you can skip the TUI command. For example:
 
@@ -205,7 +203,6 @@ If you know exactly how you want to browse, you can skip the TUI command. For ex
 ![Browsh](./screenshots/browsh.png)
 
 </div>
-
 
 # Offline Use
 
@@ -220,7 +217,6 @@ Just open ${DATA_DIR}/list.html in a web browser.
 </div>
 
 Of course you wont be able to modify your collection when the app is not running. Have a look at your data directory. It is simply organized so you can copy out single articles if needed.
-
 
 # FAQ
 

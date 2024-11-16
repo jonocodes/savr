@@ -29,6 +29,7 @@
             {{^static}}
             <div id="add-url">
                 <form id="url-form" action="">
+                <!-- <form id="url-form" action="{{{namespace}}}/save" method="GET"> -->
                     <input id="url" name="url" size="40">
                     <input type="submit" name="submit" value="Add URL">
                 </form>
@@ -111,6 +112,12 @@
 
             </div>
         </div>
+
+        {{^static}}
+        <p style="text-align:center">
+            <a href="about">About</a>
+        </p>
+        {{/static}}
         
     </body>
 
@@ -120,8 +127,10 @@
             const url = document.getElementById("url").value;
 
             if (typeof savr !== 'undefined' && typeof savr.startSSE === 'function') {
-                savr.startSSE('.', url);
-                // TODO: reload the page here to show the new article
+                savr.startSSE('.', url, function(){
+                    console.log("ingest done")
+                    window.location.reload()
+                });
             } else {
                 alert('Error: startSSE function not found in loaded script');
             }

@@ -1,7 +1,7 @@
 import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import fetch from "node-fetch";
-import fs from "fs";
+import fs, { Dirent } from "fs";
 import * as path from 'path';
 import { dirname } from "path";
 import { fileURLToPath } from "url";
@@ -14,6 +14,7 @@ import { JSONFileSyncPreset } from "lowdb/node";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
+import { assert } from "console";
 
 
 const __filename = fileURLToPath(import.meta.url);
@@ -286,6 +287,141 @@ export function pingLib() {
   return "pongLib";
 }
 
+
+/**
+ * Recursively calculates the size of a directory using a callback-based approach.
+ * @param dirPath - The path of the directory.
+ * @param callback - Callback to handle the result or error.
+ */
+function getDirectorySize(
+  dirPath: string,
+  callback: (err: NodeJS.ErrnoException | null, size?: number) => void
+): void {
+  let totalSize = 0;
+
+  fs.readdir(dirPath, { withFileTypes: true }, (err, entries) => {
+    if (err) {
+      return callback(err);
+    }
+
+    if (!entries) {
+      return callback(null, totalSize);
+    }
+
+    let pending = entries.length;
+    if (pending === 0) {
+      return callback(null, totalSize);
+    }
+
+    for (const entry of entries as Dirent[]) {
+      const fullPath = path.join(dirPath, entry.name);
+
+      if (entry.isDirectory()) {
+        getDirectorySize(fullPath, (err, size) => {
+          if (err) {
+            return callback(err);
+          }
+          totalSize += size || 0;
+          if (--pending === 0) {
+            callback(null, totalSize);
+          }
+        });
+      } else if (entry.isFile()) {
+        fs.stat(fullPath, (err, stats) => {
+          if (err) {
+            return callback(err);
+          }
+          totalSize += stats.size;
+          if (--pending === 0) {
+            callback(null, totalSize);
+          }
+        });
+      } else {
+        if (--pending === 0) {
+          callback(null, totalSize);
+        }
+      }
+    }
+  });
+}
+
+/**
+ * Converts bytes to a human-readable format.
+ * @param bytes - The size in bytes.
+ * @returns The size in a readable format.
+ */
+function humanReadableSize(bytes: number): string {
+  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let index = 0;
+  while (bytes >= 1024 && index < units.length - 1) {
+    bytes /= 1024;
+    index++;
+  }
+  return `${bytes.toFixed(2)} ${units[index]}`;
+}
+
+/**
+ * Promisifies the `getDirectorySize` function for use with `async/await`.
+ * @param dirPath - The path of the directory.
+ * @returns A Promise resolving to the directory size.
+ */
+function getDirectorySizeAsync(dirPath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    getDirectorySize(dirPath, (err, size) => {
+      if (err) {
+        return reject(err);
+      }
+      resolve(size || 0);
+    });
+  });
+}
+
+// Main function using async/await
+async function main(): Promise<void> {
+  const directoryPath = './your-directory-path-here'; // Replace with your directory path
+  try {
+    const sizeInBytes = await getDirectorySizeAsync(directoryPath);
+    console.log(`Directory size: ${humanReadableSize(sizeInBytes)}`);
+  } catch (err) {
+    console.error('Error calculating directory size:', err);
+  }
+}
+
+
+export async function systemInfo() {
+
+  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+
+  const sizeInBytes = await getDirectorySizeAsync(dataDir ?? "notfound");
+  console.log(`Directory size: ${humanReadableSize(sizeInBytes)}`);
+
+  const statusCounts: Record<string, number> = {};
+
+  for (const article of db.data.articles) {
+    const { state } = article;
+    statusCounts[state] = (statusCounts[state] || 0) + 1;
+  }
+
+  const data = {
+    version,
+    size: humanReadableSize(sizeInBytes),
+    articles: statusCounts,
+  }
+
+  return data
+}
+
+export async function renderSystemInfo() {
+
+  const info = await systemInfo()
+
+  const view = {
+    content: JSON.stringify(info, null, 2)
+  }
+
+  return renderTemplate("about", view)
+}
+
 export function dirList() {
   const dirs = fs
     .readdirSync(savesDir, { withFileTypes: true })
@@ -323,15 +459,6 @@ export async function articleList() {
   return db.data.articles;
 }
 
-// function extendArticleToRender(article: ArticleType): ArticleRenderType {
-//   const newValues = {
-//     infoForCard: generateInfoForCard(article)
-//   }
-
-//   return {...article, ...newValues}
-// }
-
-
 function toArticleAndRender(article: Article): ArticleAndRender {
   const newValues: ArticleRenderExtra = {
     infoForCard: generateInfoForCard(article)
@@ -368,9 +495,6 @@ export function renderTemplate(templateName: string, view: object) {
 
   const mustacheTemplate = fs.readFileSync(mustacheTemplatePath, "utf-8");
 
-  // const template = Handlebars.compile(mustacheTemplate);
-  // return template(view);
-
   return Mustache.render(mustacheTemplate, view);
 }
 
@@ -385,7 +509,6 @@ function copyDirectorySync(srcDir: string, destDir: string): void {
     fs.mkdirSync(destDir, { recursive: true });
   }
 
-  // Read all entries in the source directory
   const entries = fs.readdirSync(srcDir, { withFileTypes: true });
 
   for (const entry of entries) {
@@ -393,10 +516,8 @@ function copyDirectorySync(srcDir: string, destDir: string): void {
     const destPath = path.join(destDir, entry.name);
 
     if (entry.isDirectory()) {
-      // Recursively copy subdirectories
       copyDirectorySync(srcPath, destPath);
     } else {
-      // Copy files
       fs.copyFileSync(srcPath, destPath);
     }
   }

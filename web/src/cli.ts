@@ -22,8 +22,15 @@ if (args.includes('--start-server')) {
 
   const url = "http://localhost:8080/savr"
 
+  // SAVR_DATA=/home/...
+  // SAVR_SERVICE=http://localhost...
+  // browsh # headless firefox, shows images
+  // carbonyl # headless chrome, shows images
+  // lynx
+  // links2
+
   const lynxProcess = spawn('lynx', [url], {
-    stdio: 'inherit'  // This attaches Lynx’s input/output to the main process
+    stdio: 'inherit'
   });
 
   lynxProcess.on('error', (error) => {

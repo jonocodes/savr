@@ -9,9 +9,10 @@ import {
   articleList,
   renderTemplate,
   setState,
-  generateInfoForCard,
   articlesToRender,
   dataDir,
+  systemInfo,
+  renderSystemInfo,
 } from "./lib";
 import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
@@ -47,12 +48,7 @@ const namespace: string = "/savr"; // TODO: make configurable
 
 await server.register(cors, {
   origin: "*",
-}).then(text => {
-  console.log(text);
 })
-// .catch(err => {
-//   // Deal with the fact the chain failed
-// });
 
 server.register(helmet, {
   contentSecurityPolicy: false,
@@ -88,6 +84,14 @@ server.register(
         return;
       }
     );
+
+
+    app.get("/about", async (request, reply) => {
+
+      const rendered = await renderSystemInfo()
+      reply.type("text/html").send(rendered);
+
+    });
 
     app.get("/", async (request, reply) => {
       // if url does not end with slash, redirect so it does
@@ -164,12 +168,12 @@ server.register(
 
 if (namespace != "")
   server.get("/", async (request, reply) => {
+    // TODO: use this endpoint for the docker healtcheck
     return "savr service";
-    // return reply.view("index", { dirs: dirList(), namespace });
   });
 
 export async function startServer() {
-  server.listen({ port: 8080 }, (err, address) => {
+  server.listen({ host: '0.0.0.0', port: 8080 }, (err, address) => {
     // TODO: make address configurable
     if (err) {
       server.log.error(err);

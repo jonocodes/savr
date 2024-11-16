@@ -121,7 +121,6 @@
         const { popup, dimmer } = createPopupList();
         popup.style.display = 'block';
 
-        // showProgress(percent, message, "sse-message-list", 'overwrite')
         showProgress(percent, message)
 
         if (percent === 100) {
@@ -136,7 +135,7 @@
         }
     }
 
-    function startSSE(savrHost, currentUrl) {
+    function startSSE(savrHost, currentUrl, completedCallback=null) {
         console.log(`Starting SSE for ${currentUrl}`);
 
         const source = new EventSource(`${savrHost}/save?url=${encodeURIComponent(currentUrl)}`);
@@ -148,12 +147,18 @@
             }
             if (data.percent == 100) {
                 source.close()
+
+                // TODO: wait for fadeout for callback
+                if (completedCallback != null)
+                    completedCallback()
+
             }
         };
         
         source.onerror = function() {
             showError(`Savr error: Could not establish connection for ${currentUrl}`);
         };
+
     }
 
     function alertUrl(currentUrl) {
