@@ -352,7 +352,9 @@ fun renderArticleHtml(context: Context, article: Article, content: String?, font
         "head" to head,
         "metadata" to "ingestPlatform: ${getAppVersionInfo(context)}",
 
-        "published" to "<a href=${article.url}>${domain}</a> &#x2022; ${pubDate}",
+//        "published" to "<a href=${article.url}>${domain}</a> &#x2022; ${pubDate}",
+
+        "published to generateInfoForArticle(article)
         "readTime" to "${article.readTimeMinutes} minute read",
         "byline" to article.author,
     )
@@ -381,6 +383,34 @@ fun generateInfoForCard(article: Article): String {
             "$result, $pubDate"
         }
 
+    }
+
+    return result
+}
+
+fun generateInfoForArticle(article: Article): String {
+
+//    TODO: copy and use this from js
+
+    var result = ""
+
+    if (article.url != null) {
+        val domain = extractDomain(article.url);
+
+        if (domain != null) {
+            result = "<a href=${url}>${domain}</a>"
+        }
+    }
+
+    if (article.publishedDate != null && article.publishedDate != undefined) {
+
+        val pubDate = formatIsoDate(article.publishedDate)
+
+        result = if (result == "") {
+            pubDate
+        } else {
+            "$result &#x2022; $pubDate"
+        }
     }
 
     return result

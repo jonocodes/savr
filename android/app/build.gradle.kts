@@ -98,6 +98,8 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.navigation.fragment)
     implementation(libs.androidx.navigation.ui.ktx)
+    implementation(libs.androidx.room.common)
+    implementation(libs.room.ktx)
 //    implementation(libs.androidx.ui.desktop)
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)

@@ -148,10 +148,10 @@
             if (data.percent == 100) {
                 source.close()
 
-                // TODO: wait for fadeout for callback
                 if (completedCallback != null)
-                    completedCallback()
-
+                    setTimeout(() => {
+                       completedCallback()
+                    }, 1000);
             }
         };
         
@@ -159,10 +159,6 @@
             showError(`Savr error: Could not establish connection for ${currentUrl}`);
         };
 
-    }
-
-    function alertUrl(currentUrl) {
-        alert(currentUrl);
     }
 
     // everything below is for exporting the functions
@@ -203,7 +199,6 @@
     //     startMessageBox,
     //     showProgress,
     //     startSSE,
-    //     alertUrl,
     // };
 
     // Export to the global object.
@@ -213,7 +208,6 @@
         startMessageBox,
         showProgress,
         startSSE,
-        alertUrl,
     };
 
 })();

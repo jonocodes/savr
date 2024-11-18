@@ -28,8 +28,8 @@
 
             {{^static}}
             <div id="add-url">
-                <form id="url-form" action="">
-                <!-- <form id="url-form" action="{{{namespace}}}/save" method="GET"> -->
+                <!-- submit to url in case in a text browser which cant handle javascript -->
+                <form id="url-form" action="{{{namespace}}}/save" method="GET">
                     <input id="url" name="url" size="40">
                     <input type="submit" name="submit" value="Add URL">
                 </form>
@@ -124,6 +124,9 @@
     <script>
 
         function formSubmit(event) {
+
+            event.preventDefault();
+
             const url = document.getElementById("url").value;
 
             if (typeof savr !== 'undefined' && typeof savr.startSSE === 'function') {
@@ -135,7 +138,6 @@
                 alert('Error: startSSE function not found in loaded script');
             }
 
-            event.preventDefault();
         }
 
         (function(){

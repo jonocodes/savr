@@ -39,11 +39,9 @@
   "main": "./dist/cli.js",
   "types": "./dist/cli.d.ts",
   "type": "module",
-  "bin": "./dist/cli.js",
-  "files": [
-    "static",
-    "stc/static"
-  ],
+  "bin": {
+    "savr": "./dist/cli.js"
+  },
   "exports": "./dist/cli.js",
   "scripts": {
     "test": "jest",
@@ -54,6 +52,7 @@
     "web:dev": "tsx watch -r tsconfig-paths/register ./src/cli.ts --start-server",
     "ui": "tsx ./src/cli.ts --ui",
     "cli": "tsx ./src/cli.ts",
+    "savr": "tsx ./src/cli.ts",
     "clean": "rm -rf node_modules dist"
   },
   "author": "Jono",

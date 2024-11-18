@@ -454,6 +454,34 @@ export function generateInfoForCard(article: Article): string {
   return result
 }
 
+
+export function generateInfoForArticle(article: Article): string {
+
+  var result = ""
+
+  if (article.url != null) {
+    const domain = extractDomain(article.url);
+
+    if (domain != null) {
+      result = `<a href=${url}>${domain}</a>`
+    }
+  }
+
+  if (article.publishedDate != null && article.publishedDate != undefined) {
+
+    const pubDate = new Date(article.publishedDate)
+    
+    if (result == "") {
+      result = pubDate.toDateString()
+    } else {
+      result = result + " &#x2022; " + pubDate.toDateString()
+    }
+
+  }
+
+  return result
+}
+
 export async function articleList() {
   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
   return db.data.articles;
@@ -649,23 +677,7 @@ export async function ingest(
   // TODO: replace this with something consistent between kotlin and js
   const readingStats = readingTime(content);
 
-  const domain = extractDomain(url);
-
-  // const author = postlightResult.author || readabilityResult.byline;
-
   const author = readabilityResult.byline;
-
-  const rendered = renderTemplate("article", {
-    title: readabilityResult.title,
-    byline: author,
-    published: `<a href=${url}>${domain}</a> &#x2022; ${pubDate?.toDateString()}`,
-    readTime: `${Math.round(readingStats.minutes)} minute read`,
-    content: content,
-    metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-    // namespace: rootPath,
-  });
-
-  fs.writeFileSync(saveDir + "/index.html", rendered);
 
   const article: Article = {
     slug: slug,
@@ -683,6 +695,19 @@ export async function ingest(
     readTimeMinutes: Math.round(readingStats.minutes),
     progress: 0,
   };
+
+  const rendered = renderTemplate("article", {
+    title: readabilityResult.title,
+    byline: author,
+    published: generateInfoForArticle(article),
+    readTime: `${Math.round(readingStats.minutes)} minute read`,
+    content: content,
+    metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+    // namespace: rootPath,
+  });
+
+  fs.writeFileSync(saveDir + "/index.html", rendered);
+
 
   if (existingArticleIndex != -1) {
     db.data.articles[existingArticleIndex] = article;

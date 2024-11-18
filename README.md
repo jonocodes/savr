@@ -160,7 +160,7 @@ Edit that variable as needed to make sure that it is pointing to the URL of your
 
 ## Development
 
-http://[::1]:8080/savr/static/demo.html
+http://localhost:8080/savr/static/demo.html
 
 # CLI
 
