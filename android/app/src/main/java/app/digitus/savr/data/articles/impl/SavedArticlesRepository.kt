@@ -1,6 +1,7 @@
 
 package app.digitus.savr.data.articles.impl
 
+import app.digitus.savr.data.JsonDb
 import app.digitus.savr.data.Result
 import app.digitus.savr.data.articles.ArticlesRepository
 import app.digitus.savr.model.Article
@@ -34,10 +35,11 @@ class SavedArticlesRepository : ArticlesRepository {
             val myArticles = ArticlesFeed(all = mutableListOf())
 
             try {
-                val everything = app.digitus.savr.data.JsonDb(
+                val everything = JsonDb(
                     app.digitus.savr.SavrApplication.appContext ?: error("App context is empty")
                 ).getEverything()
-                myArticles.all = everything.articles
+                myArticles.all = everything
+
             } catch (e: DbCreationException) {
 //                val everything = emptyList<Article>()
             }

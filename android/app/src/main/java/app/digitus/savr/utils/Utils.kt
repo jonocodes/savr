@@ -17,13 +17,14 @@ import app.digitus.savr.R
 import app.digitus.savr.SavrApplication.Companion.appDataDir
 import app.digitus.savr.SavrApplication.Companion.appSavesDir
 import app.digitus.savr.data.JsonDb
+import app.digitus.savr.data.moshi
 import app.digitus.savr.model.Article
 import app.digitus.savr.model.ArticleAndRender
 import app.digitus.savr.model.ArticleRenderExtra
 import app.digitus.savr.model.ReadabilityResult
+import app.digitus.savr.model.articleToJsonString
 import com.github.mustachejava.DefaultMustacheFactory
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
+import com.squareup.moshi.Moshi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -71,8 +72,23 @@ val JS_SCRIPT_READABILITY = """
 
     """.trimIndent()
 
+val moshi = Moshi.Builder().build()
+val readabilityJsonAdapter = moshi.adapter(ReadabilityResult::class.java)
+
+val mimeToExtension = mapOf(
+    "application/pdf" to "pdf",
+    "image/jpeg" to "jpg",
+    "image/png" to "png",
+    "text/html" to "html",
+    "text/plain" to "txt",
+//    "application/json" to "json"
+    // Add more mappings as needed
+)
+
 
 class DbCreationException(message: String="") : Exception(message)
+
+//class DataError(message: String): Exception(message)
 
 
 fun toUrlSlug(title: String): String {
@@ -194,13 +210,10 @@ fun setDirectories(context: Context) {
 
     Log.i(LOGTAG, "appDataDir ${appDataDir?.name}")
     Log.i(LOGTAG, "appSavesDir ${appSavesDir?.name}")
-
 }
 
 
-
-fun createFileText(context: Context, filename: String, content: String, slug: String, mimeType: String ="*/html"): Boolean {
-
+fun createArticleDir(slug: String): DocumentFile {
     if (appSavesDir == null) {
         throw AssertionError("Error accessing saves directory")
     }
@@ -215,6 +228,13 @@ fun createFileText(context: Context, filename: String, content: String, slug: St
         }
         Log.i(LOGTAG, "created article dir: ${articleDir.name}")
     }
+
+    return articleDir
+}
+
+fun createFileText(context: Context, filename: String, content: String, slug: String, mimeType: String ="*/html"): Boolean {
+
+    val articleDir = createArticleDir(slug)
 
     val existingFile = articleDir.findFile(filename)
 
@@ -321,6 +341,22 @@ fun extractDomain(url: String?): String? {
     }
 }
 
+fun openFile(context: Context, uri: Uri, mimeType: String) {
+    try {
+        // Create an intent to view the file
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, mimeType)
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION) // Grant temporary read permission
+        }
+
+        // Start the activity
+        context.startActivity(intent)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        // Handle the case where no app can open the file
+    }
+}
+
 fun renderArticleHtml(context: Context, article: Article, content: String?, fontSize: Int? = null, theme: String = "light"): String {
 
     var head = ""
@@ -335,7 +371,7 @@ fun renderArticleHtml(context: Context, article: Article, content: String?, font
         """.trimIndent()
     }
 
-    val domain = extractDomain(article.url);
+//    val domain = extractDomain(article.url);
 
     var pubDate: String? = null
 
@@ -354,7 +390,7 @@ fun renderArticleHtml(context: Context, article: Article, content: String?, font
 
 //        "published" to "<a href=${article.url}>${domain}</a> &#x2022; ${pubDate}",
 
-        "published to generateInfoForArticle(article)
+        "published" to generateInfoForArticle(article),
         "readTime" to "${article.readTimeMinutes} minute read",
         "byline" to article.author,
     )
@@ -364,33 +400,90 @@ fun renderArticleHtml(context: Context, article: Article, content: String?, font
     return rendered
 }
 
+fun getContentFileName(article: Article): String {
+
+    var ext = mimeToExtension[article.mimeType]
+
+    if (article.mimeType.startsWith("text/")) {
+        ext = "html"
+    }
+
+    return "index.${ext}"
+}
+
+fun getContentFile(article: Article): DocumentFile? {
+
+    var saveDir = appSavesDir?.findFile(article.slug)
+    var fileName = getContentFileName(article)
+
+    return saveDir?.findFile(fileName)
+}
+
+//fun generateInfoForCard(article: Article): String {
+//
+//    var result = ""
+//
+//    if (article.author != null && article.author != "") {
+//        result = article.author
+//    }
+//
+//    if (article.publishedDate != null) {
+//
+//        val pubDate = formatIsoDate(article.publishedDate)
+//
+//        result = if (result == "") {
+//            pubDate
+//        } else {
+//            "$result, $pubDate"
+//        }
+//
+//    }
+//
+//    return result
+//}
+
 
 fun generateInfoForCard(article: Article): String {
-
+    // NOTE: this differs from the web version for now (see above)
     var result = ""
 
     if (article.author != null && article.author != "") {
         result = article.author
+    } else {
+        val domain = extractDomain(article.url);
+        if (domain !== null) {
+            result = domain
+        }
     }
 
-    if (article.publishedDate != null) {
+    if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
 
-        val pubDate = formatIsoDate(article.publishedDate)
+        val read = "${article.readTimeMinutes} minute read"
 
         result = if (result == "") {
-            pubDate
+            read
         } else {
-            "$result, $pubDate"
+            "$result • $read"
         }
 
     }
+
+//    if (article.publishedDate != null) {
+//
+//        val pubDate = formatIsoDate(article.publishedDate)
+//
+//        result = if (result == "") {
+//            pubDate
+//        } else {
+//            "$result, $pubDate"
+//        }
+//
+//    }
 
     return result
 }
 
 fun generateInfoForArticle(article: Article): String {
-
-//    TODO: copy and use this from js
 
     var result = ""
 
@@ -398,11 +491,11 @@ fun generateInfoForArticle(article: Article): String {
         val domain = extractDomain(article.url);
 
         if (domain != null) {
-            result = "<a href=${url}>${domain}</a>"
+            result = "<a href=${article.url}>${domain}</a>"
         }
     }
 
-    if (article.publishedDate != null && article.publishedDate != undefined) {
+    if (article.publishedDate != null) {
 
         val pubDate = formatIsoDate(article.publishedDate)
 
@@ -478,20 +571,33 @@ fun copyAssetsDirectory(context: Context, assetDir: String, targetDir: DocumentF
 
 fun getByline(article: Article): String {
 
+    // TODO: synchronize byline with web
+    return article.author ?: article.url ?: "??"
+
+    var response = ""
+
+    if (article.url !== null) {
+
+    }
     val uri = URI(article.url)
     val domain: String = uri.host.removePrefix("www.")
 
     if (article.author == null) {
         return domain
     }
-    return article.author
+//    return article.author
+
+    return response
 }
 
 
 
 fun toArticleAndRender(article: Article): ArticleAndRender {
 
-    val extra = ArticleRenderExtra(infoForCard = generateInfoForCard(article))
+    val extra = ArticleRenderExtra(
+        infoForCard = generateInfoForCard(article),
+        fileName = getContentFileName(article)
+    )
 
     return ArticleAndRender(
         article=article,
@@ -524,7 +630,7 @@ fun createLocalHtmlList(context: Context) {
 
     val allArticles = JsonDb(context).getEverything()
 
-    val (readable, archived) = articlesToRender(allArticles.articles)
+    val (readable, archived) = articlesToRender(allArticles)
 
     val data = mapOf(
         "readable" to readable,
@@ -791,14 +897,15 @@ fun resizeBitmapSquare(bitmap: Bitmap, size: Int): Bitmap {
 suspend fun downloadAndResizeImages(
     context: Context,
     imageData: List<ImageData>,
-    outputDirUri: Uri,
+//    articleDirUri: Uri,
+    outputDir: DocumentFile,
     onProgress: (Int, String) -> Unit,
     maxDimension: Int
 ) = withContext(Dispatchers.IO) {
 
     val httpClient = OkHttpClient()
     val contentResolver = context.contentResolver
-    val outputDir = DocumentFile.fromTreeUri(context, outputDirUri) ?: return@withContext
+//    val outputDir = DocumentFile.fromTreeUri(context, outputDirUri) ?: return@withContext
 
     val imageCount = imageData.size
 
@@ -852,8 +959,8 @@ suspend fun downloadAndResizeImages(
 
 fun getThumbnail(context: Context, article: Article): Bitmap? {
     val articleDir = appSavesDir?.findFile(article.slug)
-    val imagesDir = articleDir?.findFile("images") ?: return null
-    val file = imagesDir.findFile("thumbnail.webp") ?: return null
+//    val imagesDir = articleDir?.findFile("images") ?: return null
+    val file = articleDir?.findFile("thumbnail.webp") ?: return null
 
     val inputStream = context.contentResolver.openInputStream(file.uri)
     val bitmap = BitmapFactory.decodeStream(inputStream)
@@ -862,31 +969,38 @@ fun getThumbnail(context: Context, article: Article): Bitmap? {
 
 // credit: https://github.com/reddit-archive/reddit/blob/753b17407e9a9dca09558526805922de24133d53/r2/r2/lib/media.py#L706
 fun createThumbnail(
-        context: Context,
-        imageData: List<ImageData>,
-        outputDirUri: Uri,
-        ): ImageData? {
+    context: Context,
+    imageFiles: List<DocumentFile?>,
+//    imagePaths: List<String>,
+    outputDir: DocumentFile,
+        ) {
 
     val maxDimensionThumb = 200
 
     // find the largest and squarest image as the thumbnail
-    var thumbnail: ImageData? = null
+//    var thumbnail: String? = null
+    var thumbnail: DocumentFile? = null
     var largestArea = 0
 
-    val outputDir = DocumentFile.fromTreeUri(context, outputDirUri) ?: return null
+//    val outputDir = DocumentFile.fromTreeUri(context, outputDirUri) ?: return null
 
-    for (data in imageData) {
+    for (imageFile in imageFiles) {
 
-        val downloadedFile = outputDir.findFile(data.modifiedPath) ?: continue
+//        val downloadedFile = outputDir.findFile(imagePath) ?: continue
 
-        val inputStream = context.contentResolver.openInputStream(downloadedFile.uri)
+        if (imageFile == null || imageFile.name == null)
+            continue
+//        imageFile ?: continue
+//        imageFile.name ?: continue
+
+        val inputStream = context.contentResolver.openInputStream(imageFile.uri)
         val downloadedBitmap = BitmapFactory.decodeStream(inputStream) ?: continue
 
         var area = downloadedBitmap.width * downloadedBitmap.height
 
         // ignore small images
         if (area < 5000) {
-            Log.i(LOGTAG, "thumb ignore small: ${data.modifiedPath}")
+            Log.i(LOGTAG, "thumb ignore small: ${imageFile.name}")
             continue
         }
 
@@ -894,28 +1008,28 @@ fun createThumbnail(
         val ratio = Math.max(downloadedBitmap.width, downloadedBitmap.height) /
                 Math.min(downloadedBitmap.width, downloadedBitmap.height)
         if (ratio > 1.5) {
-            Log.i(LOGTAG, "thumb penalizing long/wide: ${data.modifiedPath}")
+            Log.i(LOGTAG, "thumb penalizing long/wide: ${imageFile.name}")
             area /= ratio * 2
         }
 
         // penalize images with "sprite" in their name
-        if (data.modifiedPath.contains("sprite")) {
-            Log.i(LOGTAG, "thumb penalizing sprite: ${data.modifiedPath}")
+        if (imageFile.name!!.contains("sprite")) {
+            Log.i(LOGTAG, "thumb penalizing sprite: ${imageFile.name}")
             area /= 10
         }
 
         if (area > largestArea) {
             largestArea = area
-            thumbnail = data
+            thumbnail = imageFile
         }
     }
 
 //    create thumbnail
 
-    if (thumbnail == null) return null
+    if (thumbnail == null) return
 
-    val downloadedFile = outputDir.findFile(thumbnail.modifiedPath) ?: error("Thumbnail stream not found")
-    val inputStream = context.contentResolver.openInputStream(downloadedFile.uri)
+//    val downloadedFile = outputDir.findFile(thumbnail.modifiedPath) ?: error("Thumbnail stream not found")
+    val inputStream = context.contentResolver.openInputStream(thumbnail.uri)
 
     val outputFile = outputDir.createFile("image/webp", "thumbnail.webp")
 
@@ -936,12 +1050,12 @@ fun createThumbnail(
         }
     }
 
-    return thumbnail
+//    return thumbnail
 }
 
 
 
-fun updateImageSrc(doc: Document, imageData: List<ImageData>, outputDir: Uri) {
+fun updateImageSrc(imageData: List<ImageData>) {
     for (data in imageData) {
         val localPath = data.imgElement.attr("data-local-path")
         if (localPath.isNotEmpty()) {
@@ -954,20 +1068,30 @@ suspend fun processHtmlAndImages(
     context: Context,
     articleUrl: String?,
     htmlText: String,
-    outputDirUri: Uri,
+    articleDir: DocumentFile,
     onProgress: (Int, String) -> Unit,
     maxDimension: Int = 1024,
 ): String {
     val doc = Jsoup.parse(htmlText)
     val imageData = extractImageUrls(doc, articleUrl)
 
-    downloadAndResizeImages(context, imageData, outputDirUri, onProgress, maxDimension)
+    var imagesDir = articleDir.findFile("images")
+
+    if (imagesDir == null) {
+        imagesDir = articleDir.createDirectory("images") ?: error("Cant create images directory")
+    }
+    // TODO: else delete old dir contents?
+
+    downloadAndResizeImages(context, imageData, imagesDir, onProgress, maxDimension)
 
     // Update the src attribute of the img elements in the document
-    updateImageSrc(doc, imageData, outputDirUri)
+    updateImageSrc(imageData)
 
     onProgress(96, "processing thumbnail")
-    createThumbnail(context, imageData, outputDirUri)
+
+    val imageFiles = imageData.map { imagesDir.findFile(it.modifiedPath) }
+
+    createThumbnail(context, imageFiles, articleDir)
 
     return doc.html()
 }
@@ -985,10 +1109,9 @@ suspend fun scrapeReadabilityAssets(
 
         onProgress(30, "parsing")
 
-        Log.d("callback_result", result)
+//        Log.d("callback_result", result)
 
-        val readabilityResult: ReadabilityResult =
-            Gson().fromJson(result, ReadabilityResult::class.java)
+        val readabilityResult: ReadabilityResult = readabilityJsonAdapter.fromJson(result) ?: error("JSON content is empty")
 
         readabilityResult.content ?: error("Parsed content is empty")
 
@@ -997,16 +1120,25 @@ suspend fun scrapeReadabilityAssets(
 
         try {
 
+            createFileText(
+                context,
+                "article.json",
+                articleToJsonString(article),
+                article.slug
+            )
+
             if (JsonDb(context).articleInDb(article) != null)
                 throw Exception("Article already exists")
 
-            createFileText(
-                context,
-                "readability.json",
-                GsonBuilder().setPrettyPrinting().create()
-                    .toJson(readabilityResult),
-                article.slug
-            )
+            val articleDir = createArticleDir(article.slug)
+
+//            createFileText(
+//                context,
+//                "readability.json",
+//                GsonBuilder().setPrettyPrinting().create()
+//                    .toJson(readabilityResult),
+//                article.slug
+//            )
 
 //            createFileText(
 //                context,
@@ -1015,12 +1147,10 @@ suspend fun scrapeReadabilityAssets(
 //                article.slug
 //            )
 
-            val articleDir = appSavesDir?.findFile(article.slug)
-
-            var imagesDir = articleDir?.findFile("images")
+            var imagesDir = articleDir.findFile("images")
 
             if (imagesDir == null) {
-                imagesDir = articleDir?.createDirectory("images") ?: error("Cant create images directory")
+                imagesDir = articleDir.createDirectory("images") ?: error("Cant create images directory")
             }
             // TODO: else delete old dir contents?
 
@@ -1028,7 +1158,7 @@ suspend fun scrapeReadabilityAssets(
 
             val updatedHtml = processHtmlAndImages(
                 context, article.url,
-                readabilityResult.content, imagesDir.uri, onProgress
+                readabilityResult.content, articleDir, onProgress
             )
 
 //            createFileText(

@@ -38,7 +38,7 @@ import app.digitus.savr.model.Article
 import app.digitus.savr.ui.theme.SavrTheme
 import app.digitus.savr.utils.archiveArticle
 import app.digitus.savr.utils.deleteArticle
-import app.digitus.savr.utils.getByline
+import app.digitus.savr.utils.generateInfoForCard
 import app.digitus.savr.utils.getThumbnail
 import app.digitus.savr.utils.shareArticle
 import app.digitus.savr.utils.unarchiveArticle
@@ -50,11 +50,11 @@ fun AuthorAndReadTime(
 ) {
     Row(modifier) {
         Text(
-            text = stringResource(id = R.string.article_min_read).format(
-                getByline(article),
-//                article.byline(),
-                article.readTimeMinutes
-            ),
+            text = generateInfoForCard(article),
+//            text = stringResource(id = R.string.article_min_read).format(
+//                getByline(article),
+//                article.readTimeMinutes
+//            ),
             style = MaterialTheme.typography.bodyMedium
         )
     }

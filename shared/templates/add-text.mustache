@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+
+<!--
+[metadata]
+{{{metadata}}}
+-->
+
+<html>
+  <head>
+    <title>
+      Savr - Add text
+    </title>
+    <meta content="text/html; charset=UTF-8" http-equiv="content-type">
+
+    <!-- this is only used for rendering the local html file. not when running the service or app -->
+    <link rel="stylesheet" href="../../static/web.css" />
+
+    <!-- this is for when rendering in the web app -->
+    <link rel="stylesheet" href="../../static/shared/web.css" />
+
+    {{{ head }}}
+
+  </head>
+  <body>
+
+    <div id="savr-root">
+
+    <h1>add text demo</h1>
+
+      <form id="add-text" action="{{{namespace}}}/saveText" method="POST">
+          <textarea name="text"  rows="40" cols="150"> To guess the content type of text entered in a `textarea`, you can create a TypeScript function that analyzes the content based on simple heuristics. Here's how you can do it:
+
+### Implementation
+
+```typescript
+type ContentType = 'html' | 'markdown' | 'text';
+
+function guessContentType(input: string): ContentType {
+  // Trim input to remove leading/trailing whitespace
+  const trimmedInput = input.trim();
+
+  // Default to plain text
+  return 'text';
+}
+
+// Example Usage
+const content = `
+# My Markdown Title
+
+Some **bold** text and [a link](http://example.com).
+`;
+console.log(guessContentType(content)); // Output: "markdown"
+```
+
+### Explanation
+
+1. **Heuristics for Content Types**:
+   - **HTML**: The function checks for common HTML patterns like `content` using a regular expression.
+   - **Markdown**: It looks for Markdown syntax like:
+     - `#` headers.
+     - Inline formatting (`**bold**`, `_italic_`, etc.).
+     - Links (`[link](url)`).
+     - Images (`![alt text](url)`).
+   - **Plain Text**: If no HTML or Markdown patterns are detected, it defaults to `text`.
+
+2. **Regex Usage**:
+   - The HTML regex matches basic opening and closing tags.
+   - The Markdown regex checks for common Markdown features but doesn’t cover every edge case.
+
+3. **Order of Checks**:
+   - The function checks for HTML first since Markdown could include HTML, and it’s more specific.
+   - Then it checks for Markdown and defaults to plain text if no patterns match.
+
+4. **Trim Input**:
+   - Whitespace is trimmed to ensure accurate matching.
+
+### Integrating with an HTML Textarea
+
+You can connect this function to a textarea input:
+
+```typescript
+document.getElementById('textarea')?.addEventListener('input', (event) => {
+  const textarea = event.target as HTMLTextAreaElement;
+  const contentType = guessContentType(textarea.value);
+  console.log(`Content type: ${contentType}`);
+});
+```
+
+### Example HTML
+
+```html
+  // Include the above TypeScript logic compiled to JavaScript
+```
+
+This setup guesses the content type in real-time as the user types.
+          
+          
+          
+          </textarea>
+
+          <br><br>
+
+ <label for="type">content type </label>
+
+<select name="type" id="type">
+  <option value="html">html</option>
+  <option value="markdown">markdown</option>
+  <option value="text">text</option>
+</select> 
+          <input type="submit" name="submit" value="Add">
+      </form>
+
+    </div>
+
+  </body>
+</html>

@@ -99,19 +99,6 @@ fun ArticleScreen(
 }
 
 
-fun extractElementContent(htmlContent: String, elementId: String): String? {
-    // Parse the HTML file
-
-    val document = Jsoup.parse(htmlContent, "UTF-8")
-
-    // Select the element by ID
-    val element = document.getElementById(elementId)
-
-    // Return the content as a string or null if the element is not found
-    return element?.html()
-}
-
-
 //@ExperimentalMaterial3Api
 @Composable
 fun DisplayWebView(article: Article) {
@@ -178,36 +165,15 @@ fun DisplayWebView(article: Article) {
 
         settings.javaScriptEnabled = true
         settings.domStorageEnabled = true
-
-//        settings.allowFileAccess = true
-//        settings.allowFileAccessFromFileURLs = true
-//        settings.allowUniversalAccessFromFileURLs = true
     }
 
     webView.visibility = VISIBLE
 
     AndroidView(factory = {webView})
 
-//                view.webChromeClient = object : WebChromeClient() {
-//
-//                    override fun onConsoleMessage(message: ConsoleMessage): Boolean {
-//                        Log.d("MyApplication JS", "${message.message()} -- From line " +
-//                                "${message.lineNumber()} of ${message.sourceId()}")
-//                        return true
-//                    }
-//                }
-
-
     val articleDir = appSavesDir?.findFile(article.slug)
 
     var html = """<h2>Content File not found</h2>"""
-
-//    val contentFile = articleDir?.findFile("content.html")
-//
-////    TODO: extract content from index.html instead of content.html
-//    //  and explain why we are doing that
-
-
 
     val contentFile = articleDir?.findFile("index.html")
 
@@ -217,10 +183,9 @@ fun DisplayWebView(article: Article) {
 
     val document = Jsoup.parse(html, "UTF-8")
 
-    // Select the element by ID
+    // Select the content out of the file since we may want to restyle the headings
     val element = document.getElementById("readability-page-1")
 
-    // Return the content as a string or null if the element is not found
     html = element?.html() ?: """<h2>Content ID not found</h2>"""
 
     val chosenTheme = getChosenTheme(context)

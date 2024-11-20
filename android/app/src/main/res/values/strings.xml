@@ -20,13 +20,13 @@
     <string name="home_title">Saves</string>
     <string name="home_tap_to_load_content">Tap to load content</string>
     <string name="home_top_section_title">Currently reading</string>
-    <string name="home_post_min_read">%1$s - %2$d min read</string>
+<!--    <string name="home_post_min_read">%1$s - %2$d min read</string>-->
 <!--    <string name="home_search">Search articles</string>-->
 
     <!-- Article Screen -->
     <string name="article_functionality_not_available">Functionality not available \uD83D\uDE48</string>
     <string name="article_share">Share article</string>
-    <string name="article_min_read">%1$s • %2$d min read</string>
+<!--    <string name="article_min_read">%1$s • %2$d min read</string>-->
 
 
     <string name="settings_title">Settings</string>

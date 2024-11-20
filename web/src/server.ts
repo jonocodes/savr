@@ -5,7 +5,7 @@ import { join } from "path";
 import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
 import {
-  ingest,
+  ingestUrl,
   articleList,
   renderTemplate,
   setState,
@@ -13,11 +13,13 @@ import {
   dataDir,
   systemInfo,
   renderSystemInfo,
+  ingestText,
 } from "./lib";
 import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
+import formbody from '@fastify/formbody';
 import { version } from "../package.json" with { type: "json" };
 
 // Get the current directory path in ESM
@@ -35,9 +37,10 @@ interface IStathChangePathstring {
 
 const server = Fastify({
   logger: true,
+
+  bodyLimit: 30 * 1024 * 1024 // Default Limit set to 30MB
 });
 
-// const dataDir = process.env.SAVR_DATA || process.env.HOME + "/sync/more/savr_data";
 
 if (dataDir === undefined) throw new Error("DATA_DIR env var not set");
 
@@ -49,6 +52,8 @@ const namespace: string = "/savr"; // TODO: make configurable
 await server.register(cors, {
   origin: "*",
 })
+
+server.register(formbody);
 
 server.register(helmet, {
   contentSecurityPolicy: false,
@@ -140,7 +145,7 @@ server.register(
         return;
       }
 
-      ingest(url, sendMessage)
+      ingestUrl(url, sendMessage)
         .then(() => {
           // console.log("done again");
           // TODO: figure out why browser is still spinning
@@ -160,6 +165,56 @@ server.register(
       });
       // reply.sse({ event: "close" });
     });
+
+
+    interface SaveTextRequestBody {
+      text: string;
+    }
+
+    app.get("/saveText", async (request, reply) => {
+
+      const rendered = renderTemplate('add-text', {
+        namespace: namespace,
+      })
+
+      reply.type("text/html").send(rendered)
+
+    });
+
+    app.post<{
+      Body: SaveTextRequestBody
+      // Querystring: IIngestQuerystring;
+    }>("/saveText", async (request, reply) => {
+      const sendMessage = (percent: number | null, message: string | null) => {
+        console.log({ percent, message });
+        reply.sse({ data: JSON.stringify({ percent, message }) });
+      };
+
+      const { text } = request.body
+
+      // TODO: handle empty text
+
+      ingestText(text, sendMessage)
+        .then(() => {
+          // console.log("done again");
+          // TODO: figure out why browser is still spinning
+          //   thumbnails are generated after? I think .then is not working
+          // reply.raw.end(); // Close the connection after messages are done
+        })
+        .catch((error) => {
+          console.error(error);
+          sendMessage(-1, "Error while processing. See logs.");
+          // reply.raw.end(); // Close the connection if client disconnects
+          // return "errOr";
+        });
+
+      // Handle client disconnect (if client closes the connection)
+      request.raw.on("close", () => {
+        reply.raw.end();
+      });
+      // reply.sse({ event: "close" });
+    });
+
 
     done();
   },

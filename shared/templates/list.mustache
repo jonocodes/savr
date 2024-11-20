@@ -45,8 +45,8 @@
                 <div class="article-card" >
                     <div class="article-card-thumb" >
 
-                        <a href="{{namespace}}/saves/{{article.slug}}/index.html">
-                            <object data="{{namespace}}/saves/{{article.slug}}/images/thumbnail.webp" class="thumb">
+                        <a href="{{namespace}}/saves/{{article.slug}}/{{extra.fileName}}">
+                            <object data="{{namespace}}/saves/{{article.slug}}/thumbnail.webp" class="thumb">
 
                                 {{#static}}
                                 <img src="./static/article_bw.webp" alt="thumbnail">
@@ -60,7 +60,7 @@
 
                     </div>
                     <div class="article-card-content" >
-                        <a href="{{namespace}}/saves/{{article.slug}}/index.html">{{article.title}}</a>
+                        <a href="{{namespace}}/saves/{{article.slug}}/{{extra.fileName}}">{{article.title}}</a>
                         <p class="card-info">{{extra.infoForCard}}</p>
 
                         {{^static}}
@@ -85,7 +85,7 @@
                     <div class="article-card-thumb" >
 
                         <a href="{{namespace}}/saves/{{article.slug}}/index.html">
-                            <object data="{{namespace}}/saves/{{article.slug}}/images/thumbnail.webp" class="thumb">
+                            <object data="{{namespace}}/saves/{{article.slug}}/thumbnail.webp" class="thumb">
                                 {{#static}}
                                 <img src="./static/article_bw.webp" alt="thumbnail">
                                 {{/static}}

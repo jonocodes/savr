@@ -5,15 +5,16 @@ import android.util.Log
 import app.digitus.savr.SavrApplication.Companion.appDataDir
 import app.digitus.savr.SavrApplication.Companion.jsonDbFile
 import app.digitus.savr.model.Article
-import app.digitus.savr.model.Articles
+import app.digitus.savr.model.DbRoot
 import app.digitus.savr.utils.DbCreationException
 import app.digitus.savr.utils.LOGTAG
 import app.digitus.savr.utils.readTextFromUri
 import app.digitus.savr.utils.setDirectories
 import app.digitus.savr.utils.writeText
-import com.google.gson.Gson
-import com.google.gson.GsonBuilder
-import com.google.gson.JsonSyntaxException
+import com.squareup.moshi.JsonWriter
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+
 
 const val DB_FILENAME = "db.json"
 
@@ -21,8 +22,11 @@ const val empty_saves_content = """{"articles" : []}"""
 
 
 
-//TODO: consider using https://jsondb.io/ instead of rolling my own
+val moshi = Moshi.Builder()
+    .add(KotlinJsonAdapterFactory()) // Required if using reflection
+    .build()
 
+val adapter = moshi.adapter(DbRoot::class.java)
 
 
 class JsonDb(val context: Context) {
@@ -34,17 +38,17 @@ class JsonDb(val context: Context) {
         }
 
         if (appDataDir!=null && jsonDbFile == null) {
-            jsonDbFile = appDataDir?.findFile(app.digitus.savr.data.DB_FILENAME)
+            jsonDbFile = appDataDir?.findFile(DB_FILENAME)
 
             if (jsonDbFile == null) {
                 jsonDbFile = appDataDir?.createFile(
-                    "application/json", app.digitus.savr.data.DB_FILENAME
+                    "application/json", DB_FILENAME
                 ) ?: error("Error creating db file")
 
                 if (jsonDbFile != null && (jsonDbFile ?: error("Db file is empty")).canWrite()) {
 
                     val written = writeText(context, (jsonDbFile ?: error("Db file is empty")).uri,
-                        app.digitus.savr.data.empty_saves_content
+                        empty_saves_content
                     )
                     if (!written) {
                         throw AssertionError("Error writing to database")
@@ -59,98 +63,94 @@ class JsonDb(val context: Context) {
         }
     }
 
-    fun getEverything() : Articles {
+    fun getEverything() : MutableList<Article> {
         if (jsonDbFile == null) {
 //            TODO: should probably make them set the dir first
-            return Gson().fromJson(app.digitus.savr.data.empty_saves_content, Articles::class.java)
-//            return dbModel
+
+            val root = adapter.fromJson(empty_saves_content) ?: error("no db")
+            return root.articles
         }
+
         val fileString = readTextFromUri(context, (jsonDbFile ?: error("Db file is empty")).uri)
 
         try {
-            val dbModel: Articles = Gson().fromJson(fileString, Articles::class.java)
-            return dbModel
-        } catch (e: JsonSyntaxException) {
-            throw AssertionError("Database corrupt", e)
+            val root = adapter.fromJson(fileString) ?: error("no db")
+            return root.articles
+        } catch (e: Exception) {
+            throw AssertionError("JSON import issue", e)
         }
     }
 
     fun getReadable(): List<Article> {
-
-        val dbModel = getEverything()
-
-        dbModel.articles = dbModel.articles.filter { it.state != "archived" && it.state != "deleted" }.toMutableList()
-
-        return dbModel.articles
+        return getEverything().filter { it.state != "archived" && it.state != "deleted" }
     }
 
     fun getArchived(): List<Article> {
-
-        val dbModel = getEverything()
-
-        dbModel.articles = dbModel.articles.filter { it.state == "archived"  }.toMutableList()
-
-        return dbModel.articles
+        return getEverything().filter { it.state == "archived" }
     }
 
     fun articleInDb(article: Article): Article? {
+        return getEverything().find { it.slug == article.slug }
+    }
 
-        val dbModel = getEverything()
+    fun saveToDisk(articles: MutableList<Article>) {
 
-        val responseArticle: Article? = dbModel.articles.find { it.slug == article.slug }
+        val root = DbRoot(articles=articles)
+        val buffer = okio.Buffer()
+        val jsonWriter = JsonWriter.of(buffer)
+        jsonWriter.setIndent("  ") // Pretty print with indentation
+        adapter.toJson(jsonWriter, root)
+        val outString = buffer.readUtf8()
 
-        return responseArticle
-
+        writeText(context, (jsonDbFile ?: error("Db file is empty")).uri, outString)
     }
 
     fun addArticle(article: Article) {
 
-        val dbModel = getEverything()
+        val articles = getEverything()
 
-        if (dbModel.articles.find { it.slug == article.slug } != null) {
+        if (articles.find { it.slug == article.slug } != null) {
             Log.d(LOGTAG, "skipping db add. article already exists: ${article.slug}")
             throw Exception("Article already exists")
         } else {
-            dbModel.articles.add(0, article)
+            articles.add(0, article)
 
-            val outString: String = GsonBuilder().setPrettyPrinting().create().toJson(dbModel)
+            saveToDisk(articles)
 
-            writeText(context, (jsonDbFile ?: error("Db file is empty")).uri, outString)
+            Log.d(LOGTAG,"Article added ${article.slug}")
         }
     }
 
     fun archiveArticle(article: Article, unarchive: Boolean = false) {
 
-        val dbModel = getEverything()
+        val articles = getEverything()
 
-        val articleIndex = dbModel.articles.indexOfLast { it.slug == article.slug }
+        val articleIndex = articles.indexOfLast { it.slug == article.slug }
 
         if (articleIndex != -1) {
             if (unarchive) {
-                dbModel.articles[articleIndex].state = "unread"
+                articles[articleIndex].state = "unread"
             } else {
-                dbModel.articles[articleIndex].state = "archived"
+                articles[articleIndex].state = "archived"
             }
 
-            val outString: String = GsonBuilder().setPrettyPrinting().create().toJson(dbModel)
+            saveToDisk(articles)
 
-            writeText(context, (jsonDbFile ?: error("Db file is empty")).uri, outString)
             Log.d(LOGTAG,"Article archived ${article.slug}")
         }
     }
 
     fun deleteArticle(article: Article) {
 
-        val dbModel = getEverything()
+        val articles = getEverything()
 
-        val articleIndex = dbModel.articles.indexOfLast { it.slug == article.slug }
+        val articleIndex = articles.indexOfLast { it.slug == article.slug }
 
         if (articleIndex != -1) {
-            dbModel.articles.removeAt(articleIndex)
+            articles.removeAt(articleIndex)
 
-            val outString: String = GsonBuilder().setPrettyPrinting().create().toJson(dbModel)
+            saveToDisk(articles)
 
-            writeText(context, (jsonDbFile ?: error("Db file is empty")).uri, outString)
             Log.d(LOGTAG,"Article deleted ${article.slug}")
         }
     }

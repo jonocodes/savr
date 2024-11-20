@@ -1,6 +1,7 @@
 
 package app.digitus.savr.ui.home
 
+import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
@@ -10,14 +11,16 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat.startActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import app.digitus.savr.ui.article.ArticleScreen
-import app.digitus.savr.ui.home.HomeScreenType.ArticleDetails
-import app.digitus.savr.ui.home.HomeScreenType.Feed
+import app.digitus.savr.utils.getContentFile
+import java.lang.AssertionError
 
 /**
  * Displays the Home route.
@@ -118,14 +121,6 @@ fun HomeRoute(
     // show. This allows the associated state to survive beyond that decision, and therefore
     // we get to preserve the scroll throughout any changes to the content.
     val homeListLazyListState = rememberLazyListState()
-//    val articleDetailLazyListStates = when (uiState) {
-//        is HomeUiState.HasPosts -> uiState.articlesFeed.allArticles
-//        is HomeUiState.NoPosts -> emptyList()
-//    }.associate { article ->
-//        key(article.slug) {
-//            article.slug to rememberLazyListState()
-//        }
-//    }
 
     val homeScreenType = getHomeScreenType(uiState)
     when (homeScreenType) {
@@ -145,10 +140,27 @@ fun HomeRoute(
             // Guaranteed by above condition for home screen type
             check(uiState is HomeUiState.HasPosts)
 
-            ArticleScreen(
-                article = uiState.selectedArticle,
-                onBack = onInteractWithFeed,
-            )
+            if (uiState.selectedArticle.mimeType == "text/html") {
+                ArticleScreen(
+                    article = uiState.selectedArticle,
+                    onBack = onInteractWithFeed,
+                )
+            } else {
+
+                // for now, it they have something like a pdf, use the default viewer
+                val context = LocalContext.current
+
+                var uri = getContentFile(uiState.selectedArticle)?.uri
+
+                if (uri == null)
+                    throw AssertionError("file not found")
+
+                val intent = Intent(Intent.ACTION_VIEW).apply {
+                    setDataAndType(uri, uiState.selectedArticle.mimeType)
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+                startActivity(context, intent, null)
+            }
 
             // If we are just showing the detail, have a back press switch to the list.
             // This doesn't take anything more than notifying that we "interacted with the list"

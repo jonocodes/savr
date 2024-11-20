@@ -29,6 +29,7 @@ export type ArticleRenderExtra = {
     // isReadable: boolean;
     // isArchived: boolean;
     infoForCard: string;
+    fileName: string;
 }
 
 export type ArticleAndRender = {

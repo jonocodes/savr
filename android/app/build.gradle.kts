@@ -3,6 +3,8 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.compose)
+
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -98,15 +100,18 @@ dependencies {
     implementation(libs.androidx.constraintlayout)
     implementation(libs.androidx.navigation.fragment)
     implementation(libs.androidx.navigation.ui.ktx)
-    implementation(libs.androidx.room.common)
-    implementation(libs.room.ktx)
-//    implementation(libs.androidx.ui.desktop)
+
     val composeBom = platform(libs.androidx.compose.bom)
     implementation(composeBom)
     androidTestImplementation(composeBom)
 
     implementation(libs.kotlin.stdlib)
     implementation(libs.kotlinx.coroutines.android)
+
+    implementation("com.squareup.moshi:moshi:1.15.0")
+    implementation("com.squareup.moshi:moshi-kotlin:1.15.0")
+
+    ksp("com.squareup.moshi:moshi-kotlin-codegen:1.15.0")
 
     implementation(libs.androidx.compose.animation)
     implementation(libs.androidx.compose.foundation.layout)
@@ -119,9 +124,7 @@ dependencies {
     debugImplementation(libs.androidx.compose.ui.tooling)
 
     implementation(libs.androidx.appcompat)
-//    implementation(libs.androidx.activity.ktx)
     implementation(libs.androidx.core.ktx)
-//    implementation(libs.androidx.activity.compose)
 
     implementation(libs.androidx.lifecycle.viewmodel.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.savedstate)
@@ -146,11 +149,7 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation(libs.androidx.material3)
 
-//    implementation("androidx.javascriptengine:javascriptengine:1.0.0-beta01")
-//    implementation("com.eclipsesource.j2v8:j2v8:6.2.1@aar")
     implementation("app.cash.zipline:zipline-android:1.7.0")
-//    implementation("com.caoccao.javet:javet-android:3.0.2")
-//    implementation("com.squareup.duktape:duktape-android:1.4.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
 
     implementation("me.zhanghai.compose.preference:library:1.1.1")
@@ -158,8 +157,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
     androidTestImplementation("androidx.test.espresso:espresso-core:3.5.1")
-
-    implementation("com.google.code.gson:gson:2.8.7")
 
     implementation("com.github.spullara.mustache.java:compiler:0.9.10")
     implementation("org.jetbrains.kotlin:kotlin-reflect")
@@ -176,6 +173,7 @@ dependencies {
     androidTestImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(libs.androidx.compose.ui.test)
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
+
     // Robolectric dependencies
     testImplementation(libs.androidx.compose.ui.test.junit4)
     testImplementation(libs.robolectric)

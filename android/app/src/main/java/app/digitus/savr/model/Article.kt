@@ -1,17 +1,18 @@
 
 package app.digitus.savr.model
 
-import androidx.room.Entity
-import androidx.room.PrimaryKey
-import kotlinx.serialization.Serializable
+import app.digitus.savr.data.moshi
+import com.squareup.moshi.JsonClass
+import com.squareup.moshi.JsonWriter
 
-@Serializable
-@Entity
+val articleJsonAdapter = moshi.adapter(Article::class.java)
+
+@JsonClass(generateAdapter = true)
 data class Article(
-    @PrimaryKey val id: Int,
+//    @PrimaryKey val id: Int,
     val slug: String,
     val title: String,
-    val url: String?,
+    val url: String?,   // this should probably be non null and unique?
     var state: String = "unread", // unread, reading, finished, archived, deleted, ingesting
     val publication: String? = null,
     val author: String? = null,
@@ -35,11 +36,8 @@ data class Article(
 }
 
 data class ArticleRenderExtra(
-    // link: string;
-    // thumbnail: string;
-    // isReadable: boolean;
-    // isArchived: boolean;
-    val infoForCard: String
+    val infoForCard: String,
+    val fileName: String,
 )
 
 data class ArticleAndRender(
@@ -47,8 +45,15 @@ data class ArticleAndRender(
     val extra: ArticleRenderExtra
 )
 
-
-@Serializable
-data class Articles(
+@JsonClass(generateAdapter = true)
+data class DbRoot(
     var articles: MutableList<Article>
 )
+
+fun articleToJsonString(article: Article): String {
+    val buffer = okio.Buffer()
+    val jsonWriter = JsonWriter.of(buffer)
+    jsonWriter.setIndent("  ") // Pretty print with indentation
+    articleJsonAdapter.toJson(jsonWriter, article)
+    return buffer.readUtf8()
+}

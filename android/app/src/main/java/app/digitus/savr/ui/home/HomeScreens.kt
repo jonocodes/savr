@@ -694,7 +694,7 @@ fun AddArticleDialog(
 
         val context = LocalContext.current
         val allArticles = JsonDb(context).getEverything()
-        val urlsInUse = allArticles.articles.map { it.url }.toSet()
+        val urlsInUse = allArticles.map { it.url }.toSet()
         val chooseFrom = sampleArticleUrls subtract urlsInUse
 
         if (chooseFrom.isNotEmpty())

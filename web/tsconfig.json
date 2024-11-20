@@ -16,9 +16,7 @@
   },
   "include": [
     "**/*.ts",
-    // "**/*.js",
-    // "**/static"
-  ], //"lib/index.cjs" Specify the source directory
+  ],
   "exclude": [
     "node_modules",
     "dist"

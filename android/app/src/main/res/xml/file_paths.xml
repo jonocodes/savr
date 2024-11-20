@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <files-path name="files" path="." />
+
+    <!-- Grant access to files in the app's external files directory -->
+    <external-path
+        name="external_files"
+        path="." />
+
+    <!-- Grant access to files in a specific subdirectory -->
+    <external-path
+        name="images"
+        path="Pictures/" />
+</paths>

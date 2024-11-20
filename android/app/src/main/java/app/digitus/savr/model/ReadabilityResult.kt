@@ -1,8 +1,10 @@
 package app.digitus.savr.model
 
-import kotlinx.serialization.Serializable
+import com.squareup.moshi.JsonClass
+//import kotlinx.serialization.Serializable
 
-@Serializable
+//@Serializable
+@JsonClass(generateAdapter = true)
 data class ReadabilityResult(
     val byline: String?,
     val content: String?,
@@ -10,7 +12,7 @@ data class ReadabilityResult(
     val excerpt: String?,
     val lang: String?,
     val length: String?,
-    val publishedTime: String?,  // TODO: use json5 to store an actual date?
+    val publishedTime: String?,
     val siteName: String?,
     val textContent: String?,
     val title: String,

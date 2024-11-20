@@ -1,6 +1,6 @@
 #!node_modules/.bin/tsx
 
-import { ingest } from "./lib";
+import { ingestUrl } from "./lib";
 import { startServer } from "./server";
 import { spawn } from "child_process"
 
@@ -44,7 +44,7 @@ if (args.includes('--start-server')) {
 } else {
 
   (async () => {
-    await ingest(args[0], sendMessage);
+    await ingestUrl(args[0], sendMessage);
   })().catch((err) => console.log("Fatal error", err));
 
 }
