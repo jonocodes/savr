@@ -12,12 +12,13 @@
     "declaration": true, // Generates .d.ts files for type definitions
     // "emitDeclarationOnly": true,
     "strict": true,
+    "types": ["node"],
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "nodenext",
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
   },
   "include": [
     "**/*.ts",

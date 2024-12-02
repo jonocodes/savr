@@ -1,0 +1,23 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "paths": {
+      "@/*": [
+        "./*",
+      ],
+      "lib/*": ["../lib/src/*"],
+      // "@web-src-lib/*": ["../web/src/lib/*"],
+      // "@web": ["../web/dist"],
+      // "@web/*": ["../web/*"],
+    },
+    "module": "NodeNext",
+    "moduleResolution": "nodenext",
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
+}

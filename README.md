@@ -72,7 +72,7 @@ Set your local environment variable 'DATA_DIR' to be pointing an existing direct
 Here is how you may bring up the server locally.
 
 ```bash
-DATA_DIR=$HOME/savrdata  # or choose a different data location
+export DATA_DIR=$HOME/savrdata  # or choose a different data location
 mkdir $DATA_DIR
 
 cd web
@@ -85,7 +85,7 @@ npm run web:dev
 For now the simplest way to use the web project as a long running backend service is with docker.
 
 ```bash
-DATA_DIR=$HOME/savrdata
+export DATA_DIR=$HOME/savrdata
 mkdir $DATA_DIR
 
 cd web

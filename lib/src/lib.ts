@@ -34,7 +34,7 @@ if (!fs.existsSync(dataDir)) {
   throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
 }
 
-const dbFile = dataDir + "/db.json";
+export const dbFile = dataDir + "/db.json";
 
 const savesDir = dataDir + "/saves";
 
@@ -54,7 +54,7 @@ const mimeToExt: Record<string, string> = {
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
 
 
-const defaultData: Articles = { articles: [] };
+export const defaultData: Articles = { articles: [] };
 
 
 function extractDomain(url: string): string | null {
@@ -346,64 +346,7 @@ function guessContentType(input: string): string {
 }
 
 
-/**
- * Recursively calculates the size of a directory using a callback-based approach.
- * @param dirPath - The path of the directory.
- * @param callback - Callback to handle the result or error.
- */
-function getDirectorySize(
-  dirPath: string,
-  callback: (err: NodeJS.ErrnoException | null, size?: number) => void
-): void {
-  let totalSize = 0;
-
-  fs.readdir(dirPath, { withFileTypes: true }, (err, entries) => {
-    if (err) {
-      return callback(err);
-    }
-
-    if (!entries) {
-      return callback(null, totalSize);
-    }
-
-    let pending = entries.length;
-    if (pending === 0) {
-      return callback(null, totalSize);
-    }
-
-    for (const entry of entries as Dirent[]) {
-      const fullPath = path.join(dirPath, entry.name);
-
-      if (entry.isDirectory()) {
-        getDirectorySize(fullPath, (err, size) => {
-          if (err) {
-            return callback(err);
-          }
-          totalSize += size || 0;
-          if (--pending === 0) {
-            callback(null, totalSize);
-          }
-        });
-      } else if (entry.isFile()) {
-        fs.stat(fullPath, (err, stats) => {
-          if (err) {
-            return callback(err);
-          }
-          totalSize += stats.size;
-          if (--pending === 0) {
-            callback(null, totalSize);
-          }
-        });
-      } else {
-        if (--pending === 0) {
-          callback(null, totalSize);
-        }
-      }
-    }
-  });
-}
-
-function humanReadableSize(bytes: number): string {
+export function humanReadableSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
   let index = 0;
   while (bytes >= 1024 && index < units.length - 1) {
@@ -413,60 +356,14 @@ function humanReadableSize(bytes: number): string {
   return `${bytes.toFixed(2)} ${units[index]}`;
 }
 
-function getDirectorySizeAsync(dirPath: string): Promise<number> {
-  return new Promise((resolve, reject) => {
-    getDirectorySize(dirPath, (err, size) => {
-      if (err) {
-        return reject(err);
-      }
-      resolve(size || 0);
-    });
-  });
-}
+// export function dirList() {
+//   const dirs = fs
+//     .readdirSync(savesDir, { withFileTypes: true })
+//     .filter((item) => item.isDirectory())
+//     .map((item) => item.name);
 
-
-export async function systemInfo() {
-
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-
-  const sizeInBytes = await getDirectorySizeAsync(dataDir ?? "notfound");
-  console.log(`Directory size: ${humanReadableSize(sizeInBytes)}`);
-
-  const statusCounts: Record<string, number> = {};
-
-  for (const article of db.data.articles) {
-    const { state } = article;
-    statusCounts[state] = (statusCounts[state] || 0) + 1;
-  }
-
-  const data = {
-    version,
-    size: humanReadableSize(sizeInBytes),
-    articles: statusCounts,
-  }
-
-  return data
-}
-
-export async function renderSystemInfo() {
-
-  const info = await systemInfo()
-
-  const view = {
-    content: JSON.stringify(info, null, 2)
-  }
-
-  return renderTemplate("about", view)
-}
-
-export function dirList() {
-  const dirs = fs
-    .readdirSync(savesDir, { withFileTypes: true })
-    .filter((item) => item.isDirectory())
-    .map((item) => item.name);
-
-  return dirs;
-}
+//   return dirs;
+// }
 
 export function generateInfoForCard(article: Article): string {
 
@@ -524,7 +421,23 @@ export async function articleList() {
   return db.data.articles;
 }
 
-function toArticleAndRender(article: Article): ArticleAndRender {
+export function filterAndPrepareArticles(articles: Article[]): ArticleAndRender[] {
+
+  const readable: ArticleAndRender[] = []
+
+  for (const article of articles) {
+
+    const articleAndRender = toArticleAndRender(article)
+
+    if (article.state != "deleted")
+      readable.push(articleAndRender)
+  }
+
+  return readable
+
+}
+
+export function toArticleAndRender(article: Article): ArticleAndRender {
 
   const mimeType = new MIMEType(article.mimeType)
   let ext = mimeToExt[article.mimeType]

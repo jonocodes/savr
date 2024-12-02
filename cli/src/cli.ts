@@ -1,10 +1,11 @@
 #!node_modules/.bin/tsx
 
-import { ingestUrl } from "./lib";
-import { startServer } from "./server";
+import { ingestUrl } from "lib";
+// import { startServer } from "./server";
 import { spawn } from "child_process"
 
 const args = process.argv.slice(2);
+
 
 const sendMessage = (percent: number | null, message: string | null) => {
   console.log({ percent, message });
@@ -16,7 +17,7 @@ const services = process.env.SAVR_SERVICE
 // TODO: look for "--browser=" argument. use "commander" package
 
 if (args.includes('--start-server')) {
-  startServer();
+  // startServer();
 } else if (args.includes("--ui")) {
   console.log('starting UI')
 

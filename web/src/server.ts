@@ -11,10 +11,12 @@ import {
   setState,
   articlesToRender,
   dataDir,
-  systemInfo,
-  renderSystemInfo,
   ingestText,
-} from "./lib";
+  toArticleAndRender,
+} from "lib";
+import { getArticles, renderSystemInfo } from "./backend";
+// import { systemInfo } from "backend";
+import * as fs from 'fs';
 import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
 import cors from "@fastify/cors";
@@ -97,6 +99,43 @@ server.register(
       reply.type("text/html").send(rendered);
 
     });
+
+    app.get("/fsList", async (request, reply) => {
+
+      if (dataDir === undefined)
+        throw new Error("DATA_DIR env var not set")
+      
+      try {
+        const files = fs.readdirSync(dataDir);
+        reply.send(files);
+      } catch (err) {
+        reply.code(500).send({ error: 'Error reading directory' });
+      }
+
+    });
+
+    app.get("/db", async (request, reply) => {
+
+      try {
+        const list = await articleList();
+        // const data = fs.readFileSync("db.json", "utf8");
+        // const jsonData = JSON.parse(data);
+        reply.send(list);
+      } catch (err) {
+        reply.code(500).send({ error: 'Error reading db.json' });
+      }
+    });
+
+    app.get("/api/articles", async (request, reply) => {
+
+      try {
+        const articles = getArticles();
+        reply.send(articles);
+      } catch (err) {
+        reply.code(500).send({ error: 'Error reading db.json' });
+      }
+    });
+
 
     app.get("/", async (request, reply) => {
       // if url does not end with slash, redirect so it does
@@ -238,3 +277,5 @@ export async function startServer() {
     console.log(`Savr service running at ${address}${namespace}`);
   });
 }
+
+startServer();
