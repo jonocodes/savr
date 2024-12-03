@@ -13,8 +13,10 @@ import {
   dataDir,
   ingestText,
   toArticleAndRender,
-} from "lib";
-import { getArticles, renderSystemInfo } from "./backend";
+} from "@savr/lib";
+
+
+import { getArticles, renderSystemInfo } from "./backend.ts";
 // import { systemInfo } from "backend";
 import * as fs from 'fs';
 import staticFiles from "@fastify/static";

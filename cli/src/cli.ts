@@ -1,6 +1,10 @@
 #!node_modules/.bin/tsx
 
-import { ingestUrl } from "lib";
+// import { ingestUrl } from "@savr/lib/src/index";
+
+import { ingestUrl } from "@savr/lib";
+import { Article } from "@savr/lib/models"
+
 // import { startServer } from "./server";
 import { spawn } from "child_process"
 

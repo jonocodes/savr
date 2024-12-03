@@ -6,13 +6,20 @@ import {
   } from "expo-file-system";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+
 // import { ArticleAndRender, Article } from '../../web/src/models';
 // import * as lib  from '../../web/src/lib';
 
 // import * as lib from '@/app/lib'
 // import * as lib from '@web-src-lib';
 
-import {filterAndPrepareArticles, Article, ArticleAndRender} from 'lib'
+
+import {filterAndPrepareArticles} from '@savr/lib'
+import {Article, ArticleAndRender} from '@savr/lib/models'
+
+
+// import {filterAndPrepareArticles} from 'lib/lib.js'
+// import {Article, ArticleAndRender} from 'lib/models'
 
 
 // import {filterAndPrepareArticles} from '@web/dist/src/lib'

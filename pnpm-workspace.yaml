@@ -1,5 +1,0 @@
-packages:
-  - "lib"
-  - "cli"
-  - "web"
-  - "app"

@@ -1,7 +1,8 @@
 {
   "extends": "expo/tsconfig.base",
+  
   "compilerOptions": {
-    "strict": true,
+    // "strict": true,
     "paths": {
       "@/*": [
         "./*",
@@ -14,6 +15,7 @@
     "module": "NodeNext",
     "moduleResolution": "nodenext",
   },
+  "type": "module",
   "include": [
     "**/*.ts",
     "**/*.tsx",

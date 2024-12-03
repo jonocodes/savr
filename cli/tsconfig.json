@@ -1,4 +1,5 @@
 {
+  "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist", // Output directory for compiled files
     // "rootDir": "./src", // Maintain source structure
@@ -22,6 +23,7 @@
   },
   "include": [
     "**/*.ts",
+    "src"
   ],
   "exclude": [
     "node_modules",

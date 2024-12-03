@@ -1,6 +1,6 @@
-import { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles } from "lib";
+import { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles } from "@savr/lib";
 import { JSONFileSyncPreset } from "lowdb/node";
-import { ArticleAndRender, Articles } from "./models";
+import { ArticleAndRender, Articles } from "@savr/lib/models";
 import { version } from '../package.json' with { type: "json" };
 import fs, { Dirent } from "fs";
 import * as path from 'path';

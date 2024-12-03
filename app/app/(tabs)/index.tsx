@@ -1,10 +1,10 @@
 import { Image, StyleSheet, Platform, Button, Linking, Text, FlatList, TouchableOpacity } from 'react-native';
-import DocumentPicker from 'react-native-document-picker';
-import { DocumentPickerOptions } from 'react-native-document-picker';
+// import DocumentPicker from 'react-native-document-picker';
+// import { DocumentPickerOptions } from 'react-native-document-picker';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import * as fs from 'fs';
-import * as FileSystem from 'expo-file-system';
+// import * as fs from 'fs';
+// import * as FileSystem from 'expo-file-system';
 import {
   StorageAccessFramework as SAF
 } from "expo-file-system";

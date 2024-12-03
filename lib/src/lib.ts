@@ -9,18 +9,19 @@ import readingTime from "reading-time";
 import axios from "axios";
 import sharp from "sharp";
 import url from "url";
+// import { JSONFileSync } from "lowdb/node";
 import { JSONFileSyncPreset } from "lowdb/node";
+// import { JSONFileSyncPreset } from "lowdb/lib/node";
+// import Lowdb from "lowdb";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
 import { MIMEType } from "util";
-import pdf2html, { thumbnail }  from "pdf2html";
+// import pdf2html, { thumbnail }  from "pdf2html";
 import crypto from "crypto";
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import showdown from "showdown";
-
-
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -545,7 +546,7 @@ export async function setState(slug: string, state: string) {
 
   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const existingArticleIndex = db.data.articles.findIndex((article) => article.slug === slug);
+  const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.slug === slug);
 
   // TODO: check valid states
   db.data.articles[existingArticleIndex].state = state
@@ -912,7 +913,7 @@ export async function ingestUrl(
 
   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const existingArticleIndex = db.data.articles.findIndex((article) => article.url === url);
+  const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.url === url);
 
   if (existingArticleIndex != -1) {
     sendMessage(5, "article already exists - reingesting");

@@ -1,0 +1,12 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      // "lib/*": ["lib/src/*"],
+      "web/*": ["web/src/*"]
+    },
+    "moduleResolution": "nodenext",
+  },
+  "type": "module",
+  "include": []
+}
