@@ -10,7 +10,7 @@ import axios from "axios";
 import sharp from "sharp";
 import url from "url";
 // import { JSONFileSync } from "lowdb/node";
-import { JSONFileSyncPreset } from "lowdb/node";
+// import { JSONFileSyncPreset } from "lowdb/node";
 // import { JSONFileSyncPreset } from "lowdb/lib/node";
 // import Lowdb from "lowdb";
 import Mustache from "mustache";
@@ -22,6 +22,10 @@ import crypto from "crypto";
 import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import showdown from "showdown";
+
+import {
+  StorageAccessFramework as SAF
+} from "expo-file-system";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -35,7 +39,9 @@ if (!fs.existsSync(dataDir)) {
   throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
 }
 
-export const dbFile = dataDir + "/db.json";
+const DB_FILE_NAME='db.json'
+
+export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
 
 const savesDir = dataDir + "/saves";
 
@@ -73,6 +79,17 @@ function extractDomain(url: string): string | null {
     return null;
   }
 }
+
+export function upsertArticleToList(articles: Article[], article: Article){
+
+  const existingArticleIndex = articles.findIndex((a) => a.slug === article.slug);
+  if (existingArticleIndex !== -1) {
+    articles[existingArticleIndex] = article;
+  } else {
+    articles.unshift(article);
+  }
+}
+
 
 function getBaseDirectory(articleUrl: string): string {
   const parsedUrl = new url.URL(articleUrl);
@@ -417,10 +434,16 @@ export function generateInfoForArticle(article: Article): string {
   return result
 }
 
-export async function articleList() {
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-  return db.data.articles;
-}
+// export async function articleList() {
+//   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+//   return db.data.articles;
+// }
+
+// export async function getArticles(dbManager: DbManager): Promise<Article[]> {
+
+//   return await dbManager.getArticles()
+  
+// }
 
 export function filterAndPrepareArticles(articles: Article[]): ArticleAndRender[] {
 
@@ -517,15 +540,17 @@ function copyStaticFiles() {
   copyDirectorySync(__dirname + "/static/shared", dataDir + "/static")
 }
 
-export async function createLocalHtmlList() {
+export async function createLocalHtmlList(dbManager: DbManager) {
 
   const htmlOutfile = dataDir + "/list.html";
 
   const rootPath = "."
 
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+  const articles = await dbManager.getArticles()
 
-  const [readable, archived] = articlesToRender(db.data.articles)
+  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+
+  const [readable, archived] = articlesToRender(articles)
   
   const rendered = renderTemplate("list", {
     readable,
@@ -542,16 +567,27 @@ export async function createLocalHtmlList() {
 }
 
 
-export async function setState(slug: string, state: string) {
+export async function setState(dbManager: DbManager, slug: string, state: string) {
 
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.slug === slug);
+  const article = await dbManager.getArticle(slug)
 
-  // TODO: check valid states
-  db.data.articles[existingArticleIndex].state = state
+  if (!article) {
+    throw new Error("article not found")
+  }
 
-  await db.write();
+  article.state = state
+
+  await dbManager.upsertArticle(article)
+
+
+  // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.slug === slug);
+
+  // // TODO: check valid states
+  // db.data.articles[existingArticleIndex].state = state
+
+  // await db.write();
 
   if (state == 'deleted') 
     try {
@@ -560,7 +596,7 @@ export async function setState(slug: string, state: string) {
       console.log(error)
     }
 
-  await createLocalHtmlList();
+  await createLocalHtmlList(dbManager);
 
   console.log(`set state to ${state} for ${slug}`)
 }
@@ -854,11 +890,11 @@ function getFilePath(article: Article) {
   return `${getSaveDirPath(article.slug)}/${getFileName(article)}`
 }
 
-export async function ingestText(text: string, sendMessage: (percent: number | null, message: string | null) => void
+export async function ingestText(dbManager: DbManager, text: string, sendMessage: (percent: number | null, message: string | null) => void
 ) {
   sendMessage(0, "start");
 
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
   const contentType = guessContentType(text)
 
@@ -890,30 +926,32 @@ export async function ingestText(text: string, sendMessage: (percent: number | n
   const saveDir = savesDir + "/" + article.slug;
   fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
 
-  // if (existingArticleIndex != -1) {
-  //   db.data.articles[existingArticleIndex] = article;
-  // } else {
-    // keep the most recent at the top since its easier to read that way
-    db.data.articles.unshift(article);
-  // }
+  // keep the most recent at the top since its easier to read that way
+  // db.data.articles.unshift(article);
+  await dbManager.upsertArticle(article);
 
-  await db.write();
+  // await db.write();
 
-  await createLocalHtmlList();
+  await createLocalHtmlList(dbManager);
 
   sendMessage(100, "finished");
 }
 
 
 export async function ingestUrl(
+  dbManager: DbManager,
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
   sendMessage(0, "start");
 
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.url === url);
+  const articles = await dbManager.getArticles();
+
+  const existingArticleIndex = articles.findIndex((article: Article) => article.url === url);
+
+  // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.url === url);
 
   if (existingArticleIndex != -1) {
     sendMessage(5, "article already exists - reingesting");
@@ -979,16 +1017,181 @@ export async function ingestUrl(
   const saveDir = savesDir + "/" + article.slug;
   fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
 
-  if (existingArticleIndex != -1) {
-    db.data.articles[existingArticleIndex] = article;
-  } else {
-    // keep the most recent at the top since its easier to read that way
-    db.data.articles.unshift(article);
-  }
+  dbManager.upsertArticle(article);
 
-  await db.write();
+  // if (existingArticleIndex != -1) {
+  //   db.data.articles[existingArticleIndex] = article;
+  // } else {
+  //   // keep the most recent at the top since its easier to read that way
+  //   db.data.articles.unshift(article);
+  // }
 
-  await createLocalHtmlList();
+  // await db.write();
+
+  await createLocalHtmlList(dbManager);
 
   sendMessage(100, "finished");
+}
+
+
+
+export class DbManager {
+
+  private fileManager!: FileManager
+
+  constructor(fm: FileManager) {
+
+    this.fileManager = fm
+
+    // (async () => {
+    //   const fm = await generateFileManager();
+
+    //   if (!fm) {
+    //     console.error('FileManager not defined');
+    //     throw new Error('FileManager not defined');
+    //   }
+      
+    //   this.fileManager = fm;
+
+    // })();
+  }
+
+  public async upsertArticle(article: Article) {
+    if (this.fileManager.platform === 'android') {
+
+      const articles = await this.getArticlesAndroid();
+
+      upsertArticleToList(articles, article);
+
+      this.fileManager.writeTextFileAndroid(DB_FILE_NAME, JSON.stringify({article}, null, 2));
+
+    } else {
+
+      const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
+        method: 'PUT',
+        body: JSON.stringify(article)
+      });
+
+    }
+  }
+
+  public async getArticle(slug: string): Promise<Article|undefined>  {
+    
+    // TODO: read from single article json file?
+
+    const articles = await this.getArticles();
+
+    return articles.find((article: Article) => article.slug === slug);
+  }
+
+  public async getArticles(): Promise<Article[]> {
+    if (this.fileManager.platform === 'android') {
+      return this.getArticlesAndroid();
+    } else {
+      return this.getArticlesWeb();
+    }
+  }
+
+  private async getArticlesWeb(): Promise<Article[]> {
+
+    const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
+    // const articles: ArticleAndRender[] = await response.json();
+    const articles: Article[] = await response.json();
+
+    return articles
+    
+  }
+
+  private async getArticlesAndroid(): Promise<Article[]> {
+    const content = await this.fileManager.readTextFileAndroid(DB_FILE_NAME)
+
+    const articles: Article[] = JSON.parse(content).articles;
+
+    return articles
+
+    // const response = filterAndPrepareArticles(articles);
+    // return response;
+  }
+
+}
+
+
+export default class FileManager {
+  private directory: string; // this will be a url or SAF path
+  // private static isWeb = Platform.OS === 'web';
+
+  public platform: string;
+
+//   private serviceRoot: string | null = null;
+
+  constructor(platform: string, directory: string) {
+    this.directory = directory;
+    this.platform = platform
+  }
+
+  public async readTextFile(filename: string): Promise<string> {
+    if (this.platform === 'android') {
+      return this.readTextFileAndroid(filename);
+    } else {
+      return this.readTextFileWeb(filename);
+    }
+
+    // if (FileManager.isWeb) {
+    //   return this.readTextFileWeb(filename);
+    // } else {
+    //   return this.readTextFileAndroid(filename);
+    // }
+  }
+
+  public async writeTextFile(filename: string, content: string): Promise<void> {
+    if (this.platform === 'android') {
+      return this.writeTextFileAndroid(filename, content);
+    } else {
+      return this.writeTextFileWeb(filename, content);
+    }
+  }
+
+  public async writeTextFileWeb(filename: string, content: string): Promise<void> {
+    const response = await fetch(`${this.directory}${filename}`, {
+      method: 'PUT',
+      body: content,
+    });
+  }
+
+  public async writeTextFileAndroid(filename: string, content: string): Promise<void> {
+    const uri = `${this.directory}${encodeURIComponent(filename)}`;
+    await SAF.writeAsStringAsync(uri, content);
+  }
+
+  public async readTextFileWeb(filename: string): Promise<string> {
+    const response = await fetch(`${this.directory}${filename}`);
+    return await response.text();
+  }
+
+  public async readTextFileAndroid(path: string): Promise<string> {
+
+    // const dir = await getDir();
+
+    // const path = `saves/${slug}/index.html`;
+    // const uri = `${directoryUri}${encodeURIComponent(path)}`;
+
+    const uri = `${this.directory}${encodeURIComponent(path)}`;
+
+    console.log(`uri: ${uri}`);
+
+    const contents = await SAF.readAsStringAsync(uri);
+
+    console.log(`SAF index file contents: ${contents}`);
+    // console.log(contents);
+    return contents
+
+    // const granted = await this.requestStoragePermission();
+    // if (!granted) {
+    //   throw new Error('Storage permission not granted');
+    // }
+
+    // const file = await this.getDocumentFile(uri);
+    // const text = await this.readFileContent(file);
+    // return text;
+  }
 }

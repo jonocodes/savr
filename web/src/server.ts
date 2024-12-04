@@ -4,19 +4,22 @@ import path from "path";
 import { join } from "path";
 import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
-import {
+import FileManager, {
   ingestUrl,
-  articleList,
   renderTemplate,
   setState,
   articlesToRender,
   dataDir,
   ingestText,
   toArticleAndRender,
+  upsertArticleToList,
+  DbManager,
 } from "@savr/lib";
 
+import { Article } from "@savr/lib/models";
 
-import { getArticles, renderSystemInfo } from "./backend.ts";
+
+import { generateFileManager, getArticles, renderSystemInfo, writeArticles } from "./backend.ts";
 // import { systemInfo } from "backend";
 import * as fs from 'fs';
 import staticFiles from "@fastify/static";
@@ -34,8 +37,12 @@ interface IIngestQuerystring {
   url: string;
 }
 
-interface IStathChangePathstring {
+interface ISetStatePathstring {
   state: string;
+  slug: string;
+}
+
+interface ISlugPathString {
   slug: string;
 }
 
@@ -52,6 +59,10 @@ const savesDir = join(dataDir, "/saves");
 
 const namespace: string = "/savr"; // TODO: make configurable
 // const namespace = "";
+
+const fileManager = await generateFileManager();
+
+const dbManager = new DbManager(fileManager);
 
 await server.register(cors, {
   origin: "*",
@@ -80,14 +91,15 @@ server.register(FastifySSEPlugin);
 
 server.register(
   function (app, _, done) {
-    app.get<{ Params: IStathChangePathstring }>(
+
+    app.get<{ Params: ISetStatePathstring }>(
       "/setstate/:state/:slug",
       async (request, reply) => {
         const { state, slug } = request.params;
 
         // TODO: validate state and show error
 
-        await setState(slug, state);
+        await setState(dbManager,slug, state);
 
         reply.redirect(namespace);
         return;
@@ -119,12 +131,12 @@ server.register(
     app.get("/db", async (request, reply) => {
 
       try {
-        const list = await articleList();
+        const list = await getArticles();
         // const data = fs.readFileSync("db.json", "utf8");
         // const jsonData = JSON.parse(data);
         reply.send(list);
       } catch (err) {
-        reply.code(500).send({ error: 'Error reading db.json' });
+        reply.code(500).send({ error: 'Error reading database' });
       }
     });
 
@@ -134,9 +146,50 @@ server.register(
         const articles = getArticles();
         reply.send(articles);
       } catch (err) {
-        reply.code(500).send({ error: 'Error reading db.json' });
+        reply.code(500).send({ error: 'Error reading database' });
       }
     });
+
+
+
+    app.get<{ Params: ISlugPathString }>(
+      "/api/articles/:slug",
+      async (request, reply) => {
+        const { slug } = request.params;
+
+        // TODO: validate slug and show error, 404 etc
+
+        // TODO: maybe this should fetch from the single aricle json endpoint instead, instead of the whole db
+
+        const articles = getArticles();
+
+        const existingArticleIndex = articles.findIndex((article: Article) => article.slug === slug);
+
+        const article = articles[existingArticleIndex]
+
+        reply.send(article);
+      }
+    );
+
+    // article upsert (appends to the beginning)
+    app.put<{ Params: ISlugPathString, Body: Article }>(
+      "/api/articles/:slug",
+      async (request, reply) => {
+        const { slug } = request.params;
+
+        const incomingArticle = request.body;
+
+        // TODO: validate slug and show error, 404 etc
+        
+        const articles = getArticles();
+
+        upsertArticleToList(articles, incomingArticle);
+
+        writeArticles(articles);
+
+        reply.send(incomingArticle);
+      }
+    );
 
 
     app.get("/", async (request, reply) => {
@@ -148,7 +201,7 @@ server.register(
         return;
       }
 
-      const articles = await articleList();
+      const articles = await getArticles();
 
       const rootPath = namespace;
 
@@ -186,7 +239,7 @@ server.register(
         return;
       }
 
-      ingestUrl(url, sendMessage)
+      ingestUrl(dbManager, url, sendMessage)
         .then(() => {
           // console.log("done again");
           // TODO: figure out why browser is still spinning
@@ -235,7 +288,7 @@ server.register(
 
       // TODO: handle empty text
 
-      ingestText(text, sendMessage)
+      ingestText(dbManager, text, sendMessage)
         .then(() => {
           // console.log("done again");
           // TODO: figure out why browser is still spinning

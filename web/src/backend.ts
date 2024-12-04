@@ -1,21 +1,23 @@
-import { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles } from "@savr/lib";
-import { JSONFileSyncPreset } from "lowdb/node";
-import { ArticleAndRender, Articles } from "@savr/lib/models";
+import FileManager, { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles } from "@savr/lib";
+// import { JSONFileSyncPreset } from "lowdb/node";
+import { ArticleAndRender, Articles, Article } from "@savr/lib/models";
 import { version } from '../package.json' with { type: "json" };
 import fs, { Dirent } from "fs";
 import * as path from 'path';
+import { get } from "http";
 
 
 export async function systemInfo() {
 
-  const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+  const articles = await getArticles();
+  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
   const sizeInBytes = await getDirectorySizeAsync(dataDir ?? "notfound");
   console.log(`Directory size: ${humanReadableSize(sizeInBytes)}`);
 
   const statusCounts: Record<string, number> = {};
 
-  for (const article of db.data.articles) {
+  for (const article of articles) {
     const { state } = article;
     statusCounts[state] = (statusCounts[state] || 0) + 1;
   }
@@ -109,21 +111,47 @@ export function getDirectorySize(
     });
   }
 
-export function getArticles(): ArticleAndRender[] {
-  const db = JSONFileSyncPreset<Articles>(dbFile, defaultData);
+// export function getArticles(): ArticleAndRender[] {
+//   const db = JSONFileSyncPreset<Articles>(dbFile, defaultData);
+//   return filterAndPrepareArticles(db.data.articles)
+// }
 
-  return filterAndPrepareArticles(db.data.articles)
+// export function getArticles(): Article[] {
+//   const db = JSONFileSyncPreset<Articles>(dbFile, defaultData);
+//   return db.data.articles
+// }
 
-//   const readable: ArticleAndRender[] = []
 
-//   for (const article of db.data.articles) {
+export function getArticles(): Article[] {
 
-//     const articleAndRender = toArticleAndRender(article)
+  // TODO: use defaultData if its blank or non existent
 
-//     if (article.state != "deleted")
-//       readable.push(articleAndRender)
-//   }
+  const data = fs.readFileSync(dbFile, "utf8");
+  const articles: Article[] = JSON.parse(data).articles;
+  return articles;
+}
 
-//   return readable
+export function writeArticles(articles: Article[]) {
+  fs.writeFileSync(dbFile, JSON.stringify({articles}, null, 2));
+}
 
+
+export async function generateFileManager() {
+
+  // if (!process.env.EXPO_PUBLIC_SAVR_SERVICE) {
+  //   console.error('SAVR_SERVICE is not defined');
+  //   return;
+  // }
+
+  const dir = process.env.EXPO_PUBLIC_SAVR_SERVICE
+  
+  if (!dir) {
+    throw new Error('SAVR_SERVICE is not defined');
+    // console.error('Directory not found');
+    // return;
+  }
+
+  const fm = new FileManager('web', dir)
+
+  return fm
 }
