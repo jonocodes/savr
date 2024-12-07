@@ -19,7 +19,7 @@ import FileManager, {
 import { Article } from "@savr/lib/models";
 
 
-import { generateFileManager, getArticles, renderSystemInfo, writeArticles } from "./backend.ts";
+import { generateFileManager, renderSystemInfo } from "./backend.ts";
 // import { systemInfo } from "backend";
 import * as fs from 'fs';
 import staticFiles from "@fastify/static";
@@ -131,7 +131,7 @@ server.register(
     app.get("/db", async (request, reply) => {
 
       try {
-        const list = await getArticles();
+        const list = await dbManager.getArticles();
         // const data = fs.readFileSync("db.json", "utf8");
         // const jsonData = JSON.parse(data);
         reply.send(list);
@@ -143,7 +143,7 @@ server.register(
     app.get("/api/articles", async (request, reply) => {
 
       try {
-        const articles = getArticles();
+        const articles = dbManager.getArticles();
         reply.send(articles);
       } catch (err) {
         reply.code(500).send({ error: 'Error reading database' });
@@ -161,7 +161,7 @@ server.register(
 
         // TODO: maybe this should fetch from the single aricle json endpoint instead, instead of the whole db
 
-        const articles = getArticles();
+        const articles = await dbManager.getArticles();
 
         const existingArticleIndex = articles.findIndex((article: Article) => article.slug === slug);
 
@@ -181,11 +181,13 @@ server.register(
 
         // TODO: validate slug and show error, 404 etc
         
-        const articles = getArticles();
+        // const articles = dbManager.getArticles();
 
-        upsertArticleToList(articles, incomingArticle);
+        // upsertArticleToList(articles, incomingArticle);
 
-        writeArticles(articles);
+        dbManager.upsertArticle(incomingArticle);
+
+        // writeArticles(articles);
 
         reply.send(incomingArticle);
       }
@@ -201,7 +203,7 @@ server.register(
         return;
       }
 
-      const articles = await getArticles();
+      const articles = await dbManager.getArticles();
 
       const rootPath = namespace;
 

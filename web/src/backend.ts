@@ -1,4 +1,4 @@
-import FileManager, { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles } from "@savr/lib";
+import FileManager, { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles, FileManagerLocal } from "@savr/lib";
 import { ArticleAndRender, Articles, Article } from "@savr/lib/models";
 import { version } from '../package.json' with { type: "json" };
 import fs, { Dirent } from "fs";
@@ -121,18 +121,18 @@ export function getDirectorySize(
 // }
 
 
-export function getArticles(): Article[] {
+// export function getArticles(): Article[] {
 
-  // TODO: use defaultData if its blank or non existent
+//   // TODO: use defaultData if its blank or non existent
 
-  const data = fs.readFileSync(dbFile, "utf8");
-  const articles: Article[] = JSON.parse(data).articles;
-  return articles;
-}
+//   const data = fs.readFileSync(dbFile, "utf8");
+//   const articles: Article[] = JSON.parse(data).articles;
+//   return articles;
+// }
 
-export function writeArticles(articles: Article[]) {
-  fs.writeFileSync(dbFile, JSON.stringify({articles}, null, 2));
-}
+// export function writeArticles(articles: Article[]) {
+//   fs.writeFileSync(dbFile, JSON.stringify({articles}, null, 2));
+// }
 
 
 export async function generateFileManager() {
@@ -142,7 +142,7 @@ export async function generateFileManager() {
   if (dataDir === undefined)
     throw new Error("DATA_DIR env var not set")
 
-  const fm = new FileManager(dataDir)
+  const fm = new FileManagerLocal(dataDir)
 
   return fm
 }

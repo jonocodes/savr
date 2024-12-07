@@ -7,7 +7,7 @@ import { fileURLToPath } from "url";
 // import Parser from "@postlight/parser";
 import readingTime from "reading-time";
 import axios from "axios";
-import sharp from "sharp";
+import { Jimp } from "jimp";
 import url from "url";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
@@ -148,18 +148,16 @@ async function downloadAndResizeImages(
 
       sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
 
-      // Resize the image if necessary
-      const resizedImageBuffer = await sharp(imageBuffer)
-        .resize({
-          width: maxDimension,
-          height: maxDimension,
-          fit: sharp.fit.inside,
-          withoutEnlargement: true,
-        })
-        .toBuffer();
-
+      // Resize the image using Jimp
+      const image = await Jimp.read(imageBuffer);
+      const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
+      
       const outputFilePath = outputDir + "/" + modifiedPath;
-      fs.writeFileSync(outputFilePath, resizedImageBuffer);
+
+      const ext = outputFilePath.split('.').pop();
+      // TODO: remove exp from outputFilePath
+
+      await resizedImage.write(`${outputFilePath}.${ext}`);
       console.log(`Downloaded and resized: ${outputFilePath}`);
 
       // Store the file path for later use
@@ -241,82 +239,55 @@ function stringToSlug(str: string): string {
 }
 
 async function createThumbnail(fileNames: string[], outputDirPath: string) {
-  const maxDimensionThumb = 200;
-
-  // Find the largest and squarest image as the thumbnail
   let chosenFile: string | null = null;
-  let largestArea = 0;
-
-  console.log("choosing thumbnail");
+  let maxArea = 0;
+  const maxDimensionThumb = 512;
 
   for (const fileName of fileNames) {
-    // TODO: use img instead of reloading from disk
-
-    // const filePath = outputDirPath + "/images/" + fileName;
     const filePath = fileName;
-
-    console.log(`trying image ${filePath}`);
 
     if (!fs.existsSync(filePath)) {
       continue;
     }
 
-    // Use sharp to get image metadata
-    const image = sharp(filePath);
-    const metadata = await image.metadata();
+    // Use Jimp to get image metadata
+    const image = await Jimp.read(filePath);
+    const metadata = image.bitmap;
 
-    const area = (metadata.width || 0) * (metadata.height || 0);
+    const area = metadata.width * metadata.height;
 
     // Ignore small images
     if (area < 5000) {
-      console.log(`Thumb ignore small: ${fileName}`);
       continue;
     }
 
-    // Penalize excessively long/wide images
-    const ratio =
-      Math.max(metadata.width || 0, metadata.height || 0) /
-      Math.min(metadata.width || 0, metadata.height || 0);
-    if (ratio > 1.5) {
-      console.log(`Thumb penalizing long/wide: ${fileName}`);
-      continue;
-    }
-
-    // Penalize images with "sprite" in their name
-    if (fileName.includes("sprite")) {
-      console.log(`Thumb penalizing sprite: ${fileName}`);
-      continue;
-    }
-
-    // Check if the current image has the largest area
-    if (area > largestArea) {
-      largestArea = area;
-      chosenFile = fileName;
+    // Prefer images with more pixels (likely higher quality)
+    if (area > maxArea) {
+      maxArea = area;
+      chosenFile = filePath;
     }
   }
 
-  // TODO: can we use the favicon or something. useful for things like wikipedia
-
-  // Create thumbnail
   if (chosenFile === null) return;
 
-  // Get the path of the thumbnail image
-  // const thumbnailPath = outputDirPath + "/images/" + chosenFile;
-
-  // Resize and save the image using sharp
-  const outputFilePath = outputDirPath + "/" + "thumbnail.webp";
+  const outputFilePath = outputDirPath + "/" + "thumbnail";
 
   try {
-    await sharp(chosenFile)
-      .resize(maxDimensionThumb, maxDimensionThumb, { fit: "cover", position: "center" })
-      .toFormat("webp")
-      .toFile(outputFilePath);
+    const image = await Jimp.read(chosenFile);
+    // await image
+    //   .cover(maxDimensionThumb, maxDimensionThumb)
+    //   .quality(80)
+    //   .writeAsync(outputFilePath);
+
+    await image
+      .scaleToFit({w: maxDimensionThumb, h: maxDimensionThumb}) // Resize using ScaleToFitOptions
+      .write(`${outputFilePath}.${'png'}`); // Save as PNG
+      
     console.log(`Thumbnail created: ${outputFilePath}`);
   } catch (error) {
     console.error(`Error creating thumbnail: ${error}`);
   }
 }
-
 
 function guessContentType(input: string): string {
   // Trim input to remove leading/trailing whitespace
@@ -704,7 +675,7 @@ function articleFromImage(mimeType: MIMEType, checksum: string, url: string
     slug: stringToSlug(title),
     title: title,
     url: url,
-    state: "unread", // unread, reading, finished, archived, deleted, ingesting
+    state: "unread",
     publication: null,
     author: null,
     // publishedDate: pubDate?.toISOString(),
@@ -1082,7 +1053,53 @@ export class DbManager {
 }
 
 
-export abstract class FileManagerBase {
+export class DbManagerLocal extends DbManager {
+
+
+  public async upsertArticle(article: Article) {
+
+    const articles = await this.getArticles();
+
+    upsertArticleToList(articles, article);
+
+    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({article}, null, 2));
+
+    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
+    //   method: 'PUT',
+    //   body: JSON.stringify(article)
+    // });
+  }
+
+  public async getArticle(slug: string): Promise<Article|undefined>  {
+    
+    // TODO: read from single article json file?
+
+    const articles = await this.getArticles();
+
+    return articles.find((article: Article) => article.slug === slug);
+  }
+
+  public async getArticles(): Promise<Article[]> {
+
+    // const content = await this.fileManager.readTextFile(dbFile);
+
+    const content = await this.fileManager.readTextFile(DB_FILE_NAME);
+
+    const articles = JSON.parse(content).articles;
+
+    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
+    // // const articles: ArticleAndRender[] = await response.json();
+    // const articles: Article[] = await response.json();
+
+    return articles
+    
+  }
+
+}
+
+
+
+export default abstract class FileManager {
 
   protected directory: string;
 
@@ -1101,7 +1118,27 @@ export abstract class FileManagerBase {
 
 
 
-export class FileManagerLocal extends FileManagerBase {
+// export class FileManager {
+
+//   protected directory: string;
+
+//   // #directory: string; // a url or SAF path, or local dir
+
+//   constructor(directory: string) {
+//     this.directory = directory;
+//   }
+
+//   public async writeTextFile(filename: string, content: string): Promise<void> {
+//     fs.writeFileSync(`${this.directory}/${filename}`, content);
+//   }
+
+//   public async readTextFile(filename: string): Promise<string> {
+//     return fs.readFileSync(`${this.directory}/${filename}`, 'utf8');
+//   }
+// }
+
+
+export class FileManagerLocal extends FileManager {
 
   // #directory: string; // a url or SAF path, or local dir
   
@@ -1120,23 +1157,3 @@ export class FileManagerLocal extends FileManagerBase {
 }
 
 
-
-
-export default class FileManager {
-
-  protected directory: string;
-
-  // #directory: string; // a url or SAF path, or local dir
-
-  constructor(directory: string) {
-    this.directory = directory;
-  }
-
-  public async writeTextFile(filename: string, content: string): Promise<void> {
-    fs.writeFileSync(`${this.directory}/${filename}`, content);
-  }
-
-  public async readTextFile(filename: string): Promise<string> {
-    return fs.readFileSync(`${this.directory}/${filename}`, 'utf8');
-  }
-}
