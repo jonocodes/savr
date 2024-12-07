@@ -19,8 +19,5 @@
     "build:lib": "npm run --workspace=lib build",
     "build:cli": "npm run --workspace=cli build",
     "test": "npm test --workspaces"
-  },
-  "dependencies": {
-    "lowdb": "^7.0.1"
   }
 }

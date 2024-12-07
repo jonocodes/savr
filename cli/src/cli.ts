@@ -2,7 +2,7 @@
 
 // import { ingestUrl } from "@savr/lib/src/index";
 
-import { ingestUrl } from "@savr/lib";
+import FileManager, { DbManager, ingestUrl } from "@savr/lib";
 import { Article } from "@savr/lib/models"
 
 // import { startServer } from "./server";
@@ -15,8 +15,24 @@ const sendMessage = (percent: number | null, message: string | null) => {
   console.log({ percent, message });
 };
 
-const dataDir = process.env.SAVR_DATA
-const services = process.env.SAVR_SERVICE
+// const dataDir = process.env.SAVR_DATA
+// const services = process.env.SAVR_SERVICE
+
+async function generateFileManager() {
+
+  const dataDir = process.env.DATA_DIR
+
+  if (dataDir === undefined)
+    throw new Error("DATA_DIR env var not set")
+
+  const fm = new FileManager(dataDir)
+
+  return fm
+}
+
+const fileManager = await generateFileManager()
+const dbManager = new DbManager(fileManager)
+
 
 // TODO: look for "--browser=" argument. use "commander" package
 
@@ -49,7 +65,7 @@ if (args.includes('--start-server')) {
 } else {
 
   (async () => {
-    await ingestUrl(args[0], sendMessage);
+    await ingestUrl(dbManager, args[0], sendMessage);
   })().catch((err) => console.log("Fatal error", err));
 
 }

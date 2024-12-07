@@ -2,13 +2,12 @@ import React, { useContext, useEffect, useState } from 'react';
 import { Platform, ScrollView, Text, View } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useLocalSearchParams } from 'expo-router';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { DirectoryContext } from '@/components/DirectoryProvider';
-import {
-  StorageAccessFramework as SAF
-} from "expo-file-system";
-import FileManager, { generateFileManager } from '../tools';
-
+// import AsyncStorage from '@react-native-async-storage/async-storage';
+// import { DirectoryContext } from '../../components/DirectoryProvider.tsx';
+// import {
+//   StorageAccessFramework as SAF
+// } from "expo-file-system";
+import { generateFileManager } from '../tools.ts';
 
 const htmlSample = `
 <div id='article'>
@@ -24,7 +23,7 @@ export default function ArticleScreen() {
 
   const { slug } = useLocalSearchParams();
 
-  const { directoryUri, permissions } = useContext(DirectoryContext);
+  // const { directoryUri, permissions } = useContext(DirectoryContext);
 
   const [html, setHtml] = useState("");
 

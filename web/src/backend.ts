@@ -1,5 +1,4 @@
 import FileManager, { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles } from "@savr/lib";
-// import { JSONFileSyncPreset } from "lowdb/node";
 import { ArticleAndRender, Articles, Article } from "@savr/lib/models";
 import { version } from '../package.json' with { type: "json" };
 import fs, { Dirent } from "fs";
@@ -138,20 +137,12 @@ export function writeArticles(articles: Article[]) {
 
 export async function generateFileManager() {
 
-  // if (!process.env.EXPO_PUBLIC_SAVR_SERVICE) {
-  //   console.error('SAVR_SERVICE is not defined');
-  //   return;
-  // }
+  const dataDir = process.env.DATA_DIR
 
-  const dir = process.env.EXPO_PUBLIC_SAVR_SERVICE
-  
-  if (!dir) {
-    throw new Error('SAVR_SERVICE is not defined');
-    // console.error('Directory not found');
-    // return;
-  }
+  if (dataDir === undefined)
+    throw new Error("DATA_DIR env var not set")
 
-  const fm = new FileManager('web', dir)
+  const fm = new FileManager(dataDir)
 
   return fm
 }

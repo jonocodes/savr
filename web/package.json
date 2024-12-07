@@ -13,7 +13,6 @@
     "fastify": "^5.0.0",
     "fastify-sse-v2": "^4.1.0",
     "jsdom": "^24.1.1",
-    "lowdb": "^7.0.1",
     "mozilla-readability-cli": "^0.2.4",
     "mustache": "^4.2.0",
     "pdf2html": "^3.1.0",

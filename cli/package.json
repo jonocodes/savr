@@ -29,7 +29,7 @@
     "test": "jest",
     "synclinks": "copyfiles -u 2 -F 'src/templates/**/*' 'dist/templates' && copyfiles -u 2 -F 'src/static/**/*' 'dist/static'",
     "build": "pkgroll && npm run synclinks",
-    "ingestSample": "DATA_DIR=$HOME/sync/savr_data tsx ./src/cli.ts https://www.apalrd.net/posts/2023/network_ipv6/",
+    "ingestSample": "EXPO_PUBLIC_SAVR_SERVICE=http://localhost:8000/savr DATA_DIR=$HOME/sync/savr_data tsx ./src/cli.ts https://www.apalrd.net/posts/2023/network_ipv6/",
     "ui": "tsx ./src/cli.ts --ui",
     "cli": "tsx ./src/cli.ts",
     "savr": "tsx ./src/cli.ts",

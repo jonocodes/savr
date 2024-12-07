@@ -2,11 +2,14 @@
   "compilerOptions": {
     "baseUrl": ".",
     "paths": {
-      // "lib/*": ["lib/src/*"],
+      // "@/components/*": ["app/components/*"],
+      // "@/constants/*": ["app/constants/*"],
+      // "@/hooks/*": ["app/hooks/*"],
       "web/*": ["web/src/*"]
     },
-    "moduleResolution": "nodenext",
+    "moduleResolution": "bundler",
+    "esModuleInterop": true
   },
   "type": "module",
-  "include": []
+  "include": ["**/*.ts", "**/*.tsx"]
 }

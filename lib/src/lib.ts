@@ -9,10 +9,6 @@ import readingTime from "reading-time";
 import axios from "axios";
 import sharp from "sharp";
 import url from "url";
-// import { JSONFileSync } from "lowdb/node";
-// import { JSONFileSyncPreset } from "lowdb/node";
-// import { JSONFileSyncPreset } from "lowdb/lib/node";
-// import Lowdb from "lowdb";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
@@ -23,9 +19,6 @@ import { pipeline } from 'stream/promises';
 import { Readable } from 'stream';
 import showdown from "showdown";
 
-import {
-  StorageAccessFramework as SAF
-} from "expo-file-system";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -542,7 +535,9 @@ function copyStaticFiles() {
 
 export async function createLocalHtmlList(dbManager: DbManager) {
 
-  const htmlOutfile = dataDir + "/list.html";
+  // const htmlOutfile = await dbManager.fileManager.readTextFile('list.html')
+
+  // const htmlOutfile = dataDir + "/list.html";
 
   const rootPath = "."
 
@@ -561,7 +556,9 @@ export async function createLocalHtmlList(dbManager: DbManager) {
     metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
   });
 
-  fs.writeFileSync(htmlOutfile, rendered);
+  dbManager.fileManager.writeTextFile('list.html', rendered)
+
+  // fs.writeFileSync(htmlOutfile, rendered);
 
   copyStaticFiles()
 }
@@ -1037,42 +1034,24 @@ export async function ingestUrl(
 
 export class DbManager {
 
-  private fileManager!: FileManager
+  public fileManager: FileManager
 
   constructor(fm: FileManager) {
-
     this.fileManager = fm
-
-    // (async () => {
-    //   const fm = await generateFileManager();
-
-    //   if (!fm) {
-    //     console.error('FileManager not defined');
-    //     throw new Error('FileManager not defined');
-    //   }
-      
-    //   this.fileManager = fm;
-
-    // })();
   }
 
   public async upsertArticle(article: Article) {
-    if (this.fileManager.platform === 'android') {
 
-      const articles = await this.getArticlesAndroid();
+    const articles = await this.getArticles();
 
-      upsertArticleToList(articles, article);
+    upsertArticleToList(articles, article);
 
-      this.fileManager.writeTextFileAndroid(DB_FILE_NAME, JSON.stringify({article}, null, 2));
+    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({article}, null, 2));
 
-    } else {
-
-      const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
-        method: 'PUT',
-        body: JSON.stringify(article)
-      });
-
-    }
+    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
+    //   method: 'PUT',
+    //   body: JSON.stringify(article)
+    // });
   }
 
   public async getArticle(slug: string): Promise<Article|undefined>  {
@@ -1085,113 +1064,79 @@ export class DbManager {
   }
 
   public async getArticles(): Promise<Article[]> {
-    if (this.fileManager.platform === 'android') {
-      return this.getArticlesAndroid();
-    } else {
-      return this.getArticlesWeb();
-    }
-  }
 
-  private async getArticlesWeb(): Promise<Article[]> {
+    // const content = await this.fileManager.readTextFile(dbFile);
 
-    const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
-    // const articles: ArticleAndRender[] = await response.json();
-    const articles: Article[] = await response.json();
+    const content = await this.fileManager.readTextFile(DB_FILE_NAME);
+
+    const articles = JSON.parse(content).articles;
+
+    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
+    // // const articles: ArticleAndRender[] = await response.json();
+    // const articles: Article[] = await response.json();
 
     return articles
     
   }
 
-  private async getArticlesAndroid(): Promise<Article[]> {
-    const content = await this.fileManager.readTextFileAndroid(DB_FILE_NAME)
-
-    const articles: Article[] = JSON.parse(content).articles;
-
-    return articles
-
-    // const response = filterAndPrepareArticles(articles);
-    // return response;
-  }
-
 }
 
 
-export default class FileManager {
-  private directory: string; // this will be a url or SAF path
-  // private static isWeb = Platform.OS === 'web';
+export abstract class FileManagerBase {
 
-  public platform: string;
+  protected directory: string;
 
-//   private serviceRoot: string | null = null;
+  // #directory: string; // a url or SAF path, or local dir
 
-  constructor(platform: string, directory: string) {
+  constructor(directory: string) {
     this.directory = directory;
-    this.platform = platform
   }
 
-  public async readTextFile(filename: string): Promise<string> {
-    if (this.platform === 'android') {
-      return this.readTextFileAndroid(filename);
-    } else {
-      return this.readTextFileWeb(filename);
-    }
+  abstract writeTextFile(filename: string, content: string): Promise<void>;
 
-    // if (FileManager.isWeb) {
-    //   return this.readTextFileWeb(filename);
-    // } else {
-    //   return this.readTextFileAndroid(filename);
-    // }
+  public abstract readTextFile(filename: string): Promise<string>;
+
+  public abstract generateJsonDbManager(): DbManager;
+}
+
+
+
+export class FileManagerLocal extends FileManagerBase {
+
+  // #directory: string; // a url or SAF path, or local dir
+  
+  public generateJsonDbManager(): DbManager {
+    const dbManager = new DbManagerLocal(this);
+    return dbManager
   }
 
   public async writeTextFile(filename: string, content: string): Promise<void> {
-    if (this.platform === 'android') {
-      return this.writeTextFileAndroid(filename, content);
-    } else {
-      return this.writeTextFileWeb(filename, content);
-    }
+    fs.writeFileSync(`${this.directory}/${filename}`, content);
   }
 
-  public async writeTextFileWeb(filename: string, content: string): Promise<void> {
-    const response = await fetch(`${this.directory}${filename}`, {
-      method: 'PUT',
-      body: content,
-    });
+  public async readTextFile(filename: string): Promise<string> {
+    return fs.readFileSync(`${this.directory}/${filename}`, 'utf8');
+  }
+}
+
+
+
+
+export default class FileManager {
+
+  protected directory: string;
+
+  // #directory: string; // a url or SAF path, or local dir
+
+  constructor(directory: string) {
+    this.directory = directory;
   }
 
-  public async writeTextFileAndroid(filename: string, content: string): Promise<void> {
-    const uri = `${this.directory}${encodeURIComponent(filename)}`;
-    await SAF.writeAsStringAsync(uri, content);
+  public async writeTextFile(filename: string, content: string): Promise<void> {
+    fs.writeFileSync(`${this.directory}/${filename}`, content);
   }
 
-  public async readTextFileWeb(filename: string): Promise<string> {
-    const response = await fetch(`${this.directory}${filename}`);
-    return await response.text();
-  }
-
-  public async readTextFileAndroid(path: string): Promise<string> {
-
-    // const dir = await getDir();
-
-    // const path = `saves/${slug}/index.html`;
-    // const uri = `${directoryUri}${encodeURIComponent(path)}`;
-
-    const uri = `${this.directory}${encodeURIComponent(path)}`;
-
-    console.log(`uri: ${uri}`);
-
-    const contents = await SAF.readAsStringAsync(uri);
-
-    console.log(`SAF index file contents: ${contents}`);
-    // console.log(contents);
-    return contents
-
-    // const granted = await this.requestStoragePermission();
-    // if (!granted) {
-    //   throw new Error('Storage permission not granted');
-    // }
-
-    // const file = await this.getDocumentFile(uri);
-    // const text = await this.readFileContent(file);
-    // return text;
+  public async readTextFile(filename: string): Promise<string> {
+    return fs.readFileSync(`${this.directory}/${filename}`, 'utf8');
   }
 }

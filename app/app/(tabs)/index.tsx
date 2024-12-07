@@ -17,9 +17,9 @@ import { ThemedText } from '@/components/ThemedText';
 import { ThemedView } from '@/components/ThemedView';
 import { useContext, useEffect, useState } from 'react';
 import { Link } from 'expo-router';
-import { DirectoryContext } from '@/components/DirectoryProvider';
+// import { DirectoryContext } from '@/components/DirectoryProvider';
 
-import FileManager from '@/app/tools';
+import { generateFileManager } from '@/app/tools';
 
 export default function HomeScreen() {
 
@@ -27,7 +27,7 @@ export default function HomeScreen() {
   const [chosenDir, setChosenDir] = useState<string|null>(null);
   const [dirContents, setDirContents] = useState<string[]|null>(null);
 
-  const { setDirectoryUri, setPermissions } = useContext(DirectoryContext);
+  // const { setDirectoryUri, setPermissions } = useContext(DirectoryContext);
 
 
   useEffect(() => {
@@ -71,8 +71,10 @@ export default function HomeScreen() {
       return;
     }
 
-    const fm = new FileManager({
-      directory: process.env.EXPO_PUBLIC_SAVR_SERVICE,})
+    const fm = generateFileManager(Platform.OS);
+
+    // const fm = new FileManager({
+    //   directory: process.env.EXPO_PUBLIC_SAVR_SERVICE,})
 
     try {
       const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}db`);
