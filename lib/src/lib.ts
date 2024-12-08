@@ -277,7 +277,9 @@ export class DbManager {
 
 export default abstract class FileManager {
 
-  protected directory: string;
+
+  public directory: string; // TODO rename basepath?
+  // protected directory: string;
 
   // #directory: string; // a url or SAF path, or local dir
 

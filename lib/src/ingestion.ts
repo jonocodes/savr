@@ -35,9 +35,9 @@ if (!fs.existsSync(dataDir)) {
   throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
 }
 
-export const DB_FILE_NAME='db.json'
+// export const DB_FILE_NAME='db.json'
 
-export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
+// export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
 
 const savesDir = dataDir + "/saves";
 
@@ -520,9 +520,9 @@ function readabilityToArticle(html: string, contentType: string, url: string|nul
 
   const slug = stringToSlug(readabilityResult.title);
 
-  const saveDir = savesDir + "/" + slug;
+  // const saveDir = savesDir + "/" + slug;
 
-  console.log(saveDir);
+  // console.log(saveDir);
 
   // if (!fs.existsSync(saveDir)) {
   //   fs.mkdirSync(saveDir, { recursive: true });
@@ -665,7 +665,7 @@ async function ingestHtml(fileManager: FileManager, html: string, contentType: s
 
   let [article, content] = readabilityToArticle(html, contentType, url)
 
-  const saveDir = savesDir + "/" + article.slug;
+  const saveDir =  "saves/" + article.slug;
 
   sendMessage(15, "collecting images");
 
@@ -929,7 +929,7 @@ export async function ingestUrl(
     throw new Error("error determining content type")
   }
 
-  const saveDir = savesDir + "/" + article.slug;
+  const saveDir = "saves/" + article.slug;
 
   dbManager.fileManager.writeTextFile(saveDir + "/article.json", JSON.stringify(article, null, 2))
   // fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));

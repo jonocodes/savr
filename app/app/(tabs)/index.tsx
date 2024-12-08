@@ -1,15 +1,13 @@
-import { Image, StyleSheet, Platform, Button, Linking, Text, FlatList, TouchableOpacity } from 'react-native';
+import { Image, StyleSheet, Platform, Button, Linking, Text, FlatList, TouchableOpacity, TextInput } from 'react-native';
 // import DocumentPicker from 'react-native-document-picker';
 // import { DocumentPickerOptions } from 'react-native-document-picker';
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-// import * as fs from 'fs';
-// import * as FileSystem from 'expo-file-system';
+
 import {
   StorageAccessFramework as SAF
 } from "expo-file-system";
 
-// import { URI } from 'expo-uri';
 
 import { HelloWave } from '@/components/HelloWave';
 import ParallaxScrollView from '@/components/ParallaxScrollView';
@@ -20,6 +18,8 @@ import { Link } from 'expo-router';
 // import { DirectoryContext } from '@/components/DirectoryProvider';
 
 import { generateFileManager } from '@/app/tools';
+import FileManager, { DbManager } from '@savr/lib';
+
 
 export default function HomeScreen() {
 
@@ -27,82 +27,73 @@ export default function HomeScreen() {
   const [chosenDir, setChosenDir] = useState<string|null>(null);
   const [dirContents, setDirContents] = useState<string[]|null>(null);
 
-  // const { setDirectoryUri, setPermissions } = useContext(DirectoryContext);
+
+  const [fileManager, setFileManager] = useState<FileManager|null>(null);
+
+  const [dbManager, setDbManager] = useState<DbManager|null>(null);
+
+  const [url, setUrl] = useState<string|null>("https://www.freecodecamp.org/news/javascript-typeof-how-to-check-the-type-of-a-variable-or-object-in-js/");
 
 
   useEffect(() => {
 
-    console.log(`Platform: ${Platform.OS}`);
 
-    if (Platform.OS === 'web') {
-      const dataDir = process.env.EXPO_PUBLIC_DATA_DIR;
-      const service = process.env.EXPO_PUBLIC_SAVR_SERVICE;
+    const setManagers = async () => {
+      try {
+        const fm = await generateFileManager(Platform.OS);
 
-      console.log(`DATA_DIR: ${dataDir}`);
-      console.log(`SAVR_SERVICE: ${service}`);
 
-      if (service) {
-        getContents();
+        if (!fm) {  
+          console.error('FileManager not defined');
+          throw new Error('FileManager not defined');
+        }
+        const dbManager = fm.generateJsonDbManager();
+
+        setFileManager(fm);
+        setDbManager(dbManager);
+
+        console.log(`Platform: ${Platform.OS}`);
+
+        if (Platform.OS === 'web') {
+          const dataDir = process.env.EXPO_PUBLIC_DATA_DIR;
+          const service = process.env.EXPO_PUBLIC_SAVR_SERVICE;
+
+          console.log(`DATA_DIR: ${dataDir}`);
+          console.log(`SAVR_SERVICE: ${service}`);
+
+          if (service) {
+            getContentsWeb(dbManager);
+          }
+
+        }
+
+
+      } catch (error) {
+        console.error(error);
       }
+    };
+    setManagers();
 
-      // if (dataDir) {
-      //   setChosenDir(dataDir);
-      //   const getContents = async () => {
-      //     try {
-            
-      //       // const contents = await fs.promises.readdir(dataDir);
-      //       // setDirContents(contents.map((item) => (item )));
-      //       const contents = await FileSystem.readDirectoryAsync(dataDir);
 
-      //       setDirContents(contents);
-      //     } catch (error) {
-      //       console.error(error);
-      //     }
-      //   };
-      //   getContents();
-      // }
-    }
   }, []);
 
-  const getContents = async () => {
+  const getContentsWeb = async (db: DbManager) => {
 
-    if (!process.env.EXPO_PUBLIC_SAVR_SERVICE) {
-      console.error('SAVR_SERVICE is not defined');
-      return;
+    if (!db) {
+      console.error('dbManager is null');
+      throw new Error('dbManager is null');
     }
 
-    const fm = generateFileManager(Platform.OS);
-
-    // const fm = new FileManager({
-    //   directory: process.env.EXPO_PUBLIC_SAVR_SERVICE,})
+    const articles = await db.getArticles();
 
     try {
-      const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}db`);
-      // const data = await response.json();
-      // const slugs = data.map(item => item.slug);
-      const data: Record<string, string>[] = await response.json();
-      const slugs: string[] = data.map(item => item['slug']);
-
-      // const data: object[] = await response.json();
-      // const slugs: string[] = data.map(item => item.slug);
+      const slugs: string[] = articles.map(item => item.slug);
 
       setDirContents(slugs);
-      // setDirContents(response);
     } catch (error) {
       console.error(error);
     }
   };
-
-  // const extractSAFVolume = (uri: string) => {
-  //   try {
-  //     // SAF URIs typically look like: content://com.android.externalstorage.documents/tree/primary%3ADocuments
-  //     const match = uri.match(/tree\/([^:%]*)/); // Extract the "primary" or volume part
-  //     return match ? match[1] : null;
-  //   } catch (error) {
-  //     console.error('Error extracting volume:', error);
-  //     return null;
-  //   }
-  // };
 
   const storeDir = async (value: string) => {
     try {
@@ -117,75 +108,60 @@ export default function HomeScreen() {
   const handleChooseDir = async () => {
 
     if (Platform.OS === 'web') {
-      return;
+      return
     }
 
     const permission = await SAF.requestDirectoryPermissionsAsync();
     if (permission.granted) {
       const dir = permission.directoryUri
-      // setChosenDir(dir);
-      // const dir = await SAF.pickDirectoryAsync();
+
       console.log(`SAF DIR CHOSEN: ${dir}`);
 
       try {
-
-        // const dirContents = await SAF.readDirectoryAsync(dir);
-        // console.log(`SAF DIR CONTENTS: ${dirContents}`);
 
         const volAndPath = dir.split(':')[1].split('/').at(-1)
         const saf_data_dir = `${dir}/document/${volAndPath}%2F`
         setChosenDir(saf_data_dir);
 
-        storeDir(saf_data_dir);
+        await storeDir(saf_data_dir);
 
-        // setDirectoryUri(saf_data_dir);
+        const fm = await generateFileManager(Platform.OS);
 
-        const uri = `${saf_data_dir}${encodeURIComponent('db.json')}`;
+        if (!fm) {  
+          console.error('FileManager not defined');
+          throw new Error('FileManager not defined');
+        }
+        const dbManager = fm.generateJsonDbManager();
 
-        console.log(`SAF URI: ${uri}`);
-        const contents = await SAF.readAsStringAsync(uri);
+        setFileManager(fm);
+        setDbManager(dbManager);
 
-        console.log(`SAF CONTENTS: ${contents}`);
+        const articles = await dbManager.getArticles();
 
-        // const contents = await FileSystem.readAsStringAsync(`${dir}/db.json`);
-        const data: Record<string, string>[] = JSON.parse(contents)['articles'];
+        const slugs: string[] = articles.map(item => item.slug);
+  
+        setDirContents(slugs);
 
-        console.log(`SAF DATA: ${data[0]}`);
-        const slugs: string[] = data.map(item => item['slug']);
         console.log(`SAF DIR CONTENTS: ${slugs}`);
         setDirContents(slugs);
       } catch (error) {
         console.error(error);
       }
 
-      // const contents = await FileSystem.readAsStringAsync(`${dir}/db.json`);
-      // const data: Record<string, string>[] = JSON.parse(contents);
-      // const slugs: string[] = data.map(item => item['slug']);
-      // console.log(`SAF DIR CONTENTS: ${slugs}`);
-      // setDirContents(slugs);
 
     } else {
       console.log('SAF DIR Permission denied');
     }
   };
-  // const handleChooseDir = async () => {
-  //   const directory = await FileSystem.getInfoAsync('/');
-  //   const files = await FileSystem.readDirectoryAsync(directory.uri);
 
-  //   // Filter out files and show only directories
-  //   const dirs = files.filter((file) => file.isDirectory);
 
-  //   // Show the list of directories to the user
-  //   // and let them select one
+  const handleSubmitUrl = async () => {
+    console.log(url);
 
-  //   // For example, you could use a modal or a bottom sheet to show the list of directories
-
-  //   // When the user selects a directory, you can get its URI and do something with it
-  //   const selectedDir = await FileSystem.getInfoAsync(dirs[0].uri);
-
-  //   console.log(selectedDir.uri);
-  // };
-
+    if (Platform.OS === 'web') {
+      const response = await fetch(`${fileManager?.directory}save?url=${url}`);
+    }
+  }
 
   return (
     <ParallaxScrollView
@@ -200,6 +176,19 @@ export default function HomeScreen() {
         <ThemedText type="title">Welcome! Jono3</ThemedText>
         <HelloWave />
       </ThemedView>
+
+      <ThemedView style={styles.stepContainer}>
+        <ThemedText type="subtitle">Enter URL</ThemedText>
+        <TextInput
+          // style={styles.input}
+          placeholder="Enter a URL"
+          onChangeText={text => setUrl(text)}
+          value={url || ""}
+        />
+        <Button title="Submit" onPress={handleSubmitUrl} />
+      </ThemedView>
+
+
       <ThemedView style={styles.stepContainer}>
         <ThemedText type="subtitle">Step 1: Try it</ThemedText>
         <ThemedText>

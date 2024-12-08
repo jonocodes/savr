@@ -8,6 +8,9 @@ import { Jimp } from "jimp";
 import fs, { createWriteStream, Dirent } from "fs";
 import axios from "axios";
 import { promisify } from "util";
+import * as path from "path";
+import { upsertArticleToList } from "./ingestion";
+
 
 export class FileManagerLocal extends FileManager {
 
@@ -43,7 +46,23 @@ export class FileManagerLocal extends FileManager {
   
   
     public async writeTextFile(filename: string, content: string): Promise<void> {
-      fs.writeFileSync(`${this.directory}/${filename}`, content);
+      // import * as path from "path";
+
+      // console.log("content: " + content);
+
+      const fullPath = path.join(this.directory, filename);
+      const dir = path.dirname(fullPath);
+
+      console.log("writing file: " + fullPath);
+
+      if (!fs.existsSync(dir)) {
+        console.log("creating dir: " + dir);
+        fs.mkdirSync(dir, { recursive: true });
+      }
+
+      fs.writeFileSync(fullPath, content);
+
+      // fs.writeFileSync(`${this.directory}/${filename}`, content);
     }
   
     public async readTextFile(filename: string): Promise<string> {
@@ -60,9 +79,9 @@ export class FileManagerLocal extends FileManager {
   
       const articles = await this.getArticles();
   
-      // upsertArticleToList(articles, article);
+      upsertArticleToList(articles, article);
   
-      this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({article}, null, 2));
+      this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
   
       // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
       //   method: 'PUT',

@@ -175,11 +175,15 @@ server.register(
 
         // TODO: maybe this should fetch from the single aricle json endpoint instead, instead of the whole db
 
-        const articles = await dbManager.getArticles();
+        // const articles = await dbManager.getArticles();
 
-        const existingArticleIndex = articles.findIndex((article: Article) => article.slug === slug);
+        // const existingArticleIndex = articles.findIndex((article: Article) => article.slug === slug);
 
-        const article = articles[existingArticleIndex]
+        // const article = articles[existingArticleIndex]
+
+        const article = await dbManager.getArticle(slug);
+
+        console.log(article)
 
         reply.send(article);
       }

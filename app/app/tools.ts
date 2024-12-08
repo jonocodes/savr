@@ -4,8 +4,12 @@ import {
   } from "expo-file-system";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import * as FileSystem from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 
-import FileManager, {dbFile, DbManager, filterAndPrepareArticles, upsertArticleToList} from '@savr/lib'
+
+
+import FileManager, { DbManager } from '@savr/lib'
 import {Article, ArticleAndRender} from '@savr/lib/models'
 
 const DB_FILE_NAME='db.json'
@@ -46,9 +50,9 @@ export async function generateFileManager(platform: string) {
       console.error('SAVR_SERVICE is not defined');
       return;
     }
-    dir = process.env.EXPO_PUBLIC_SAVR_SERVICE
+    // dir = process.env.EXPO_PUBLIC_SAVR_SERVICE
 
-    return new FileManagerWeb(dir);
+    return new FileManagerWeb(process.env.EXPO_PUBLIC_SAVR_SERVICE);
   }
 }
 
@@ -95,10 +99,23 @@ export class  DbManagerWeb extends DbManager {
     
   }
 
+
+  public async getArticle(slug: string): Promise<Article|undefined>  {
+    const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${slug}`);
+
+    const article = await response.json();
+
+    return article;
+  }
+  
 }
 
 
 export class FileManagerAndroid extends FileManager {
+
+  public generateJsonDbManager(): DbManager {
+    return new DbManagerAndroid(this);
+  }
 
   public async writeTextFile(filename: string, content: string): Promise<void> {
     const uri = `${this.directory}${encodeURIComponent(filename)}`;
@@ -118,9 +135,58 @@ export class FileManagerAndroid extends FileManager {
     return contents
 
   }
+
+  public async downloadAndResizeImage(url: string, targetDir: string) {
+
+    const maxDimension = 200
+    const filePath = url.split("/").pop()
+    const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
+
+
+    // // Download the image
+    // const response = await fetch(url);
+    // const buffer = await response.arrayBuffer();
+  
+    // // Get the image type from the response headers
+    // const imageType = response.headers.get('Content-Type').split('/')[1];
+  
+    // // Resize the image to a maximum dimension
+    // const resizedImage = await ImageManipulator.manipulateAsync(buffer, [
+    //   {
+    //     resize: {
+    //       width: maxDimension,
+    //       height: maxDimension,
+    //     },
+    //   },
+    // ]);
+  
+    // // Save the image to the SAF
+    // const file = await SAF.createFileAsync(
+    //  `${this.directory}/${targetDir}`,
+    //    filePath,
+    //   `image/${imageType}`,
+    // );
+    // await FileSystem.writeAsStringAsync(file, resizedImage.base64, {
+    //   encoding: 'base64',
+    // });
+  
+    // return file.uri;
+    
+  };
 }
 
 export class FileManagerWeb extends FileManager {
+
+  public generateJsonDbManager(): DbManager {
+    return new DbManagerWeb(this);
+  }
+
+  public async downloadAndResizeImage(url: string, targetDir: string) {
+
+    const maxDimension = 200
+    const filePath = url.split("/").pop()
+    const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
+  };
 
   public async writeTextFile(filename: string, content: string): Promise<void> {
     const response = await fetch(`${this.directory}${filename}`, {
