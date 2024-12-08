@@ -13,7 +13,9 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "node",
     "sourceMap": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    // "jsx": "react", // or react-jsx, etc.
+    // "jsxFactory": "jsx",
   },
   "type": "module",
   "include": [

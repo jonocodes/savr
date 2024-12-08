@@ -4,19 +4,19 @@ import path from "path";
 import { join } from "path";
 import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
-import FileManager, {
-  ingestUrl,
-  renderTemplate,
-  setState,
+import {
   articlesToRender,
-  dataDir,
-  ingestText,
-  toArticleAndRender,
-  upsertArticleToList,
-  DbManager,
+  
+  renderListTemplate,
 } from "@savr/lib";
 
 import { Article } from "@savr/lib/models";
+
+import {
+  ingestUrl,
+  ingestText,
+  setState,
+} from "@savr/lib/ingestion";
 
 
 import { generateFileManager, renderSystemInfo } from "./backend.ts";
@@ -28,10 +28,22 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import formbody from '@fastify/formbody';
 import { version } from "../package.json" with { type: "json" };
+// import { templateCache } from "mustache";
 
 // Get the current directory path in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+
+
+export const dataDir = process.env.DATA_DIR
+
+if (dataDir === undefined)
+  throw new Error("DATA_DIR env var not set")
+
+if (!fs.existsSync(dataDir)) {
+  throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
+}
+
 
 interface IIngestQuerystring {
   url: string;
@@ -62,7 +74,9 @@ const namespace: string = "/savr"; // TODO: make configurable
 
 const fileManager = await generateFileManager();
 
-const dbManager = new DbManager(fileManager);
+const dbManager = fileManager.generateJsonDbManager();
+
+// const dbManager = new DbManager(fileManager);
 
 await server.register(cors, {
   origin: "*",
@@ -114,19 +128,19 @@ server.register(
 
     });
 
-    app.get("/fsList", async (request, reply) => {
+    // app.get("/fsList", async (request, reply) => {
 
-      if (dataDir === undefined)
-        throw new Error("DATA_DIR env var not set")
+    //   if (dataDir === undefined)
+    //     throw new Error("DATA_DIR env var not set")
       
-      try {
-        const files = fs.readdirSync(dataDir);
-        reply.send(files);
-      } catch (err) {
-        reply.code(500).send({ error: 'Error reading directory' });
-      }
+    //   try {
+    //     const files = fs.readdirSync(dataDir);
+    //     reply.send(files);
+    //   } catch (err) {
+    //     reply.code(500).send({ error: 'Error reading directory' });
+    //   }
 
-    });
+    // });
 
     app.get("/db", async (request, reply) => {
 
@@ -143,7 +157,7 @@ server.register(
     app.get("/api/articles", async (request, reply) => {
 
       try {
-        const articles = dbManager.getArticles();
+        const articles = await dbManager.getArticles();
         reply.send(articles);
       } catch (err) {
         reply.code(500).send({ error: 'Error reading database' });
@@ -210,7 +224,8 @@ server.register(
       const [readable, archived] = articlesToRender(articles);
 
       try {
-        const rendered = renderTemplate("list", {
+
+        const rendered = renderListTemplate({
           readable,
           archived,
           // rootPath: rootPath,
@@ -267,15 +282,15 @@ server.register(
       text: string;
     }
 
-    app.get("/saveText", async (request, reply) => {
+    // app.get("/saveText", async (request, reply) => {
 
-      const rendered = renderTemplate('add-text', {
-        namespace: namespace,
-      })
+    //   const rendered = renderTemplate('add-text', {
+    //     namespace: namespace,
+    //   })
 
-      reply.type("text/html").send(rendered)
+    //   reply.type("text/html").send(rendered)
 
-    });
+    // });
 
     app.post<{
       Body: SaveTextRequestBody

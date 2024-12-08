@@ -11,7 +11,7 @@
     "moduleResolution": "bundler",
     "module": "Preserve",
     // "moduleResolution": "nodenext",
-    "allowImportingTsExtensions": true
+    // "allowImportingTsExtensions": true
   },
   "include": [
     "**/*.ts",

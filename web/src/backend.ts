@@ -1,33 +1,39 @@
-import FileManager, { dbFile, defaultData, dataDir, humanReadableSize, renderTemplate, toArticleAndRender, filterAndPrepareArticles, FileManagerLocal } from "@savr/lib";
+import FileManager from "@savr/lib";
 import { ArticleAndRender, Articles, Article } from "@savr/lib/models";
 import { version } from '../package.json' with { type: "json" };
 import fs, { Dirent } from "fs";
-import * as path from 'path';
-import { get } from "http";
+// import * as path from 'path';
+// import { get } from "http";
 
+
+import { FileManagerLocal } from "@savr/lib/node";
 
 export async function systemInfo() {
 
-  const articles = await getArticles();
-  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-
-  const sizeInBytes = await getDirectorySizeAsync(dataDir ?? "notfound");
-  console.log(`Directory size: ${humanReadableSize(sizeInBytes)}`);
-
-  const statusCounts: Record<string, number> = {};
-
-  for (const article of articles) {
-    const { state } = article;
-    statusCounts[state] = (statusCounts[state] || 0) + 1;
+  return {
+    "system": "info"
   }
 
-  const data = {
-    version,
-    size: humanReadableSize(sizeInBytes),
-    articles: statusCounts,
-  };
+  // const articles = await getArticles();
+  // // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  return data;
+  // const sizeInBytes = await getDirectorySizeAsync(dataDir ?? "notfound");
+  // console.log(`Directory size: ${humanReadableSize(sizeInBytes)}`);
+
+  // const statusCounts: Record<string, number> = {};
+
+  // for (const article of articles) {
+  //   const { state } = article;
+  //   statusCounts[state] = (statusCounts[state] || 0) + 1;
+  // }
+
+  // const data = {
+  //   version,
+  //   size: humanReadableSize(sizeInBytes),
+  //   articles: statusCounts,
+  // };
+
+  // return data;
 }
 
 export async function renderSystemInfo() {
@@ -38,7 +44,9 @@ export async function renderSystemInfo() {
     content: JSON.stringify(info, null, 2)
   };
 
-  return renderTemplate("about", view);
+  // return renderTemplate("about", view);
+
+  return "about template goes here";
 }
 export function getDirectorySizeAsync(dirPath: string): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -79,7 +87,7 @@ export function getDirectorySize(
       }
   
       for (const entry of entries as Dirent[]) {
-        const fullPath = path.join(dirPath, entry.name);
+        const fullPath = `${dirPath}/${entry.name}`;
   
         if (entry.isDirectory()) {
           getDirectorySize(fullPath, (err, size) => {

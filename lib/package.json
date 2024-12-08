@@ -41,7 +41,9 @@
   "type": "module",
   "exports": {
     ".": "./src/lib.ts",
-    "./models": "./src/models.ts"
+    "./models": "./src/models.ts",
+    "./ingestion": "./src/ingestion.ts",
+    "./node": "./src/node.ts"
   },
   "main": "./src/lib.ts",
   "scripts": {
