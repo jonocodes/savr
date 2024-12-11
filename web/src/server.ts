@@ -6,17 +6,26 @@ import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
 import {
   articlesToRender,
-  
   renderListTemplate,
+  Article,
+  ingestUrl,
 } from "@savr/lib";
 
-import { Article } from "@savr/lib/models";
 
-import {
-  ingestUrl,
-  ingestText,
-  setState,
-} from "@savr/lib/ingestion";
+// import { Article } from '@savr/lib/models';
+
+import {dummyVar} from "@savr/lib";
+
+// import { Article } from "@savr/lib/models";
+
+// import {
+//   ingestUrl,
+//   setState,
+// } from "@savr/lib/ingestion";
+
+// import {dummyVar} from "@savr/lib/dummy";
+
+console.log(dummyVar)
 
 
 import { generateFileManager, renderSystemInfo } from "./backend.ts";
@@ -74,7 +83,11 @@ const namespace: string = "/savr"; // TODO: make configurable
 
 const fileManager = await generateFileManager();
 
+console.log("fileManager: " + fileManager)
+
 const dbManager = fileManager.generateJsonDbManager();
+
+console.log("dbManager: " + dbManager)
 
 // const dbManager = new DbManager(fileManager);
 
@@ -113,7 +126,7 @@ server.register(
 
         // TODO: validate state and show error
 
-        await setState(dbManager,slug, state);
+        // await setState(dbManager,slug, state);
 
         reply.redirect(namespace);
         return;
@@ -267,7 +280,7 @@ server.register(
           //   thumbnails are generated after? I think .then is not working
           // reply.raw.end(); // Close the connection after messages are done
         })
-        .catch((error) => {
+        .catch((error: any) => {
           console.error(error);
           sendMessage(-1, "Error while processing. See logs.");
           // reply.raw.end(); // Close the connection if client disconnects
@@ -286,49 +299,40 @@ server.register(
       text: string;
     }
 
-    // app.get("/saveText", async (request, reply) => {
 
-    //   const rendered = renderTemplate('add-text', {
-    //     namespace: namespace,
-    //   })
+    // app.post<{
+    //   Body: SaveTextRequestBody
+    //   // Querystring: IIngestQuerystring;
+    // }>("/saveText", async (request, reply) => {
+    //   const sendMessage = (percent: number | null, message: string | null) => {
+    //     console.log({ percent, message });
+    //     reply.sse({ data: JSON.stringify({ percent, message }) });
+    //   };
 
-    //   reply.type("text/html").send(rendered)
+    //   const { text } = request.body
 
+    //   // TODO: handle empty text
+
+    //   ingestText(dbManager, text, sendMessage)
+    //     .then(() => {
+    //       // console.log("done again");
+    //       // TODO: figure out why browser is still spinning
+    //       //   thumbnails are generated after? I think .then is not working
+    //       // reply.raw.end(); // Close the connection after messages are done
+    //     })
+    //     .catch((error) => {
+    //       console.error(error);
+    //       sendMessage(-1, "Error while processing. See logs.");
+    //       // reply.raw.end(); // Close the connection if client disconnects
+    //       // return "errOr";
+    //     });
+
+    //   // Handle client disconnect (if client closes the connection)
+    //   request.raw.on("close", () => {
+    //     reply.raw.end();
+    //   });
+    //   // reply.sse({ event: "close" });
     // });
-
-    app.post<{
-      Body: SaveTextRequestBody
-      // Querystring: IIngestQuerystring;
-    }>("/saveText", async (request, reply) => {
-      const sendMessage = (percent: number | null, message: string | null) => {
-        console.log({ percent, message });
-        reply.sse({ data: JSON.stringify({ percent, message }) });
-      };
-
-      const { text } = request.body
-
-      // TODO: handle empty text
-
-      ingestText(dbManager, text, sendMessage)
-        .then(() => {
-          // console.log("done again");
-          // TODO: figure out why browser is still spinning
-          //   thumbnails are generated after? I think .then is not working
-          // reply.raw.end(); // Close the connection after messages are done
-        })
-        .catch((error) => {
-          console.error(error);
-          sendMessage(-1, "Error while processing. See logs.");
-          // reply.raw.end(); // Close the connection if client disconnects
-          // return "errOr";
-        });
-
-      // Handle client disconnect (if client closes the connection)
-      request.raw.on("close", () => {
-        reply.raw.end();
-      });
-      // reply.sse({ event: "close" });
-    });
 
 
     done();

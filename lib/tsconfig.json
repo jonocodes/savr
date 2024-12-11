@@ -14,8 +14,7 @@
     "moduleResolution": "node",
     "sourceMap": true,
     "resolveJsonModule": true,
-    // "jsx": "react", // or react-jsx, etc.
-    // "jsxFactory": "jsx",
+    // "lib": ["es2017", "dom", "dom.iterable"],
   },
   "type": "module",
   "include": [

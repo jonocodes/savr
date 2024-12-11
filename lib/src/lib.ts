@@ -12,6 +12,7 @@ import { version } from '../package.json' with { type: "json" };
 // import pdf2html, { thumbnail }  from "pdf2html";
 import { listTemplateMoustache } from "./list";
 
+// HTMLCollection.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);
@@ -26,6 +27,8 @@ import { listTemplateMoustache } from "./list";
 // }
 
 export const DB_FILE_NAME='db.json'
+
+export const foo = "bar"
 
 // export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
 
@@ -47,7 +50,7 @@ const mimeToExt: Record<string, string> = {
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
 
 
-export const defaultData: Articles = { articles: [] };
+// export const defaultData: Articles = { articles: [] };
 
 
 function extractDomain(url: string): string | null {
@@ -66,6 +69,19 @@ function extractDomain(url: string): string | null {
   }
 }
 
+export function calcReadingTime(text: string): number {
+
+  const wordCount = text.split(/\s+/).length;
+
+  const wordsPerMinute = 200; // adjust this value if needed
+
+  const readingTimeMinutes = wordCount / wordsPerMinute;
+
+  const roundedReadingTime = Math.ceil(readingTimeMinutes);
+
+  // console.log(`Estimated reading time: ${roundedReadingTime} minute(s)`);
+  return roundedReadingTime;
+}
 
 export function humanReadableSize(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -99,6 +115,16 @@ export function generateInfoForCard(article: Article): string {
   }
 
   return result
+}
+
+export function upsertArticleToList(articles: Article[], article: Article){
+
+  const existingArticleIndex = articles.findIndex((a) => a.slug === article.slug);
+  if (existingArticleIndex !== -1) {
+    articles[existingArticleIndex] = article;
+  } else {
+    articles.unshift(article);
+  }
 }
 
 
@@ -274,18 +300,59 @@ export class DbManager {
 
 }
 
+// interface IFileManager {
+//   directory: string;
+//   readTextFile(filename: string): Promise<string>;
+//   readTextFile(filename: string): Promise<string>;
+//   generateJsonDbManager(): DbManager;
+//   downloadAndResizeImage(url: string, targetDir: string): Promise<void>;
+// }
 
-export default abstract class FileManager {
+// export class FileManager {
 
+//   // public directory: string; // TODO rename basepath?
+//   // protected directory: string;
 
-  public directory: string; // TODO rename basepath?
-  // protected directory: string;
+//   // // #directory: string; // a url or SAF path, or local dir
 
-  // #directory: string; // a url or SAF path, or local dir
+//   // constructor(directory: string) {
+//   //   this.directory = directory;
+//   // }
 
-  constructor(directory: string) {
-    this.directory = directory;
-  }
+//   // public getDirectory(): string {
+//   //   return this.directory;
+//   // }
+
+//   public writeTextFile(filename: string, content: string): Promise<void> {
+//     throw new Error("Method not implemented."); 
+//   };
+
+//   public readTextFile(filename: string): Promise<string> {
+//     throw new Error("Method not implemented."); 
+//   };;
+//   public generateJsonDbManager(): DbManager {
+//     throw new Error("Method not implemented."); 
+//   };;
+
+//   public downloadAndResizeImage(url: string, targetDir: string): Promise<void> {
+//     throw new Error("Method not implemented."); 
+//   };;
+// }
+
+export abstract class FileManager {
+
+  // // public directory: string; // TODO rename basepath?
+  public abstract directory: string;
+
+  // // #directory: string; // a url or SAF path, or local dir
+
+  // constructor(directory: string) {
+  //   this.directory = directory;
+  // }
+
+  // public getDirectory(): string {
+  //   return this.directory;
+  // }
 
   abstract writeTextFile(filename: string, content: string): Promise<void>;
 
@@ -295,3 +362,4 @@ export default abstract class FileManager {
 
   public abstract downloadAndResizeImage(url: string, targetDir: string): Promise<void>;
 }
+

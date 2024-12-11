@@ -40,3 +40,5 @@ export type ArticleAndRender = {
 export type Articles = {
     articles: Article[];
 };
+
+// export const modelVar = "articles"

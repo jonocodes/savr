@@ -1,6 +1,6 @@
 {
   "dependencies": {
-    "@savr/lib": "0.2.0",
+    "lib": "file:../lib/dist",
     "commander": "^12.1.0",
     "showdown": "^2.1.0",
     "ts-node": "^10.9.2",

@@ -1,45 +1,46 @@
 import { Readability } from "@mozilla/readability";
-import { JSDOM } from "jsdom";
-import fs, { Dirent } from "fs";
-import * as path from 'path';
-import { dirname } from "path";
-import { fileURLToPath } from "url";
+import {DOMParser, parseHTML} from 'linkedom';
+// import { JSDOM } from "jsdom";
+// import jsdom from "jsdom-jscore-rn";
+// import { jsdom } from 'jsdom-jscore-rn';
+// import fs from "fs";
+// import * as path from 'path';
+// import { dirname } from "path";
+// import { fileURLToPath } from "url";
 // import Parser from "@postlight/parser";
-import readingTime from "reading-time";
-import axios from "axios";
+// import readingTime from "reading-time";
+// import axios from "axios";
 // import { Jimp } from "jimp";
-import url from "url";
-import Mustache from "mustache";
-import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
+// import url from "url";
+import * as uri from "uri-js";
+// import Mustache from "mustache";
+import { ArticleAndRender, Articles, Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
-import { MIMEType } from "util";
+// import { MIMEType } from "util";
+import mime from 'mime';
 // import pdf2html, { thumbnail }  from "pdf2html";
-import crypto from "crypto";
-import { pipeline } from 'stream/promises';
-import { Readable } from 'stream';
+// import crypto from "crypto";
+// import { pipeline } from 'stream/promises';
+// import { Readable } from 'stream';
 import showdown from "showdown";
 import ArticleTemplate from "./article";
 import { listTemplateMoustache } from "./list";
-import FileManager, { DbManager, generateInfoForArticle, renderListTemplate, toArticleAndRender } from "./lib";
+import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, renderListTemplate, toArticleAndRender, calcReadingTime } from "./lib";
 
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
+// const __filename = fileURLToPath(import.meta.url);
+// const __dirname = dirname(__filename);
 
-export const dataDir = process.env.DATA_DIR
+// export const dataDir = process.env.DATA_DIR
 
-if (dataDir === undefined)
-  throw new Error("DATA_DIR env var not set")
+// if (dataDir === undefined)
+//   throw new Error("DATA_DIR env var not set")
 
-if (!fs.existsSync(dataDir)) {
-  throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
-}
+// if (!fs.existsSync(dataDir)) {
+//   throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
+// }
 
-// export const DB_FILE_NAME='db.json'
-
-// export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
-
-const savesDir = dataDir + "/saves";
+// const savesDir = dataDir + "/saves";
 
 
 // TODO: maybe dont need this mapping since the subtype is the extension
@@ -56,8 +57,6 @@ const mimeToExt: Record<string, string> = {
 
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
 
-
-export const defaultData: Articles = { articles: [] };
 
 
 function extractDomain(url: string): string | null {
@@ -76,20 +75,22 @@ function extractDomain(url: string): string | null {
   }
 }
 
-export function upsertArticleToList(articles: Article[], article: Article){
+// export function upsertArticleToList(articles: Article[], article: Article){
 
-  const existingArticleIndex = articles.findIndex((a) => a.slug === article.slug);
-  if (existingArticleIndex !== -1) {
-    articles[existingArticleIndex] = article;
-  } else {
-    articles.unshift(article);
-  }
-}
+//   const existingArticleIndex = articles.findIndex((a) => a.slug === article.slug);
+//   if (existingArticleIndex !== -1) {
+//     articles[existingArticleIndex] = article;
+//   } else {
+//     articles.unshift(article);
+//   }
+// }
 
 
 function getBaseDirectory(articleUrl: string): string {
-  const parsedUrl = new url.URL(articleUrl);
-  return parsedUrl.pathname.endsWith("/") ? parsedUrl.href : url.resolve(parsedUrl.href, ".");
+  const parsedUrl = uri.parse(articleUrl);
+  const path = parsedUrl.path;
+  if (!path) return "";
+  return path.endsWith("/") ? articleUrl : uri.resolve(articleUrl, ".");
 }
 
 async function extractImageUrls(doc: Document, articleUrl: string|null): Promise<ImageData[]> {
@@ -142,11 +143,8 @@ async function downloadAndResizeImages(
       sendMessage(percent, `downloading image ${imageCount + 1} of ${imageData.length}`);
 
       // Download the image
-      const response = await axios({
-        url,
-        responseType: "arraybuffer",
-      });
-      const imageBuffer = Buffer.from(response.data, "binary");
+      const response = await fetch(url);
+      const imageBuffer = await response.arrayBuffer();
 
       percent = percent + step;
 
@@ -194,8 +192,11 @@ async function processHtmlAndImages(
   sendMessage: (percent: number | null, message: string | null) => void
 ):
 Promise<string> {
-  const dom = new JSDOM(htmlText);
-  const doc = dom.window.document;
+
+  const { document:doc } = parseHTML(htmlText);
+
+  // const dom = JSDOM.jsdom(htmlText, null);
+  // const doc = dom.window.document;
   const imageData = await extractImageUrls(doc, articleUrl);
   const outputDir = saveDir + "/images";
   const maxDimension = 1024;
@@ -218,7 +219,8 @@ Promise<string> {
   await createThumbnail(imageFileNames, saveDir);
 
   // Serialize the updated DOM to get the updated HTML string
-  return dom.serialize();
+  // return dom.serialize();
+  return doc.documentElement.outerHTML
 }
 
 function stringToSlug(str: string): string {
@@ -250,9 +252,9 @@ async function createThumbnail(fileNames: string[], outputDirPath: string) {
   for (const fileName of fileNames) {
     const filePath = fileName;
 
-    if (!fs.existsSync(filePath)) {
-      continue;
-    }
+    // if (!fs.existsSync(filePath)) {
+    //   continue;
+    // }
 
     // Use Jimp to get image metadata
     // const image = await Jimp.read(filePath);
@@ -334,16 +336,6 @@ function guessContentType(input: string): string {
 }
 
 
-export function humanReadableSize(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let index = 0;
-  while (bytes >= 1024 && index < units.length - 1) {
-    bytes /= 1024;
-    index++;
-  }
-  return `${bytes.toFixed(2)} ${units[index]}`;
-}
-
 // export function dirList() {
 //   const dirs = fs
 //     .readdirSync(savesDir, { withFileTypes: true })
@@ -367,24 +359,24 @@ export function humanReadableSize(bytes: number): string {
 
 
 
-export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
+// export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
 
-  const readable: ArticleAndRender[] = []
-  const archived: ArticleAndRender[] = []
+//   const readable: ArticleAndRender[] = []
+//   const archived: ArticleAndRender[] = []
 
-  for (const article of articles) {
+//   for (const article of articles) {
 
-    const articleAndRender = toArticleAndRender(article)
+//     const articleAndRender = toArticleAndRender(article)
 
-    if (article.state === "archived")
-      archived.push(articleAndRender)
-    else if (article.state != "deleted")
-      readable.push(articleAndRender)
-  }
+//     if (article.state === "archived")
+//       archived.push(articleAndRender)
+//     else if (article.state != "deleted")
+//       readable.push(articleAndRender)
+//   }
 
-  return [readable, archived]
+//   return [readable, archived]
 
-}
+// }
 
 
 // export function renderListTemplate(view: object) {
@@ -395,36 +387,36 @@ export function articlesToRender(articles: Article[]): [ArticleAndRender[], Arti
 
 
 
-/**
- * Recursively copies all files and directories from the source directory to the destination directory.
- * @param srcDir - Path to the source directory.
- * @param destDir - Path to the destination directory.
- */
-function copyDirectorySync(srcDir: string, destDir: string): void {
-  // Ensure the destination directory exists, creating it if needed
-  if (!fs.existsSync(destDir)) {
-    fs.mkdirSync(destDir, { recursive: true });
-  }
+// /**
+//  * Recursively copies all files and directories from the source directory to the destination directory.
+//  * @param srcDir - Path to the source directory.
+//  * @param destDir - Path to the destination directory.
+//  */
+// function copyDirectorySync(srcDir: string, destDir: string): void {
+//   // Ensure the destination directory exists, creating it if needed
+//   if (!fs.existsSync(destDir)) {
+//     fs.mkdirSync(destDir, { recursive: true });
+//   }
 
-  const entries = fs.readdirSync(srcDir, { withFileTypes: true });
+//   const entries = fs.readdirSync(srcDir, { withFileTypes: true });
 
-  for (const entry of entries) {
-    const srcPath = path.join(srcDir, entry.name);
-    const destPath = path.join(destDir, entry.name);
+//   for (const entry of entries) {
+//     const srcPath = `${srcDir}/${entry.name}`; // path.join(srcDir, entry.name);
+//     const destPath =`${destDir}/${entry.name}`;
 
-    if (entry.isDirectory()) {
-      copyDirectorySync(srcPath, destPath);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
+//     if (entry.isDirectory()) {
+//       copyDirectorySync(srcPath, destPath);
+//     } else {
+//       fs.copyFileSync(srcPath, destPath);
+//     }
+//   }
 
-  console.log(`All files have been copied from ${srcDir} to ${destDir}`);
-}
+//   console.log(`All files have been copied from ${srcDir} to ${destDir}`);
+// }
 
-function copyStaticFiles() {
-  copyDirectorySync(__dirname + "/static/shared", dataDir + "/static")
-}
+// function copyStaticFiles() {
+//   copyDirectorySync(__dirname + "/static/shared", dataDir + "/static")
+// }
 
 export async function createLocalHtmlList(dbManager: DbManager) {
 
@@ -453,7 +445,7 @@ export async function createLocalHtmlList(dbManager: DbManager) {
 
   // fs.writeFileSync(htmlOutfile, rendered);
 
-  copyStaticFiles()
+  // copyStaticFiles()
 }
 
 
@@ -497,13 +489,27 @@ function readabilityToArticle(html: string, contentType: string, url: string|nul
   var options = {}
 
   if (url !== null) {
-    options = { url }
-  } 
+    options = { url, contentType }
+  }
 
-  var doc = new JSDOM(html, options);
+  console.log('running readability')
 
-  let reader = new Readability(doc.window.document);
+  // var domB = new JSDOM(html, options);
+  // let readerB = new Readability(domB.window.document);
+  // let resultB = readerB.parse();
+
+  const { document } = parseHTML(html);
+
+
+  let reader = new Readability(document);
   let readabilityResult = reader.parse();
+
+  // var doc = jsdom.html(html, "3", options);
+
+  // console.log(`doc: ${doc}`);
+
+  // let reader = new Readability(doc);
+  // let readabilityResult = reader.parse();
 
   if (readabilityResult === null) {
     throw new Error("Readability did not parse");
@@ -539,7 +545,7 @@ function readabilityToArticle(html: string, contentType: string, url: string|nul
   if (readabilityResult.publishedTime) pubDate = new Date(readabilityResult.publishedTime);
 
   // TODO: replace this with something consistent between kotlin and js
-  const readingStats = readingTime(content);
+  const readingTimeMinutes = calcReadingTime(content);
 
   const author = readabilityResult.byline;
 
@@ -555,107 +561,107 @@ function readabilityToArticle(html: string, contentType: string, url: string|nul
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "????",
     mimeType: contentType,
-    readTimeMinutes: Math.round(readingStats.minutes),
+    readTimeMinutes: readingTimeMinutes,
     progress: 0,
   };
 
   return [article, content]
 }
 
-function getReadableStream(response: Response): Readable {
+// function getReadableStream(response: Response): Readable {
 
-  if (response.body === null) {
-    throw new Error("null stream")
-  }
+//   if (response.body === null) {
+//     throw new Error("null stream")
+//   }
 
-  return readableStreamToNodeReadable(response.body)
-}
-
-
-function readableStreamToNodeReadable(stream: ReadableStream): Readable {
-
-  const reader = stream.getReader();
-
-  return new Readable({
-    async read() {
-      const { done, value } = await reader.read();
-      if (done) {
-        this.push(null); // Signal end of stream
-      } else {
-        this.push(value);
-      }
-    }
-  });
-}
+//   return readableStreamToNodeReadable(response.body)
+// }
 
 
-function articleFromImage(mimeType: MIMEType, checksum: string, url: string
-) : Article {
+// function readableStreamToNodeReadable(stream: ReadableStream): Readable {
 
-  const title = `${mimeType.subtype} ${checksum}`
+//   const reader = stream.getReader();
 
-  const article: Article = {
-    slug: stringToSlug(title),
-    title: title,
-    url: url,
-    state: "unread",
-    publication: null,
-    author: null,
-    // publishedDate: pubDate?.toISOString(),
-    publishedDate: null,
-    ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${version})`,
-    ingestSource: "????",
-    mimeType: mimeType.essence,
-    readTimeMinutes: null,
-    progress: 0,
-  };
-
-  return article
-}
+//   return new Readable({
+//     async read() {
+//       const { done, value } = await reader.read();
+//       if (done) {
+//         this.push(null); // Signal end of stream
+//       } else {
+//         this.push(value);
+//       }
+//     }
+//   });
+// }
 
 
-async function articleFromPdf(checksum: string, url: string): Promise<Article> {
+// function articleFromImage(mimeType: MIMEType, checksum: string, url: string
+// ) : Article {
 
-  let article: Article
+//   const title = `${mimeType.subtype} ${checksum}`
 
-  // try {
-  //   // TODO: I think pdf2html requires java/tika, so not great. next try pds2htmlEX
-  //   const html = await pdf2html.html(tempLocalPath);
+//   const article: Article = {
+//     slug: stringToSlug(title),
+//     title: title,
+//     url: url,
+//     state: "unread",
+//     publication: null,
+//     author: null,
+//     // publishedDate: pubDate?.toISOString(),
+//     publishedDate: null,
+//     ingestDate: new Date().toISOString(),
+//     ingestPlatform: `typescript/web (${version})`,
+//     ingestSource: "????",
+//     mimeType: mimeType.essence,
+//     readTimeMinutes: null,
+//     progress: 0,
+//   };
 
-  //   let [art, content] = readabilityToArticle(html, url)
-  //   article = art
-  // } catch (error) {
+//   return article
+// }
 
-    // console.log("error in pdf2html")
 
-    const title = `pdf ${checksum}`
-    const slug = stringToSlug(title)
+// async function articleFromPdf(checksum: string, url: string): Promise<Article> {
 
-    article = {
-      slug: slug,
-      title: title,
-      url: url,
-      state: "unread", // unread, reading, finished, archived, deleted, ingesting
-      publication: null,
-      author: null,
-      // publishedDate: pubDate?.toISOString(),
-      publishedDate: null,
-      ingestDate: new Date().toISOString(),
-      ingestPlatform: `typescript/web (${version})`,
-      ingestSource: "url",
-      mimeType: "application/pdf",
-      // readTimeMinutes: Math.round(readingStats.minutes),
-      readTimeMinutes: null,
-      progress: 0,
-    };
+//   let article: Article
 
-  // }
+//   // try {
+//   //   // TODO: I think pdf2html requires java/tika, so not great. next try pds2htmlEX
+//   //   const html = await pdf2html.html(tempLocalPath);
 
-  // TODO: create thumbnail
+//   //   let [art, content] = readabilityToArticle(html, url)
+//   //   article = art
+//   // } catch (error) {
 
-  return article
-}
+//     // console.log("error in pdf2html")
+
+//     const title = `pdf ${checksum}`
+//     const slug = stringToSlug(title)
+
+//     article = {
+//       slug: slug,
+//       title: title,
+//       url: url,
+//       state: "unread", // unread, reading, finished, archived, deleted, ingesting
+//       publication: null,
+//       author: null,
+//       // publishedDate: pubDate?.toISOString(),
+//       publishedDate: null,
+//       ingestDate: new Date().toISOString(),
+//       ingestPlatform: `typescript/web (${version})`,
+//       ingestSource: "url",
+//       mimeType: "application/pdf",
+//       // readTimeMinutes: Math.round(readingStats.minutes),
+//       readTimeMinutes: null,
+//       progress: 0,
+//     };
+
+//   // }
+
+//   // TODO: create thumbnail
+
+//   return article
+// }
 
 async function ingestHtml(fileManager: FileManager, html: string, contentType: string, url: string|null,
   sendMessage: (percent: number | null, message: string | null) => void
@@ -670,7 +676,6 @@ async function ingestHtml(fileManager: FileManager, html: string, contentType: s
   sendMessage(15, "collecting images");
 
   content = await processHtmlAndImages(url, content, saveDir, sendMessage);
-
 
   const rendered = ArticleTemplate({
     title: article.title,
@@ -700,157 +705,169 @@ async function ingestHtml(fileManager: FileManager, html: string, contentType: s
 }
 
 
-function ingestPlainText(text: string, url: string|null): Article {
+// function ingestPlainText(text: string, url: string|null): Article {
 
-  const title = `txt ${Date.now() + 0}`
-  const slug = stringToSlug(title)
+//   const title = `txt ${Date.now() + 0}`
+//   const slug = stringToSlug(title)
 
-  const article: Article = {
-    slug: slug,
-    title: title,
-    url: url,
-    state: "unread",
-    publication: null,
-    author: null,
-    publishedDate: null,
-    ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${version})`,
-    ingestSource: "????",
-    mimeType: "text/plain",
-    readTimeMinutes: 1,  // TODO: set this correctly
-    progress: 0,
-  };
+//   const article: Article = {
+//     slug: slug,
+//     title: title,
+//     url: url,
+//     state: "unread",
+//     publication: null,
+//     author: null,
+//     publishedDate: null,
+//     ingestDate: new Date().toISOString(),
+//     ingestPlatform: `typescript/web (${version})`,
+//     ingestSource: "????",
+//     mimeType: "text/plain",
+//     readTimeMinutes: 1,  // TODO: set this correctly
+//     progress: 0,
+//   };
 
-  const content = `<pre>${text}</pre>`
+//   const content = `<pre>${text}</pre>`
 
-  // let [article, content] = readabilityToArticle(html, url)
+//   // let [article, content] = readabilityToArticle(html, url)
 
-  const saveDir = savesDir + "/" + article.slug;
+//   const saveDir = "saves/" + article.slug;
 
-  const rendered = ArticleTemplate({
-    title: article.title,
-    byline: article.author || 'unknown author',
-    published: generateInfoForArticle(article),
-    readTime: `${article.readTimeMinutes} minute read`,
-    content: content,
-    // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-    // namespace: rootPath,
+//   const rendered = ArticleTemplate({
+//     title: article.title,
+//     byline: article.author || 'unknown author',
+//     published: generateInfoForArticle(article),
+//     readTime: `${article.readTimeMinutes} minute read`,
+//     content: content,
+//     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+//     // namespace: rootPath,
 
-  })  
+//   })  
 
-  // const rendered = renderTemplate("article", {
-  //   title: article.title,
-  //   byline: article.author,
-  //   published: generateInfoForArticle(article),
-  //   readTime: `${article.readTimeMinutes} minute read`,
-  //   content: content,
-  //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-  //   // namespace: rootPath,
-  // });
+//   // const rendered = renderTemplate("article", {
+//   //   title: article.title,
+//   //   byline: article.author,
+//   //   published: generateInfoForArticle(article),
+//   //   readTime: `${article.readTimeMinutes} minute read`,
+//   //   content: content,
+//   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+//   //   // namespace: rootPath,
+//   // });
 
-  if (!fs.existsSync(saveDir)) {
-    fs.mkdirSync(saveDir, { recursive: true });
+//   if (!fs.existsSync(saveDir)) {
+//     fs.mkdirSync(saveDir, { recursive: true });
+//   }
+
+//   fs.writeFileSync(saveDir + "/index.html", rendered);
+
+//   return article
+// }
+
+function generateRandomString() {
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  let randomString = '';
+  for (let i = 0; i < 16; i++) {
+    randomString += characters.charAt(Math.floor(Math.random() * characters.length));
   }
-
-  fs.writeFileSync(saveDir + "/index.html", rendered);
-
-  return article
+  return randomString;
 }
 
+console.log(generateRandomString());
 
-async function storeBinary(mimeType: MIMEType, stream: Readable) : Promise<[string, string]> {
+// async function storeBinary(mimeType: MIMEType, stream: Readable) : Promise<[string, string]> {
 
-  let id = Date.now() + 0
-  const tempLocalPath = `/tmp/savr-${id}.${mimeToExt[mimeType.essence]}`
+//   let id = Date.now() + 0
+//   const tempLocalPath = `/tmp/savr-${id}.${mimeToExt[mimeType.essence]}`
 
-  const hash = crypto.createHash('md5');
+//   // const hash = crypto.createHash('md5');
 
-  const fileStream = fs.createWriteStream(tempLocalPath);
-  // await pipeline(stream, hash, fileStream) // TODO: get this to work in 1 pass
-  // const checksum = hash.digest('hex')
+//   const fileStream = fs.createWriteStream(tempLocalPath);
+//   // await pipeline(stream, hash, fileStream) // TODO: get this to work in 1 pass
+//   // const checksum = hash.digest('hex')
 
-  await pipeline(stream, fileStream)
+//   await pipeline(stream, fileStream)
 
-  const checksum = crypto.randomUUID();  // TODO: actually calculate
+//   const checksum = generateRandomString();  // TODO: actually calculate
 
-  return [tempLocalPath, checksum]
-}
+//   // const checksum = crypto.randomUUID();  // TODO: actually calculate
 
-function finalizeFileLocation(tempLocalPath: string, article: Article) {
+//   return [tempLocalPath, checksum]
+// }
 
-  const saveDir = getSaveDirPath(article.slug)
+// function finalizeFileLocation(tempLocalPath: string, article: Article) {
 
-  if (!fs.existsSync(saveDir)) {
-    fs.mkdirSync(saveDir, { recursive: true });
-  }
+//   const saveDir = getSaveDirPath(article.slug)
 
-  const finalPath = `${saveDir}/${getFileName(article)}`
+//   if (!fs.existsSync(saveDir)) {
+//     fs.mkdirSync(saveDir, { recursive: true });
+//   }
 
-  fs.copyFileSync(tempLocalPath, finalPath)
-  // TODO: move instead of copy
-  // fs.renameSync(tempLocalPath, finalPath)
+//   const finalPath = `${saveDir}/${getFileName(article)}`
 
-  // TODO: create thumbnail
-}
+//   fs.copyFileSync(tempLocalPath, finalPath)
+//   // TODO: move instead of copy
+//   // fs.renameSync(tempLocalPath, finalPath)
 
-function getFileName(article: Article) {
-  return `index.${mimeToExt[article.mimeType]}`
-}
+//   // TODO: create thumbnail
+// }
 
-function getSaveDirPath(slug: string) {
-  return `${savesDir}/${slug}`;
-}
+// function getFileName(article: Article) {
+//   return `index.${mimeToExt[article.mimeType]}`
+// }
 
-function getFilePath(article: Article) {
-  return `${getSaveDirPath(article.slug)}/${getFileName(article)}`
-}
+// function getSaveDirPath(slug: string) {
+//   return `${savesDir}/${slug}`;
+// }
 
-export async function ingestText(dbManager: DbManager, text: string, sendMessage: (percent: number | null, message: string | null) => void
-) {
-  sendMessage(0, "start");
+// function getFilePath(article: Article) {
+//   return `${getSaveDirPath(article.slug)}/${getFileName(article)}`
+// }
 
-  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+// export async function ingestText(dbManager: DbManager, text: string, sendMessage: (percent: number | null, message: string | null) => void
+// ) {
+//   sendMessage(0, "start");
 
-  const contentType = guessContentType(text)
+//   // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  console.log(`guessed content type ${contentType}`)
-  const mimeType = new MIMEType(contentType);
+//   const contentType = guessContentType(text)
 
-  let article
+//   console.log(`guessed content type ${contentType}`)
+//   const mimeType = new MIMEType(contentType);
 
-  sendMessage(10, "scraping article");
+//   let article
 
-  if (mimeType.subtype == "html") {
-  // NOTE: for now we assume input text is html
-    article = await ingestHtml(dbManager.fileManager, text, contentType, null, sendMessage)
+//   sendMessage(10, "scraping article");
 
-  } else if (mimeType.subtype == "markdown") {
-    const converter = new showdown.Converter(),
-    html = converter.makeHtml(text);
+//   if (mimeType.subtype == "html") {
+//   // NOTE: for now we assume input text is html
+//     article = await ingestHtml(dbManager.fileManager, text, contentType, null, sendMessage)
 
-    article = await ingestHtml(dbManager.fileManager, html, contentType, null, sendMessage)
-    article
-    // article.mimeType = contentType
+//   } else if (mimeType.subtype == "markdown") {
+//     const converter = new showdown.Converter(),
+//     html = converter.makeHtml(text);
 
-  } else {
-    article = ingestPlainText(text, null)
-  }
+//     article = await ingestHtml(dbManager.fileManager, html, contentType, null, sendMessage)
+//     article
+//     // article.mimeType = contentType
 
-  article.mimeType = contentType
+//   } else {
+//     article = ingestPlainText(text, null)
+//   }
 
-  const saveDir = savesDir + "/" + article.slug;
-  fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
+//   article.mimeType = contentType
 
-  // keep the most recent at the top since its easier to read that way
-  // db.data.articles.unshift(article);
-  await dbManager.upsertArticle(article);
+//   const saveDir = "saves/" + article.slug;
+//   fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
 
-  // await db.write();
+//   // keep the most recent at the top since its easier to read that way
+//   // db.data.articles.unshift(article);
+//   await dbManager.upsertArticle(article);
 
-  await createLocalHtmlList(dbManager);
+//   // await db.write();
 
-  sendMessage(100, "finished");
-}
+//   await createLocalHtmlList(dbManager);
+
+//   sendMessage(100, "finished");
+// }
 
 
 export async function ingestUrl(
@@ -887,46 +904,50 @@ export async function ingestUrl(
   console.log(`contentTypeHeader = ${contentTypeHeader}`)
 
   try {
-    const mimeType = new MIMEType(contentTypeHeader);
 
-    if (!mimeToExt.hasOwnProperty(mimeType.essence)) {
+    const extension = mime.getExtension(contentTypeHeader)
+    const mimeType = mime.getType(extension??"");
+
+    // const mimeType = new MIMEType(contentTypeHeader);
+
+    if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
     }
 
-    if (mimeType.subtype === 'html') {
+    if (mimeType === 'text/html') {
 
       article = await ingestHtml(dbManager.fileManager, await response.text(), contentTypeHeader, url, sendMessage)
 
-    } else if (mimeType.subtype === 'pdf') {
+    // } else if (mimeType.subtype === 'pdf') {
 
-      let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-      article = await articleFromPdf(checksum, url)
+    //   article = await articleFromPdf(checksum, url)
 
-      finalizeFileLocation(tempLocalPath, article)
+    //   finalizeFileLocation(tempLocalPath, article)
 
-      // TODO: thumbnail
+    //   // TODO: thumbnail
 
-    } else if (mimeType.type === 'image') {
+    // } else if (mimeType.type === 'image') {
 
-      let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-      article = articleFromImage(mimeType, checksum, url)
+    //   article = articleFromImage(mimeType, checksum, url)
 
-      finalizeFileLocation(tempLocalPath, article)
+    //   finalizeFileLocation(tempLocalPath, article)
 
-      createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
+    //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
 
     } else {
       throw new Error(`No handler for content type ${contentTypeHeader}`)
     }
 
     article.ingestSource = "url"
-    article.mimeType = mimeType.essence
+    article.mimeType = mimeType
 
   } catch(error) {
     console.error(error)
-    throw new Error("error determining content type")
+    throw new Error("error during ingestion")
   }
 
   const saveDir = "saves/" + article.slug;

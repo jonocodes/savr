@@ -18,7 +18,13 @@ import { Link } from 'expo-router';
 // import { DirectoryContext } from '@/components/DirectoryProvider';
 
 import { generateFileManager } from '@/app/tools';
-import FileManager, { DbManager } from '@savr/lib';
+import { FileManager, DbManager, ingestUrl } from '@savr/lib';
+
+// import {
+//   ingestUrl,
+//   setState,
+// } from "@savr/lib/ingestion";
+
 
 
 export default function HomeScreen() {
@@ -37,11 +43,9 @@ export default function HomeScreen() {
 
   useEffect(() => {
 
-
     const setManagers = async () => {
       try {
         const fm = await generateFileManager(Platform.OS);
-
 
         if (!fm) {  
           console.error('FileManager not defined');
@@ -160,6 +164,12 @@ export default function HomeScreen() {
 
     if (Platform.OS === 'web') {
       const response = await fetch(`${fileManager?.directory}save?url=${url}`);
+    } else {
+      if (dbManager !== null && url !== null) {
+        await ingestUrl(dbManager, url, ()=>{
+          console.log(`INGESTED URL ${url}`);
+        });
+      }
     }
   }
 

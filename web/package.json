@@ -44,8 +44,8 @@
     "synclinks": "copyfiles -u 2 -F 'src/templates/**/*' 'dist/templates' && copyfiles -u 2 -F 'src/static/**/*' 'dist/static'",
     "build": "pkgroll && npm run synclinks",
     "build:types": "tsc --outDir dist --declaration --emitDeclarationOnly",
-    "web": "node ./dist/server.js",
-    "web:dev": "DATA_DIR=$HOME/sync/savr_data tsx watch -r tsconfig-paths/register ./src/server.ts",
+    "web:start": "node ./dist/server.js",
+    "web": "DATA_DIR=$HOME/sync/savr_data tsx watch -r tsconfig-paths/register ./src/server.ts",
     "clean": "rm -rf node_modules dist"
   },
   "author": "Jono",

@@ -4,18 +4,35 @@ import {
   } from "expo-file-system";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import * as FileSystem from 'expo-file-system';
-import * as ImageManipulator from 'expo-image-manipulator';
+// import * as FileSystem from 'expo-file-system';
+// import * as ImageManipulator from 'expo-image-manipulator';
 
+import {FileManager,  DB_FILE_NAME, DbManager, foo } from '@savr/lib'
+// import {Article, ArticleAndRender, modelVar} from '@savr/lib/models'
+import {Article, ArticleAndRender} from '@savr/lib'
 
+// import {
+//   ingestUrl,
+//   // setState,
+// } from "@savr/lib/ingestion";
 
-import FileManager, { DbManager } from '@savr/lib'
-import {Article, ArticleAndRender} from '@savr/lib/models'
+// import {dummyVar} from "@savr/lib/dummy";
+import {dummyVar} from "@savr/lib";
 
-const DB_FILE_NAME='db.json'
+// const DB_FILE_NAME='db.json'
 
+console.log(DB_FILE_NAME)
+
+console.log(foo)
+
+// console.log(modelVar)
 
 export const getDir = async () => {
+
+
+  // console.log(ingestUrl)
+  // console.log(dummyVar)
+
   try {
     const value = await AsyncStorage.getItem('data-directory');
 
@@ -68,7 +85,7 @@ export class DbManagerAndroid extends DbManager {
 
   public async getArticles(): Promise<Article[]> {
 
-    const content = await this.fileManager.readTextFile(DB_FILE_NAME)
+    const content = await this.fileManager.readTextFile(DB_FILE_NAME);
 
     const articles: Article[] = JSON.parse(content).articles;
 
@@ -112,6 +129,14 @@ export class  DbManagerWeb extends DbManager {
 
 
 export class FileManagerAndroid extends FileManager {
+  
+  public directory: string;
+
+  constructor(directory: string) {
+    super();
+    // super(directory);
+    this.directory = directory;
+  }
 
   public generateJsonDbManager(): DbManager {
     return new DbManagerAndroid(this);
@@ -176,6 +201,14 @@ export class FileManagerAndroid extends FileManager {
 }
 
 export class FileManagerWeb extends FileManager {
+
+  public directory: string;
+
+  constructor(directory: string) {
+    // super(directory);
+    super();
+    this.directory = directory;
+  }
 
   public generateJsonDbManager(): DbManager {
     return new DbManagerWeb(this);
