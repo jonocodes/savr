@@ -1,18 +1,11 @@
-
-// import fs from "fs";
-// import { dirname } from "path";
-// import { fileURLToPath } from "url";
-// import Parser from "@postlight/parser";
 // import { Jimp } from "jimp";
-// import url from "url";
 import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
-// import { MIMEType } from "util";
+
 // import pdf2html, { thumbnail }  from "pdf2html";
 import { listTemplateMoustache } from "./list";
 
-// HTMLCollection.prototype[Symbol.iterator] = Array.prototype[Symbol.iterator];
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);
@@ -27,8 +20,6 @@ import { listTemplateMoustache } from "./list";
 // }
 
 export const DB_FILE_NAME='db.json'
-
-export const foo = "bar"
 
 // export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
 
@@ -263,14 +254,18 @@ export class DbManager {
 
     const articles = await this.getArticles();
 
-    // upsertArticleToList(articles, article);
+    const contentPre = await this.fileManager.readTextFile(DB_FILE_NAME);
+    
+    console.log("db before insert:", contentPre)
 
-    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({article}, null, 2));
+    upsertArticleToList(articles, article);
 
-    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
-    //   method: 'PUT',
-    //   body: JSON.stringify(article)
-    // });
+    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
+
+
+    const content = await this.fileManager.readTextFile(DB_FILE_NAME);
+    
+    console.log("db after insert:", content)
   }
 
   public async getArticle(slug: string): Promise<Article|undefined>  {

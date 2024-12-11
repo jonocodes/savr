@@ -20,19 +20,11 @@ import { Link } from 'expo-router';
 import { generateFileManager } from '@/app/tools';
 import { FileManager, DbManager, ingestUrl } from '@savr/lib';
 
-// import {
-//   ingestUrl,
-//   setState,
-// } from "@savr/lib/ingestion";
-
-
 
 export default function HomeScreen() {
 
-
   const [chosenDir, setChosenDir] = useState<string|null>(null);
   const [dirContents, setDirContents] = useState<string[]|null>(null);
-
 
   const [fileManager, setFileManager] = useState<FileManager|null>(null);
 
@@ -141,6 +133,8 @@ export default function HomeScreen() {
         setDbManager(dbManager);
 
         const articles = await dbManager.getArticles();
+
+        console.log("SAF loaded articles:", articles);
 
         const slugs: string[] = articles.map(item => item.slug);
   

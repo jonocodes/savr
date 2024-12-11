@@ -12,22 +12,6 @@ import {
 } from "@savr/lib";
 
 
-// import { Article } from '@savr/lib/models';
-
-import {dummyVar} from "@savr/lib";
-
-// import { Article } from "@savr/lib/models";
-
-// import {
-//   ingestUrl,
-//   setState,
-// } from "@savr/lib/ingestion";
-
-// import {dummyVar} from "@savr/lib/dummy";
-
-console.log(dummyVar)
-
-
 import { generateFileManager, renderSystemInfo } from "./backend.ts";
 // import { systemInfo } from "backend";
 import * as fs from 'fs';
@@ -37,7 +21,6 @@ import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
 import formbody from '@fastify/formbody';
 import { version } from "../package.json" with { type: "json" };
-// import { templateCache } from "mustache";
 
 // Get the current directory path in ESM
 const __filename = fileURLToPath(import.meta.url);
@@ -88,8 +71,6 @@ console.log("fileManager: " + fileManager)
 const dbManager = fileManager.generateJsonDbManager();
 
 console.log("dbManager: " + dbManager)
-
-// const dbManager = new DbManager(fileManager);
 
 await server.register(cors, {
   origin: "*",

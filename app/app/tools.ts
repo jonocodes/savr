@@ -1,37 +1,12 @@
-
 import {
     StorageAccessFramework as SAF
   } from "expo-file-system";
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// import * as FileSystem from 'expo-file-system';
-// import * as ImageManipulator from 'expo-image-manipulator';
-
-import {FileManager,  DB_FILE_NAME, DbManager, foo } from '@savr/lib'
-// import {Article, ArticleAndRender, modelVar} from '@savr/lib/models'
+import {FileManager,  DB_FILE_NAME, DbManager } from '@savr/lib'
 import {Article, ArticleAndRender} from '@savr/lib'
 
-// import {
-//   ingestUrl,
-//   // setState,
-// } from "@savr/lib/ingestion";
-
-// import {dummyVar} from "@savr/lib/dummy";
-import {dummyVar} from "@savr/lib";
-
-// const DB_FILE_NAME='db.json'
-
-console.log(DB_FILE_NAME)
-
-console.log(foo)
-
-// console.log(modelVar)
-
 export const getDir = async () => {
-
-
-  // console.log(ingestUrl)
-  // console.log(dummyVar)
 
   try {
     const value = await AsyncStorage.getItem('data-directory');
@@ -95,7 +70,6 @@ export class DbManagerAndroid extends DbManager {
 }
 
 
-
 export class  DbManagerWeb extends DbManager {
 
   public async upsertArticle(article: Article) {
@@ -151,11 +125,11 @@ export class FileManagerAndroid extends FileManager {
 
     const uri = `${this.directory}${encodeURIComponent(path)}`;
 
-    console.log(`uri: ${uri}`);
+    console.log(`reading uri: ${uri}`);
 
     const contents = await SAF.readAsStringAsync(uri);
 
-    console.log(`SAF index file contents: ${contents}`);
+    console.log(`SAF file contents: ${contents}`);
     // console.log(contents);
     return contents
 

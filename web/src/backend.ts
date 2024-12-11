@@ -1,13 +1,7 @@
-// import FileManager from "@savr/lib";
+
 import { ArticleAndRender, Articles, Article, FileManager, DbManager, upsertArticleToList, DB_FILE_NAME } from "@savr/lib";
-// import { version } from '../package.json' with { type: "json" };
 import fs, { Dirent } from "fs";
 import path from "path";
-// import * as path from 'path';
-// import { get } from "http";
-
-
-// import { FileManagerLocal } from "@savr/lib/node";
 
 
 export class FileManagerNode extends FileManager {
@@ -77,46 +71,41 @@ export class DbManagerNode extends DbManager {
 
   constructor(fm: FileManagerNode) {
     // super(fm);
-    super();
+    super(fm);
     this.fileManager = fm
   }
 
   public async upsertArticle(article: Article) {
 
-    const articles = await this.getArticles();
+    super.upsertArticle(article);
 
-    upsertArticleToList(articles, article);
+    // const articles = await this.getArticles();
 
-    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
+    // upsertArticleToList(articles, article);
 
-    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`, {
-    //   method: 'PUT',
-    //   body: JSON.stringify(article)
-    // });
+    // this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
   }
 
   public async getArticle(slug: string): Promise<Article|undefined>  {
+
+    return super.getArticle(slug);
     
-    // TODO: read from single article json file?
+    // // TODO: read from single article json file?
 
-    const articles = await this.getArticles();
+    // const articles = await this.getArticles();
 
-    return articles.find((article: Article) => article.slug === slug);
+    // return articles.find((article: Article) => article.slug === slug);
   }
 
   public async getArticles(): Promise<Article[]> {
 
-    // const content = await this.fileManager.readTextFile(dbFile);
+    return super.getArticles();
 
-    const content = await this.fileManager.readTextFile(DB_FILE_NAME);
+    // const content = await this.fileManager.readTextFile(DB_FILE_NAME);
 
-    const articles = JSON.parse(content).articles;
+    // const articles = JSON.parse(content).articles;
 
-    // const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
-    // // const articles: ArticleAndRender[] = await response.json();
-    // const articles: Article[] = await response.json();
-
-    return articles
+    // return articles
     
   }
 

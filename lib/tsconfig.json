@@ -14,7 +14,6 @@
     "moduleResolution": "node",
     "sourceMap": true,
     "resolveJsonModule": true,
-    // "lib": ["es2017", "dom", "dom.iterable"],
   },
   "type": "module",
   "include": [

@@ -12,6 +12,7 @@ export type Article = {
     mimeType: string;
     readTimeMinutes: number | null;
     progress: number;
+    // publishedTime: string | null;
 };
 
 

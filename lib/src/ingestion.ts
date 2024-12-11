@@ -1,20 +1,7 @@
 import { Readability } from "@mozilla/readability";
-import {DOMParser, parseHTML} from 'linkedom';
-// import { JSDOM } from "jsdom";
-// import jsdom from "jsdom-jscore-rn";
-// import { jsdom } from 'jsdom-jscore-rn';
-// import fs from "fs";
-// import * as path from 'path';
-// import { dirname } from "path";
-// import { fileURLToPath } from "url";
-// import Parser from "@postlight/parser";
-// import readingTime from "reading-time";
-// import axios from "axios";
-// import { Jimp } from "jimp";
-// import url from "url";
+import {parseHTML} from 'linkedom';
 import * as uri from "uri-js";
-// import Mustache from "mustache";
-import { ArticleAndRender, Articles, Article } from "./models";
+import { Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
 // import { MIMEType } from "util";
 import mime from 'mime';
@@ -24,7 +11,7 @@ import mime from 'mime';
 // import { Readable } from 'stream';
 import showdown from "showdown";
 import ArticleTemplate from "./article";
-import { listTemplateMoustache } from "./list";
+// import { listTemplateMoustache } from "./list";
 import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, renderListTemplate, toArticleAndRender, calcReadingTime } from "./lib";
 
 
@@ -57,23 +44,6 @@ const mimeToExt: Record<string, string> = {
 
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
 
-
-
-function extractDomain(url: string): string | null {
-  try {
-    const parsedUrl = new URL(url);
-    let domain = parsedUrl.hostname;
-
-    if (domain.startsWith("www.")) {
-      domain = domain.substring(4);
-    }
-
-    return domain;
-  } catch (error) {
-    console.error("Invalid URL:", error);
-    return null;
-  }
-}
 
 // export function upsertArticleToList(articles: Article[], article: Article){
 
@@ -195,8 +165,6 @@ Promise<string> {
 
   const { document:doc } = parseHTML(htmlText);
 
-  // const dom = JSDOM.jsdom(htmlText, null);
-  // const doc = dom.window.document;
   const imageData = await extractImageUrls(doc, articleUrl);
   const outputDir = saveDir + "/images";
   const maxDimension = 1024;
@@ -494,22 +462,10 @@ function readabilityToArticle(html: string, contentType: string, url: string|nul
 
   console.log('running readability')
 
-  // var domB = new JSDOM(html, options);
-  // let readerB = new Readability(domB.window.document);
-  // let resultB = readerB.parse();
-
   const { document } = parseHTML(html);
-
 
   let reader = new Readability(document);
   let readabilityResult = reader.parse();
-
-  // var doc = jsdom.html(html, "3", options);
-
-  // console.log(`doc: ${doc}`);
-
-  // let reader = new Readability(doc);
-  // let readabilityResult = reader.parse();
 
   if (readabilityResult === null) {
     throw new Error("Readability did not parse");
