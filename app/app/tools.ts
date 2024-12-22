@@ -6,29 +6,38 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import {FileManager,  DB_FILE_NAME, DbManager } from '@savr/lib'
 import {Article, ArticleAndRender} from '@savr/lib'
 
-export const getDir = async () => {
+export const getDir = async (platform: string) => {
 
-  try {
-    const value = await AsyncStorage.getItem('data-directory');
+  if (platform === 'android')
+    try {
+      const value = await AsyncStorage.getItem('data-directory');
 
-    console.log(`data-directory value: ${value}`);
-    if (value !== null) {
-      // value previously stored
+      console.log(`data-directory value: ${value}`);
+      if (value !== null) {
+        // value previously stored
+      }
+      return value
+    } catch (e) {
+      // error reading value
+      console.error(e);
+      return null
     }
-    return value
-  } catch (e) {
-    // error reading value
-    console.error(e);
-    return null
-  }
+
+    // this is for the web version
+    if (!process.env.EXPO_PUBLIC_SAVR_SERVICE) {
+      console.error('SAVR_SERVICE is not defined');
+      return null;
+    }
+
+    return process.env.EXPO_PUBLIC_SAVR_SERVICE;
 };
 
 export async function generateFileManager(platform: string) {
 
   let dir: string | null = null;
+  dir = await getDir(platform);
 
   if (platform === 'android') {
-    dir = await getDir();
 
     if (!dir) {
       console.error('SAF directory not found');
@@ -38,13 +47,13 @@ export async function generateFileManager(platform: string) {
     return new FileManagerAndroid(dir);
   } else {
 
-    if (!process.env.EXPO_PUBLIC_SAVR_SERVICE) {
+    if (!dir) {
       console.error('SAVR_SERVICE is not defined');
       return;
     }
     // dir = process.env.EXPO_PUBLIC_SAVR_SERVICE
 
-    return new FileManagerWeb(process.env.EXPO_PUBLIC_SAVR_SERVICE);
+    return new FileManagerWeb(dir);
   }
 }
 
