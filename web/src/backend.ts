@@ -1,11 +1,16 @@
-
-import { ArticleAndRender, Articles, Article, FileManager, DbManager, upsertArticleToList, DB_FILE_NAME } from "@savr/lib";
+import {
+  ArticleAndRender,
+  Articles,
+  Article,
+  FileManager,
+  DbManager,
+  upsertArticleToList,
+  DB_FILE_NAME,
+} from "@savr/lib";
 import fs, { Dirent } from "fs";
 import path from "path";
 
-
 export class FileManagerNode extends FileManager {
-
   private directory: string;
 
   constructor(directory: string) {
@@ -15,15 +20,14 @@ export class FileManagerNode extends FileManager {
   }
 
   // #directory: string; // a url or SAF path, or local dir
-  
+
   public generateJsonDbManager(): DbManagerNode {
     return new DbManagerNode(this);
   }
 
   public async downloadAndResizeImage(url: string, targetDir: string) {
-
-    const maxDimension = 200
-    const filePath = url.split("/").pop()
+    const maxDimension = 200;
+    const filePath = url.split("/").pop();
     const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
 
     // const response = await fetch(url);
@@ -36,9 +40,7 @@ export class FileManagerNode extends FileManager {
 
     // const writeStream = createWriteStream(outputFilePath);
     // await pipeline(resizedImageBuffer, writeStream);
-
-  };
-
+  }
 
   public async writeTextFile(filename: string, content: string): Promise<void> {
     // import * as path from "path";
@@ -61,22 +63,24 @@ export class FileManagerNode extends FileManager {
   }
 
   public async readTextFile(filename: string): Promise<string> {
-    return fs.readFileSync(`${this.directory}/${filename}`, 'utf8');
+    return fs.readFileSync(`${this.directory}/${filename}`, "utf8");
   }
 }
 
 export class DbManagerNode extends DbManager {
-
-  public fileManager: FileManagerNode
+  public fileManager: FileManagerNode;
 
   constructor(fm: FileManagerNode) {
     // super(fm);
     super(fm);
-    this.fileManager = fm
+    this.fileManager = fm;
+  }
+
+  public async setArticleState(slug: string, state: string) {
+    return await super.setArticleState(slug, state);
   }
 
   public async upsertArticle(article: Article) {
-
     super.upsertArticle(article);
 
     // const articles = await this.getArticles();
@@ -86,10 +90,9 @@ export class DbManagerNode extends DbManager {
     // this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
   }
 
-  public async getArticle(slug: string): Promise<Article|undefined>  {
-
+  public async getArticle(slug: string): Promise<Article | undefined> {
     return super.getArticle(slug);
-    
+
     // // TODO: read from single article json file?
 
     // const articles = await this.getArticles();
@@ -98,7 +101,6 @@ export class DbManagerNode extends DbManager {
   }
 
   public async getArticles(): Promise<Article[]> {
-
     return super.getArticles();
 
     // const content = await this.fileManager.readTextFile(DB_FILE_NAME);
@@ -106,19 +108,13 @@ export class DbManagerNode extends DbManager {
     // const articles = JSON.parse(content).articles;
 
     // return articles
-    
   }
-
 }
 
-
-
-
 export async function systemInfo() {
-
   return {
-    "system": "info"
-  }
+    system: "info",
+  };
 
   // const articles = await getArticles();
   // // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
@@ -143,11 +139,10 @@ export async function systemInfo() {
 }
 
 export async function renderSystemInfo() {
-
   const info = await systemInfo();
 
   const view = {
-    content: JSON.stringify(info, null, 2)
+    content: JSON.stringify(info, null, 2),
   };
 
   // return renderTemplate("about", view);
@@ -165,64 +160,62 @@ export function getDirectorySizeAsync(dirPath: string): Promise<number> {
   });
 }
 
-
-
 /**
  * Recursively calculates the size of a directory using a callback-based approach.
  * @param dirPath - The path of the directory.
  * @param callback - Callback to handle the result or error.
  */
 export function getDirectorySize(
-    dirPath: string,
-    callback: (err: NodeJS.ErrnoException | null, size?: number) => void
-  ): void {
-    let totalSize = 0;
-  
-    fs.readdir(dirPath, { withFileTypes: true }, (err, entries) => {
-      if (err) {
-        return callback(err);
-      }
-  
-      if (!entries) {
-        return callback(null, totalSize);
-      }
-  
-      let pending = entries.length;
-      if (pending === 0) {
-        return callback(null, totalSize);
-      }
-  
-      for (const entry of entries as Dirent[]) {
-        const fullPath = `${dirPath}/${entry.name}`;
-  
-        if (entry.isDirectory()) {
-          getDirectorySize(fullPath, (err, size) => {
-            if (err) {
-              return callback(err);
-            }
-            totalSize += size || 0;
-            if (--pending === 0) {
-              callback(null, totalSize);
-            }
-          });
-        } else if (entry.isFile()) {
-          fs.stat(fullPath, (err, stats) => {
-            if (err) {
-              return callback(err);
-            }
-            totalSize += stats.size;
-            if (--pending === 0) {
-              callback(null, totalSize);
-            }
-          });
-        } else {
+  dirPath: string,
+  callback: (err: NodeJS.ErrnoException | null, size?: number) => void
+): void {
+  let totalSize = 0;
+
+  fs.readdir(dirPath, { withFileTypes: true }, (err, entries) => {
+    if (err) {
+      return callback(err);
+    }
+
+    if (!entries) {
+      return callback(null, totalSize);
+    }
+
+    let pending = entries.length;
+    if (pending === 0) {
+      return callback(null, totalSize);
+    }
+
+    for (const entry of entries as Dirent[]) {
+      const fullPath = `${dirPath}/${entry.name}`;
+
+      if (entry.isDirectory()) {
+        getDirectorySize(fullPath, (err, size) => {
+          if (err) {
+            return callback(err);
+          }
+          totalSize += size || 0;
           if (--pending === 0) {
             callback(null, totalSize);
           }
+        });
+      } else if (entry.isFile()) {
+        fs.stat(fullPath, (err, stats) => {
+          if (err) {
+            return callback(err);
+          }
+          totalSize += stats.size;
+          if (--pending === 0) {
+            callback(null, totalSize);
+          }
+        });
+      } else {
+        if (--pending === 0) {
+          callback(null, totalSize);
         }
       }
-    });
-  }
+    }
+  });
+}
 
 // export function getArticles(): ArticleAndRender[] {
 //   const db = JSONFileSyncPreset<Articles>(dbFile, defaultData);
@@ -233,7 +226,6 @@ export function getDirectorySize(
 //   const db = JSONFileSyncPreset<Articles>(dbFile, defaultData);
 //   return db.data.articles
 // }
-
 
 // export function getArticles(): Article[] {
 
@@ -248,15 +240,12 @@ export function getDirectorySize(
 //   fs.writeFileSync(dbFile, JSON.stringify({articles}, null, 2));
 // }
 
-
 export async function generateFileManager() {
+  const dataDir = process.env.DATA_DIR;
 
-  const dataDir = process.env.DATA_DIR
+  if (dataDir === undefined) throw new Error("DATA_DIR env var not set");
 
-  if (dataDir === undefined)
-    throw new Error("DATA_DIR env var not set")
+  const fm = new FileManagerNode(dataDir);
 
-  const fm = new FileManagerNode(dataDir)
-
-  return fm
+  return fm;
 }

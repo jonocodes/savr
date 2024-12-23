@@ -8,6 +8,8 @@ import { generateFileManager, getDir } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article } from "@savr/lib";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { version } from "../package.json" with { type: "json" };
+
 export default function PreferencesScreen() {
   const [dir, setDir] = React.useState<string | null>(null);
 
@@ -101,7 +103,7 @@ export default function PreferencesScreen() {
         <List.Item
           title="Choose data directory"
           description={dir || "Not set"}
-          left={(props) => <List.Icon {...props} icon="trash-can-outline" />}
+          left={(props) => <List.Icon {...props} icon="folder" />}
           onPress={handleChooseDir}
         />
       </List.Section>
@@ -110,7 +112,7 @@ export default function PreferencesScreen() {
         <List.Subheader>About</List.Subheader>
         <List.Item
           title="Version"
-          description="1.0.0"
+          description={version}
           left={(props) => <List.Icon {...props} icon="information" />}
         />
       </List.Section>

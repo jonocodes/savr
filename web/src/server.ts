@@ -4,38 +4,34 @@ import path from "path";
 import { join } from "path";
 import { dirname } from "path";
 import { FastifySSEPlugin } from "fastify-sse-v2";
-import {
-  articlesToRender,
-  renderListTemplate,
-  Article,
-  ingestUrl,
-} from "@savr/lib";
-
+import { articlesToRender, renderListTemplate, Article, ingestUrl } from "@savr/lib";
 
 import { generateFileManager, renderSystemInfo } from "./backend.ts";
 // import { systemInfo } from "backend";
-import * as fs from 'fs';
+import * as fs from "fs";
 import staticFiles from "@fastify/static";
 import { fileURLToPath } from "url";
 import cors from "@fastify/cors";
 import helmet from "@fastify/helmet";
-import formbody from '@fastify/formbody';
-import { version } from "../package.json" with { type: "json" };
+import formbody from "@fastify/formbody";
+// import { version } from "../package.json";
+
+// import { version } from '../package.json' assert { type: 'json' };
+
+import packageJson from "../package.json" assert { type: "json" };
+const version = packageJson.version;
 
 // Get the current directory path in ESM
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+export const dataDir = process.env.DATA_DIR;
 
-export const dataDir = process.env.DATA_DIR
-
-if (dataDir === undefined)
-  throw new Error("DATA_DIR env var not set")
+if (dataDir === undefined) throw new Error("DATA_DIR env var not set");
 
 if (!fs.existsSync(dataDir)) {
-  throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
+  throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`);
 }
-
 
 interface IIngestQuerystring {
   url: string;
@@ -53,9 +49,8 @@ interface ISlugPathString {
 const server = Fastify({
   logger: true,
 
-  bodyLimit: 30 * 1024 * 1024 // Default Limit set to 30MB
+  bodyLimit: 30 * 1024 * 1024, // Default Limit set to 30MB
 });
-
 
 if (dataDir === undefined) throw new Error("DATA_DIR env var not set");
 
@@ -66,15 +61,15 @@ const namespace: string = "/savr"; // TODO: make configurable
 
 const fileManager = await generateFileManager();
 
-console.log("fileManager: " + fileManager)
+console.log("fileManager: " + fileManager);
 
 const dbManager = fileManager.generateJsonDbManager();
 
-console.log("dbManager: " + dbManager)
+console.log("dbManager: " + dbManager);
 
 await server.register(cors, {
   origin: "*",
-})
+});
 
 server.register(formbody);
 
@@ -99,34 +94,28 @@ server.register(FastifySSEPlugin);
 
 server.register(
   function (app, _, done) {
+    app.get<{ Params: ISetStatePathstring }>("/setstate/:state/:slug", async (request, reply) => {
+      const { state, slug } = request.params;
 
-    app.get<{ Params: ISetStatePathstring }>(
-      "/setstate/:state/:slug",
-      async (request, reply) => {
-        const { state, slug } = request.params;
+      // TODO: validate state and show error
 
-        // TODO: validate state and show error
+      await dbManager.setArticleState(slug, state);
+      // await setState(dbManager,slug, state);
 
-        // await setState(dbManager,slug, state);
-
-        reply.redirect(namespace);
-        return;
-      }
-    );
-
+      reply.redirect(namespace);
+      return;
+    });
 
     app.get("/about", async (request, reply) => {
-
-      const rendered = await renderSystemInfo()
+      const rendered = await renderSystemInfo();
       reply.type("text/html").send(rendered);
-
     });
 
     // app.get("/fsList", async (request, reply) => {
 
     //   if (dataDir === undefined)
     //     throw new Error("DATA_DIR env var not set")
-      
+
     //   try {
     //     const files = fs.readdirSync(dataDir);
     //     reply.send(files);
@@ -137,54 +126,65 @@ server.register(
     // });
 
     app.get("/db", async (request, reply) => {
-
       try {
         const list = await dbManager.getArticles();
         // const data = fs.readFileSync("db.json", "utf8");
         // const jsonData = JSON.parse(data);
         reply.send(list);
       } catch (err) {
-        reply.code(500).send({ error: 'Error reading database' });
+        reply.code(500).send({ error: "Error reading database" });
       }
     });
 
     app.get("/api/articles", async (request, reply) => {
-
       try {
         const articles = await dbManager.getArticles();
         reply.send(articles);
       } catch (err) {
-        reply.code(500).send({ error: 'Error reading database' });
+        reply.code(500).send({ error: "Error reading database" });
       }
     });
 
-
-
-    app.get<{ Params: ISlugPathString }>(
-      "/api/articles/:slug",
+    app.get<{ Params: ISetStatePathstring }>(
+      "/api/articles/:slug/setstate/:state",
       async (request, reply) => {
-        const { slug } = request.params;
+        const { state, slug } = request.params;
 
-        // TODO: validate slug and show error, 404 etc
+        // TODO: validate state and show error
 
-        // TODO: maybe this should fetch from the single aricle json endpoint instead, instead of the whole db
-
-        // const articles = await dbManager.getArticles();
-
-        // const existingArticleIndex = articles.findIndex((article: Article) => article.slug === slug);
-
-        // const article = articles[existingArticleIndex]
-
-        const article = await dbManager.getArticle(slug);
-
-        console.log(article)
+        const article = await dbManager.setArticleState(slug, state);
 
         reply.send(article);
+
+        // await setState(dbManager,slug, state);
+
+        // reply.redirect(namespace);
+        // return;
       }
     );
 
+    app.get<{ Params: ISlugPathString }>("/api/articles/:slug", async (request, reply) => {
+      const { slug } = request.params;
+
+      // TODO: validate slug and show error, 404 etc
+
+      // TODO: maybe this should fetch from the single aricle json endpoint instead, instead of the whole db
+
+      // const articles = await dbManager.getArticles();
+
+      // const existingArticleIndex = articles.findIndex((article: Article) => article.slug === slug);
+
+      // const article = articles[existingArticleIndex]
+
+      const article = await dbManager.getArticle(slug);
+
+      console.log(article);
+
+      reply.send(article);
+    });
+
     // article upsert (appends to the beginning)
-    app.put<{ Params: ISlugPathString, Body: Article }>(
+    app.put<{ Params: ISlugPathString; Body: Article }>(
       "/api/articles/:slug",
       async (request, reply) => {
         const { slug } = request.params;
@@ -192,7 +192,7 @@ server.register(
         const incomingArticle = request.body;
 
         // TODO: validate slug and show error, 404 etc
-        
+
         // const articles = dbManager.getArticles();
 
         // upsertArticleToList(articles, incomingArticle);
@@ -204,7 +204,6 @@ server.register(
         reply.send(incomingArticle);
       }
     );
-
 
     app.get("/", async (request, reply) => {
       // if url does not end with slash, redirect so it does
@@ -222,7 +221,6 @@ server.register(
       const [readable, archived] = articlesToRender(articles);
 
       try {
-
         const rendered = renderListTemplate({
           readable,
           archived,
@@ -275,11 +273,9 @@ server.register(
       // reply.sse({ event: "close" });
     });
 
-
     interface SaveTextRequestBody {
       text: string;
     }
-
 
     // app.post<{
     //   Body: SaveTextRequestBody
@@ -315,7 +311,6 @@ server.register(
     //   // reply.sse({ event: "close" });
     // });
 
-
     done();
   },
   { prefix: namespace }
@@ -328,7 +323,7 @@ if (namespace != "")
   });
 
 export async function startServer() {
-  server.listen({ host: '0.0.0.0', port: 8080 }, (err, address) => {
+  server.listen({ host: "0.0.0.0", port: 8080 }, (err, address) => {
     // TODO: make address configurable
     if (err) {
       server.log.error(err);

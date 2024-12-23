@@ -9,6 +9,7 @@ import "react-native-reanimated";
 import { useColorScheme } from "@/hooks/useColorScheme";
 import { DirectoryProvider } from "@/components/DirectoryProvider";
 import { PaperProvider } from "react-native-paper";
+import { SnackbarProvider } from "@/components/SnackbarProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
@@ -32,14 +33,16 @@ export default function RootLayout() {
   return (
     <DirectoryProvider>
       <PaperProvider>
-        <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
-          <Stack>
-            <Stack.Screen name="article/[slug]" />
-            <Stack.Screen name="preferences" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </ThemeProvider>
+        <SnackbarProvider>
+          <ThemeProvider value={colorScheme === "dark" ? DarkTheme : DefaultTheme}>
+            <Stack>
+              <Stack.Screen name="article/[slug]" />
+              <Stack.Screen name="preferences" />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style="auto" />
+          </ThemeProvider>
+        </SnackbarProvider>
       </PaperProvider>
     </DirectoryProvider>
   );

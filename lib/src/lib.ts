@@ -118,6 +118,10 @@ export function upsertArticleToList(articles: Article[], article: Article){
   }
 }
 
+export function getArticleBySlug(articles: Article[], slug: string): Article | undefined {
+  return articles.find((article: Article) => article.slug === slug);
+}
+
 
 export function generateInfoForArticle(article: Article): string {
 
@@ -250,6 +254,23 @@ export class DbManager {
     this.fileManager = fm
   }
 
+  public async setArticleState(slug: string, state: string) : Promise<Article> {
+
+    const articles = await this.getArticles();
+
+    const existingArticleIndex = articles.findIndex((a) => a.slug === slug);
+    // if (existingArticleIndex !== -1) {
+      articles[existingArticleIndex].state = state
+
+      this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
+
+      return articles[existingArticleIndex]
+    // } else {
+    //   console.error("article not found")
+    // }
+
+  }
+
   public async upsertArticle(article: Article) {
 
     const articles = await this.getArticles();
@@ -262,13 +283,12 @@ export class DbManager {
 
     this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
 
-
     const content = await this.fileManager.readTextFile(DB_FILE_NAME);
     
     console.log("db after insert:", content)
   }
 
-  public async getArticle(slug: string): Promise<Article|undefined>  {
+  public async getArticle(slug: string): Promise<Article|undefined> {
     
     // TODO: read from single article json file?
 
@@ -278,8 +298,6 @@ export class DbManager {
   }
 
   public async getArticles(): Promise<Article[]> {
-
-    // const content = await this.fileManager.readTextFile(dbFile);
 
     const content = await this.fileManager.readTextFile(DB_FILE_NAME);
 
@@ -356,5 +374,7 @@ export abstract class FileManager {
   public abstract generateJsonDbManager(): DbManager;
 
   public abstract downloadAndResizeImage(url: string, targetDir: string): Promise<void>;
+
+  public abstract deleteDir(dir: string): Promise<void>;
 }
 
