@@ -1,22 +1,35 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, StyleSheet, ScrollView, Platform } from "react-native";
-import { List, Text } from "react-native-paper";
+import { List, PaperProvider, Text, useTheme } from "react-native-paper";
 
 import { StorageAccessFramework as SAF } from "expo-file-system";
 
-import { generateFileManager, getDir } from "@/app/tools";
+import { generateFileManager, getDir, loadColorScheme, saveColorScheme } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article } from "@savr/lib";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { version } from "../package.json" with { type: "json" };
+import { useColorScheme } from "@/hooks/useColorScheme.web";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 export default function PreferencesScreen() {
   const [dir, setDir] = React.useState<string | null>(null);
+
+  // const [colorScheme, setColorScheme] = React.useState("light");
+
+    const systemColorScheme = useColorScheme();
+
+    const [colorScheme, setColorScheme] = useState(
+      systemColorScheme === "dark" ? DarkTheme : DefaultTheme
+    );
+
+  // const theme = useTheme();
 
   useEffect(() => {
     const setup = async () => {
       try {
         setDir(await getDir(Platform.OS));
+        setColorScheme(await loadColorScheme());
       } catch (error) {
         console.error(error);
       }
@@ -80,10 +93,17 @@ export default function PreferencesScreen() {
     }
   };
 
-  // const dir = await getDir(Platform.OS);
-
   return (
-    <ScrollView style={styles.container}>
+    <ScrollView 
+    style={styles.container} 
+    // style={colorScheme}
+    >
+
+      <Text style={{ color: colorScheme.colors.text }}>
+        Why is the background following the color scheme change, but the text color is not?
+      </Text>
+
+
       <List.Section>
         <List.Subheader>Reading</List.Subheader>
         <List.Item
@@ -93,8 +113,24 @@ export default function PreferencesScreen() {
         />
         <List.Item
           title="Theme"
-          description="Light"
+          description={colorScheme === DarkTheme ? "Dark" : "Light"}
           left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
+ 
+          onPress={() => {
+            // const colorScheme = useColorScheme();
+            const newSchemeStr = colorScheme === DarkTheme ? "light" : "dark";
+
+            const newScheme = colorScheme === DarkTheme ? DefaultTheme : DarkTheme;
+
+            setColorScheme(newScheme);
+
+            saveColorScheme(newSchemeStr);
+            // AsyncStorage.setItem("color-scheme", newScheme);
+
+            console.log("set color scheme", newScheme);
+            
+            // PaperProvider.setTheme({ dark: newScheme });
+          }}
         />
       </List.Section>
 
@@ -118,6 +154,7 @@ export default function PreferencesScreen() {
       </List.Section>
 
       <Text>Platform: {Platform.OS}</Text>
+
     </ScrollView>
   );
 }
@@ -125,6 +162,6 @@ export default function PreferencesScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#fff",
+    // backgroundColor: "#fff",
   },
 });

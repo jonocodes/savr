@@ -3,6 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { FileManager, DB_FILE_NAME, DbManager } from "@savr/lib";
 import { Article, ArticleAndRender } from "@savr/lib";
+import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 export const getDir = async (platform: string) => {
   if (platform === "android")
@@ -52,6 +53,22 @@ export async function generateFileManager(platform: string) {
   }
 }
 
+export async function loadColorScheme() {
+
+  const color = await AsyncStorage.getItem("color-scheme");
+
+  const theme = color === "dark" ? DarkTheme : DefaultTheme;
+
+  console.log("loaded color", color);
+
+  return theme
+}
+
+export async function saveColorScheme(theme: string) {
+  await AsyncStorage.setItem("color-scheme", theme);
+}
+
+
 export class DbManagerAndroid extends DbManager {
   // public async upsertArticle(article: Article) {
   //   const articles = await this.getArticles();
@@ -81,7 +98,6 @@ export class DbManagerWeb extends DbManager {
     }
 
     const article: Article = await response.json();
-
     return article;
   }
 
@@ -93,21 +109,32 @@ export class DbManagerWeb extends DbManager {
         body: JSON.stringify(article),
       }
     );
+
+    if (!response.ok) {
+      throw new Error("Error setting article state");
+    }
   }
 
   public async getArticles(): Promise<Article[]> {
     const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
     // const articles: ArticleAndRender[] = await response.json();
-    const articles: Article[] = await response.json();
 
+    if (!response.ok) {
+      throw new Error("Error getting articles");
+    }
+
+    const articles: Article[] = await response.json();
     return articles;
   }
 
   public async getArticle(slug: string): Promise<Article | undefined> {
     const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${slug}`);
 
-    const article = await response.json();
+    if (!response.ok) {
+      throw new Error("Error getting article");
+    }
 
+    const article = await response.json();
     return article;
   }
 }

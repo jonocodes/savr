@@ -10,6 +10,8 @@ import {
   Button,
   Text,
   Menu,
+  Icon,
+  Tooltip,
 } from "react-native-paper";
 
 import { Image, Platform, Linking, TouchableOpacity } from "react-native";
@@ -21,6 +23,7 @@ import { router } from "expo-router";
 import { generateFileManager } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
+import { globalStyles } from "./_layout";
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -176,6 +179,7 @@ function ArticleItem(props: {
         >
           {item.state === "archived" ? (
             <Menu.Item
+              leadingIcon="archive-arrow-up"
               onPress={() => {
                 closeMenu();
                 unarchiveArticle(item);
@@ -184,6 +188,7 @@ function ArticleItem(props: {
             />
           ) : (
             <Menu.Item
+              leadingIcon="archive-arrow-down"
               onPress={() => {
                 closeMenu();
                 archiveArticle(item);
@@ -192,6 +197,15 @@ function ArticleItem(props: {
             />
           )}
           <Menu.Item
+            leadingIcon="share-variant"
+            onPress={() => {
+              closeMenu();
+              // deleteArticle();
+            }}
+            title="Share"
+          />
+          <Menu.Item
+            leadingIcon="trash-can"
             onPress={() => {
               closeMenu();
               deleteArticle(item);
@@ -217,13 +231,15 @@ export default function ArticleListScreen() {
 
   const { showMessage } = useSnackbar();
 
-  const [url, setUrl] = useState<string>(
-    "https://www.freecodecamp.org/news/javascript-typeof-how-to-check-the-type-of-a-variable-or-object-in-js/"
-  );
+  const [url, setUrl] = useState<string>("");
 
   useEffect(() => {
     const setManagers = async () => {
+      // TODO: move to app startup and share with zustand?
+
       try {
+        // setColorScheme(await loadColorScheme());
+
         const fm = await generateFileManager(Platform.OS);
 
         if (!fm) {
@@ -314,8 +330,19 @@ export default function ArticleListScreen() {
   );
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <View style={globalStyles.container}>
+      <View style={globalStyles.header}>
+        <Tooltip title="Add article" enterTouchDelay={0} leaveTouchDelay={0}>
+          <IconButton
+            icon="plus-circle"
+            onPress={() => {
+              setIngestStatus(null);
+              setDialogVisible(true);
+
+              setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+            }}
+          />
+        </Tooltip>
         <IconButton
           icon={showArchived ? "email" : "email-open"}
           onPress={() => setShowArchived(!showArchived)}
@@ -373,15 +400,15 @@ export default function ArticleListScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: "#fff",
-  },
-  header: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    padding: 8,
-  },
+  // container: {
+  //   flex: 1,
+  //   // backgroundColor: "#fff",
+  // },
+  // header: {
+  //   flexDirection: "row",
+  //   justifyContent: "flex-end",
+  //   padding: 8,
+  // },
   list: {
     flex: 1,
   },
