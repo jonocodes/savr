@@ -3,27 +3,22 @@ import { StyleSheet, ScrollView, Platform } from "react-native";
 
 import {
   List,
-  PaperProvider,
-  useTheme,
-  MD3LightTheme as LightTheme,
-  MD3DarkTheme as DarkTheme,
   Text,
+  PaperProvider,
+  // MD3LightTheme, //as LightTheme,
+  // MD3DarkTheme, //as DarkTheme,
   Appbar,
   // DefaultTheme as PaperLightTheme,
   // DarkTheme as PaperDarkTheme,
 } from "react-native-paper";
 
-import { StorageAccessFramework as SAF } from "expo-file-system";
+import { readDirectoryAsync, StorageAccessFramework as SAF } from "expo-file-system";
 
-import { generateFileManager, getDir, loadColorScheme, saveColorScheme } from "@/app/tools";
+import { DarkTheme, generateFileManager, getDir, loadColorScheme, MyStoreState, saveColorScheme, useMyStore } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article } from "@savr/lib";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { version } from "../package.json" with { type: "json" };
-import { useColorScheme } from "@/hooks/useColorScheme.web";
-import { useThemeColor } from "@/hooks/useThemeColor";
-import { View } from "react-native-reanimated/lib/typescript/Animated";
-import { globalStyles } from "./_layout";
 import { router } from "expo-router";
 // import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
@@ -32,23 +27,37 @@ export default function PreferencesScreen() {
 
   // const [colorScheme, setColorScheme] = React.useState("light");
   
-  const theme = useTheme();
+  // const theme = useTheme();
+  // console.log("theme in preferences", theme);
 
   // const textColor = useThemeColor({ light: 'black', dark: 'white' }, 'text');
 
-    const systemColorScheme = useColorScheme();
+    // const systemColorScheme = useColorScheme();
 
-    const [colorScheme, setColorScheme] = useState(
-      systemColorScheme === "dark" ? DarkTheme : LightTheme
-    );
+    // const [colorScheme, setColorScheme] = useState(
+    //   systemColorScheme === "dark" ? DarkTheme : LightTheme
+    // );
 
-  // const theme = useTheme();
+    const currentTheme = useMyStore((state) => state.colorScheme);
+
+    const toggleTheme = useMyStore((state) => state.toggleTheme);
+
+    // const getThemeName = useMyStore((state) => state.getThemeName);
+
+      // const fileManager = useMyStore((state) => state.fileManager);
+
+  const setFileManager = useMyStore((state) => state.setFileManager);
+
+  // const dbManager = useMyStore((state) => state.dbManager);
+
+  const setDbManager = useMyStore((state) => state.setDbManager);
+
 
   useEffect(() => {
     const setup = async () => {
       try {
         setDir(await getDir(Platform.OS));
-        setColorScheme(await loadColorScheme());
+        // setColorScheme(await loadColorScheme());
       } catch (error) {
         console.error(error);
       }
@@ -67,6 +76,7 @@ export default function PreferencesScreen() {
 
   const handleChooseDir = async () => {
     if (Platform.OS === "web") {
+      // TODO: pop up alert to say it was set by env var
       return;
     }
 
@@ -78,10 +88,9 @@ export default function PreferencesScreen() {
 
       try {
         const volAndPath = dir.split(":")[1].split("/").at(-1);
-        const saf_data_dir = `${dir}/document/${volAndPath}%2F`;
-        // setChosenDir(saf_data_dir);
+        const safDataDir = `${dir}/document/${volAndPath}%2F`;
 
-        await storeDir(saf_data_dir);
+        await storeDir(safDataDir);
 
         const fm = await generateFileManager(Platform.OS);
 
@@ -89,21 +98,13 @@ export default function PreferencesScreen() {
           console.error("FileManager not defined");
           throw new Error("FileManager not defined");
         }
-        // const dbManager = fm.generateJsonDbManager();
 
-        // setFileManager(fm);
-        // setDbManager(dbManager);
+        const dbManager = fm.generateJsonDbManager();
 
+        setFileManager(fm);
+        setDbManager(dbManager);
+        
         // const articles = await dbManager.getArticles();
-
-        // console.log("SAF loaded articles:", articles);
-
-        // const slugs: string[] = articles.map((item) => item.slug);
-
-        // // setDirContents(slugs);
-
-        // console.log(`SAF DIR CONTENTS: ${slugs}`);
-        // setDirContents(slugs);
       } catch (error) {
         console.error(error);
       }
@@ -115,9 +116,14 @@ export default function PreferencesScreen() {
   // TODO: I should not have to use PaperProvider since its in the layout.
   //  also should not have to set ScrollView style excplicitly or have have to extract the bg only
   return (
-      <PaperProvider theme={colorScheme}>
+      <PaperProvider 
+      // theme={theme}
+      theme={currentTheme}
+      >
 
-        <Appbar.Header theme={colorScheme}>
+        <Appbar.Header 
+        theme={currentTheme}
+        >
 
           <Appbar.BackAction
             onPress={
@@ -130,61 +136,58 @@ export default function PreferencesScreen() {
           <Appbar.Content title="Preferences" />
         </Appbar.Header>
 
-{/* <View
-
-style={{
-  maxWidth: 650,
-  alignSelf: "center",
-  }}
-> */}
-        <ScrollView 
+        <ScrollView
     // style={styles.container} 
     // style={colorScheme.colors }
     style={{ 
-      backgroundColor: colorScheme.colors.background, 
-      // maxWidth: 650,
-      // alignSelf: "center",
+      backgroundColor: currentTheme.colors.background,
       }}
-    // style={colorScheme}
+    // style={currentTheme.colors}
     >
-
-      <List.Section>
-        <List.Subheader>Reading</List.Subheader>
-        <List.Item
-          title="Font Size"
-          description="Medium"
-          left={(props) => <List.Icon {...props} icon="format-size" />}
-        />
-        <List.Item
-          title="Theme"
-          description={colorScheme === DarkTheme ? "Dark" : "Light"}
-          left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
- 
-          onPress={() => {
-            // const colorScheme = useColorScheme();
-            const newSchemeStr = colorScheme === DarkTheme ? "light" : "dark";
-
-            const newScheme = colorScheme === DarkTheme ? LightTheme : DarkTheme;
-
-            setColorScheme(newScheme);
-
-            saveColorScheme(newSchemeStr);
-            // AsyncStorage.setItem("color-scheme", newScheme);
-
-            console.log("set color scheme", newScheme);
-            
-            // PaperProvider.setTheme({ dark: newScheme });
-          }}
-        />
-      </List.Section>
 
       <List.Section>
         <List.Subheader>Storage</List.Subheader>
         <List.Item
           title="Data directory"
-          description={dir || "Not set"}
+          // description={dir || "You need to set this value. Click to choose one."}
+          description={() =>
+            dir ? (
+              <Text>{dir}</Text>
+            ) : (
+              <Text style={{ color: 'red', textTransform: "uppercase" }}>{"Click here to choose a directory in order to use the app."}</Text>
+            )
+          }
+
           left={(props) => <List.Icon {...props} icon="folder" />}
           onPress={handleChooseDir}
+        />
+      </List.Section>
+
+      <List.Section>
+        <List.Subheader>Reading</List.Subheader>
+        {/* <List.Item
+          title="Font Size"
+          description="Medium"
+          left={(props) => <List.Icon {...props} icon="format-size" />}
+        /> */}
+        <List.Item
+          title="Theme"
+          description={
+            currentTheme.name.replace(/^./, (char) => char.toUpperCase())
+          }
+          left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
+ 
+          onPress={async() => {
+
+            toggleTheme();
+
+            // const newScheme = currentTheme;
+
+            await saveColorScheme(currentTheme);
+
+            console.log("set color scheme", currentTheme.name);
+            
+          }}
         />
       </List.Section>
 

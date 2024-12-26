@@ -1,22 +1,12 @@
-import React, { useContext, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Platform, ScrollView, View, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { router, useLocalSearchParams } from "expo-router";
-import { generateFileManager, loadColorScheme, saveColorScheme } from "../tools";
+import { useMyStore } from "../tools";
 import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
-import { Article, DbManager, FileManager } from "@savr/lib";
+import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
-import { useColorScheme } from "@/hooks/useColorScheme.web";
-import {
-  PaperProvider,
-  useTheme,
-  MD3LightTheme as LightTheme,
-  MD3DarkTheme as DarkTheme,
-  // DefaultTheme as PaperLightTheme,
-  // DarkTheme as PaperDarkTheme,
-} from "react-native-paper";
-// import { DarkTheme, Theme, DefaultTheme } from "@react-navigation/native";
-import { globalStyles } from "../_layout";
+import { PaperProvider } from "react-native-paper";
 
 export default function ArticleScreen() {
   const { slug } = useLocalSearchParams();
@@ -37,52 +27,34 @@ export default function ArticleScreen() {
   const closeMenu = () => setVisible(false);
 
   // TODO: save this to storage
-  const [fontSize, setFontSize] = useState(16);
+  // const [fontSize, setFontSize] = useState(16);
 
-  const [fileManager, setFileManager] = useState<FileManager | null>(null);
+  const fontSize = useMyStore((state) => state.fontSize);
 
-  const [dbManager, setDbManager] = useState<DbManager | null>(null);
+  const setFontSize = useMyStore((state) => state.setFontSize);
 
-  const systemColorScheme = useColorScheme(); // Get the system's color scheme
-  const [isDarkMode, setIsDarkMode] = useState(systemColorScheme === "dark");
+  // const [fileManager, setFileManager] = useState<FileManager | null>(null);
 
-  // console.log("systemColorScheme", systemColorScheme);
+  // const [dbManager, setDbManager] = useState<DbManager | null>(null);
 
-  const [colorScheme, setColorScheme] = useState(
-    systemColorScheme === "dark" ? DarkTheme : LightTheme
-  );
+  const fileManager = useMyStore((state) => state.fileManager);
 
-  // const toggleTheme = () => setIsDarkMode((prev) => !prev);
-
-  const theme = isDarkMode ? DarkTheme : LightTheme;
+  const dbManager = useMyStore((state) => state.dbManager);
 
   const { showMessage } = useSnackbar();
+
+  const currentTheme = useMyStore((state) => state.colorScheme);
+
+  // const getThemeName = useMyStore((state) => state.getThemeName);
 
   // const [fileManager, setFileManager] = useState<FileManager|null|undefined>(null);
 
   useEffect(() => {
-    // console.log(`Platform: ${Platform.OS}`);
 
     const setup = async () => {
       try {
-        setColorScheme(await loadColorScheme());
 
-        const fm = await generateFileManager(Platform.OS);
-
-        // TODO: move to app startup and share with zustand?
-
-        if (!fm) {
-          console.error("FileManager not defined");
-          throw new Error("FileManager not defined");
-        }
-
-        setFileManager(fm);
-
-        const db = fm.generateJsonDbManager();
-
-        setDbManager(db);
-
-        const art = await db.getArticle(slug);
+        const art = await dbManager!.getArticle(slug);
 
         if (!art) {
           throw new Error("Article not found");
@@ -92,10 +64,10 @@ export default function ArticleScreen() {
 
         setArticle(art);
 
-        const content = await fm.readTextFile(`saves/${slug}/index.html`);
+        const content = await fileManager!.readTextFile(`saves/${slug}/index.html`);
 
         // TODO: this should really read from lib
-        const style = await fm.readTextFile("static/shared/web.css");
+        const style = await fileManager!.readTextFile("static/shared/web.css");
 
         setHtml(`<style>${style}</style>${content}`);
       } catch (e) {
@@ -137,6 +109,7 @@ export default function ArticleScreen() {
       setArticle(articleUpdated!);
 
       showMessage("Article archived");
+      router.push("/");
     } catch (e) {
       console.error(e);
 
@@ -155,6 +128,7 @@ export default function ArticleScreen() {
       setArticle(articleUpdated!);
 
       showMessage("Article unarchived");
+      router.push("/");
     } catch (e) {
       console.error(e);
 
@@ -163,9 +137,9 @@ export default function ArticleScreen() {
   };
 
   return (
-    <PaperProvider theme={colorScheme}>
+    <PaperProvider theme={currentTheme}>
       {/* <View style={globalStyles.tooltipWrapper}> */}
-      <Appbar.Header theme={colorScheme}>
+      <Appbar.Header theme={currentTheme}>
         {/* {navigation.canGoBack() && <Appbar.BackAction onPress={() => navigation.goBack()} />} */}
 
         <Appbar.BackAction
@@ -271,7 +245,7 @@ export default function ArticleScreen() {
       <View
         style={{
           flex: 1,
-          backgroundColor: colorScheme.colors.background,
+          backgroundColor: currentTheme.colors.background,
         }}
       >
         {Platform.OS === "web" ? (
@@ -288,7 +262,7 @@ export default function ArticleScreen() {
               style={{
                 flex: 1,
                 fontSize: fontSize,
-                color: colorScheme.colors.onBackground,
+                color: currentTheme.colors.onBackground,
               }}
               dangerouslySetInnerHTML={{ __html: html }}
             />

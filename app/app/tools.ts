@@ -3,13 +3,92 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { FileManager, DB_FILE_NAME, DbManager } from "@savr/lib";
 import { Article, ArticleAndRender } from "@savr/lib";
-// import { DarkTheme, DefaultTheme } from "@react-navigation/native";
-import { PaperProvider, useTheme,
-  MD3LightTheme as LightTheme,
-  MD3DarkTheme as DarkTheme,
+import { persist } from "zustand/middleware";
+
+import {
+  // MD3LightTheme as LightTheme,
+  // MD3DarkTheme as DarkTheme,
+  MD3LightTheme,
+  MD3DarkTheme,
+  MD3Theme,
+  // TODO: handle DefaultTheme
   // DefaultTheme as PaperLightTheme,
   // DarkTheme as PaperDarkTheme,
- } from "react-native-paper";
+} from "react-native-paper";
+
+import { create } from "zustand";
+
+export type ColorTheme = MD3Theme & {
+  name: string;
+};
+
+export const DarkTheme: ColorTheme = {
+  ...MD3DarkTheme,
+  name: "dark",
+};
+
+export const LightTheme: ColorTheme = {
+  ...MD3LightTheme,
+  name: "light",
+};
+
+// import { setStatusBarHidden } from "expo-status-bar";
+
+// const useBearStore = create((set) => ({
+//   bears: 0,
+//   increasePopulation: () => set((state: any) => ({ bears: state.bears + 1 })),
+//   removeAllBears: () => set({ bears: 0 }),
+// }))
+
+const STORE_KEY_COLOR_SCHEME = "color-scheme";
+
+export type MyStoreState = {
+  colorScheme: ColorTheme;
+  setColorScheme: (value: ColorTheme) => void;
+  toggleTheme: () => void;
+  // getThemeName: () => "dark" | "light";
+  fileManager: FileManager | null;
+  setFileManager: (value: FileManager) => void;
+  dbManager: DbManager | null;
+  setDbManager: (value: DbManager) => void;
+  fontSize: number;
+  setFontSize: (value: number) => void;
+};
+
+export const useMyStore = create<MyStoreState>((set, get) => ({
+  colorScheme: LightTheme,
+  setColorScheme: (value: ColorTheme) => set({ colorScheme: value }),
+  toggleTheme: () =>
+    set((state) => ({
+      colorScheme: state.colorScheme === DarkTheme ? LightTheme : DarkTheme,
+    })),
+
+  // getThemeName: () => (get().colorScheme === DarkTheme ? "dark" : "light"),
+
+  fileManager: null,
+  setFileManager: (value: FileManager) => set({ fileManager: value }),
+
+  dbManager: null,
+  setDbManager: (value: DbManager) => set({ dbManager: value }),
+
+  fontSize: 16,
+  setFontSize: (value: number) => set({ fontSize: value }),
+}));
+
+export async function loadColorScheme() {
+  const color = await AsyncStorage.getItem(STORE_KEY_COLOR_SCHEME);
+
+  const theme = color === DarkTheme.name ? DarkTheme : LightTheme;
+
+  console.log("loaded color", theme.name);
+
+  return theme;
+}
+
+export async function saveColorScheme(theme: ColorTheme) {
+  console.log("saving color", theme.name);
+  await AsyncStorage.setItem(STORE_KEY_COLOR_SCHEME, theme.name);
+}
 
 export const getDir = async (platform: string) => {
   if (platform === "android")
@@ -58,22 +137,6 @@ export async function generateFileManager(platform: string) {
     return new FileManagerWeb(dir);
   }
 }
-
-export async function loadColorScheme() {
-
-  const color = await AsyncStorage.getItem("color-scheme");
-
-  const theme = color === "dark" ? DarkTheme : LightTheme;
-
-  console.log("loaded color", color);
-
-  return theme
-}
-
-export async function saveColorScheme(theme: string) {
-  await AsyncStorage.setItem("color-scheme", theme);
-}
-
 
 export class DbManagerAndroid extends DbManager {
   // public async upsertArticle(article: Article) {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, FlatList, StyleSheet, ScrollView } from "react-native";
+import { View, FlatList, StyleSheet, ScrollView, SafeAreaView } from "react-native";
 import {
   List,
   IconButton,
@@ -16,6 +16,8 @@ import {
   MD3LightTheme as LightTheme,
   MD3DarkTheme as DarkTheme,
   ProgressBar,
+  SegmentedButtons,
+  useTheme,
 } from "react-native-paper";
 
 import { Image, Platform, Linking, TouchableOpacity } from "react-native";
@@ -24,13 +26,11 @@ import type { ImageSourcePropType } from "react-native";
 
 import { router } from "expo-router";
 
-import { generateFileManager, loadColorScheme } from "@/app/tools";
+import { generateFileManager, loadColorScheme, useMyStore } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article, generateInfoForCard } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";
-import { useColorScheme } from "@/hooks/useColorScheme.web";
 import { ThemedText } from "@/components/ThemedText";
-// import { ScrollView } from "react-native-reanimated/lib/typescript/Animated";
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -66,7 +66,8 @@ const sampleArticleUrls = [
   "https://leejo.github.io/2024/09/29/holding_out_for_the_heros_to_fuck_off/",
 ];
 
-const fallbackSource = require("../assets/images/react-logo.png");
+// TODO: this file should not be stored in app assets. it should get them from lib
+const fallbackSource = require("../assets/article_bw.webp");
 
 interface ThumbnailImageProps {
   source: ImageSourcePropType;
@@ -88,13 +89,17 @@ const ThumbnailImage = (props: ThumbnailImageProps) => {
 
 function ArticleItem(props: {
   item: Article;
-  fileManager: FileManager | null;
-  dbManager: DbManager | null;
+  // fileManager: FileManager | null;
+  // dbManager: DbManager | null;
   refreshArticles: () => void;
 }) {
   const item = props.item;
-  const fileManager = props.fileManager;
-  const dbManager = props.dbManager;
+  // const fileManager = props.fileManager;
+  // const dbManager = props.dbManager;
+
+  const fileManager = useMyStore((state) => state.fileManager);
+
+  const dbManager = useMyStore((state) => state.dbManager);
 
   const [visible, setVisible] = React.useState(false);
 
@@ -103,6 +108,8 @@ function ArticleItem(props: {
   const closeMenu = () => setVisible(false);
 
   const { showMessage } = useSnackbar();
+
+  const currentTheme = useMyStore((state) => state.colorScheme);
 
   const deleteArticle = async (article: Article) => {
     console.log(`Deleting ${item.slug}`);
@@ -154,9 +161,7 @@ function ArticleItem(props: {
     }
   };
 
-  let imgSrc = require("../assets/images/react-logo.png");
-
-  // const fallbackSource = require("../assets/images/react-logo.png");
+  let imgSrc = { uri: `${fileManager?.directory}saves/static/article_bw.webp` };
 
   if (Platform.OS === "web") {
     imgSrc = { uri: `${fileManager?.directory}saves/${item.slug}/thumbnail.webp` };
@@ -165,11 +170,19 @@ function ArticleItem(props: {
     // imgSrc = { uri: `${fileManager?.directory}saves/${item.slug}/thumbnail.webp` };
   }
 
+  // TODO: handle case where fileManager is null for android. redirect to settings?
+
   return (
     <List.Item
-      // title={item.title}
       title={(props) => (
-        <ThemedText style={{ flexWrap: "wrap", width: "80%", fontWeight: "bold" }}>
+        <ThemedText
+          style={{
+            flexWrap: "wrap",
+            width: "80%",
+            fontWeight: "bold",
+            color: currentTheme.colors.onBackground,
+          }}
+        >
           {item.title}
         </ThemedText>
       )}
@@ -232,7 +245,7 @@ function ArticleItem(props: {
 
 export default function ArticleListScreen() {
   const [articles, setArticles] = useState<Article[]>([]);
-  const [showArchived, setShowArchived] = useState(false);
+  // const [showArchived, setShowArchived] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
 
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
@@ -241,70 +254,46 @@ export default function ArticleListScreen() {
 
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
 
-  const [fileManager, setFileManager] = useState<FileManager | null>(null);
+  // const [fileManager, setFileManager] = useState<FileManager | null>(null);
 
-  const [dbManager, setDbManager] = useState<DbManager | null>(null);
+  // const [dbManager, setDbManager] = useState<DbManager | null>(null);
+
+  const fileManager = useMyStore((state) => state.fileManager);
+
+  const dbManager = useMyStore((state) => state.dbManager);
 
   const { showMessage } = useSnackbar();
 
+  const [filter, setFilter] = React.useState("unread");
+
   const [url, setUrl] = useState<string>("");
 
-  const systemColorScheme = useColorScheme(); // Get the system's color scheme
-  // const [isDarkMode, setIsDarkMode] = useState(systemColorScheme === "dark");
+  const currentTheme = useMyStore((state) => state.colorScheme);
 
-  // const toggleTheme = () => setIsDarkMode((prev) => !prev);
+  // const getThemeName = useMyStore((state) => state.getThemeName);
 
-  const [colorScheme, setColorScheme] = useState(
-    systemColorScheme === "dark" ? DarkTheme : LightTheme
-  );
+  // console.log("theme in index", theme);
 
   useEffect(() => {
     const setup = async () => {
-      // TODO: move to app startup and share with zustand?
 
-      try {
-        setColorScheme(await loadColorScheme());
-
-        const fm = await generateFileManager(Platform.OS);
-
-        if (!fm) {
-          console.error("FileManager not defined");
-          throw new Error("FileManager not defined");
-        }
-        const dbManager = fm.generateJsonDbManager();
-
-        setFileManager(fm);
-        setDbManager(dbManager);
-
-        console.log(`Platform: ${Platform.OS}`);
-
-        refreshArticleList(dbManager);
-
-        // if (Platform.OS === "web") {
-        //   const dataDir = process.env.EXPO_PUBLIC_DATA_DIR;
-        //   const service = process.env.EXPO_PUBLIC_SAVR_SERVICE;
-
-        //   console.log(`DATA_DIR: ${dataDir}`);
-        //   console.log(`SAVR_SERVICE: ${service}`);
-
-        //   if (service) {
-        //     refreshArticleList(dbManager);
-        //   }
-        // }
-      } catch (error) {
-        console.error(error);
+      if (dbManager) {
+        await refreshArticleList();
+      } else {
+        router.push("/preferences");
       }
+
     };
     setup();
   }, []);
 
-  const refreshArticleList = async (db: DbManager) => {
-    if (!db) {
+  const refreshArticleList = async () => {
+    if (!dbManager) {
       console.error("dbManager is null");
       throw new Error("dbManager is null");
     }
 
-    const articles = await db.getArticles();
+    const articles = await dbManager.getArticles();
 
     setArticles(articles);
   };
@@ -327,16 +316,10 @@ export default function ArticleListScreen() {
         }
         if (data.percent == 100) {
           eventSource.close();
-          refreshArticleList(dbManager!);
+          refreshArticleList();
           showMessage("Article saved");
-
-          // if (completedCallback != null)
-          //     setTimeout(() => {
-          //        completedCallback()
-          //     }, 1000);
         }
 
-        // setIngestStatus(event.data);
         console.log(event.data);
       };
       eventSource.onerror = () => {
@@ -352,17 +335,15 @@ export default function ArticleListScreen() {
     }
   };
 
-  const filteredArticles = articles.filter(
-    (article) => article.state === (showArchived ? "archived" : "unread")
-  );
+  const filteredArticles = articles.filter((article) => article.state === filter);
 
   return (
-    <PaperProvider theme={colorScheme}>
+    <PaperProvider theme={currentTheme}>
       <View
         //  style={globalStyles.container}
         style={{
           flex: 1,
-          backgroundColor: colorScheme.colors.background,
+          backgroundColor: currentTheme.colors.background,
         }}
       >
         <View style={globalStyles.header}>
@@ -380,10 +361,47 @@ export default function ArticleListScreen() {
               }}
             />
           </Tooltip>
-          <IconButton
+
+          <SafeAreaView
+            style={{
+              flex: 1,
+              alignItems: "center",
+            }}
+          >
+            <SegmentedButtons
+              value={filter}
+              // onValueChange={setSegment}
+
+              onValueChange={setFilter}
+              style={{
+                // fontSize: 14,
+                paddingHorizontal: 8,
+                // textAlign: "center",
+              }}
+              buttons={[
+                {
+                  value: "unread",
+                  label: "Saves",
+                  icon: "file-document-multiple",
+                  // style: { flexShrink: 1 },
+                },
+                {
+                  value: "archived",
+                  label: "Archive",
+                  icon: "archive",
+                  // style: {
+                  //   flex: 1,
+                  //   flexShrink: 1,
+                  // },
+                },
+              ]}
+            />
+          </SafeAreaView>
+
+          {/* <IconButton
             icon={showArchived ? "email" : "email-open"}
             onPress={() => setShowArchived(!showArchived)}
-          />
+          /> */}
           <IconButton icon="cog" onPress={() => router.push("/preferences")} />
         </View>
 
@@ -394,9 +412,9 @@ export default function ArticleListScreen() {
             renderItem={({ item }) => (
               <ArticleItem
                 item={item}
-                fileManager={fileManager}
-                dbManager={dbManager}
-                refreshArticles={() => refreshArticleList(dbManager!)}
+                // fileManager={fileManager}
+                // dbManager={dbManager}
+                refreshArticles={() => refreshArticleList()}
               />
             )}
             keyExtractor={(item) => item.slug}
