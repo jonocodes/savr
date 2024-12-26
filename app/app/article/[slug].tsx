@@ -3,11 +3,19 @@ import { Platform, ScrollView, View, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { router, useLocalSearchParams } from "expo-router";
 import { generateFileManager, loadColorScheme, saveColorScheme } from "../tools";
-import { IconButton, Menu, Tooltip } from "react-native-paper";
+import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
 import { Article, DbManager, FileManager } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { useColorScheme } from "@/hooks/useColorScheme.web";
-import { DarkTheme, Theme, DefaultTheme } from "@react-navigation/native";
+import {
+  PaperProvider,
+  useTheme,
+  MD3LightTheme as LightTheme,
+  MD3DarkTheme as DarkTheme,
+  // DefaultTheme as PaperLightTheme,
+  // DarkTheme as PaperDarkTheme,
+} from "react-native-paper";
+// import { DarkTheme, Theme, DefaultTheme } from "@react-navigation/native";
 import { globalStyles } from "../_layout";
 
 export default function ArticleScreen() {
@@ -41,12 +49,12 @@ export default function ArticleScreen() {
   // console.log("systemColorScheme", systemColorScheme);
 
   const [colorScheme, setColorScheme] = useState(
-    systemColorScheme === "dark" ? DarkTheme : DefaultTheme
+    systemColorScheme === "dark" ? DarkTheme : LightTheme
   );
 
   // const toggleTheme = () => setIsDarkMode((prev) => !prev);
 
-  const theme = isDarkMode ? DarkTheme : DefaultTheme;
+  const theme = isDarkMode ? DarkTheme : LightTheme;
 
   const { showMessage } = useSnackbar();
 
@@ -155,27 +163,41 @@ export default function ArticleScreen() {
   };
 
   return (
-    <View style={globalStyles.container}>
-      <View style={globalStyles.header}>
-        <Tooltip title="Light/dark" enterTouchDelay={0} leaveTouchDelay={0}>
-          <IconButton
-            icon="theme-light-dark"
-            onPress={() => {
-              const newSchemeStr = colorScheme === DarkTheme ? "light" : "dark";
+    <PaperProvider theme={colorScheme}>
+      {/* <View style={globalStyles.tooltipWrapper}> */}
+      <Appbar.Header theme={colorScheme}>
+        {/* {navigation.canGoBack() && <Appbar.BackAction onPress={() => navigation.goBack()} />} */}
 
-              const newScheme = colorScheme === DarkTheme ? DefaultTheme : DarkTheme;
+        <Appbar.BackAction
+          onPress={
+            () => {
+              router.push("/");
+            }
+            // navigation.goBack()
+          }
+        />
 
-              setColorScheme(newScheme);
+        <Appbar.Content title="" />
+        {/* Add buttons to the top-right */}
+        {/* <Appbar.Action icon="cog" /> */}
 
-              // toggleTheme();
+        {/* <Appbar.Action
+          icon="theme-light-dark"
+          onPress={() => {
+            const newSchemeStr = colorScheme === DarkTheme ? "light" : "dark";
 
-              saveColorScheme(newSchemeStr);
-              // AsyncStorage.setItem("color-scheme", newScheme);
+            const newScheme = colorScheme === DarkTheme ? LightTheme : DarkTheme;
 
-              console.log("set color scheme", newScheme);
-            }}
-          />
-        </Tooltip>
+            setColorScheme(newScheme);
+
+            // toggleTheme();
+
+            saveColorScheme(newSchemeStr);
+            // AsyncStorage.setItem("color-scheme", newScheme);
+
+            console.log("set color scheme", newScheme);
+          }}
+        /> */}
 
         <Tooltip title="Increase font" enterTouchDelay={0} leaveTouchDelay={0}>
           <IconButton icon="format-font-size-increase" onPress={() => setFontSize(fontSize + 2)} />
@@ -197,7 +219,7 @@ export default function ArticleScreen() {
           </Tooltip>
         ) : (
           <Tooltip title="Archive" enterTouchDelay={0} leaveTouchDelay={0}>
-            <IconButton
+            <Appbar.Action
               icon="archive-arrow-down"
               onPress={() => {
                 closeMenu();
@@ -244,29 +266,40 @@ export default function ArticleScreen() {
             title="Delete"
           />
         </Menu>
-      </View>
+      </Appbar.Header>
 
-      {Platform.OS === "web" ? (
-        <ScrollView
-          style={{
-            margin: 8,
-            // fontSize: 30,
-          }}
-        >
-          <div
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colorScheme.colors.background,
+        }}
+      >
+        {Platform.OS === "web" ? (
+          <ScrollView
+            // contentContainerStyle={{
+            //   flexGrow: 1,
+            // }}
             style={{
-              flex: 1,
-              fontSize: fontSize,
-              color: colorScheme.colors.text,
+              margin: 8,
+              // fontSize: 30,
             }}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
-        </ScrollView>
-      ) : (
-        // TODO: may need to use react-native-render-html
-        <WebView originWhitelist={["*"]} source={{ html: html }} />
-      )}
-    </View>
+          >
+            <div
+              style={{
+                flex: 1,
+                fontSize: fontSize,
+                color: colorScheme.colors.onBackground,
+              }}
+              dangerouslySetInnerHTML={{ __html: html }}
+            />
+          </ScrollView>
+        ) : (
+          // TODO: may need to use react-native-render-html
+          <WebView originWhitelist={["*"]} source={{ html: html }} />
+        )}
+      </View>
+      {/* </View> */}
+    </PaperProvider>
   );
 }
 

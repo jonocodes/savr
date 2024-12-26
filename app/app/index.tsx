@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { View, FlatList, StyleSheet } from "react-native";
+import { View, FlatList, StyleSheet, ScrollView } from "react-native";
 import {
   List,
   IconButton,
@@ -12,6 +12,10 @@ import {
   Menu,
   Icon,
   Tooltip,
+  PaperProvider,
+  MD3LightTheme as LightTheme,
+  MD3DarkTheme as DarkTheme,
+  ProgressBar,
 } from "react-native-paper";
 
 import { Image, Platform, Linking, TouchableOpacity } from "react-native";
@@ -20,10 +24,13 @@ import type { ImageSourcePropType } from "react-native";
 
 import { router } from "expo-router";
 
-import { generateFileManager } from "@/app/tools";
-import { FileManager, DbManager, ingestUrl, Article } from "@savr/lib";
+import { generateFileManager, loadColorScheme } from "@/app/tools";
+import { FileManager, DbManager, ingestUrl, Article, generateInfoForCard } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";
+import { useColorScheme } from "@/hooks/useColorScheme.web";
+import { ThemedText } from "@/components/ThemedText";
+// import { ScrollView } from "react-native-reanimated/lib/typescript/Animated";
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -74,7 +81,7 @@ const ThumbnailImage = (props: ThumbnailImageProps) => {
       {...props}
       source={imageSource}
       onError={() => setImageSource(fallbackSource)}
-      style={{ width: 100, height: 100 }}
+      style={{ width: 100, height: 100, padding: 20 }}
     />
   );
 };
@@ -160,8 +167,13 @@ function ArticleItem(props: {
 
   return (
     <List.Item
-      title={item.title}
-      description={item.publishedDate}
+      // title={item.title}
+      title={(props) => (
+        <ThemedText style={{ flexWrap: "wrap", width: "80%", fontWeight: "bold" }}>
+          {item.title}
+        </ThemedText>
+      )}
+      description={generateInfoForCard(item)}
       left={() => <ThumbnailImage source={imgSrc} />}
       onPress={() => router.push(`/article/${item.slug}`)}
       right={() => (
@@ -225,6 +237,10 @@ export default function ArticleListScreen() {
 
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
+  const [ingestPercent, setIngestPercent] = useState<number>(0);
+
+  const [ingestMessage, setIngestMessage] = useState<string | null>(null);
+
   const [fileManager, setFileManager] = useState<FileManager | null>(null);
 
   const [dbManager, setDbManager] = useState<DbManager | null>(null);
@@ -233,12 +249,21 @@ export default function ArticleListScreen() {
 
   const [url, setUrl] = useState<string>("");
 
+  const systemColorScheme = useColorScheme(); // Get the system's color scheme
+  // const [isDarkMode, setIsDarkMode] = useState(systemColorScheme === "dark");
+
+  // const toggleTheme = () => setIsDarkMode((prev) => !prev);
+
+  const [colorScheme, setColorScheme] = useState(
+    systemColorScheme === "dark" ? DarkTheme : LightTheme
+  );
+
   useEffect(() => {
-    const setManagers = async () => {
+    const setup = async () => {
       // TODO: move to app startup and share with zustand?
 
       try {
-        // setColorScheme(await loadColorScheme());
+        setColorScheme(await loadColorScheme());
 
         const fm = await generateFileManager(Platform.OS);
 
@@ -270,7 +295,7 @@ export default function ArticleListScreen() {
         console.error(error);
       }
     };
-    setManagers();
+    setup();
   }, []);
 
   const refreshArticleList = async (db: DbManager) => {
@@ -296,6 +321,8 @@ export default function ArticleListScreen() {
         const data = JSON.parse(event.data);
         if (data.percent && data.message) {
           setIngestStatus(`${data.percent}% ${data.message}`);
+          setIngestPercent(data.percent);
+          setIngestMessage(data.message);
           // updateProgressList(data.percent, data.message);
         }
         if (data.percent == 100) {
@@ -330,87 +357,116 @@ export default function ArticleListScreen() {
   );
 
   return (
-    <View style={globalStyles.container}>
-      <View style={globalStyles.header}>
-        <Tooltip title="Add article" enterTouchDelay={0} leaveTouchDelay={0}>
-          <IconButton
-            icon="plus-circle"
-            onPress={() => {
-              setIngestStatus(null);
-              setDialogVisible(true);
-
-              setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
-            }}
-          />
-        </Tooltip>
-        <IconButton
-          icon={showArchived ? "email" : "email-open"}
-          onPress={() => setShowArchived(!showArchived)}
-        />
-        <IconButton icon="cog" onPress={() => router.push("/preferences")} />
-      </View>
-      <FlatList
-        data={filteredArticles}
-        // renderItem={renderItem}
-        renderItem={({ item }) => (
-          <ArticleItem
-            item={item}
-            fileManager={fileManager}
-            dbManager={dbManager}
-            refreshArticles={() => refreshArticleList(dbManager!)}
-          />
-        )}
-        keyExtractor={(item) => item.slug}
-        style={styles.list}
-      />
-
-      <FAB
-        icon="plus"
-        style={styles.fab}
-        onPress={() => {
-          setIngestStatus(null);
-          setDialogVisible(true);
-
-          setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+    <PaperProvider theme={colorScheme}>
+      <View
+        //  style={globalStyles.container}
+        style={{
+          flex: 1,
+          backgroundColor: colorScheme.colors.background,
         }}
-      />
+      >
+        <View style={globalStyles.header}>
+          <Tooltip title="Add article" enterTouchDelay={0} leaveTouchDelay={0}>
+            <IconButton
+              icon="plus-circle"
+              onPress={() => {
+                setIngestStatus(null);
 
-      {/* <AddArticleDialog open={dialogVisible} onClose={() => setDialogVisible(false)} /> */}
+                setIngestPercent(0);
+                setIngestMessage(null);
 
-      <Portal>
-        <Dialog visible={dialogVisible} onDismiss={() => setDialogVisible(false)}>
-          <Dialog.Title>Add Article</Dialog.Title>
-          <Dialog.Content>
-            <TextInput label="URL" value={url} onChangeText={setUrl} mode="outlined" />
+                setDialogVisible(true);
+                setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+              }}
+            />
+          </Tooltip>
+          <IconButton
+            icon={showArchived ? "email" : "email-open"}
+            onPress={() => setShowArchived(!showArchived)}
+          />
+          <IconButton icon="cog" onPress={() => router.push("/preferences")} />
+        </View>
 
-            <Text>
-              <br />
-              {ingestStatus}
-            </Text>
-          </Dialog.Content>
+        <ScrollView>
+          <FlatList
+            data={filteredArticles}
+            // renderItem={renderItem}
+            renderItem={({ item }) => (
+              <ArticleItem
+                item={item}
+                fileManager={fileManager}
+                dbManager={dbManager}
+                refreshArticles={() => refreshArticleList(dbManager!)}
+              />
+            )}
+            keyExtractor={(item) => item.slug}
+            style={styles.list}
+          />
+        </ScrollView>
 
-          <Dialog.Actions>
-            <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
-            <Button onPress={handleSubmitUrl}>Save</Button>
-          </Dialog.Actions>
-        </Dialog>
-      </Portal>
-    </View>
+        {/* <FAB
+          icon="plus"
+          style={styles.fab}
+          onPress={() => {
+            setIngestStatus(null);
+            setDialogVisible(true);
+
+            setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+          }}
+        /> */}
+
+        {/* <AddArticleDialog open={dialogVisible} onClose={() => setDialogVisible(false)} /> */}
+
+        <Portal>
+          <Dialog
+            visible={dialogVisible}
+            onDismiss={() => setDialogVisible(false)}
+            style={styles.dialog}
+          >
+            <Dialog.Title>Add Article</Dialog.Title>
+            <Dialog.Content>
+              <TextInput label="URL" value={url} onChangeText={setUrl} mode="outlined" />
+
+              {ingestPercent != 0 && (
+                <>
+                  <Text
+                    style={{
+                      // textAlign: "center",
+                      marginTop: 20,
+                      marginBottom: 10,
+                    }}
+                  >
+                    {ingestStatus}
+                  </Text>
+
+                  <ProgressBar progress={ingestPercent / 100} />
+                </>
+              )}
+            </Dialog.Content>
+
+            <Dialog.Actions>
+              <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
+              <Button onPress={handleSubmitUrl}>Save</Button>
+            </Dialog.Actions>
+          </Dialog>
+        </Portal>
+      </View>
+    </PaperProvider>
   );
 }
 
 const styles = StyleSheet.create({
   // container: {
   //   flex: 1,
-  //   // backgroundColor: "#fff",
-  // },
-  // header: {
-  //   flexDirection: "row",
-  //   justifyContent: "flex-end",
-  //   padding: 8,
   // },
   list: {
     flex: 1,
+    maxWidth: 650,
+    alignSelf: "center",
+  },
+  dialog: {
+    width: 500, // TODO: make this a max width somehow
+    alignSelf: "center",
   },
   fab: {
     position: "absolute",

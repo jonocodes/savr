@@ -3,7 +3,13 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { FileManager, DB_FILE_NAME, DbManager } from "@savr/lib";
 import { Article, ArticleAndRender } from "@savr/lib";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
+// import { DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { PaperProvider, useTheme,
+  MD3LightTheme as LightTheme,
+  MD3DarkTheme as DarkTheme,
+  // DefaultTheme as PaperLightTheme,
+  // DarkTheme as PaperDarkTheme,
+ } from "react-native-paper";
 
 export const getDir = async (platform: string) => {
   if (platform === "android")
@@ -57,7 +63,7 @@ export async function loadColorScheme() {
 
   const color = await AsyncStorage.getItem("color-scheme");
 
-  const theme = color === "dark" ? DarkTheme : DefaultTheme;
+  const theme = color === "dark" ? DarkTheme : LightTheme;
 
   console.log("loaded color", color);
 

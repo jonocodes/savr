@@ -1,6 +1,17 @@
 import React, { useEffect, useState } from "react";
-import { View, StyleSheet, ScrollView, Platform } from "react-native";
-import { List, PaperProvider, Text, useTheme } from "react-native-paper";
+import { StyleSheet, ScrollView, Platform } from "react-native";
+
+import {
+  List,
+  PaperProvider,
+  useTheme,
+  MD3LightTheme as LightTheme,
+  MD3DarkTheme as DarkTheme,
+  Text,
+  Appbar,
+  // DefaultTheme as PaperLightTheme,
+  // DarkTheme as PaperDarkTheme,
+} from "react-native-paper";
 
 import { StorageAccessFramework as SAF } from "expo-file-system";
 
@@ -10,17 +21,25 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { version } from "../package.json" with { type: "json" };
 import { useColorScheme } from "@/hooks/useColorScheme.web";
-import { DarkTheme, DefaultTheme } from "@react-navigation/native";
+import { useThemeColor } from "@/hooks/useThemeColor";
+import { View } from "react-native-reanimated/lib/typescript/Animated";
+import { globalStyles } from "./_layout";
+import { router } from "expo-router";
+// import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 export default function PreferencesScreen() {
   const [dir, setDir] = React.useState<string | null>(null);
 
   // const [colorScheme, setColorScheme] = React.useState("light");
+  
+  const theme = useTheme();
+
+  // const textColor = useThemeColor({ light: 'black', dark: 'white' }, 'text');
 
     const systemColorScheme = useColorScheme();
 
     const [colorScheme, setColorScheme] = useState(
-      systemColorScheme === "dark" ? DarkTheme : DefaultTheme
+      systemColorScheme === "dark" ? DarkTheme : LightTheme
     );
 
   // const theme = useTheme();
@@ -93,16 +112,41 @@ export default function PreferencesScreen() {
     }
   };
 
+  // TODO: I should not have to use PaperProvider since its in the layout.
+  //  also should not have to set ScrollView style excplicitly or have have to extract the bg only
   return (
-    <ScrollView 
-    style={styles.container} 
+      <PaperProvider theme={colorScheme}>
+
+        <Appbar.Header theme={colorScheme}>
+
+          <Appbar.BackAction
+            onPress={
+              () => {
+                router.push("/");
+              }
+            }
+          />
+
+          <Appbar.Content title="Preferences" />
+        </Appbar.Header>
+
+{/* <View
+
+style={{
+  maxWidth: 650,
+  alignSelf: "center",
+  }}
+> */}
+        <ScrollView 
+    // style={styles.container} 
+    // style={colorScheme.colors }
+    style={{ 
+      backgroundColor: colorScheme.colors.background, 
+      // maxWidth: 650,
+      // alignSelf: "center",
+      }}
     // style={colorScheme}
     >
-
-      <Text style={{ color: colorScheme.colors.text }}>
-        Why is the background following the color scheme change, but the text color is not?
-      </Text>
-
 
       <List.Section>
         <List.Subheader>Reading</List.Subheader>
@@ -120,7 +164,7 @@ export default function PreferencesScreen() {
             // const colorScheme = useColorScheme();
             const newSchemeStr = colorScheme === DarkTheme ? "light" : "dark";
 
-            const newScheme = colorScheme === DarkTheme ? DefaultTheme : DarkTheme;
+            const newScheme = colorScheme === DarkTheme ? LightTheme : DarkTheme;
 
             setColorScheme(newScheme);
 
@@ -137,7 +181,7 @@ export default function PreferencesScreen() {
       <List.Section>
         <List.Subheader>Storage</List.Subheader>
         <List.Item
-          title="Choose data directory"
+          title="Data directory"
           description={dir || "Not set"}
           left={(props) => <List.Icon {...props} icon="folder" />}
           onPress={handleChooseDir}
@@ -151,17 +195,24 @@ export default function PreferencesScreen() {
           description={version}
           left={(props) => <List.Icon {...props} icon="information" />}
         />
+
+        <List.Item
+          title="Platform"
+          description={Platform.OS}
+          left={(props) => <List.Icon {...props} icon="information" />}
+        />
       </List.Section>
 
-      <Text>Platform: {Platform.OS}</Text>
-
     </ScrollView>
+    {/* </View> */}
+      </PaperProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    // backgroundColor: colo.colors.background 
     // backgroundColor: "#fff",
   },
 });

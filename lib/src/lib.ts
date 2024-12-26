@@ -105,6 +105,18 @@ export function generateInfoForCard(article: Article): string {
 
   }
 
+  if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
+
+    const read = `${article.readTimeMinutes} minute read`
+
+    if (result == "") {
+        result = read
+    } else {
+        result = `${result} • ${read}`
+    }
+
+  }
+
   return result
 }
 
