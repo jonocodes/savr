@@ -3,7 +3,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { FileManager, DB_FILE_NAME, DbManager } from "@savr/lib";
 import { Article, ArticleAndRender } from "@savr/lib";
-import { persist } from "zustand/middleware";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
   // MD3LightTheme as LightTheme,
@@ -42,10 +42,50 @@ export const LightTheme: ColorTheme = {
 
 const STORE_KEY_COLOR_SCHEME = "color-scheme";
 
+export interface ThemeState {
+  theme: ColorTheme;
+  // theme: 'light' | 'dark';
+
+  setTheme: (value: ColorTheme) => void;
+
+  // setTheme: (theme: 'light' | 'dark') => void;
+}
+
+export interface FontState {
+  fontSize: number;
+  setFontSize: (value: number) => void;
+}
+
+export const useThemeStore = create<ThemeState>()(
+  persist(
+    (set) => ({
+      theme: LightTheme,
+      setTheme: (theme) => set({ theme }),
+    }),
+    {
+      name: "theme-storage", // key in AsyncStorage
+      storage: createJSONStorage(() => AsyncStorage), // use AsyncStorage for persistence
+    }
+  )
+);
+
+export const useFontStore = create<FontState>()(
+  persist(
+    (set) => ({
+      fontSize: 16,
+      setFontSize: (fontSize) => set({ fontSize }),
+    }),
+    {
+      name: "font-storage", // key in AsyncStorage
+      storage: createJSONStorage(() => AsyncStorage), // use AsyncStorage for persistence
+    }
+  )
+);
+
 export type MyStoreState = {
-  colorScheme: ColorTheme;
-  setColorScheme: (value: ColorTheme) => void;
-  toggleTheme: () => void;
+  // colorScheme: ColorTheme;
+  // setColorScheme: (value: ColorTheme) => void;
+  // toggleTheme: () => void;
   // getThemeName: () => "dark" | "light";
   fileManager: FileManager | null;
   setFileManager: (value: FileManager) => void;
@@ -56,12 +96,19 @@ export type MyStoreState = {
 };
 
 export const useMyStore = create<MyStoreState>((set, get) => ({
-  colorScheme: LightTheme,
-  setColorScheme: (value: ColorTheme) => set({ colorScheme: value }),
-  toggleTheme: () =>
-    set((state) => ({
-      colorScheme: state.colorScheme === DarkTheme ? LightTheme : DarkTheme,
-    })),
+  // colorScheme: LightTheme,
+  // setColorScheme: (value: ColorTheme) => set({ colorScheme: value }),
+  // toggleTheme: () =>
+  //   set((state) => ({
+  //     colorScheme: state.colorScheme === DarkTheme ? LightTheme : DarkTheme,
+  //   })),
+
+  // initializeTheme: async () => {
+  //   const savedTheme = await AsyncStorage.getItem('theme');
+  //   if (savedTheme) {
+  //     set({ theme: savedTheme as 'light' | 'dark' });
+  //   }
+  // },
 
   // getThemeName: () => (get().colorScheme === DarkTheme ? "dark" : "light"),
 
@@ -75,10 +122,18 @@ export const useMyStore = create<MyStoreState>((set, get) => ({
   setFontSize: (value: number) => set({ fontSize: value }),
 }));
 
+function colorSchemeFromStr(value: string | null): ColorTheme {
+  const theme = value === DarkTheme.name ? DarkTheme : LightTheme;
+
+  return theme;
+}
+
 export async function loadColorScheme() {
   const color = await AsyncStorage.getItem(STORE_KEY_COLOR_SCHEME);
 
-  const theme = color === DarkTheme.name ? DarkTheme : LightTheme;
+  const theme = colorSchemeFromStr(color);
+
+  // color === DarkTheme.name ? DarkTheme : LightTheme;
 
   console.log("loaded color", theme.name);
 

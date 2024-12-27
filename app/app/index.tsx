@@ -17,7 +17,6 @@ import {
   MD3DarkTheme as DarkTheme,
   ProgressBar,
   SegmentedButtons,
-  useTheme,
 } from "react-native-paper";
 
 import { Image, Platform, Linking, TouchableOpacity } from "react-native";
@@ -26,11 +25,12 @@ import type { ImageSourcePropType } from "react-native";
 
 import { router } from "expo-router";
 
-import { generateFileManager, loadColorScheme, useMyStore } from "@/app/tools";
+import { generateFileManager, loadColorScheme, useMyStore, useThemeStore } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article, generateInfoForCard } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";
 import { ThemedText } from "@/components/ThemedText";
+
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -109,7 +109,9 @@ function ArticleItem(props: {
 
   const { showMessage } = useSnackbar();
 
-  const currentTheme = useMyStore((state) => state.colorScheme);
+  // const currentTheme = useMyStore((state) => state.colorScheme);
+
+  const theme = useThemeStore((state)=>state.theme)
 
   const deleteArticle = async (article: Article) => {
     console.log(`Deleting ${item.slug}`);
@@ -180,7 +182,7 @@ function ArticleItem(props: {
             flexWrap: "wrap",
             width: "80%",
             fontWeight: "bold",
-            color: currentTheme.colors.onBackground,
+            color: theme.colors.onBackground,
           }}
         >
           {item.title}
@@ -268,7 +270,9 @@ export default function ArticleListScreen() {
 
   const [url, setUrl] = useState<string>("");
 
-  const currentTheme = useMyStore((state) => state.colorScheme);
+  // const currentTheme = useMyStore((state) => state.colorScheme);
+
+  const theme = useThemeStore((state)=>state.theme)
 
   // const getThemeName = useMyStore((state) => state.getThemeName);
 
@@ -338,12 +342,12 @@ export default function ArticleListScreen() {
   const filteredArticles = articles.filter((article) => article.state === filter);
 
   return (
-    <PaperProvider theme={currentTheme}>
+    <PaperProvider theme={theme}>
       <View
         //  style={globalStyles.container}
         style={{
           flex: 1,
-          backgroundColor: currentTheme.colors.background,
+          backgroundColor: theme.colors.background,
         }}
       >
         <View style={globalStyles.header}>

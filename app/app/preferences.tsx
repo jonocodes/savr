@@ -14,7 +14,7 @@ import {
 
 import { readDirectoryAsync, StorageAccessFramework as SAF } from "expo-file-system";
 
-import { DarkTheme, generateFileManager, getDir, loadColorScheme, MyStoreState, saveColorScheme, useMyStore } from "@/app/tools";
+import { DarkTheme, generateFileManager, getDir, LightTheme, loadColorScheme, MyStoreState, saveColorScheme, useMyStore, useThemeStore } from "@/app/tools";
 import { FileManager, DbManager, ingestUrl, Article } from "@savr/lib";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -25,30 +25,16 @@ import { router } from "expo-router";
 export default function PreferencesScreen() {
   const [dir, setDir] = React.useState<string | null>(null);
 
-  // const [colorScheme, setColorScheme] = React.useState("light");
-  
-  // const theme = useTheme();
-  // console.log("theme in preferences", theme);
+    const theme = useThemeStore((state)=>state.theme)
+    const setTheme = useThemeStore((state)=>state.setTheme)
 
-  // const textColor = useThemeColor({ light: 'black', dark: 'white' }, 'text');
+  // const currentTheme = useMyStore((state) => state.colorScheme);
 
-    // const systemColorScheme = useColorScheme();
+  // const toggleTheme = useMyStore((state) => state.toggleTheme);
 
-    // const [colorScheme, setColorScheme] = useState(
-    //   systemColorScheme === "dark" ? DarkTheme : LightTheme
-    // );
-
-    const currentTheme = useMyStore((state) => state.colorScheme);
-
-    const toggleTheme = useMyStore((state) => state.toggleTheme);
-
-    // const getThemeName = useMyStore((state) => state.getThemeName);
-
-      // const fileManager = useMyStore((state) => state.fileManager);
 
   const setFileManager = useMyStore((state) => state.setFileManager);
 
-  // const dbManager = useMyStore((state) => state.dbManager);
 
   const setDbManager = useMyStore((state) => state.setDbManager);
 
@@ -64,6 +50,30 @@ export default function PreferencesScreen() {
     };
     setup();
   }, []);
+
+  const togTheme = async () => {
+
+    let newTheme = null;
+
+      if (theme.name == DarkTheme.name)
+        newTheme = LightTheme
+      else if (theme.name == LightTheme.name)
+        newTheme = DarkTheme
+      else
+        throw new Error(`theme not found ${theme} ... ${theme.name}`,)
+
+    // if (theme == DarkTheme)
+    //   newTheme = LightTheme
+    // else if (theme == LightTheme)
+    //   newTheme = DarkTheme
+    // else
+    //   throw new Error(`theme not found ${theme} ... ${theme.name}`,)
+
+    console.log("toggling to", newTheme.name)
+
+    await setTheme(newTheme)
+
+  };
 
   const storeDir = async (value: string) => {
     try {
@@ -118,11 +128,11 @@ export default function PreferencesScreen() {
   return (
       <PaperProvider 
       // theme={theme}
-      theme={currentTheme}
+      theme={theme}
       >
 
         <Appbar.Header 
-        theme={currentTheme}
+        theme={theme}
         >
 
           <Appbar.BackAction
@@ -140,7 +150,7 @@ export default function PreferencesScreen() {
     // style={styles.container} 
     // style={colorScheme.colors }
     style={{ 
-      backgroundColor: currentTheme.colors.background,
+      backgroundColor: theme.colors.background,
       }}
     // style={currentTheme.colors}
     >
@@ -173,19 +183,25 @@ export default function PreferencesScreen() {
         <List.Item
           title="Theme"
           description={
-            currentTheme.name.replace(/^./, (char) => char.toUpperCase())
+            theme.name.replace(/^./, (char) => char.toUpperCase())
           }
           left={(props) => <List.Icon {...props} icon="theme-light-dark" />}
  
           onPress={async() => {
 
-            toggleTheme();
+            // toggleTheme();
+
+            await togTheme();
+
+            // setTheme(currentTheme);
+
+            console.log('loaded persisted theme', theme)
 
             // const newScheme = currentTheme;
 
-            await saveColorScheme(currentTheme);
+            // await saveColorScheme(currentTheme);
 
-            console.log("set color scheme", currentTheme.name);
+            // console.log("set color scheme", currentTheme.name);
             
           }}
         />

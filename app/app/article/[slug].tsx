@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Platform, ScrollView, View, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { router, useLocalSearchParams } from "expo-router";
-import { useMyStore } from "../tools";
+import { useFontStore, useMyStore, useThemeStore } from "../tools";
 import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
 import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
@@ -29,31 +29,29 @@ export default function ArticleScreen() {
   // TODO: save this to storage
   // const [fontSize, setFontSize] = useState(16);
 
-  const fontSize = useMyStore((state) => state.fontSize);
+  // const fontSize = useMyStore((state) => state.fontSize);
+  // const setFontSize = useMyStore((state) => state.setFontSize);
 
-  const setFontSize = useMyStore((state) => state.setFontSize);
-
-  // const [fileManager, setFileManager] = useState<FileManager | null>(null);
-
-  // const [dbManager, setDbManager] = useState<DbManager | null>(null);
+  const fontSize = useFontStore((state) => state.fontSize);
+  const setFontSize = useFontStore((state) => state.setFontSize);
 
   const fileManager = useMyStore((state) => state.fileManager);
 
   const dbManager = useMyStore((state) => state.dbManager);
 
+  const theme = useThemeStore((state) => state.theme);
+
   const { showMessage } = useSnackbar();
 
-  const currentTheme = useMyStore((state) => state.colorScheme);
+  // const currentTheme = useMyStore((state) => state.colorScheme);
 
   // const getThemeName = useMyStore((state) => state.getThemeName);
 
   // const [fileManager, setFileManager] = useState<FileManager|null|undefined>(null);
 
   useEffect(() => {
-
     const setup = async () => {
       try {
-
         const art = await dbManager!.getArticle(slug);
 
         if (!art) {
@@ -137,9 +135,9 @@ export default function ArticleScreen() {
   };
 
   return (
-    <PaperProvider theme={currentTheme}>
+    <PaperProvider theme={theme}>
       {/* <View style={globalStyles.tooltipWrapper}> */}
-      <Appbar.Header theme={currentTheme}>
+      <Appbar.Header theme={theme}>
         {/* {navigation.canGoBack() && <Appbar.BackAction onPress={() => navigation.goBack()} />} */}
 
         <Appbar.BackAction
@@ -245,7 +243,7 @@ export default function ArticleScreen() {
       <View
         style={{
           flex: 1,
-          backgroundColor: currentTheme.colors.background,
+          backgroundColor: theme.colors.background,
         }}
       >
         {Platform.OS === "web" ? (
@@ -262,7 +260,7 @@ export default function ArticleScreen() {
               style={{
                 flex: 1,
                 fontSize: fontSize,
-                color: currentTheme.colors.onBackground,
+                color: theme.colors.onBackground,
               }}
               dangerouslySetInnerHTML={{ __html: html }}
             />

@@ -13,16 +13,16 @@ import {
   // MD3DarkTheme as DarkTheme,
 } from "react-native-paper";
 import { SnackbarProvider } from "@/components/SnackbarProvider";
-import { generateFileManager, loadColorScheme, useMyStore } from "./tools";
+import { generateFileManager, loadColorScheme, useMyStore, useThemeStore } from "./tools";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  
-  const currentTheme = useMyStore((state) => state.colorScheme);
 
-  const setColorScheme = useMyStore((state) => state.setColorScheme);
+  // const currentTheme = useMyStore((state) => state.colorScheme);
+
+  // const setColorScheme = useMyStore((state) => state.setColorScheme);
 
   // const fileManager = useMyStore((state) => state.fileManager);
 
@@ -36,6 +36,10 @@ export default function RootLayout() {
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
+
+  const theme = useThemeStore((state)=>state.theme)
+  // const setTheme = useThemeStore((state)=>state.setTheme)
+
   useEffect(() => {
     if (loaded) {
       SplashScreen.hideAsync();
@@ -43,7 +47,7 @@ export default function RootLayout() {
 
     const setup = async () => {
 
-      setColorScheme(await loadColorScheme());
+      // setColorScheme(await loadColorScheme());
 
       const fm = await generateFileManager(Platform.OS);
 
@@ -63,7 +67,7 @@ export default function RootLayout() {
 
   return (
     <DirectoryProvider>
-      <PaperProvider theme={currentTheme}>
+      <PaperProvider theme={theme}>
         <SnackbarProvider>
           <Stack screenOptions={{ headerShown: false }}>
             <Stack.Screen name="article/[slug]" />
