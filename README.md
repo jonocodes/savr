@@ -4,6 +4,14 @@ Savr is an app for saving online content to read later. It is [file-centric, off
 
 For the most part, Savr is an [Android app](#android) and a local [web app](#web). They can be used together or independently.
 
+# **_ ATTENTION: REWRITE IN PROGRESS _**
+
+I am currently in the process of rewriting the previous version of the app from Kotlin to Expo.
+
+There are not yet any tags/releases for the Expo version, so I recommend waiting for those if you want to try the app.
+
+The following parts of this document are showing the state of the Kotlin version, which is no longer active, so take it with a grain of salt. I have kept it here since the screenshots and motivation are still relevant.
+
 # Features
 
 - Save articles for reading later
