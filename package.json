@@ -1,0 +1,23 @@
+{
+  "name": "monorepo",
+  "private": true,
+  "workspaces": [
+    "lib",
+    "cli",
+    "web",
+    "app"
+  ],
+  "devDependencies": {
+    "eslint": "^8.x",
+    "jest": "^29.x",
+    "ts-node": "^10.x",
+    "tsx": "^4.19.1",
+    "typescript": "^5.x"
+  },
+  "scripts": {
+    "build": "npm run build:lib && npm run build:web && npm run build:cli && npm run build:app",
+    "build:lib": "npm run --workspace=lib build",
+    "build:cli": "npm run --workspace=cli build",
+    "test": "npm test --workspaces"
+  }
+}

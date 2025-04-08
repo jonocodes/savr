@@ -1,0 +1,40 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "./*"
+      ]
+    },
+    "moduleResolution": "bundler",
+    "module": "Preserve",
+    // "moduleResolution": "nodenext",
+    // "allowImportingTsExtensions": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../lib/src"
+  ]
+}
+
+
+// "./*",
+// ],
+// "lib/*": ["../lib/src/*"],
+// // "@web-src-lib/*": ["../web/src/lib/*"],
+// // "@web": ["../web/dist"],
+// // "@web/*": ["../web/*"],
+// },
+// "module": "NodeNext",
+// "moduleResolution": "nodenext",
+// // "@web-src-lib/*": ["../web/src/lib/*"],
+// // "@web": ["../web/dist"],
+// // "@web/*": ["../web/*"],
+// },
+// "module": "NodeNext",
+// "moduleResolution": "nodenext",
+// },
+// "type": "module",

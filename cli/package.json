@@ -1,0 +1,40 @@
+{
+  "dependencies": {
+    "lib": "file:../lib/dist",
+    "commander": "^12.1.0",
+    "showdown": "^2.1.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.1",
+    "@types/showdown": "^2.0.6",
+    "jest": "^29.7.0",
+    "pkgroll": "^2.5.1",
+    "ts-jest": "^29.2.5",
+    "ts-node-dev": "^2.0.0",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.6.3"
+  },
+  "name": "@savr/cli",
+  "version": "0.2.0",
+  "description": "Savr cli",
+  "type": "module",
+  "main": "./src/cli.ts",
+  "bin": {
+    "savr": "./dist/cli.js"
+  },
+  "scripts": {
+    "test": "jest",
+    "synclinks": "copyfiles -u 2 -F 'src/templates/**/*' 'dist/templates' && copyfiles -u 2 -F 'src/static/**/*' 'dist/static'",
+    "build": "pkgroll && npm run synclinks",
+    "ingestSample": "EXPO_PUBLIC_SAVR_SERVICE=http://localhost:8000/savr DATA_DIR=$HOME/sync/savr_data tsx ./src/cli.ts https://www.apalrd.net/posts/2023/network_ipv6/",
+    "ui": "tsx ./src/cli.ts --ui",
+    "cli": "tsx ./src/cli.ts",
+    "savr": "tsx ./src/cli.ts",
+    "clean": "rm -rf node_modules dist"
+  },
+  "author": "Jono",
+  "license": "GPL-3.0"
+}

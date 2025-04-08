@@ -1,14 +1,9 @@
 {
-  "extends": "../tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist", // Output directory for compiled files
     // "rootDir": "./src", // Maintain source structure
-    "baseUrl": "./src", // Optional, for module resolution relative to src
-    "paths": {
-      // "lib": ["../lib/src/lib/index.ts"],
-      // "lib/*": ["../lib/src/*"] // Map "lib/*" to lib's source code
-    },
-    "module": "NodeNext",
+    // "baseUrl": "./src", // Optional, for module resolution relative to src
+    "module": "ESNext",
     "target": "ES2022",
     "declaration": true, // Generates .d.ts files for type definitions
     // "emitDeclarationOnly": true,
@@ -16,14 +11,14 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "nodenext",
+    "moduleResolution": "node",
     "sourceMap": true,
     "resolveJsonModule": true,
-    "noEmit": true,
-    "allowImportingTsExtensions": true,
   },
+  "type": "module",
   "include": [
     "**/*.ts",
+    "src"
   ],
   "exclude": [
     "node_modules",

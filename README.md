@@ -72,7 +72,7 @@ Set your local environment variable 'DATA_DIR' to be pointing an existing direct
 Here is how you may bring up the server locally.
 
 ```bash
-DATA_DIR=$HOME/savrdata  # or choose a different data location
+export DATA_DIR=$HOME/savrdata  # or choose a different data location
 mkdir $DATA_DIR
 
 cd web
@@ -85,7 +85,7 @@ npm run web:dev
 For now the simplest way to use the web project as a long running backend service is with docker.
 
 ```bash
-DATA_DIR=$HOME/savrdata
+export DATA_DIR=$HOME/savrdata
 mkdir $DATA_DIR
 
 cd web
@@ -231,7 +231,7 @@ Good examples of apps that work well with filesystems and open data formats are 
 Of course you can bring in a sync service if you want, but its up to you how you want to store things. Syncing would happen outside the app, which adds flexibility. My preference is to use Syncthing which provides a decentralized solution to sync data across my devices/machines.
 
 Generally, **I would like more apps that exist in this space**. Like:
-calendar, contacts, bookmark manager, and yes another todo app.
+calendar, contacts, [bookmark manager](https://github.com/sissbruecker/linkding), [inventory](https://inventree.org/), [physical document management](https://docs.paperless-ngx.com/), and yes - another todo app.
 
 ## Why not use an existing open source project?
 

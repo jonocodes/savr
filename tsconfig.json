@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      // "@/components/*": ["app/components/*"],
+      // "@/constants/*": ["app/constants/*"],
+      // "@/hooks/*": ["app/hooks/*"],
+      "web/*": ["web/src/*"]
+    },
+    "moduleResolution": "bundler",
+    "esModuleInterop": true
+  },
+  "type": "module",
+  "include": ["**/*.ts", "**/*.tsx"]
+}
