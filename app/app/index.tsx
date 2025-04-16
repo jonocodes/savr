@@ -21,6 +21,9 @@ import {
 
 import { Image, Platform, Linking, TouchableOpacity } from "react-native";
 
+// import RemoteStorage from "remotestoragejs";
+// import Widget from "remotestorage-widget";
+
 import type { ImageSourcePropType } from "react-native";
 
 import { router } from "expo-router";
@@ -30,7 +33,6 @@ import { FileManager, DbManager, ingestUrl, Article, generateInfoForCard } from 
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";
 import { ThemedText } from "@/components/ThemedText";
-
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -111,7 +113,7 @@ function ArticleItem(props: {
 
   // const currentTheme = useMyStore((state) => state.colorScheme);
 
-  const theme = useThemeStore((state)=>state.theme)
+  const theme = useThemeStore((state) => state.theme);
 
   const deleteArticle = async (article: Article) => {
     console.log(`Deleting ${item.slug}`);
@@ -272,7 +274,7 @@ export default function ArticleListScreen() {
 
   // const currentTheme = useMyStore((state) => state.colorScheme);
 
-  const theme = useThemeStore((state)=>state.theme)
+  const theme = useThemeStore((state) => state.theme);
 
   // const getThemeName = useMyStore((state) => state.getThemeName);
 

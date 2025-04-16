@@ -7,9 +7,12 @@ import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
 import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { PaperProvider } from "react-native-paper";
+import { useRemoteStorage } from "@/components/RemoteStorageProvider";
 
 export default function ArticleScreen() {
   const { slug } = useLocalSearchParams();
+
+  const storage = useRemoteStorage();
 
   if (typeof slug !== "string") {
     // NOTE: this also make sure slug is set for some reason
@@ -60,14 +63,33 @@ export default function ArticleScreen() {
 
         console.log(art.slug);
 
+        // TODO: this should really read from lib
+        const style = await fileManager!.readTextFile("static/shared/web.css");
+
         setArticle(art);
 
         const content = await fileManager!.readTextFile(`saves/${slug}/index.html`);
 
-        // TODO: this should really read from lib
-        const style = await fileManager!.readTextFile("static/shared/web.css");
+        // setHtml(`<style>${style}</style>${content}`);
 
-        setHtml(`<style>${style}</style>${content}`);
+        storage.client
+          ?.getFile("the-google-willow-thing/index.html")
+          .then((file) => {
+            console.log("FILE READ");
+            console.log(file.data);
+
+            setHtml(`<style>${style}</style>${file.data}`);
+
+            // const contact = JSON.parse(file.data);
+            // console.log("Retrieved contact:", contact);
+          })
+          .catch((error) => {
+            debugger;
+            console.error("Error retrieving contact:", error);
+          });
+        // });
+
+        // setHtml(`<style>${style}</style>${content}`);
       } catch (e) {
         // error reading value
         console.error(e);
