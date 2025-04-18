@@ -969,6 +969,7 @@ export async function ingestUrl(
 
 export async function ingestUrl2(
   storageClient: BaseClient|null,
+  corsProxy: string|null,
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
@@ -977,7 +978,7 @@ export async function ingestUrl2(
   // TODO: add back these lines
   // const articles = await dbManager.getArticles();
 
-  const response = await fetch(`http://localhost:7007/${url}`);
+  const response = await fetch(`${corsProxy}/${url}`);
 
   const contentTypeHeader = response.headers.get("content-type")
 

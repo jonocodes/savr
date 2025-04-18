@@ -239,11 +239,15 @@ function ArticleItem(props: { item: Article }) {
 }
 
 export default function ArticleListScreen() {
-  const [articles, setArticles] = useState<Article[]>([]);
+  // const [articles, setArticles] = useState<Article[]>([]);
   // const [showArchived, setShowArchived] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
 
-  const articles2 = useLiveQuery(() => db.articles.toArray());
+  const articles = useLiveQuery(() => db.articles.orderBy("ingestDate").reverse().toArray());
+
+  const corsProxy = useMyStore((state) => state.corsProxy);
+
+  // const articles2 = useLiveQuery(() => db.articles.sortBy("ingestDate").toArray());
 
   const { remoteStorage, client, widget } = useRemoteStorage();
 
@@ -270,13 +274,20 @@ export default function ArticleListScreen() {
   useEffect(() => {}, []);
 
   const saveUrl = async () => {
-    const article = await ingestUrl2(client, url, () => {
+    // TODO: pass in headers/cookies for downloading
+
+    await ingestUrl2(client, corsProxy, url, () => {
       console.log(`INGESTED URL ${url}`);
-    });
-
-    db.articles.put(article);
-
-    // let article = await ingestHtml2(client, html, "text/html", url);
+    })
+      .then((article) => {
+        db.articles.put(article);
+        showMessage("Article saved");
+        setDialogVisible(false);
+      })
+      .catch((error) => {
+        console.error(error);
+        showMessage("Error saving article", true);
+      });
   };
 
   // const handleSubmitUrl2 = async () => {
@@ -320,7 +331,7 @@ export default function ArticleListScreen() {
   //   }
   // };
 
-  const filteredArticles = articles2?.filter((article) => article.state === filter);
+  const filteredArticles = articles?.filter((article: Article) => article.state === filter);
 
   return (
     <PaperProvider theme={theme}>

@@ -8,12 +8,13 @@ import {
   // MD3LightTheme, //as LightTheme,
   // MD3DarkTheme, //as DarkTheme,
   Appbar,
+  TextInput,
   // DefaultTheme as PaperLightTheme,
   // DarkTheme as PaperDarkTheme,
 } from "react-native-paper";
 
 
-import { DarkTheme, getDir, LightTheme, useThemeStore } from "@/app/tools";
+import { DarkTheme, getDir, LightTheme, useMyStore, useThemeStore } from "@/app/tools";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
@@ -22,10 +23,15 @@ import { router } from "expo-router";
 // import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 export default function PreferencesScreen() {
-  const [dir, setDir] = React.useState<string | null>(null);
+  // const [dir, setDir] = React.useState<string | null>(null);
 
     const theme = useThemeStore((state)=>state.theme)
     const setTheme = useThemeStore((state)=>state.setTheme)
+
+    const corsProxy = useMyStore((state) => state.corsProxy);
+
+    const setCorsProxy = useMyStore((state) => state.setCorsProxy);
+
 
   // const currentTheme = useMyStore((state) => state.colorScheme);
 
@@ -35,7 +41,7 @@ export default function PreferencesScreen() {
   useEffect(() => {
     const setup = async () => {
       try {
-        setDir(await getDir(Platform.OS));
+        // setDir(await getDir(Platform.OS));
         // setColorScheme(await loadColorScheme());
       } catch (error) {
         console.error(error);
@@ -108,6 +114,35 @@ export default function PreferencesScreen() {
       }}
     // style={currentTheme.colors}
     >
+
+
+
+<List.Section>
+        <List.Subheader>Fetching content</List.Subheader>
+
+        <List.Item
+          title="CORS Proxy"
+          description={
+            corsProxy
+          }
+          left={(props) => <List.Icon {...props} icon="web-plus" />}
+
+          right={() => (
+            <TextInput
+              value={corsProxy}
+              onChangeText={setCorsProxy}
+              placeholder="https://"
+              // style={styles.input}
+              // mode="outlined"
+              // dense
+              // underlineColor="transparent"
+              // theme={{ roundness: 8 }}
+            />
+          )}
+
+        />
+      </List.Section>
+      
 
       <List.Section>
         <List.Subheader>Reading</List.Subheader>

@@ -1,6 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-
-<resources>
-  <!-- Refresh widget every 1 hour -->
-  <integer name="widget_update_period_millis">3600000</integer>
-</resources>

@@ -1,4 +1,3 @@
-
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { Article, ArticleAndRender } from "@savr/lib";
@@ -86,12 +85,16 @@ export const useFontStore = create<FontState>()(
 );
 
 export type MyStoreState = {
+  // problem: these ar not persisted
+
+  corsProxy: string | null;
+  setCorsProxy: (value: string) => void;
 
   fontSize: number;
   setFontSize: (value: number) => void;
 };
 
-export const useMyStore = create<MyStoreState>((set, get) => ({
+export const useMyStore = create<MyStoreState>()(
   // colorScheme: LightTheme,
   // setColorScheme: (value: ColorTheme) => set({ colorScheme: value }),
   // toggleTheme: () =>
@@ -108,9 +111,30 @@ export const useMyStore = create<MyStoreState>((set, get) => ({
 
   // getThemeName: () => (get().colorScheme === DarkTheme ? "dark" : "light"),
 
-  fontSize: 16,
-  setFontSize: (value: number) => set({ fontSize: value }),
-}));
+  persist(
+    (set) => ({
+      corsProxy: null, //"http://localhost:7007",
+      setCorsProxy: (value: string) => set({ corsProxy: value }),
+
+      fontSize: 16,
+      setFontSize: (value: number) => set({ fontSize: value }),
+
+      // fontSize: 16,
+      // setFontSize: (fontSize) => set({ fontSize }),
+    }),
+    {
+      name: "my-storage", // key in AsyncStorage
+      storage: createJSONStorage(() => AsyncStorage), // use AsyncStorage for persistence
+    }
+  )
+
+  // TODO: append a slash if there isnt one
+  // corsProxy: "", //"http://localhost:7007",
+  // setCorsProxy: (value: string) => set({ corsProxy: value }),
+
+  // fontSize: 16,
+  // setFontSize: (value: number) => set({ fontSize: value }),
+);
 
 function colorSchemeFromStr(value: string | null): ColorTheme {
   const theme = value === DarkTheme.name ? DarkTheme : LightTheme;
@@ -196,9 +220,8 @@ export async function updateArticleState(
 
   await db.articles.put(article);
 
-  return article
+  return article;
 }
-
 
 //   public async downloadAndResizeImage(url: string, targetDir: string) {
 //     const maxDimension = 200;
