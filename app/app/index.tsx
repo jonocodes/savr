@@ -19,6 +19,8 @@ import {
   SegmentedButtons,
 } from "react-native-paper";
 
+import { useLiveQuery } from "dexie-react-hooks";
+
 import { Image, Platform, Linking, TouchableOpacity } from "react-native";
 
 // import RemoteStorage from "remotestoragejs";
@@ -33,6 +35,9 @@ import { FileManager, DbManager, ingestUrl, Article, generateInfoForCard } from 
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";
 import { ThemedText } from "@/components/ThemedText";
+import { useRemoteStorage } from "@/components/RemoteStorageProvider";
+import { ingestHtml2, ingestUrl2, readabilityToArticle } from "../../lib/src/ingestion";
+import { db } from "@/db";
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -99,6 +104,8 @@ function ArticleItem(props: {
   // const fileManager = props.fileManager;
   // const dbManager = props.dbManager;
 
+  const { remoteStorage, client, widget } = useRemoteStorage();
+
   const fileManager = useMyStore((state) => state.fileManager);
 
   const dbManager = useMyStore((state) => state.dbManager);
@@ -122,6 +129,10 @@ function ArticleItem(props: {
       const articleUpdated = await dbManager?.setArticleState(article.slug, "deleted");
 
       await fileManager?.deleteDir(`saves/${article.slug}`);
+
+      client?.remove(`saves/${article.slug}/article.json`);
+
+      db.articles.delete(article.slug);
 
       props.refreshArticles();
 
@@ -252,6 +263,10 @@ export default function ArticleListScreen() {
   // const [showArchived, setShowArchived] = useState(false);
   const [dialogVisible, setDialogVisible] = useState(false);
 
+  const articles2 = useLiveQuery(() => db.articles.toArray());
+
+  const { remoteStorage, client, widget } = useRemoteStorage();
+
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
   const [ingestPercent, setIngestPercent] = useState<number>(0);
@@ -282,16 +297,28 @@ export default function ArticleListScreen() {
 
   useEffect(() => {
     const setup = async () => {
-
       if (dbManager) {
         await refreshArticleList();
       } else {
         router.push("/preferences");
       }
-
     };
     setup();
   }, []);
+
+  const saveUrl = async () => {
+    // const response = await fetch(`http://localhost:7007/${url}`);
+
+    // const html = await response.text();
+
+    await ingestUrl2(client, url, () => {
+      console.log(`INGESTED URL ${url}`);
+    });
+
+    // let article = await ingestHtml2(client, html, "text/html", url);
+
+    // client?.storeFile("text/html", "saves/the-google-willow-thing/index.html", content);
+  };
 
   const refreshArticleList = async () => {
     if (!dbManager) {
@@ -341,7 +368,50 @@ export default function ArticleListScreen() {
     }
   };
 
-  const filteredArticles = articles.filter((article) => article.state === filter);
+  const handleSubmitUrl2 = async () => {
+    console.log(url);
+
+    if (Platform.OS === "web") {
+      ingestUrl2(client, url, () => {
+        console.log(`INGESTED URL ${url}`);
+      });
+
+      // const response = await fetch(`${fileManager?.directory}save?url=${url}`);
+      const eventSource = new EventSource(
+        `${fileManager?.directory}save?url=${encodeURIComponent(url)}`
+      );
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.percent && data.message) {
+          setIngestStatus(`${data.percent}% ${data.message}`);
+          setIngestPercent(data.percent);
+          setIngestMessage(data.message);
+          // updateProgressList(data.percent, data.message);
+        }
+        if (data.percent == 100) {
+          eventSource.close();
+          refreshArticleList();
+          showMessage("Article saved");
+        }
+
+        console.log(event.data);
+      };
+      eventSource.onerror = () => {
+        console.error("Error connecting to SSE");
+        eventSource.close();
+      };
+    } else {
+      if (dbManager !== null && url !== null) {
+        await ingestUrl(dbManager, url, () => {
+          console.log(`INGESTED URL ${url}`);
+        });
+      }
+    }
+  };
+
+  // const filteredArticles = articles.filter((article) => article.state === filter);
+
+  const filteredArticles = articles2?.filter((article) => article.state === filter);
 
   return (
     <PaperProvider theme={theme}>
@@ -470,7 +540,7 @@ export default function ArticleListScreen() {
 
             <Dialog.Actions>
               <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
-              <Button onPress={handleSubmitUrl}>Save</Button>
+              <Button onPress={saveUrl}>Save</Button>
             </Dialog.Actions>
           </Dialog>
         </Portal>

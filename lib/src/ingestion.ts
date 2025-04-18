@@ -10,6 +10,7 @@ import mime from 'mime';
 // import { pipeline } from 'stream/promises';
 // import { Readable } from 'stream';
 import showdown from "showdown";
+import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate from "./article";
 // import { listTemplateMoustache } from "./list";
 import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, renderListTemplate, toArticleAndRender, calcReadingTime } from "./lib";
@@ -452,7 +453,7 @@ export async function setState(dbManager: DbManager, slug: string, state: string
   console.log(`set state to ${state} for ${slug}`)
 }
 
-function readabilityToArticle(html: string, contentType: string, url: string|null): [Article, string] {
+export function readabilityToArticle(html: string, contentType: string, url: string|null): [Article, string] {
 
   var options = {}
 
@@ -500,7 +501,6 @@ function readabilityToArticle(html: string, contentType: string, url: string|nul
 
   if (readabilityResult.publishedTime) pubDate = new Date(readabilityResult.publishedTime);
 
-  // TODO: replace this with something consistent between kotlin and js
   const readingTimeMinutes = calcReadingTime(content);
 
   const author = readabilityResult.byline;
@@ -659,6 +659,45 @@ async function ingestHtml(fileManager: FileManager, html: string, contentType: s
 
   return article
 }
+
+
+
+export async function ingestHtml2(storageClient: BaseClient|null, html: string, contentType: string, url: string|null,
+  sendMessage: (percent: number | null, message: string | null) => void
+) : Promise<Article> {
+
+  // sendMessage(10, "scraping article");
+
+  let [article, content] = readabilityToArticle(html, contentType, url)
+
+  const saveDir =  "saves/" + article.slug;
+
+  // storageClient?.storeFile("text/html", `${saveDir}/index.html`, content);
+
+  sendMessage(15, "collecting images");
+
+  // content = await processHtmlAndImages(url, content, saveDir, sendMessage);
+
+  const rendered = ArticleTemplate({
+    title: article.title,
+    byline: article.author || 'unknown author',
+    published: generateInfoForArticle(article),
+    readTime: `${article.readTimeMinutes} minute read`,
+    content: content,
+    // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+    // namespace: rootPath,
+
+  })  
+
+  // fileManager.writeTextFile(saveDir + "/index.html", rendered)
+
+  storageClient?.storeFile("text/html", `${saveDir}/index.html`, rendered);
+
+  // console.log(article);
+
+  return article
+}
+
 
 
 // function ingestPlainText(text: string, url: string|null): Article {
@@ -927,4 +966,104 @@ export async function ingestUrl(
   sendMessage(100, "finished");
 }
 
+
+export async function ingestUrl2(
+  // dbManager: DbManager,
+  storageClient: BaseClient|null,
+  url: string,
+  sendMessage: (percent: number | null, message: string | null) => void
+) {
+  sendMessage(0, "start");
+
+  // TODO: add back these lines
+  // const articles = await dbManager.getArticles();
+
+  // const existingArticleIndex = articles.findIndex((article: Article) => article.url === url);
+
+  // if (existingArticleIndex != -1) {
+  //   sendMessage(5, "article already exists - reingesting");
+  // }
+
+  // const response = await fetch(url);
+  const response = await fetch(`http://localhost:7007/${url}`);
+
+  const contentTypeHeader = response.headers.get("content-type")
+
+  if (!contentTypeHeader) {
+    throw new Error("cant determine content type")
+  }
+
+  sendMessage(10, "scraping article");
+
+  var article: Article | null = null
+
+  console.log(`contentTypeHeader = ${contentTypeHeader}`)
+
+  try {
+
+    const extension = mime.getExtension(contentTypeHeader)
+    const mimeType = mime.getType(extension??"");
+
+    // const mimeType = new MIMEType(contentTypeHeader);
+
+    if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
+      throw new Error(`Unsupported content type: ${contentTypeHeader}`);
+    }
+
+    if (mimeType === 'text/html') {
+
+      article = await ingestHtml2(storageClient, await response.text(), contentTypeHeader, url, sendMessage)
+
+    // } else if (mimeType.subtype === 'pdf') {
+
+    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+
+    //   article = await articleFromPdf(checksum, url)
+
+    //   finalizeFileLocation(tempLocalPath, article)
+
+    //   // TODO: thumbnail
+
+    // } else if (mimeType.type === 'image') {
+
+    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+
+    //   article = articleFromImage(mimeType, checksum, url)
+
+    //   finalizeFileLocation(tempLocalPath, article)
+
+    //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
+
+    } else {
+      throw new Error(`No handler for content type ${contentTypeHeader}`)
+    }
+
+    article.ingestSource = "url"
+    article.mimeType = mimeType
+
+  } catch(error) {
+    console.error(error)
+    throw new Error("error during ingestion")
+  }
+
+  const saveDir = "saves/" + article.slug;
+
+  storageClient?.storeFile("application/json", saveDir + "/article.json", JSON.stringify(article, null, 2))
+  // fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
+
+  // TODO: dbManager.upsertArticle(article); 
+
+  // if (existingArticleIndex != -1) {
+  //   db.data.articles[existingArticleIndex] = article;
+  // } else {
+  //   // keep the most recent at the top since its easier to read that way
+  //   db.data.articles.unshift(article);
+  // }
+
+  // await db.write();
+
+  // TODO: await createLocalHtmlList(dbManager);
+
+  sendMessage(100, "finished");
+}
 

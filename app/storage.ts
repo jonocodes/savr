@@ -1,12 +1,11 @@
-// storage.js - abstraction for for RemoteStorage and IndexedDB for Notes Together
-// Copyright © 2021–2024 Doug Reeder
-
+import { openDB } from "idb";
 import RemoteStorage from "remotestoragejs";
+import BaseClient from "remotestoragejs/release/types/baseclient";
+import { minimatch } from "minimatch";
+import { db } from "./db";
+import { Article } from "../lib/src/models";
 
 let store;
-let initPrms;
-let isFirstLaunch;
-let persistenceAttempted = false;
 
 function init() {
   if (!store) {
@@ -17,6 +16,8 @@ function init() {
 
       const client = remoteStorage.scope("/savr/");
 
+      // await createStoreInDB();
+
       //   client.getListing("").then((listing) => console.log(listing));
 
       //   const content = "<h1>The most simple things</h1>";
@@ -24,7 +25,7 @@ function init() {
       //     .storeFile("text/html", "bar.html", content)
       //     .then(() => console.log("data has been saved"));
 
-      return {remoteStorage, client};
+      return { remoteStorage, client };
     };
     return setup();
   }
@@ -32,6 +33,46 @@ function init() {
 }
 
 let remotePrms;
+
+async function createStoreInDB() {
+  const dbPromise = await openDB("savr", 1, {
+    upgrade(db) {
+      if (!db.objectStoreNames.contains("articles")) {
+        const objectStore = db.createObjectStore("articles", { keyPath: "slug" });
+
+        objectStore.createIndex("ingestDate", "ingestDate", { unique: false });
+      }
+    },
+  });
+}
+
+async function addItemToStore() {
+  const db = await openDB("savr", 1);
+
+  await db.add("articles", {
+    slug: "data",
+  });
+}
+
+async function recursiveList(client: BaseClient, path = "") {
+  const listing = await client.getListing(path);
+  let files = [];
+  for (const [name, isFolder] of Object.entries(listing)) {
+    if (name.endsWith("/")) {
+      // Recursively list subfolder
+      const subFiles = await recursiveList(client, path + name);
+      files = files.concat(subFiles);
+    } else {
+      files.push(path + name);
+    }
+  }
+  return files;
+}
+
+async function glob(client: BaseClient, pattern: string, basePath = "") {
+  const allFiles = await recursiveList(client, basePath);
+  return allFiles.filter((filePath) => minimatch(filePath, pattern));
+}
 
 function initRemote() {
   remotePrms = new Promise<RemoteStorage>((resolve) => {
@@ -77,12 +118,12 @@ function initRemote() {
     // const client = remoteStorage.scope("/foo/");
 
     // List all items in the "foo/" category/folder
-    client.getListing("").then((listing) => console.log(listing));
+    // client.getListing("").then((listing) => console.log(listing));
 
-    const content = "<h1>The most simple things</h1>";
-    client
-      .storeFile("text/html", "the-google-willow-thing/index.html", content)
-      .then(() => console.log("data has been saved"));
+    // const content = "<h1>The most simple things</h1>";
+    // client
+    //   .storeFile("text/html", "the-google-willow-thing/index.html", content)
+    //   .then(() => console.log("data has been saved"));
 
     remoteStorage.on("ready", function () {
       console.info("remoteStorage ready");
@@ -94,6 +135,45 @@ function initRemote() {
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`remoteStorage connected to “${userAddress}”`);
+
+      client.getListing("").then((listing) => console.log(listing));
+
+      console.log("creating db");
+
+      const files = await recursiveList(client, "");
+
+      console.log(files);
+
+      const matches = await glob(client, "saves/*/article.json");
+
+      console.log("Matched files:", matches);
+
+      // for (const match of )
+      // client.getListing("").then((listing) => {
+      //   // Filter for all .txt files (simulating a '*.txt' glob)
+      //   const txtFiles = Object.keys(listing).filter((name) => name.endsWith("/article.json"));
+
+      for (const path of matches) {
+        console.log(path);
+
+        const file = await client.getFile(path);
+
+        // .then((file) => {
+        // debugger;
+
+        const article: Article = JSON.parse(file.data);
+        console.log(article);
+        // debugger;
+
+        // put => upsert
+        const ins = await db.articles.put(article);
+
+        // console.log("ins", ins);
+        // });
+      }
+
+      // console.log(txtFiles);
+      // });
     });
 
     remoteStorage.on("not-connected", function () {

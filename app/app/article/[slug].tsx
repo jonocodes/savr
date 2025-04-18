@@ -68,28 +68,18 @@ export default function ArticleScreen() {
 
         setArticle(art);
 
-        const content = await fileManager!.readTextFile(`saves/${slug}/index.html`);
-
-        // setHtml(`<style>${style}</style>${content}`);
-
         storage.client
-          ?.getFile("the-google-willow-thing/index.html")
+          ?.getFile(`saves/${slug}/index.html`)
           .then((file) => {
             console.log("FILE READ");
             console.log(file.data);
 
             setHtml(`<style>${style}</style>${file.data}`);
-
-            // const contact = JSON.parse(file.data);
-            // console.log("Retrieved contact:", contact);
           })
           .catch((error) => {
             debugger;
             console.error("Error retrieving contact:", error);
           });
-        // });
-
-        // setHtml(`<style>${style}</style>${content}`);
       } catch (e) {
         // error reading value
         console.error(e);
