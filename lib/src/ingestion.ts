@@ -978,7 +978,7 @@ export async function ingestUrl2(
   // TODO: add back these lines
   // const articles = await dbManager.getArticles();
 
-  const response = await fetch(`${corsProxy}/${url}`);
+  const response = await fetch(`${corsProxy}${url}`);
 
   const contentTypeHeader = response.headers.get("content-type")
 

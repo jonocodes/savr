@@ -85,7 +85,7 @@ export const useFontStore = create<FontState>()(
 );
 
 export type MyStoreState = {
-  // problem: these ar not persisted
+  // TODO: use this instead of the font and theme store
 
   corsProxy: string | null;
   setCorsProxy: (value: string) => void;
@@ -113,27 +113,19 @@ export const useMyStore = create<MyStoreState>()(
 
   persist(
     (set) => ({
-      corsProxy: null, //"http://localhost:7007",
+      // TODO: remove this temp workaround proxy after dvelopment
+      corsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
+      // corsProxy: null, // "http://localhost:7007",
       setCorsProxy: (value: string) => set({ corsProxy: value }),
 
       fontSize: 16,
       setFontSize: (value: number) => set({ fontSize: value }),
-
-      // fontSize: 16,
-      // setFontSize: (fontSize) => set({ fontSize }),
     }),
     {
       name: "my-storage", // key in AsyncStorage
       storage: createJSONStorage(() => AsyncStorage), // use AsyncStorage for persistence
     }
   )
-
-  // TODO: append a slash if there isnt one
-  // corsProxy: "", //"http://localhost:7007",
-  // setCorsProxy: (value: string) => set({ corsProxy: value }),
-
-  // fontSize: 16,
-  // setFontSize: (value: number) => set({ fontSize: value }),
 );
 
 function colorSchemeFromStr(value: string | null): ColorTheme {
