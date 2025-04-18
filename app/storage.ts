@@ -1,4 +1,4 @@
-import { openDB } from "idb";
+// import { openDB } from "idb";
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
@@ -12,18 +12,7 @@ function init() {
     const setup = async () => {
       const remoteStorage = await initRemote();
 
-      // const client = remoteStorage.scope("/foo/");
-
       const client = remoteStorage.scope("/savr/");
-
-      // await createStoreInDB();
-
-      //   client.getListing("").then((listing) => console.log(listing));
-
-      //   const content = "<h1>The most simple things</h1>";
-      //   client
-      //     .storeFile("text/html", "bar.html", content)
-      //     .then(() => console.log("data has been saved"));
 
       return { remoteStorage, client };
     };
@@ -34,25 +23,6 @@ function init() {
 
 let remotePrms;
 
-async function createStoreInDB() {
-  const dbPromise = await openDB("savr", 1, {
-    upgrade(db) {
-      if (!db.objectStoreNames.contains("articles")) {
-        const objectStore = db.createObjectStore("articles", { keyPath: "slug" });
-
-        objectStore.createIndex("ingestDate", "ingestDate", { unique: false });
-      }
-    },
-  });
-}
-
-async function addItemToStore() {
-  const db = await openDB("savr", 1);
-
-  await db.add("articles", {
-    slug: "data",
-  });
-}
 
 async function recursiveList(client: BaseClient, path = "") {
   const listing = await client.getListing(path);
@@ -83,47 +53,13 @@ function initRemote() {
     });
     remoteStorage.setApiKeys({
       //   googledrive: "?????1058o7k4p0f5rvuv2.apps.googleusercontent.com",
-      dropbox: "c53glfgceos23cj",
+      dropbox: "c53glfgceos23cj",  // dropbox is not yet working. 409 errors
     });
     remoteStorage.access.claim("savr", "rw");
 
     const client = remoteStorage.scope("/savr/");
 
     remoteStorage.caching.enable("/savr/");
-
-    // client
-    //   .storeFile(
-    //     "application/json",
-    //     "john-doe2.json",
-    //     JSON.stringify({
-    //       firstName: "John",
-    //       lastName: "Doe",
-    //     })
-    //   )
-    //   .then(() => {
-    //     console.log("Contact saved successfully!");
-    //   })
-    //   .catch((error) => {
-    //     console.error("Error saving contact:", error);
-    //   });
-
-    // contacts.getFile('john-doe.json').then(file => {
-    //   const contact = JSON.parse(file.data);
-    //   console.log('Retrieved contact:', contact);
-    // }).catch(error => {
-    //   console.error('Error retrieving contact:', error);
-    // });
-    //   });
-
-    // const client = remoteStorage.scope("/foo/");
-
-    // List all items in the "foo/" category/folder
-    // client.getListing("").then((listing) => console.log(listing));
-
-    // const content = "<h1>The most simple things</h1>";
-    // client
-    //   .storeFile("text/html", "the-google-willow-thing/index.html", content)
-    //   .then(() => console.log("data has been saved"));
 
     remoteStorage.on("ready", function () {
       console.info("remoteStorage ready");
@@ -148,32 +84,17 @@ function initRemote() {
 
       console.log("Matched files:", matches);
 
-      // for (const match of )
-      // client.getListing("").then((listing) => {
-      //   // Filter for all .txt files (simulating a '*.txt' glob)
-      //   const txtFiles = Object.keys(listing).filter((name) => name.endsWith("/article.json"));
-
       for (const path of matches) {
         console.log(path);
 
         const file = await client.getFile(path);
 
-        // .then((file) => {
-        // debugger;
-
         const article: Article = JSON.parse(file.data);
-        console.log(article);
-        // debugger;
 
         // put => upsert
         const ins = await db.articles.put(article);
 
-        // console.log("ins", ins);
-        // });
       }
-
-      // console.log(txtFiles);
-      // });
     });
 
     remoteStorage.on("not-connected", function () {

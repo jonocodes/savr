@@ -1,7 +1,12 @@
 import Dexie, { type EntityTable } from "dexie";
 import { Article } from "../lib/src/models";
 
-const db = new Dexie("savrDb") as Dexie & {
+
+type DbType = Dexie & {
+  articles: EntityTable<Article, "slug">;
+};
+
+const db: DbType = new Dexie("savrDb") as Dexie & {
   articles: EntityTable<Article, "slug">;
 };
 
@@ -10,4 +15,4 @@ db.version(1).stores({
   articles: "slug, ingestDate",
 });
 
-export { db };
+export { db, DbType };

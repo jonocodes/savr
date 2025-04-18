@@ -666,7 +666,7 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
   sendMessage: (percent: number | null, message: string | null) => void
 ) : Promise<Article> {
 
-  // sendMessage(10, "scraping article");
+  sendMessage(10, "scraping article");
 
   let [article, content] = readabilityToArticle(html, contentType, url)
 
@@ -968,7 +968,6 @@ export async function ingestUrl(
 
 
 export async function ingestUrl2(
-  // dbManager: DbManager,
   storageClient: BaseClient|null,
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
@@ -978,13 +977,6 @@ export async function ingestUrl2(
   // TODO: add back these lines
   // const articles = await dbManager.getArticles();
 
-  // const existingArticleIndex = articles.findIndex((article: Article) => article.url === url);
-
-  // if (existingArticleIndex != -1) {
-  //   sendMessage(5, "article already exists - reingesting");
-  // }
-
-  // const response = await fetch(url);
   const response = await fetch(`http://localhost:7007/${url}`);
 
   const contentTypeHeader = response.headers.get("content-type")
@@ -993,7 +985,7 @@ export async function ingestUrl2(
     throw new Error("cant determine content type")
   }
 
-  sendMessage(10, "scraping article");
+  // sendMessage(10, "scraping article");
 
   var article: Article | null = null
 
@@ -1049,7 +1041,6 @@ export async function ingestUrl2(
   const saveDir = "saves/" + article.slug;
 
   storageClient?.storeFile("application/json", saveDir + "/article.json", JSON.stringify(article, null, 2))
-  // fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
 
   // TODO: dbManager.upsertArticle(article); 
 
@@ -1065,5 +1056,6 @@ export async function ingestUrl2(
   // TODO: await createLocalHtmlList(dbManager);
 
   sendMessage(100, "finished");
-}
 
+  return article
+}

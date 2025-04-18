@@ -30,13 +30,19 @@ import type { ImageSourcePropType } from "react-native";
 
 import { router } from "expo-router";
 
-import { generateFileManager, loadColorScheme, useMyStore, useThemeStore } from "@/app/tools";
-import { FileManager, DbManager, ingestUrl, Article, generateInfoForCard } from "@savr/lib";
+import {
+  // generateFileManager,
+  loadColorScheme,
+  updateArticleState,
+  useMyStore,
+  useThemeStore,
+} from "@/app/tools";
+import { Article, generateInfoForCard } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";
 import { ThemedText } from "@/components/ThemedText";
 import { useRemoteStorage } from "@/components/RemoteStorageProvider";
-import { ingestHtml2, ingestUrl2, readabilityToArticle } from "../../lib/src/ingestion";
+import { ingestUrl2, readabilityToArticle } from "../../lib/src/ingestion";
 import { db } from "@/db";
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
@@ -94,21 +100,10 @@ const ThumbnailImage = (props: ThumbnailImageProps) => {
   );
 };
 
-function ArticleItem(props: {
-  item: Article;
-  // fileManager: FileManager | null;
-  // dbManager: DbManager | null;
-  refreshArticles: () => void;
-}) {
+function ArticleItem(props: { item: Article }) {
   const item = props.item;
-  // const fileManager = props.fileManager;
-  // const dbManager = props.dbManager;
 
   const { remoteStorage, client, widget } = useRemoteStorage();
-
-  const fileManager = useMyStore((state) => state.fileManager);
-
-  const dbManager = useMyStore((state) => state.dbManager);
 
   const [visible, setVisible] = React.useState(false);
 
@@ -126,15 +121,11 @@ function ArticleItem(props: {
     console.log(`Deleting ${item.slug}`);
 
     try {
-      const articleUpdated = await dbManager?.setArticleState(article.slug, "deleted");
+      // TODO: this should probably delete the dir instead. no need to keep it.
 
-      await fileManager?.deleteDir(`saves/${article.slug}`);
+      updateArticleState(client!, article.slug, "deleted");
 
-      client?.remove(`saves/${article.slug}/article.json`);
-
-      db.articles.delete(article.slug);
-
-      props.refreshArticles();
+      // await fileManager?.deleteDir(`saves/${article.slug}`);
 
       showMessage("Article deleted");
     } catch (e) {
@@ -148,9 +139,7 @@ function ArticleItem(props: {
     console.log(`Archiving ${item.slug}`);
 
     try {
-      const articleUpdated = await dbManager?.setArticleState(article.slug, "archived");
-
-      props.refreshArticles();
+      updateArticleState(client!, article.slug, "archived");
 
       showMessage("Article archived");
     } catch (e) {
@@ -164,9 +153,7 @@ function ArticleItem(props: {
     console.log(`Unarchiving ${item.slug}`);
 
     try {
-      const articleUpdated = await dbManager?.setArticleState(article.slug, "unread");
-
-      props.refreshArticles();
+      updateArticleState(client!, article.slug, "unread");
 
       showMessage("Article unarchived");
     } catch (e) {
@@ -176,16 +163,10 @@ function ArticleItem(props: {
     }
   };
 
-  let imgSrc = { uri: `${fileManager?.directory}saves/static/article_bw.webp` };
+  let imgSrc = { uri: "xxx" };
 
-  if (Platform.OS === "web") {
-    imgSrc = { uri: `${fileManager?.directory}saves/${item.slug}/thumbnail.webp` };
-  } else if (Platform.OS === "android") {
-    // TODO: figure this part out
-    // imgSrc = { uri: `${fileManager?.directory}saves/${item.slug}/thumbnail.webp` };
-  }
-
-  // TODO: handle case where fileManager is null for android. redirect to settings?
+  // TODO: figure this part out
+  // imgSrc = { uri: `${fileManager?.directory}saves/${item.slug}/thumbnail.webp` };
 
   return (
     <List.Item
@@ -240,7 +221,6 @@ function ArticleItem(props: {
             leadingIcon="share-variant"
             onPress={() => {
               closeMenu();
-              // deleteArticle();
             }}
             title="Share"
           />
@@ -273,14 +253,6 @@ export default function ArticleListScreen() {
 
   const [ingestMessage, setIngestMessage] = useState<string | null>(null);
 
-  // const [fileManager, setFileManager] = useState<FileManager | null>(null);
-
-  // const [dbManager, setDbManager] = useState<DbManager | null>(null);
-
-  const fileManager = useMyStore((state) => state.fileManager);
-
-  const dbManager = useMyStore((state) => state.dbManager);
-
   const { showMessage } = useSnackbar();
 
   const [filter, setFilter] = React.useState("unread");
@@ -295,121 +267,58 @@ export default function ArticleListScreen() {
 
   // console.log("theme in index", theme);
 
-  useEffect(() => {
-    const setup = async () => {
-      if (dbManager) {
-        await refreshArticleList();
-      } else {
-        router.push("/preferences");
-      }
-    };
-    setup();
-  }, []);
+  useEffect(() => {}, []);
 
   const saveUrl = async () => {
-    // const response = await fetch(`http://localhost:7007/${url}`);
-
-    // const html = await response.text();
-
-    await ingestUrl2(client, url, () => {
+    const article = await ingestUrl2(client, url, () => {
       console.log(`INGESTED URL ${url}`);
     });
 
+    db.articles.put(article);
+
     // let article = await ingestHtml2(client, html, "text/html", url);
-
-    // client?.storeFile("text/html", "saves/the-google-willow-thing/index.html", content);
   };
 
-  const refreshArticleList = async () => {
-    if (!dbManager) {
-      console.error("dbManager is null");
-      throw new Error("dbManager is null");
-    }
+  // const handleSubmitUrl2 = async () => {
+  //   console.log(url);
 
-    const articles = await dbManager.getArticles();
+  //   if (Platform.OS === "web") {
+  //     ingestUrl2(client, url, () => {
+  //       console.log(`INGESTED URL ${url}`);
+  //     });
 
-    setArticles(articles);
-  };
+  //     // const response = await fetch(`${fileManager?.directory}save?url=${url}`);
+  //     const eventSource = new EventSource(
+  //       `${fileManager?.directory}save?url=${encodeURIComponent(url)}`
+  //     );
+  //     eventSource.onmessage = (event) => {
+  //       const data = JSON.parse(event.data);
+  //       if (data.percent && data.message) {
+  //         setIngestStatus(`${data.percent}% ${data.message}`);
+  //         setIngestPercent(data.percent);
+  //         setIngestMessage(data.message);
+  //         // updateProgressList(data.percent, data.message);
+  //       }
+  //       if (data.percent == 100) {
+  //         eventSource.close();
+  //         refreshArticleList();
+  //         showMessage("Article saved");
+  //       }
 
-  const handleSubmitUrl = async () => {
-    console.log(url);
-
-    if (Platform.OS === "web") {
-      // const response = await fetch(`${fileManager?.directory}save?url=${url}`);
-      const eventSource = new EventSource(
-        `${fileManager?.directory}save?url=${encodeURIComponent(url)}`
-      );
-      eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.percent && data.message) {
-          setIngestStatus(`${data.percent}% ${data.message}`);
-          setIngestPercent(data.percent);
-          setIngestMessage(data.message);
-          // updateProgressList(data.percent, data.message);
-        }
-        if (data.percent == 100) {
-          eventSource.close();
-          refreshArticleList();
-          showMessage("Article saved");
-        }
-
-        console.log(event.data);
-      };
-      eventSource.onerror = () => {
-        console.error("Error connecting to SSE");
-        eventSource.close();
-      };
-    } else {
-      if (dbManager !== null && url !== null) {
-        await ingestUrl(dbManager, url, () => {
-          console.log(`INGESTED URL ${url}`);
-        });
-      }
-    }
-  };
-
-  const handleSubmitUrl2 = async () => {
-    console.log(url);
-
-    if (Platform.OS === "web") {
-      ingestUrl2(client, url, () => {
-        console.log(`INGESTED URL ${url}`);
-      });
-
-      // const response = await fetch(`${fileManager?.directory}save?url=${url}`);
-      const eventSource = new EventSource(
-        `${fileManager?.directory}save?url=${encodeURIComponent(url)}`
-      );
-      eventSource.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.percent && data.message) {
-          setIngestStatus(`${data.percent}% ${data.message}`);
-          setIngestPercent(data.percent);
-          setIngestMessage(data.message);
-          // updateProgressList(data.percent, data.message);
-        }
-        if (data.percent == 100) {
-          eventSource.close();
-          refreshArticleList();
-          showMessage("Article saved");
-        }
-
-        console.log(event.data);
-      };
-      eventSource.onerror = () => {
-        console.error("Error connecting to SSE");
-        eventSource.close();
-      };
-    } else {
-      if (dbManager !== null && url !== null) {
-        await ingestUrl(dbManager, url, () => {
-          console.log(`INGESTED URL ${url}`);
-        });
-      }
-    }
-  };
-
-  // const filteredArticles = articles.filter((article) => article.state === filter);
+  //       console.log(event.data);
+  //     };
+  //     eventSource.onerror = () => {
+  //       console.error("Error connecting to SSE");
+  //       eventSource.close();
+  //     };
+  //   } else {
+  //     if (dbManager !== null && url !== null) {
+  //       await ingestUrl(dbManager, url, () => {
+  //         console.log(`INGESTED URL ${url}`);
+  //       });
+  //     }
+  //   }
+  // };
 
   const filteredArticles = articles2?.filter((article) => article.state === filter);
 
@@ -485,14 +394,7 @@ export default function ArticleListScreen() {
           <FlatList
             data={filteredArticles}
             // renderItem={renderItem}
-            renderItem={({ item }) => (
-              <ArticleItem
-                item={item}
-                // fileManager={fileManager}
-                // dbManager={dbManager}
-                refreshArticles={() => refreshArticleList()}
-              />
-            )}
+            renderItem={({ item }) => <ArticleItem item={item} />}
             keyExtractor={(item) => item.slug}
             style={styles.list}
           />
