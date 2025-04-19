@@ -1,0 +1,27 @@
+{
+    "name": "savr-extension",
+    "version": "1.0.0",
+    "description": "Browser extension to help SAVR PWA save web pages and resources",
+    "scripts": {
+        "build": "webpack --config webpack.config.js",
+        "watch": "webpack --config webpack.config.js --watch",
+        "dev": "webpack --config webpack.config.js --watch --mode=development",
+        "lint": "eslint src/**/*.ts",
+        "clean": "rimraf dist"
+    },
+    "devDependencies": {
+        "@types/chrome": "^0.0.252",
+        "@typescript-eslint/eslint-plugin": "^6.4.0",
+        "@typescript-eslint/parser": "^6.4.0",
+        "copy-webpack-plugin": "^11.0.0",
+        "css-loader": "^6.8.1",
+        "eslint": "^8.47.0",
+        "html-webpack-plugin": "^5.5.3",
+        "mini-css-extract-plugin": "^2.7.6",
+        "rimraf": "^5.0.1",
+        "ts-loader": "^9.4.4",
+        "typescript": "^5.1.6",
+        "webpack": "^5.88.2",
+        "webpack-cli": "^5.1.4"
+    }
+}
