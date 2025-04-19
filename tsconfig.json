@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "composite": true, // required for project references
+    
     "baseUrl": ".",
     "paths": {
       // "@/components/*": ["app/components/*"],
@@ -11,5 +13,9 @@
     "esModuleInterop": true
   },
   "type": "module",
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": ["**/*.ts", "**/*.tsx"],
+  "references": [
+    { "path": "./lib" },
+    { "path": "./app" }
+  ]
 }

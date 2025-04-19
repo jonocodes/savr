@@ -6,7 +6,9 @@
     "paths": {
       "@/*": [
         "./*"
-      ]
+      ],
+      "@savr/lib": ["../lib/src"],
+      "@savr/lib/*": ["../lib/src/*"]
     },
     "moduleResolution": "bundler",
     "module": "Preserve",
@@ -17,7 +19,8 @@
     "**/*.ts",
     "**/*.tsx",
     "../lib/src"
-  ]
+  ],
+  "references": [{ "path": "../lib" }]
 }
 
 

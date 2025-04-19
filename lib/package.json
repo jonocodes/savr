@@ -39,9 +39,9 @@
   "description": "Savr lib",
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./dist/index.js"
   },
-  "main": "./src/index.ts",
+  "main": "./dist/index.js",
   "scripts": {
     "test": "jest",
     "synclinks": "copyfiles -u 2 -F 'src/templates/**/*' 'dist/templates' && copyfiles -u 2 -F 'src/static/**/*' 'dist/static'",
