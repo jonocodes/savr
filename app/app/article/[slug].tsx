@@ -2,14 +2,19 @@ import React, { useEffect, useState } from "react";
 import { Platform, ScrollView, View, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { router, useLocalSearchParams } from "expo-router";
-import { useFontStore, useMyStore, useThemeStore } from "../tools";
+import { updateArticleState, useFontStore, useMyStore, useThemeStore } from "../tools";
 import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
 import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { PaperProvider } from "react-native-paper";
+import { useRemoteStorage } from "@/components/RemoteStorageProvider";
 
 export default function ArticleScreen() {
   const { slug } = useLocalSearchParams();
+
+  const storage = useRemoteStorage();
+
+  // const { remoteStorage, client, widget } = useRemoteStorage();
 
   if (typeof slug !== "string") {
     // NOTE: this also make sure slug is set for some reason
@@ -35,10 +40,6 @@ export default function ArticleScreen() {
   const fontSize = useFontStore((state) => state.fontSize);
   const setFontSize = useFontStore((state) => state.setFontSize);
 
-  const fileManager = useMyStore((state) => state.fileManager);
-
-  const dbManager = useMyStore((state) => state.dbManager);
-
   const theme = useThemeStore((state) => state.theme);
 
   const { showMessage } = useSnackbar();
@@ -47,27 +48,26 @@ export default function ArticleScreen() {
 
   // const getThemeName = useMyStore((state) => state.getThemeName);
 
-  // const [fileManager, setFileManager] = useState<FileManager|null|undefined>(null);
-
   useEffect(() => {
     const setup = async () => {
       try {
-        const art = await dbManager!.getArticle(slug);
-
-        if (!art) {
-          throw new Error("Article not found");
-        }
-
-        console.log(art.slug);
-
-        setArticle(art);
-
-        const content = await fileManager!.readTextFile(`saves/${slug}/index.html`);
 
         // TODO: this should really read from lib
-        const style = await fileManager!.readTextFile("static/shared/web.css");
+        // const style = await fileManager!.readTextFile("static/shared/web.css");
+        // const style = "";
 
-        setHtml(`<style>${style}</style>${content}`);
+        const style = require("../../assets/web.css");
+
+        storage.client
+          ?.getFile(`saves/${slug}/index.html`)
+          .then((file) => {
+
+            setHtml(`<link rel="stylesheet" href="${style.uri}">${file.data}`);
+          })
+          .catch((error) => {
+            // debugger;
+            console.error("Error retrieving article", error);
+          });
       } catch (e) {
         // error reading value
         console.error(e);
@@ -81,9 +81,9 @@ export default function ArticleScreen() {
     console.log(`Deleting ${article.slug}`);
 
     try {
-      const articleUpdated = await dbManager?.setArticleState(article.slug, "deleted");
+      updateArticleState(storage.client!, article.slug, "deleted");
 
-      await fileManager?.deleteDir(`saves/${article.slug}`);
+      // TODO: delete dir
 
       showMessage("Article deleted");
       router.push("/");
@@ -102,9 +102,7 @@ export default function ArticleScreen() {
     console.log(`Archiving ${article.slug}`);
 
     try {
-      const articleUpdated = await dbManager?.setArticleState(article.slug, "archived");
-
-      setArticle(articleUpdated!);
+      updateArticleState(storage.client!, article.slug, "archived");
 
       showMessage("Article archived");
       router.push("/");
@@ -121,9 +119,7 @@ export default function ArticleScreen() {
     console.log(`Unarchiving ${article.slug}`);
 
     try {
-      const articleUpdated = await dbManager?.setArticleState(article.slug, "unread");
-
-      setArticle(articleUpdated!);
+      updateArticleState(storage.client!, article.slug, "unread");
 
       showMessage("Article unarchived");
       router.push("/");
@@ -215,7 +211,6 @@ export default function ArticleScreen() {
             leadingIcon="web"
             onPress={() => {
               closeMenu();
-              // deleteArticle();
             }}
             title="View Original"
           />
@@ -224,7 +219,6 @@ export default function ArticleScreen() {
             leadingIcon="share-variant"
             onPress={() => {
               closeMenu();
-              // deleteArticle();
             }}
             title="Share"
           />

@@ -13,31 +13,22 @@ import {
   // MD3DarkTheme as DarkTheme,
 } from "react-native-paper";
 import { SnackbarProvider } from "@/components/SnackbarProvider";
-import { generateFileManager, loadColorScheme, useMyStore, useThemeStore } from "./tools";
+import { loadColorScheme, useMyStore, useThemeStore } from "./tools";
+import { RemoteStorageProvider } from "@/components/RemoteStorageProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-
   // const currentTheme = useMyStore((state) => state.colorScheme);
 
   // const setColorScheme = useMyStore((state) => state.setColorScheme);
-
-  // const fileManager = useMyStore((state) => state.fileManager);
-
-  const setFileManager = useMyStore((state) => state.setFileManager);
-
-  // const dbManager = useMyStore((state) => state.dbManager);
-
-  const setDbManager = useMyStore((state) => state.setDbManager);
 
   const [loaded] = useFonts({
     SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
-
-  const theme = useThemeStore((state)=>state.theme)
+  const theme = useThemeStore((state) => state.theme);
   // const setTheme = useThemeStore((state)=>state.setTheme)
 
   useEffect(() => {
@@ -46,16 +37,7 @@ export default function RootLayout() {
     }
 
     const setup = async () => {
-
       // setColorScheme(await loadColorScheme());
-
-      const fm = await generateFileManager(Platform.OS);
-
-      if (fm) {
-        const dbManager = fm.generateJsonDbManager();
-        setFileManager(fm);
-        setDbManager(dbManager);
-      }
     };
 
     setup();
@@ -66,18 +48,20 @@ export default function RootLayout() {
   }
 
   return (
-    <DirectoryProvider>
-      <PaperProvider theme={theme}>
-        <SnackbarProvider>
-          <Stack screenOptions={{ headerShown: false }}>
-            <Stack.Screen name="article/[slug]" />
-            <Stack.Screen name="preferences" />
-            <Stack.Screen name="+not-found" />
-          </Stack>
-          <StatusBar style="auto" />
-        </SnackbarProvider>
-      </PaperProvider>
-    </DirectoryProvider>
+    <RemoteStorageProvider>
+      <DirectoryProvider>
+        <PaperProvider theme={theme}>
+          <SnackbarProvider>
+            <Stack screenOptions={{ headerShown: false }} id="panelMain">
+              <Stack.Screen name="article/[slug]" />
+              <Stack.Screen name="preferences" />
+              <Stack.Screen name="+not-found" />
+            </Stack>
+            <StatusBar style="auto" />
+          </SnackbarProvider>
+        </PaperProvider>
+      </DirectoryProvider>
+    </RemoteStorageProvider>
   );
 }
 

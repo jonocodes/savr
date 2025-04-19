@@ -1,7 +1,5 @@
-import { StorageAccessFramework as SAF } from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-import { FileManager, DB_FILE_NAME, DbManager } from "@savr/lib";
 import { Article, ArticleAndRender } from "@savr/lib";
 import { createJSONStorage, persist } from "zustand/middleware";
 
@@ -17,6 +15,10 @@ import {
 } from "react-native-paper";
 
 import { create } from "zustand";
+import BaseClient from "remotestoragejs/release/types/baseclient";
+import Dexie from "dexie";
+import { db, DbType } from "@/db";
+import { executeNativeBackPress } from "react-native-screens";
 
 export type ColorTheme = MD3Theme & {
   name: string;
@@ -83,19 +85,16 @@ export const useFontStore = create<FontState>()(
 );
 
 export type MyStoreState = {
-  // colorScheme: ColorTheme;
-  // setColorScheme: (value: ColorTheme) => void;
-  // toggleTheme: () => void;
-  // getThemeName: () => "dark" | "light";
-  fileManager: FileManager | null;
-  setFileManager: (value: FileManager) => void;
-  dbManager: DbManager | null;
-  setDbManager: (value: DbManager) => void;
+  // TODO: use this instead of the font and theme store
+
+  corsProxy: string | null;
+  setCorsProxy: (value: string) => void;
+
   fontSize: number;
   setFontSize: (value: number) => void;
 };
 
-export const useMyStore = create<MyStoreState>((set, get) => ({
+export const useMyStore = create<MyStoreState>()(
   // colorScheme: LightTheme,
   // setColorScheme: (value: ColorTheme) => set({ colorScheme: value }),
   // toggleTheme: () =>
@@ -112,15 +111,22 @@ export const useMyStore = create<MyStoreState>((set, get) => ({
 
   // getThemeName: () => (get().colorScheme === DarkTheme ? "dark" : "light"),
 
-  fileManager: null,
-  setFileManager: (value: FileManager) => set({ fileManager: value }),
+  persist(
+    (set) => ({
+      // TODO: remove this temp workaround proxy after dvelopment
+      corsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
+      // corsProxy: null, // "http://localhost:7007",
+      setCorsProxy: (value: string) => set({ corsProxy: value }),
 
-  dbManager: null,
-  setDbManager: (value: DbManager) => set({ dbManager: value }),
-
-  fontSize: 16,
-  setFontSize: (value: number) => set({ fontSize: value }),
-}));
+      fontSize: 16,
+      setFontSize: (value: number) => set({ fontSize: value }),
+    }),
+    {
+      name: "my-storage", // key in AsyncStorage
+      storage: createJSONStorage(() => AsyncStorage), // use AsyncStorage for persistence
+    }
+  )
+);
 
 function colorSchemeFromStr(value: string | null): ColorTheme {
   const theme = value === DarkTheme.name ? DarkTheme : LightTheme;
@@ -171,200 +177,85 @@ export const getDir = async (platform: string) => {
   return process.env.EXPO_PUBLIC_SAVR_SERVICE;
 };
 
-export async function generateFileManager(platform: string) {
-  let dir: string | null = null;
-  dir = await getDir(platform);
-
-  if (platform === "android") {
-    if (!dir) {
-      console.error("SAF directory not found");
-      return;
-    }
-
-    return new FileManagerAndroid(dir);
-  } else {
-    if (!dir) {
-      console.error("SAVR_SERVICE is not defined");
-      return;
-    }
-    // dir = process.env.EXPO_PUBLIC_SAVR_SERVICE
-
-    return new FileManagerWeb(dir);
-  }
+function getFilePathContent(slug: string): string {
+  return `saves/${slug}/index.html`;
 }
 
-export class DbManagerAndroid extends DbManager {
-  // public async upsertArticle(article: Article) {
-  //   const articles = await this.getArticles();
-
-  //   upsertArticleToList(articles, article);
-
-  //   this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({article}, null, 2));
-  // }
-
-  public async getArticles(): Promise<Article[]> {
-    const content = await this.fileManager.readTextFile(DB_FILE_NAME);
-
-    const articles: Article[] = JSON.parse(content).articles;
-
-    return articles;
-  }
+function getFilePathMetadata(slug: string): string {
+  return `saves/${slug}/article.json`;
 }
 
-export class DbManagerWeb extends DbManager {
-  public async setArticleState(slug: string, state: string): Promise<Article> {
-    const response = await fetch(
-      `${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${slug}/setstate/${state}`
-    );
+export async function updateArticleState(
+  // db: DbType,
+  storeClient: BaseClient,
+  slug: string,
+  state: string
+): Promise<Article> {
+  // const metadataPath = getFilePathMetadata(slug);
 
-    if (!response.ok) {
-      throw new Error("Error setting article state");
-    }
+  // delete the directory if deleting. TODO: recursive
+  // storeClient?.remove(`saves/${slug}/index.html`);
 
-    const article: Article = await response.json();
-    return article;
+  // set the state in the file
+
+  const article = await db.articles.get(slug);
+
+  if (article === undefined) {
+    throw new Error("article empty");
   }
 
-  public async upsertArticle(article: Article) {
-    const response = await fetch(
-      `${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${article.slug}`,
-      {
-        method: "PUT",
-        body: JSON.stringify(article),
-      }
-    );
+  article.state = state;
 
-    if (!response.ok) {
-      throw new Error("Error setting article state");
-    }
-  }
+  storeClient.storeFile("application/json", getFilePathMetadata(slug), JSON.stringify(article));
 
-  public async getArticles(): Promise<Article[]> {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles`);
-    // const articles: ArticleAndRender[] = await response.json();
+  // set the state in the db
 
-    if (!response.ok) {
-      throw new Error("Error getting articles");
-    }
+  await db.articles.put(article);
 
-    const articles: Article[] = await response.json();
-    return articles;
-  }
-
-  public async getArticle(slug: string): Promise<Article | undefined> {
-    const response = await fetch(`${process.env.EXPO_PUBLIC_SAVR_SERVICE}api/articles/${slug}`);
-
-    if (!response.ok) {
-      throw new Error("Error getting article");
-    }
-
-    const article = await response.json();
-    return article;
-  }
+  return article;
 }
 
-export class FileManagerAndroid extends FileManager {
-  public directory: string;
+//   public async downloadAndResizeImage(url: string, targetDir: string) {
+//     const maxDimension = 200;
+//     const filePath = url.split("/").pop();
+//     const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
 
-  constructor(directory: string) {
-    super();
-    // super(directory);
-    this.directory = directory;
-  }
+//     // // Download the image
+//     // const response = await fetch(url);
+//     // const buffer = await response.arrayBuffer();
 
-  public generateJsonDbManager(): DbManager {
-    return new DbManagerAndroid(this);
-  }
+//     // // Get the image type from the response headers
+//     // const imageType = response.headers.get('Content-Type').split('/')[1];
 
-  public async deleteDir(dir: string): Promise<void> {
-    const response = await SAF.deleteAsync(`${this.directory}${dir}`);
-  }
+//     // // Resize the image to a maximum dimension
+//     // const resizedImage = await ImageManipulator.manipulateAsync(buffer, [
+//     //   {
+//     //     resize: {
+//     //       width: maxDimension,
+//     //       height: maxDimension,
+//     //     },
+//     //   },
+//     // ]);
 
-  public async writeTextFile(filename: string, content: string): Promise<void> {
-    const uri = `${this.directory}${encodeURIComponent(filename)}`;
-    await SAF.writeAsStringAsync(uri, content);
-  }
+//     // // Save the image to the SAF
+//     // const file = await SAF.createFileAsync(
+//     //  `${this.directory}/${targetDir}`,
+//     //    filePath,
+//     //   `image/${imageType}`,
+//     // );
+//     // await FileSystem.writeAsStringAsync(file, resizedImage.base64, {
+//     //   encoding: 'base64',
+//     // });
 
-  public async readTextFile(path: string): Promise<string> {
-    const uri = `${this.directory}${encodeURIComponent(path)}`;
+//     // return file.uri;
+//   }
+// }
 
-    console.log(`reading uri: ${uri}`);
+// export class FileManagerWeb extends FileManager {
+//   public directory: string;
 
-    const contents = await SAF.readAsStringAsync(uri);
-
-    console.log(`SAF file contents: ${contents}`);
-    // console.log(contents);
-    return contents;
-  }
-
-  public async downloadAndResizeImage(url: string, targetDir: string) {
-    const maxDimension = 200;
-    const filePath = url.split("/").pop();
-    const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
-
-    // // Download the image
-    // const response = await fetch(url);
-    // const buffer = await response.arrayBuffer();
-
-    // // Get the image type from the response headers
-    // const imageType = response.headers.get('Content-Type').split('/')[1];
-
-    // // Resize the image to a maximum dimension
-    // const resizedImage = await ImageManipulator.manipulateAsync(buffer, [
-    //   {
-    //     resize: {
-    //       width: maxDimension,
-    //       height: maxDimension,
-    //     },
-    //   },
-    // ]);
-
-    // // Save the image to the SAF
-    // const file = await SAF.createFileAsync(
-    //  `${this.directory}/${targetDir}`,
-    //    filePath,
-    //   `image/${imageType}`,
-    // );
-    // await FileSystem.writeAsStringAsync(file, resizedImage.base64, {
-    //   encoding: 'base64',
-    // });
-
-    // return file.uri;
-  }
-}
-
-export class FileManagerWeb extends FileManager {
-  public directory: string;
-
-  constructor(directory: string) {
-    // super(directory);
-    super();
-    this.directory = directory;
-  }
-
-  public generateJsonDbManager(): DbManager {
-    return new DbManagerWeb(this);
-  }
-
-  public async downloadAndResizeImage(url: string, targetDir: string) {
-    const maxDimension = 200;
-    const filePath = url.split("/").pop();
-    const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
-  }
-
-  public async writeTextFile(filename: string, content: string): Promise<void> {
-    const response = await fetch(`${this.directory}${filename}`, {
-      method: "PUT",
-      body: content,
-    });
-  }
-
-  public async readTextFile(filename: string): Promise<string> {
-    const response = await fetch(`${this.directory}${filename}`);
-    return await response.text();
-  }
-
-  public async deleteDir(dir: string): Promise<void> {
-    // NOTE: for now this does nothing since the db delete should have removed the article dir already?
-  }
-}
+//   public async downloadAndResizeImage(url: string, targetDir: string) {
+//     const maxDimension = 200;
+//     const filePath = url.split("/").pop();
+//     const outputFilePath = `${this.directory}/${targetDir}/${filePath}`;
+//   }
