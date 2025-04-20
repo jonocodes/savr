@@ -1,3 +1,5 @@
+/// <reference types="chrome" />
+
 // Type definitions
 interface ForwardToPWAMessage {
   action: "forwardToPWA";
@@ -22,7 +24,7 @@ interface PWAMessage {
   [key: string]: any;
 }
 
-interface ExtensionMessage {
+interface ContentExtensionMessage {
   source: "SAVR_EXTENSION";
   messageId: string;
   action?: string;
@@ -33,11 +35,13 @@ interface ExtensionMessage {
 }
 
 // Check if we're in the PWA or on a regular page
-const isPWA = window.location.origin === "https://savr.pages.dev";
+const isPWA = window.location.origin === "http://localhost:8081";
 
 // Handle messages from background script
 chrome.runtime.onMessage.addListener((message: ForwardToPWAMessage, sender, sendResponse) => {
+  console.log('SAVR Extension Content: Received message from background:', message, 'from sender:', sender);
   if (message.action === "forwardToPWA" && isPWA) {
+    console.log('SAVR Extension Content: Forwarding message to PWA:', message.data);
     // We're in the PWA, forward the message
     window.postMessage(
       {
@@ -59,6 +63,7 @@ chrome.runtime.onMessage.addListener((message: ForwardToPWAMessage, sender, send
 
       // Check if this is a response to our message
       if (eventData.messageId === message.messageId) {
+        console.log('SAVR Extension Content: Received response from PWA:', eventData);
         // Remove listener to avoid memory leaks
         window.removeEventListener("message", responseHandler);
 
@@ -78,6 +83,7 @@ chrome.runtime.onMessage.addListener((message: ForwardToPWAMessage, sender, send
 
 // If we're in the PWA, set up message handling for extension communication
 if (isPWA) {
+  console.log('SAVR Extension Content: Running in PWA environment, setting up message listener');
   // Listen for messages from the PWA to the extension
   window.addEventListener("message", (event: MessageEvent) => {
     // Ensure the message is from our PWA
@@ -86,13 +92,17 @@ if (isPWA) {
       return;
     }
 
+    console.log('SAVR Extension Content: Received message from PWA:', eventData);
+
     const { action, urls, messageId } = eventData;
 
     if (action === "fetchResources" && urls) {
+      console.log('SAVR Extension Content: Forwarding fetchResources request to background:', urls);
       // Forward request to background script
       chrome.runtime.sendMessage({ action: "fetchResources", urls }, (response) => {
+        console.log('SAVR Extension Content: Received response from background for fetchResources:', response);
         // Send response back to PWA
-        const message: ExtensionMessage = {
+        const message: ContentExtensionMessage = {
           source: "SAVR_EXTENSION",
           messageId,
           success: response.success,

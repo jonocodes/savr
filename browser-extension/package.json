@@ -3,7 +3,11 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "webpack --config webpack.config.js",
+    "watch": "webpack --watch --config webpack.config.js",
+    "dev": "webpack --mode=development --config webpack.config.js && web-ext run --source-dir ./dist/ --start-url https://en.wikipedia.org/wiki/David_Bowie",
+    "clean": "rimraf dist"
   },
   "keywords": [],
   "author": "",
@@ -21,6 +25,7 @@
     "rimraf": "^6.0.1",
     "ts-loader": "^9.5.2",
     "typescript": "^5.8.3",
+    "web-ext": "^8.5.0",
     "webpack": "^5.99.6",
     "webpack-cli": "^6.0.1"
   }

@@ -4,6 +4,13 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
 import { db } from "./db";
 import { Article } from "../lib/src/models";
+import extensionConnector from "./utils/extensionConnector"; // Import the extension connector
+
+declare global {
+  interface Window {
+    extensionConnector: typeof extensionConnector;
+  }
+}
 
 let store;
 
@@ -24,10 +31,10 @@ function init() {
 let remotePrms;
 
 
-async function recursiveList(client: BaseClient, path = "") {
+async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
   const listing = await client.getListing(path);
-  let files = [];
-  for (const [name, isFolder] of Object.entries(listing)) {
+  let files: string[] = [];
+  for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) { // Type assertion here
     if (name.endsWith("/")) {
       // Recursively list subfolder
       const subFiles = await recursiveList(client, path + name);
@@ -39,9 +46,9 @@ async function recursiveList(client: BaseClient, path = "") {
   return files;
 }
 
-async function glob(client: BaseClient, pattern: string, basePath = "") {
+async function glob(client: BaseClient, pattern: string, basePath = ""): Promise<string[]> {
   const allFiles = await recursiveList(client, basePath);
-  return allFiles.filter((filePath) => minimatch(filePath, pattern));
+  return allFiles.filter((filePath: string) => minimatch(filePath, pattern));
 }
 
 function initRemote() {
@@ -65,6 +72,10 @@ function initRemote() {
       console.info("remoteStorage ready");
       resolve(remoteStorage);
 
+      // Initialize the extension connector when remote storage is ready
+      window.extensionConnector = extensionConnector;
+      console.log('SAVR PWA: ExtensionConnector initialized and available globally');
+
       //   remoteStorage.documents.subscribe(changeHandler);
     });
 
@@ -87,7 +98,7 @@ function initRemote() {
       for (const path of matches) {
         console.log(path);
 
-        const file = await client.getFile(path);
+        const file = await client.getFile(path) as { data: string }; // Type assertion here
 
         const article: Article = JSON.parse(file.data);
 
