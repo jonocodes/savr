@@ -1,17 +1,14 @@
 {
-    "manifest_version": 3,
+    "manifest_version": 2,
     "name": "SAVR Helper",
     "version": "1.0.0",
     "description": "Helps SAVR PWA save web pages and their resources by bypassing CORS",
     "permissions": [
-        "activeTab",
         "storage",
-        "scripting"
-    ],
-    "host_permissions": [
+        "http://localhost:8081/*",
         "<all_urls>"
     ],
-    "action": {
+    "browser_action": {
         "default_popup": "popup/popup.html",
         "default_icon": {
             "16": "icons/icon16.png",
@@ -20,7 +17,9 @@
         }
     },
     "background": {
-        "scripts": ["background.js"]
+        "scripts": [
+            "background.js"
+        ]
     },
     "content_scripts": [
         {
@@ -29,17 +28,17 @@
             ],
             "js": [
                 "content.js"
-            ]
+            ],
+            "all_frames": true,
+            "run_at": "document_idle"
         }
     ],
     "web_accessible_resources": [
-        {
-            "resources": [
-                "icons/*"
-            ],
-            "matches": [
-                "<all_urls>"
-            ]
-        }
-    ]
+        "icons/*"
+    ],
+    "icons": {
+        "16": "icons/icon16.png",
+        "48": "icons/icon48.png",
+        "128": "icons/icon128.png"
+    }
 }

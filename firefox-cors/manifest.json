@@ -1,0 +1,15 @@
+{
+  "manifest_version": 2,
+  "name": "SAVR CORS Disabler",
+  "version": "1.0",
+  "description": "Disables CORS for requests originating from the SAVR PWA.",
+  "permissions": [
+    "webRequest",
+    "webRequestBlocking",
+    "http://*/*",
+    "https://*/*"
+  ],
+  "background": {
+    "scripts": ["dist/extension.bundle.js"]
+  }
+}

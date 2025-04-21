@@ -1,4 +1,3 @@
-
 /// <reference types="chrome" />
 
 // Import styles
@@ -22,7 +21,7 @@ let resultMessage: HTMLParagraphElement;
 
 // Initialize the popup when DOM content is loaded
 document.addEventListener("DOMContentLoaded", (): void => {
-  console.log('SAVR Extension Popup: DOMContentLoaded');
+  console.log("SAVR Extension Popup: DOMContentLoaded");
   // Get DOM elements
   saveButton = document.getElementById("saveButton") as HTMLButtonElement;
   statusElement = document.getElementById("status") as HTMLParagraphElement;
@@ -32,38 +31,23 @@ document.addEventListener("DOMContentLoaded", (): void => {
   resultElement = document.getElementById("result") as HTMLDivElement;
   resultMessage = document.getElementById("result-message") as HTMLParagraphElement;
 
-  console.log('SAVR Extension Popup: DOM elements obtained');
+  console.log("SAVR Extension Popup: DOM elements obtained");
 
-  // Check if we can access the current tab
-  chrome.tabs.query({ active: true, currentWindow: true }, (tabs): void => {
-    const currentTab = tabs[0];
-    console.log('SAVR Extension Popup: Current tab:', currentTab);
-    if (!currentTab || !currentTab.url || currentTab.url.startsWith("chrome://")) {
-      console.log('SAVR Extension Popup: Cannot save this page');
-      saveButton.disabled = true;
-      statusElement.textContent = "Cannot save this page";
-      return;
-    }
-
-    statusElement.textContent = `Ready to save: ${currentTab.title || "Current page"}`;
-    console.log('SAVR Extension Popup: Ready to save page:', currentTab.title);
-  });
-
-  // Set up the save button
+  statusElement.textContent = "Ready to save page";
   saveButton.addEventListener("click", saveCurrentPage);
-  console.log('SAVR Extension Popup: Save button event listener added');
+  console.log("SAVR Extension Popup: Save button event listener added");
 });
 
 // Function to handle saving the current page
 async function saveCurrentPage(): Promise<void> {
-  console.log('SAVR Extension Popup: saveCurrentPage function called');
+  console.log("SAVR Extension Popup: saveCurrentPage function called");
   try {
     // Update UI to saving state
     saveButton.disabled = true;
     statusElement.textContent = "Saving page...";
     progressElement.classList.remove("hidden");
     resultElement.classList.add("hidden");
-    console.log('SAVR Extension Popup: UI updated to saving state');
+    console.log("SAVR Extension Popup: UI updated to saving state");
 
     // Animate progress to show activity
     let progress = 0;
@@ -74,50 +58,65 @@ async function saveCurrentPage(): Promise<void> {
       }
       progressFill.style.width = `${Math.min(progress, 90)}%`;
     }, 300);
-    console.log('SAVR Extension Popup: Progress animation started');
+    console.log("SAVR Extension Popup: Progress animation started");
 
-    // Send message to background script to save the page
-    chrome.runtime.sendMessage({ action: "saveCurrentPage" }, (response: SaveResponse) => {
-      console.log('SAVR Extension Popup: Received response from background:', response);
-      clearInterval(progressInterval);
+    // Send message to background script to get page data
+    chrome.runtime.sendMessage({ action: "getPageData" }, async (response) => {
+      try {
+        if (chrome.runtime.lastError) {
+          throw new Error(chrome.runtime.lastError.message);
+        }
 
-      if (response && response.success) {
-        console.log('SAVR Extension Popup: Page saved successfully');
-        // Complete the progress bar
-        progressFill.style.width = "100%";
-        progressText.textContent = "Page saved successfully!";
+        if (!response?.success || !response?.pageData) {
+          throw new Error("Failed to get page data2");
+        }
 
-        // Show success message
-        setTimeout(() => {
-          progressElement.classList.add("hidden");
-          resultElement.classList.remove("hidden");
-          resultElement.className = resultElement.className.replace("error", "") + " success";
-          resultMessage.textContent = "Page saved successfully!";
-          saveButton.disabled = false;
-          console.log('SAVR Extension Popup: UI updated to success state');
-        }, 1000);
-      } else {
-        console.error('SAVR Extension Popup: Error saving page:', response?.error);
-        // Show error message
-        progressElement.classList.add("hidden");
-        resultElement.classList.remove("hidden");
-        resultElement.className = resultElement.className.replace("success", "") + " error";
-        resultMessage.textContent = `Error: ${response?.error || "Failed to save page"}`;
-        saveButton.disabled = false;
-        console.log('SAVR Extension Popup: UI updated to error state');
+        // Send page data to background script for saving
+        chrome.runtime.sendMessage(
+          {
+            action: "saveCurrentPage",
+            pageData: response.pageData,
+          },
+          (saveResponse) => {
+            console.log("SAVR Extension Popup: Received response from background:", saveResponse);
+            clearInterval(progressInterval);
+
+            if (saveResponse && saveResponse.success) {
+              console.log("SAVR Extension Popup: Page saved successfully");
+              // Complete the progress bar
+              progressFill.style.width = "100%";
+              progressText.textContent = "Page saved successfully!";
+
+              // Show success message
+              setTimeout(() => {
+                progressElement.classList.add("hidden");
+                resultElement.classList.remove("hidden");
+                resultElement.className = resultElement.className.replace("error", "") + " success";
+                resultMessage.textContent = "Page saved successfully!";
+                saveButton.disabled = false;
+                console.log("SAVR Extension Popup: UI updated to success state");
+              }, 1000);
+            } else {
+              handleError(saveResponse?.error || "Failed to save page");
+            }
+          }
+        );
+      } catch (error) {
+        handleError(error instanceof Error ? error.message : "Unknown error");
       }
     });
   } catch (error) {
-    console.error("SAVR Extension Popup: Error saving page:", error);
-
-    // Show error in the UI
-    progressElement.classList.add("hidden");
-    resultElement.classList.remove("hidden");
-    resultElement.className = resultElement.className.replace("success", "") + " error";
-    resultMessage.textContent = `Error: ${
-      error instanceof Error ? error.message : "Unknown error"
-    }`;
-    saveButton.disabled = false;
-    console.log('SAVR Extension Popup: UI updated to error state due to exception');
+    handleError(error instanceof Error ? error.message : "Unknown error");
   }
+}
+
+// Helper function to handle errors
+function handleError(errorMessage: string) {
+  console.error("SAVR Extension Popup: Error:", errorMessage);
+  progressElement.classList.add("hidden");
+  resultElement.classList.remove("hidden");
+  resultElement.className = resultElement.className.replace("success", "") + " error";
+  resultMessage.textContent = `Error: ${errorMessage}`;
+  saveButton.disabled = false;
+  console.log("SAVR Extension Popup: UI updated to error state");
 }

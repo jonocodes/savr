@@ -28,23 +28,80 @@ interface FetchResourcesMessage {
 
 interface SaveCurrentPageMessage {
   action: "saveCurrentPage";
+  pageData?: PageData;
 }
 
-type BackgroundExtensionMessage = FetchResourcesMessage | SaveCurrentPageMessage;
+interface GetPageDataMessage {
+  action: "getPageData";
+}
+
+type BackgroundExtensionMessage =
+  | FetchResourcesMessage
+  | SaveCurrentPageMessage
+  | GetPageDataMessage;
 
 // Constants
 const PWA_ORIGIN = "http://localhost:8081";
+const EXTENSION_ID = chrome.runtime.id;
 
 // Listen for messages from popup or content script
 chrome.runtime.onMessage.addListener(
   (message: BackgroundExtensionMessage, sender, sendResponse) => {
-    console.log('SAVR Extension Background: Received message:', message, 'from sender:', sender);
-    if (message.action === "saveCurrentPage") {
-      console.log('SAVR Extension Background: Handling saveCurrentPage action');
-      saveCurrentPage(sendResponse);
-      return true; // Keep the message channel open for async response
+    console.log("SAVR Extension Background: Received message:", message, "from sender:", sender);
+
+    if (message.action === "getPageData") {
+      console.log("SAVR Extension Background: Handling getPageData request");
+      // Forward to content script of sender
+      if (sender.tab && sender.tab.id) {
+        chrome.tabs.sendMessage(sender.tab.id, { action: "getPageData" }, (response) => {
+          if (chrome.runtime.lastError) {
+            sendResponse({
+              success: false,
+              error: chrome.runtime.lastError.message,
+            });
+            return;
+          }
+          if (response && response.success) {
+            sendResponse({
+              success: true,
+              pageData: {
+                url: sender.tab?.url || "",
+                html: response.html,
+                title: response.title,
+              },
+            });
+          } else {
+            console.error(response);
+            sendResponse({
+              success: false,
+              error: "Failed to get page data",
+            });
+          }
+        });
+        return true;
+      }
+      sendResponse({
+        success: false,
+        error: "No valid tab found",
+      });
+      return true;
+    } else if (message.action === "saveCurrentPage") {
+      console.log("SAVR Extension Background: Handling saveCurrentPage action");
+      if (message.pageData) {
+        saveCurrentPage(message.pageData, sendResponse);
+        return true;
+      }
+      // If no page data, send it back as an error
+      sendResponse({
+        success: false,
+        error: "No page data provided",
+      });
+      return true;
     } else if (message.action === "fetchResources" && "urls" in message) {
-      console.log('SAVR Extension Background: Handling fetchResources action for URLs:', message.urls);
+      console.log(
+        "SAVR Extension Background: Handling fetchResources action for URLs:",
+        message.urls
+      );
       fetchResources(message.urls, sendResponse);
       return true; // Keep the message channel open for async response
     }
@@ -52,50 +109,22 @@ chrome.runtime.onMessage.addListener(
 );
 
 // Function to save the current page
-async function saveCurrentPage(sendResponse: (response: MessageResponse) => void): Promise<void> {
-  console.log('SAVR Extension Background: saveCurrentPage function called');
+async function saveCurrentPage(
+  pageData: PageData,
+  sendResponse: (response: MessageResponse) => void
+): Promise<void> {
+  console.log("SAVR Extension Background: saveCurrentPage function called");
   try {
-    // Get the active tab
-    const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
-    const activeTab = tabs[0];
-
-    if (!activeTab.id) {
-      console.error('SAVR Extension Background: No active tab found');
-      throw new Error("No active tab found");
-    }
-
-    console.log('SAVR Extension Background: Active tab found:', activeTab);
-
-    // Get the HTML content using scripting API
-    const results = await chrome.scripting.executeScript({
-      target: { tabId: activeTab.id },
-      func: (): PageData => {
-        return {
-          url: window.location.href,
-          html: document.documentElement.outerHTML,
-          title: document.title,
-        };
-      },
-    });
-
-    if (!results || results.length === 0) {
-      console.error('SAVR Extension Background: Failed to get page content');
-      throw new Error("Failed to get page content");
-    }
-
-    const pageData = results[0].result;
-    console.log('SAVR Extension Background: Page data extracted:', pageData);
-
-    if (pageData == undefined) {
-      console.error('SAVR Extension Background: pageData is undefined');
+    if (!pageData) {
+      console.error("SAVR Extension Background: pageData is undefined");
       sendResponse({
         success: false,
-        // error: "pageData undefined",
-        data: "pageData undefined",
+        error: "Page data is undefined",
       });
+      return;
     }
 
-    console.log('SAVR Extension Background: Sending saveHtml message to PWA');
+    console.log("SAVR Extension Background: Sending saveHtml message to PWA");
     // Send the HTML to the PWA
     const response = await sendToPWA("saveHtml", {
       url: pageData.url,
@@ -103,7 +132,7 @@ async function saveCurrentPage(sendResponse: (response: MessageResponse) => void
       title: pageData.title,
     });
 
-    console.log('SAVR Extension Background: Response from PWA for saveHtml:', response);
+    console.log("SAVR Extension Background: Response from PWA for saveHtml:", response);
     sendResponse({ success: true, data: response });
   } catch (error) {
     console.error("SAVR Extension Background: Error saving page:", error);
@@ -119,12 +148,12 @@ async function fetchResources(
   urls: string[],
   sendResponse: (response: MessageResponse) => void
 ): Promise<void> {
-  console.log('SAVR Extension Background: fetchResources function called for URLs:', urls);
+  console.log("SAVR Extension Background: fetchResources function called for URLs:", urls);
   try {
     const resources: Resource[] = await Promise.all(
       urls.map(async (url: string): Promise<Resource> => {
         try {
-          console.log('SAVR Extension Background: Fetching resource:', url);
+          console.log("SAVR Extension Background: Fetching resource:", url);
           const response = await fetch(url);
           const blob = await response.blob();
 
@@ -132,7 +161,10 @@ async function fetchResources(
           return new Promise<Resource>((resolve) => {
             const reader = new FileReader();
             reader.onloadend = () => {
-              console.log('SAVR Extension Background: Resource fetched and converted to base64:', url);
+              console.log(
+                "SAVR Extension Background: Resource fetched and converted to base64:",
+                url
+              );
               resolve({
                 url,
                 data: reader.result as string,
@@ -143,7 +175,7 @@ async function fetchResources(
             reader.readAsDataURL(blob);
           });
         } catch (error) {
-          console.error('SAVR Extension Background: Failed to fetch resource:', url, error);
+          console.error("SAVR Extension Background: Failed to fetch resource:", url, error);
           return {
             url,
             success: false,
@@ -153,7 +185,7 @@ async function fetchResources(
       })
     );
 
-    console.log('SAVR Extension Background: All resources fetched, sending response to PWA');
+    console.log("SAVR Extension Background: All resources fetched, sending response to PWA");
     sendResponse({ success: true, data: { resources } });
   } catch (error) {
     console.error("SAVR Extension Background: Error fetching resources:", error);
@@ -166,134 +198,72 @@ async function fetchResources(
 
 // Function to communicate with the PWA
 async function sendToPWA(action: string, data: any): Promise<any> {
-  console.log('SAVR Extension Background: sendToPWA function called with action:', action, 'and data:', data);
-  // Create a communication channel with the PWA
-  const targetOrigin = PWA_ORIGIN;
-
   return new Promise((resolve, reject) => {
-    // Create a unique ID for this message
     const messageId = Date.now().toString();
+    let pwaWindow: Window | null = null;
 
-    // Check if we already have a tab with the PWA open
-    chrome.tabs.query({ url: `${targetOrigin}/*` }, (tabs) => {
-      console.log('SAVR Extension Background: Checking for PWA tab, found:', tabs.length);
-      if (tabs.length > 0) {
-        // We already have a tab with the PWA open, use it
-        const tab = tabs[0];
-        
-        if (!tab.id) {
-          console.error('SAVR Extension Background: Tab ID not found for PWA tab');
-          reject(new Error("Tab ID not found"));
-          return;
+    // Create a small popup window for the PWA
+    const width = 10;
+    const height = 10;
+    const left = screen.width - width;
+    const top = screen.height - height;
+
+    pwaWindow = window.open(
+      `${PWA_ORIGIN}?ext=true&messageId=${messageId}`,
+      "savrPWA",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!pwaWindow) {
+      reject(new Error("Could not open PWA window. Please allow popups for this extension."));
+      return;
+    }
+
+    // Listen for response from PWA
+    const messageHandler = (event: MessageEvent) => {
+      if (event.origin !== PWA_ORIGIN) return;
+
+      const response = event.data;
+      if (response && response.messageId === messageId) {
+        window.removeEventListener("message", messageHandler);
+
+        // Close the popup
+        if (pwaWindow) {
+          pwaWindow.close();
         }
 
-        console.log('SAVR Extension Background: PWA tab found, sending message to tab ID:', tab.id);
+        if (response.error) {
+          reject(new Error(response.error));
+        } else {
+          resolve(response.data);
+        }
+      }
+    };
 
-        // Set up listener for response
-        const listener = function (event: MessageEvent): void {
-          if (event.origin !== targetOrigin) return;
+    window.addEventListener("message", messageHandler);
 
-          try {
-            const response = event.data;
-            console.log('SAVR Extension Background: Received message from PWA tab:', response);
-
-            // Check if this is the response to our message
-            if (response.messageId === messageId) {
-              console.log('SAVR Extension Background: Received response for message ID:', messageId);
-              window.removeEventListener("message", listener);
-
-              if (response.error) {
-                console.error('SAVR Extension Background: Error in PWA response:', response.error);
-                reject(new Error(response.error));
-              } else {
-                console.log('SAVR Extension Background: PWA response successful:', response.data);
-                resolve(response.data);
-              }
-            }
-          } catch (error) {
-            console.error("SAVR Extension Background: Error processing PWA response:", error);
-          }
-        };
-
-        window.addEventListener("message", listener);
-
-        // Send message to the tab
-        chrome.tabs.sendMessage(tab.id, {
-          action: "forwardToPWA",
-          messageId,
-          data: {
-            action,
-            payload: data,
-          },
-        });
-
-        // Set timeout for response
-        setTimeout(() => {
-          console.error('SAVR Extension Background: Communication with PWA tab timed out for message ID:', messageId);
-          window.removeEventListener("message", listener);
-          reject(new Error("Communication with PWA timed out"));
-        }, 30000); // 30-second timeout
-      } else {
-        console.log('SAVR Extension Background: No PWA tab found, creating hidden iframe');
-        // No tab with the PWA open, create a hidden iframe
-        const iframe = document.createElement('iframe');
-        iframe.style.display = 'none';
-        iframe.src = `${targetOrigin}?ext=true&hidden=true`;
-        
-        // Set up listener for response
-        const listener = function (event: MessageEvent): void {
-          if (event.origin !== targetOrigin) return;
-
-          try {
-            const response = event.data;
-            console.log('SAVR Extension Background: Received message from PWA iframe:', response);
-
-            // Check if this is the response to our message
-            if (response.messageId === messageId) {
-              console.log('SAVR Extension Background: Received response for message ID:', messageId);
-              window.removeEventListener("message", listener);
-              document.body.removeChild(iframe);
-
-              if (response.error) {
-                console.error('SAVR Extension Background: Error in PWA iframe response:', response.error);
-                reject(new Error(response.error));
-              } else {
-                console.log('SAVR Extension Background: PWA iframe response successful:', response.data);
-                resolve(response.data);
-              }
-            }
-          } catch (error) {
-            console.error("SAVR Extension Background: Error processing PWA iframe response:", error);
-          }
-        };
-
-        window.addEventListener("message", listener);
-
-        // Wait for iframe to load
-        iframe.onload = () => {
-          console.log('SAVR Extension Background: PWA iframe loaded, sending message');
-          // Send message to the iframe
-          iframe.contentWindow?.postMessage({
+    // Send message to PWA
+    setTimeout(() => {
+      if (pwaWindow) {
+        pwaWindow.postMessage(
+          {
             source: "SAVR_EXTENSION",
             messageId,
             action,
             payload: data,
-          }, targetOrigin);
-        };
-
-        // Add iframe to the page
-        document.body.appendChild(iframe);
-
-        // Set timeout for response
-        setTimeout(() => {
-          console.error('SAVR Extension Background: Communication with PWA iframe timed out for message ID:', messageId);
-          window.removeEventListener("message", listener);
-          if (document.body.contains(iframe)) {
-            document.body.removeChild(iframe);
-          }
-          reject(new Error("Communication with PWA timed out"));
-        }, 30000); // 30-second timeout
+          },
+          PWA_ORIGIN
+        );
       }
-    });
+    }, 1000); // Give the window time to load
+
+    // Set timeout
+    setTimeout(() => {
+      window.removeEventListener("message", messageHandler);
+      if (pwaWindow) {
+        pwaWindow.close();
+      }
+      reject(new Error("Communication with PWA timed out"));
+    }, 10000);
   });
 }

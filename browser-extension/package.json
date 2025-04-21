@@ -6,7 +6,7 @@
     "test": "echo \"Error: no test specified\" && exit 1",
     "build": "webpack --config webpack.config.js",
     "watch": "webpack --watch --config webpack.config.js",
-    "dev": "webpack --mode=development --config webpack.config.js && web-ext run --source-dir ./dist/ --start-url https://en.wikipedia.org/wiki/David_Bowie",
+    "dev": "concurrently \"npm run watch\" \"web-ext run --source-dir ./dist/ --start-url https://en.wikipedia.org/wiki/David_Bowie\"",
     "clean": "rimraf dist"
   },
   "keywords": [],
@@ -24,6 +24,7 @@
     "mini-css-extract-plugin": "^2.9.2",
     "rimraf": "^6.0.1",
     "ts-loader": "^9.5.2",
+    "concurrently": "^9.1.2",
     "typescript": "^5.8.3",
     "web-ext": "^8.5.0",
     "webpack": "^5.99.6",
