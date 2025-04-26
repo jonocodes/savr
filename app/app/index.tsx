@@ -44,6 +44,7 @@ import { ThemedText } from "@/components/ThemedText";
 import { useRemoteStorage } from "@/components/RemoteStorageProvider";
 import { ingestUrl2, readabilityToArticle } from "../../lib/src/ingestion";
 import { db } from "@/db";
+import extensionConnector from "../utils/extensionConnector";
 
 // const AddArticleDialog: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
 //   const [url, setUrl] = useState(
@@ -271,18 +272,31 @@ export default function ArticleListScreen() {
 
   // console.log("theme in index", theme);
 
-  useEffect(() => {}, []);
+  useEffect(() => {
+    // Set the storage client in the extension connector
+    if (client) {
+      extensionConnector.setStorageClient(client);
+    }
+  }, [client]); // Run this effect when the client changes
 
   const saveUrl = async () => {
     // TODO: pass in headers/cookies for downloading
 
-    await ingestUrl2(client, corsProxy, url, () => {
+    await ingestUrl2(client, corsProxy, url, (percent: number | null, message: string | null) => {
+      if (percent !== null) {
+        setIngestStatus(message);
+        setIngestPercent(percent);
+      }
       console.log(`INGESTED URL ${url}`);
     })
       .then((article) => {
         db.articles.put(article);
         showMessage("Article saved");
-        setDialogVisible(false);
+
+        // wait a bit before closing the dialog
+        setTimeout(() => {
+          setDialogVisible(false);
+        }, 4000);
       })
       .catch((error) => {
         console.error(error);

@@ -26,4 +26,4 @@ export { type ArticleRenderExtra } from "./models";
 export { type Articles } from "./models";
 export { type Article } from "./models";
 
-export { ingestUrl } from "./ingestion";
+export { ingestUrl, ingestHtml2, ingestCurrentPage } from "./ingestion";

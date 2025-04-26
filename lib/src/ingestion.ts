@@ -1056,7 +1056,106 @@ export async function ingestUrl2(
 
   // TODO: await createLocalHtmlList(dbManager);
 
-  sendMessage(100, "finished");
+  sendMessage(100, `Finished saving: ${article.title}`);
 
   return article
 }
+
+
+
+export async function ingestCurrentPage(
+  storageClient: BaseClient|null, html: string, contentType: string, url: string|null,
+  sendMessage: (percent: number | null, message: string | null) => void
+) {
+
+  alert("ingestCurrentPage");
+  
+  sendMessage(0, "start");
+
+  // TODO: add back these lines
+  // const articles = await dbManager.getArticles();
+
+  // const response = await fetch(`${corsProxy}${url}`);
+
+  const contentTypeHeader = 'text/html' //response.headers.get("content-type")
+
+  if (!contentTypeHeader) {
+    throw new Error("cant determine content type")
+  }
+
+  // sendMessage(10, "scraping article");
+
+  var article: Article | null = null
+
+  console.log(`contentTypeHeader = ${contentTypeHeader}`)
+
+  try {
+
+    const extension = mime.getExtension(contentTypeHeader)
+    const mimeType = mime.getType(extension??"");
+
+    // const mimeType = new MIMEType(contentTypeHeader);
+
+    if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
+      throw new Error(`Unsupported content type: ${contentTypeHeader}`);
+    }
+
+    if (mimeType === 'text/html') {
+
+      article = await ingestHtml2(storageClient, html, contentTypeHeader, url, sendMessage)
+
+    // } else if (mimeType.subtype === 'pdf') {
+
+    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+
+    //   article = await articleFromPdf(checksum, url)
+
+    //   finalizeFileLocation(tempLocalPath, article)
+
+    //   // TODO: thumbnail
+
+    // } else if (mimeType.type === 'image') {
+
+    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+
+    //   article = articleFromImage(mimeType, checksum, url)
+
+    //   finalizeFileLocation(tempLocalPath, article)
+
+    //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
+
+    } else {
+      throw new Error(`No handler for content type ${contentTypeHeader}`)
+    }
+
+    article.ingestSource = "url"
+    article.mimeType = mimeType
+
+  } catch(error) {
+    console.error(error)
+    throw new Error("error during ingestion")
+  }
+
+  const saveDir = "saves/" + article.slug;
+  debugger
+
+  storageClient?.storeFile("application/json", saveDir + "/article.json", JSON.stringify(article, null, 2))
+
+  // TODO: dbManager.upsertArticle(article); 
+
+  // if (existingArticleIndex != -1) {
+  //   db.data.articles[existingArticleIndex] = article;
+  // } else {
+  //   // keep the most recent at the top since its easier to read that way
+  //   db.data.articles.unshift(article);
+  // }
+
+  // await db.write();
+
+  // TODO: await createLocalHtmlList(dbManager);
+
+  sendMessage(100, `Finished saving: ${article.title}`);
+
+  return article
+}
+

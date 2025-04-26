@@ -1,5 +1,7 @@
 // This file was moved from the browser-extension project (pwa-part.ts)
 
+import { ingestCurrentPage, ingestHtml2 } from "@savr/lib";
+
 // Extension communication module for SAVR PWA
 // Add this to your PWA code
 
@@ -63,16 +65,80 @@ interface Storage {
 class ExtensionConnector {
   private isExtensionAvailable: boolean = false;
   private pendingResourceRequests: Record<string, string> = {};
+  private storageClient: any; // TODO: Use the correct type for storageClient
 
   constructor() {
-    debugger;
     this.initializeListener();
     this.checkExtensionPresence();
+    // Send a ready message to the opening window/tab
+    // This is needed for the bookmarklet to know when the PWA is ready to receive the article data.
+    if (window.opener) {
+      // Check if this window was opened by another window
+      window.opener.postMessage({ source: "SAVR_PWA", action: "savr-ready" }, "*"); // TODO: Specify targetOrigin
+    }
   }
 
-  // Set up the message listener for extension communications
+  // Method to set the storage client
+  public setStorageClient(client: any): void {
+    // TODO: Use the correct type
+    this.storageClient = client;
+    console.log("SAVR PWA: Storage client set in ExtensionConnector.");
+  }
+
+  // Set up the message listeners
   private initializeListener(): void {
-    window.addEventListener("message", this.handleExtensionMessage.bind(this));
+    // Listener for messages from the browser extension
+    // window.addEventListener("message", this.handleExtensionMessage.bind(this));
+    // Listener for messages from the parent window (for bookmarklet)
+    window.addEventListener("message", this.handleBookmarkletMessage.bind(this));
+  }
+
+  // Handle incoming messages from the bookmarklet (parent window)
+  private async handleBookmarkletMessage(event: MessageEvent): Promise<void> {
+    // Check if the message has the expected data structure (from bookmarklet)
+    // TODO: Add origin check for security in production
+    if (event.data && event.data.url && event.data.html) {
+      const { url, html } = event.data;
+      console.log("SAVR PWA: Received URL and HTML from bookmarklet:", url);
+
+      try {
+        // Call ingestHtml2 with the received URL and HTML
+        // Use the stored storageClient and call ingestHtml2
+        if (this.storageClient) {
+          await ingestCurrentPage(
+            this.storageClient,
+            html,
+            "text/html",
+            url,
+            (percent: number | null, message: string | null) => {
+              console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
+              // TODO: Potentially send progress back to the bookmarklet/user
+            }
+          );
+          console.log("SAVR PWA: Successfully ingested page from bookmarklet.");
+          // Optionally send a success response back to the bookmarklet
+          // event.source.postMessage(
+          //   { success: true, message: "Page sent to SAVR for ingestion" },
+          //   event.origin
+          // );
+        } else {
+          console.warn("SAVR PWA: Storage client not available, cannot ingest page.");
+          // Optionally send an error response back to the bookmarklet
+          // event.source.postMessage(
+          //   { success: false, error: "Storage client not available" },
+          //   event.origin
+          // );
+        }
+
+        console.log("SAVR PWA: Successfully processed bookmarklet message.");
+        // Optionally send a response back to the bookmarklet
+        // event.source.postMessage({ success: true, message: 'Page sent to SAVR' }, event.origin);
+      } catch (error) {
+        console.error("SAVR PWA: Error handling bookmarklet message:", error);
+        // Optionally send an error response back to the bookmarklet
+        // event.source.postMessage({ success: false, error: error.message }, event.origin);
+      }
+    }
   }
 
   // Check if the extension is available
