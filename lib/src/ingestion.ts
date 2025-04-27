@@ -499,7 +499,14 @@ export function readabilityToArticle(html: string, contentType: string, url: str
 
   var pubDate: Date | null = null;
 
-  if (readabilityResult.publishedTime) pubDate = new Date(readabilityResult.publishedTime);
+  if (readabilityResult.publishedTime) {
+    pubDate = new Date(readabilityResult.publishedTime);
+
+    if (isNaN(pubDate.getTime())) {
+      pubDate = null;
+    }
+
+  }
 
   const readingTimeMinutes = calcReadingTime(content);
 
@@ -689,11 +696,7 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
 
   })  
 
-  // fileManager.writeTextFile(saveDir + "/index.html", rendered)
-
   storageClient?.storeFile("text/html", `${saveDir}/index.html`, rendered);
-
-  // console.log(article);
 
   return article
 }
@@ -1068,8 +1071,6 @@ export async function ingestCurrentPage(
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
 
-  alert("ingestCurrentPage");
-  
   sendMessage(0, "start");
 
   // TODO: add back these lines

@@ -172,4 +172,4 @@ function initRemote() {
 //   return await storeQueued(id);   // return expected to be serialized note
 // }
 
-export { init };
+export { init, glob };

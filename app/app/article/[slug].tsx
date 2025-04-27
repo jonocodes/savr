@@ -2,7 +2,13 @@ import React, { useEffect, useState } from "react";
 import { Platform, ScrollView, View, StyleSheet } from "react-native";
 import { WebView } from "react-native-webview";
 import { router, useLocalSearchParams } from "expo-router";
-import { updateArticleState, useFontStore, useMyStore, useThemeStore } from "../tools";
+import {
+  removeArticle,
+  updateArticleState,
+  useFontStore,
+  useMyStore,
+  useThemeStore,
+} from "../tools";
 import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
 import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
@@ -51,7 +57,6 @@ export default function ArticleScreen() {
   useEffect(() => {
     const setup = async () => {
       try {
-
         // TODO: this should really read from lib
         // const style = await fileManager!.readTextFile("static/shared/web.css");
         // const style = "";
@@ -61,7 +66,6 @@ export default function ArticleScreen() {
         storage.client
           ?.getFile(`saves/${slug}/index.html`)
           .then((file) => {
-
             setHtml(`<link rel="stylesheet" href="${style.uri}">${file.data}`);
           })
           .catch((error) => {
@@ -81,7 +85,8 @@ export default function ArticleScreen() {
     console.log(`Deleting ${article.slug}`);
 
     try {
-      updateArticleState(storage.client!, article.slug, "deleted");
+      await removeArticle(storage.client!, article.slug);
+      // updateArticleState(storage.client!, article.slug, "deleted");
 
       // TODO: delete dir
 

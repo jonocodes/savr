@@ -66,6 +66,7 @@ class ExtensionConnector {
   private isExtensionAvailable: boolean = false;
   private pendingResourceRequests: Record<string, string> = {};
   private storageClient: any; // TODO: Use the correct type for storageClient
+  private pendingMessage: { url: string; html: string } | null = null; // Store pending message data
 
   constructor() {
     this.initializeListener();
@@ -83,6 +84,11 @@ class ExtensionConnector {
     // TODO: Use the correct type
     this.storageClient = client;
     console.log("SAVR PWA: Storage client set in ExtensionConnector.");
+    // If there's a pending message, process it now
+    if (this.pendingMessage) {
+      this.processBookmarkletMessage(this.pendingMessage.url, this.pendingMessage.html);
+      this.pendingMessage = null; // Clear the pending message
+    }
   }
 
   // Set up the message listeners
@@ -99,45 +105,52 @@ class ExtensionConnector {
     // TODO: Add origin check for security in production
     if (event.data && event.data.url && event.data.html) {
       const { url, html } = event.data;
+
       console.log("SAVR PWA: Received URL and HTML from bookmarklet:", url);
 
-      try {
-        // Call ingestHtml2 with the received URL and HTML
-        // Use the stored storageClient and call ingestHtml2
-        if (this.storageClient) {
-          await ingestCurrentPage(
-            this.storageClient,
-            html,
-            "text/html",
-            url,
-            (percent: number | null, message: string | null) => {
-              console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
-              // TODO: Potentially send progress back to the bookmarklet/user
-            }
-          );
-          console.log("SAVR PWA: Successfully ingested page from bookmarklet.");
-          // Optionally send a success response back to the bookmarklet
-          // event.source.postMessage(
-          //   { success: true, message: "Page sent to SAVR for ingestion" },
-          //   event.origin
-          // );
-        } else {
-          console.warn("SAVR PWA: Storage client not available, cannot ingest page.");
-          // Optionally send an error response back to the bookmarklet
-          // event.source.postMessage(
-          //   { success: false, error: "Storage client not available" },
-          //   event.origin
-          // );
-        }
-
-        console.log("SAVR PWA: Successfully processed bookmarklet message.");
-        // Optionally send a response back to the bookmarklet
-        // event.source.postMessage({ success: true, message: 'Page sent to SAVR' }, event.origin);
-      } catch (error) {
-        console.error("SAVR PWA: Error handling bookmarklet message:", error);
-        // Optionally send an error response back to the bookmarklet
-        // event.source.postMessage({ success: false, error: error.message }, event.origin);
+      // If storageClient is not set yet, store the message and wait
+      if (!this.storageClient) {
+        console.log("SAVR PWA: Storage client not yet available, storing message.");
+        this.pendingMessage = { url, html };
+        return;
       }
+
+      // If storageClient is set, process the message immediately
+      this.processBookmarkletMessage(url, html);
+    }
+  }
+
+  private async processBookmarkletMessage(url: string, html: string): Promise<void> {
+    try {
+      await ingestCurrentPage(
+        this.storageClient,
+        html,
+        "text/html",
+        url,
+        (percent: number | null, message: string | null) => {
+          console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
+        }
+      );
+      // await ingestHtml2(
+      //   this.storageClient,
+      //   html,
+      //   "text/html",
+      //   url,
+      //   (percent: number | null, message: string | null) => {
+      //     console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
+      //     // TODO: Potentially send progress back to the bookmarklet/user
+      //   }
+      // );
+      console.log("SAVR PWA: Successfully ingested page from bookmarklet.");
+      // Optionally send a success response back to the bookmarklet
+      // event.source.postMessage(
+      //   { success: true, message: "Page sent to SAVR for ingestion" },
+      //   event.origin
+      // );
+    } catch (error) {
+      console.error("SAVR PWA: Error handling bookmarklet message:", error);
+      // Optionally send an error response back to the bookmarklet
+      // event.source.postMessage({ success: false, error: error.message }, event.origin);
     }
   }
 

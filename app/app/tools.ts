@@ -19,6 +19,7 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import Dexie from "dexie";
 import { db, DbType } from "@/db";
 import { executeNativeBackPress } from "react-native-screens";
+import { glob } from "@/storage";
 
 export type ColorTheme = MD3Theme & {
   name: string;
@@ -185,6 +186,22 @@ function getFilePathMetadata(slug: string): string {
   return `saves/${slug}/article.json`;
 }
 
+// delete the article from the db and the file system
+export async function removeArticle(storeClient: BaseClient, slug: string): Promise<void> {
+  // const files = await glob(storeClient, `saves/${slug}/*`);
+
+  for (const file of await glob(storeClient, `saves/${slug}/*`)) {
+    console.log("Deleting file", file);
+    await storeClient.remove(file);
+  }
+
+  // delete the directory. is this needed?
+  // storeClient.remove(`saves/${slug}`);
+
+  // remove the article from the db
+  await db.articles.delete(slug);
+}
+
 export async function updateArticleState(
   // db: DbType,
   storeClient: BaseClient,
@@ -206,7 +223,11 @@ export async function updateArticleState(
 
   article.state = state;
 
-  storeClient.storeFile("application/json", getFilePathMetadata(slug), JSON.stringify(article));
+  await storeClient.storeFile(
+    "application/json",
+    getFilePathMetadata(slug),
+    JSON.stringify(article)
+  );
 
   // set the state in the db
 

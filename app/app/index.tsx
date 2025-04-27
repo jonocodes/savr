@@ -33,6 +33,7 @@ import { router } from "expo-router";
 import {
   // generateFileManager,
   loadColorScheme,
+  removeArticle,
   updateArticleState,
   useMyStore,
   useThemeStore,
@@ -104,7 +105,7 @@ const ThumbnailImage = (props: ThumbnailImageProps) => {
 function ArticleItem(props: { item: Article }) {
   const item = props.item;
 
-  const { remoteStorage, client, widget } = useRemoteStorage();
+  const storage = useRemoteStorage();
 
   const [visible, setVisible] = React.useState(false);
 
@@ -124,7 +125,9 @@ function ArticleItem(props: { item: Article }) {
     try {
       // TODO: this should probably delete the dir instead. no need to keep it.
 
-      updateArticleState(client!, article.slug, "deleted");
+      await removeArticle(storage.client!, article.slug);
+
+      // updateArticleState(client!, article.slug, "deleted");
 
       // await fileManager?.deleteDir(`saves/${article.slug}`);
 
@@ -140,7 +143,7 @@ function ArticleItem(props: { item: Article }) {
     console.log(`Archiving ${item.slug}`);
 
     try {
-      updateArticleState(client!, article.slug, "archived");
+      updateArticleState(storage.client!, article.slug, "archived");
 
       showMessage("Article archived");
     } catch (e) {
@@ -154,7 +157,7 @@ function ArticleItem(props: { item: Article }) {
     console.log(`Unarchiving ${item.slug}`);
 
     try {
-      updateArticleState(client!, article.slug, "unread");
+      updateArticleState(storage.client!, article.slug, "unread");
 
       showMessage("Article unarchived");
     } catch (e) {
@@ -275,6 +278,7 @@ export default function ArticleListScreen() {
   useEffect(() => {
     // Set the storage client in the extension connector
     if (client) {
+      // alert("set storage client");
       extensionConnector.setStorageClient(client);
     }
   }, [client]); // Run this effect when the client changes
