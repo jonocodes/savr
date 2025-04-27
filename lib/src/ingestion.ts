@@ -679,6 +679,9 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
 
   const saveDir =  "saves/" + article.slug;
 
+  // TODO: sanitize out the js before saving raw
+  storageClient?.storeFile("text/html", `${saveDir}/raw.html`, html);
+
   // storageClient?.storeFile("text/html", `${saveDir}/index.html`, content);
 
   sendMessage(15, "collecting images");
@@ -1064,17 +1067,12 @@ export async function ingestUrl2(
   return article
 }
 
-
-
 export async function ingestCurrentPage(
   storageClient: BaseClient|null, html: string, contentType: string, url: string|null,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
 
   sendMessage(0, "start");
-
-  // TODO: add back these lines
-  // const articles = await dbManager.getArticles();
 
   // const response = await fetch(`${corsProxy}${url}`);
 

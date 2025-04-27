@@ -67,6 +67,7 @@ class ExtensionConnector {
   private pendingResourceRequests: Record<string, string> = {};
   private storageClient: any; // TODO: Use the correct type for storageClient
   private pendingMessage: { url: string; html: string } | null = null; // Store pending message data
+  private progressCallback: ((percent: number | null, message: string | null) => void) | null = null; // Store progress callback
 
   constructor() {
     this.initializeListener();
@@ -89,6 +90,12 @@ class ExtensionConnector {
       this.processBookmarkletMessage(this.pendingMessage.url, this.pendingMessage.html);
       this.pendingMessage = null; // Clear the pending message
     }
+  }
+
+  // Method to set the progress callback
+  public setProgressCallback(callback: (percent: number | null, message: string | null) => void): void {
+    this.progressCallback = callback;
+    console.log("SAVR PWA: Progress callback set in ExtensionConnector.");
   }
 
   // Set up the message listeners
@@ -129,6 +136,10 @@ class ExtensionConnector {
         url,
         (percent: number | null, message: string | null) => {
           console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
+          // Call the stored progress callback
+          if (this.progressCallback) {
+            this.progressCallback(percent, message);
+          }
         }
       );
       // await ingestHtml2(

@@ -14,6 +14,7 @@ import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { PaperProvider } from "react-native-paper";
 import { useRemoteStorage } from "@/components/RemoteStorageProvider";
+import { db } from "@/db";
 
 export default function ArticleScreen() {
   const { slug } = useLocalSearchParams();
@@ -26,6 +27,8 @@ export default function ArticleScreen() {
     // NOTE: this also make sure slug is set for some reason
     throw new Error("Slug is not a string");
   }
+
+  const [viewMode, setViewMode] = useState("cleaned");
 
   const [html, setHtml] = useState("");
 
@@ -56,39 +59,50 @@ export default function ArticleScreen() {
 
   useEffect(() => {
     const setup = async () => {
+      db.articles.get(slug).then((article) => {
+        if (!article) {
+          console.error("Article not found");
+          return;
+        }
+        setArticle(article);
+      });
+
       try {
-        // TODO: this should really read from lib
-        // const style = await fileManager!.readTextFile("static/shared/web.css");
-        // const style = "";
+        if (viewMode === "original") {
+          storage.client
+            ?.getFile(`saves/${slug}/raw.html`)
+            .then((file) => {
+              setHtml(`${file.data}`);
+            })
+            .catch((error) => {
+              console.error("Error retrieving article", error);
+            });
+        } else {
+          // TODO: this should really read from lib
+          const style = require("../../assets/web.css");
 
-        const style = require("../../assets/web.css");
-
-        storage.client
-          ?.getFile(`saves/${slug}/index.html`)
-          .then((file) => {
-            setHtml(`<link rel="stylesheet" href="${style.uri}">${file.data}`);
-          })
-          .catch((error) => {
-            // debugger;
-            console.error("Error retrieving article", error);
-          });
+          storage.client
+            ?.getFile(`saves/${slug}/index.html`)
+            .then((file) => {
+              setHtml(`<link rel="stylesheet" href="${style.uri}">${file.data}`);
+            })
+            .catch((error) => {
+              console.error("Error retrieving article", error);
+            });
+        }
       } catch (e) {
-        // error reading value
         console.error(e);
       }
     };
 
     setup();
-  }, []);
+  }, [viewMode]);
 
   const deleteArticle = async () => {
     console.log(`Deleting ${article.slug}`);
 
     try {
       await removeArticle(storage.client!, article.slug);
-      // updateArticleState(storage.client!, article.slug, "deleted");
-
-      // TODO: delete dir
 
       showMessage("Article deleted");
       router.push("/");
@@ -212,17 +226,52 @@ export default function ArticleScreen() {
             // paddingHorizontal: 16,
           }}
         >
+          {viewMode === "cleaned" && (
+            <Menu.Item
+              leadingIcon="file-code-outline"
+              onPress={() => {
+                setViewMode("original");
+                closeMenu();
+              }}
+              title="Show Original"
+            />
+          )}
+
+          {viewMode === "original" && (
+            <Menu.Item
+              leadingIcon="sticker-text-outline"
+              onPress={() => {
+                setViewMode("cleaned");
+                closeMenu();
+              }}
+              title="Show Cleaned"
+            />
+          )}
+
           <Menu.Item
-            leadingIcon="web"
+            leadingIcon="exit-to-app" // "web"
             onPress={() => {
+              var url: string | null | undefined = article.url;
+              // if (url === null) url = undefined;
+
+              const newTab = window.open(url, "_blank");
+              // if (newTab) {
+              //   newTab.focus();
+              // } else {
+              //   console.error("Error opening new tab");
+              // }
               closeMenu();
             }}
-            title="View Original"
+            title="Visit Original"
           />
 
           <Menu.Item
             leadingIcon="share-variant"
             onPress={() => {
+              navigator.clipboard.writeText(article.url);
+
+              alert("Url copied to clipboard: " + article.url);
+
               closeMenu();
             }}
             title="Share"

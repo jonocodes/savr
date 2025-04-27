@@ -224,6 +224,10 @@ function ArticleItem(props: { item: Article }) {
           <Menu.Item
             leadingIcon="share-variant"
             onPress={() => {
+              navigator.clipboard.writeText(item.url);
+
+              alert("Url copied to clipboard: " + item.url);
+
               closeMenu();
             }}
             title="Share"
@@ -280,12 +284,32 @@ export default function ArticleListScreen() {
     if (client) {
       // alert("set storage client");
       extensionConnector.setStorageClient(client);
+
+      // Set the progress callback for the extension connector
+      extensionConnector.setProgressCallback((percent, message) => {
+        if (percent !== null) {
+          setIngestStatus(message);
+          setIngestPercent(percent);
+          // Show the dialog when ingestion starts
+          if (!dialogVisible) {
+            setDialogVisible(true);
+          }
+        }
+        // Optionally hide the dialog when ingestion is complete (percent is 100)
+        if (percent === 100) {
+          setTimeout(() => {
+            setDialogVisible(false);
+          }, 2000); // Hide after 2 seconds
+        }
+      });
     }
-  }, [client]); // Run this effect when the client changes
+  }, [client, dialogVisible]); // Run this effect when the client or dialogVisible changes
 
   const saveUrl = async () => {
     // TODO: pass in headers/cookies for downloading
 
+    // This function is now primarily for the manual URL input in the dialog.
+    // The bookmarklet ingestion will use the progress callback set in useEffect.
     await ingestUrl2(client, corsProxy, url, (percent: number | null, message: string | null) => {
       if (percent !== null) {
         setIngestStatus(message);
@@ -365,11 +389,10 @@ export default function ArticleListScreen() {
             <IconButton
               icon="plus-circle"
               onPress={() => {
+                // Reset ingestion status when opening the dialog manually
                 setIngestStatus(null);
-
                 setIngestPercent(0);
                 setIngestMessage(null);
-
                 setDialogVisible(true);
                 setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
               }}
