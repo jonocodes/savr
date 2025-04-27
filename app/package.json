@@ -37,6 +37,7 @@
     "expo-system-ui": "~4.0.4",
     "expo-web-browser": "~14.0.1",
     "jimp": "^0.22.12",
+    "js-md5": "^0.8.3",
     "minimatch": "^10.0.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",

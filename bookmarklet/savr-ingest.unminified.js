@@ -1,4 +1,8 @@
-javascript:(async function() {
+(async function() {
+
+  // NOTE: to turn this into a bookmarklet, use this since it handles comments well:
+  //   https://js.do/blog/bookmarklets/
+
   const savrApp = 'http://localhost:8081';
 
   var savrWindow = window.open(savrApp, '_blank');
@@ -8,9 +12,8 @@ javascript:(async function() {
     return;
   }
 
-  // ok, ok 
   var currentPageUrl = window.location.href;
-  var currentPageHtml = document.documentElement.outerHTML;
+  // var currentPageHtml = document.documentElement.outerHTML;
 
   /* remove javascript */
   const docClone = document.documentElement.cloneNode(true);
@@ -47,7 +50,7 @@ javascript:(async function() {
     head && head.appendChild(styleTag);
   }
   links.forEach(link => link.parentNode && link.parentNode.removeChild(link));
-  const htmlString = '<!DOCTYPE html>\n' + docClone.outerHTML;
+  const htmlString = '<!DOCTYPE html>\n' docClone.outerHTML;
   console.log(htmlString);
 
   var messageListener = function(event) {
@@ -59,4 +62,54 @@ javascript:(async function() {
   };
 
   window.addEventListener('message', messageListener);
+
+// Listen for resource requests from PWA and respond with Base64 data URLs
+window.addEventListener('message', async function(event) {
+  if (event.source === savrWindow && event.data && event.data.action === 'request-resources') {
+   console.log('[bookmarklet] request-resources received:', event.data);
+    const { messageId, urls } = event.data;
+    const resources = await Promise.all(urls.map(async (url) => {
+     console.log('[bookmarklet] processing url:', url);
+      try {
+       // Try using already loaded <img> in DOM
+       let dataUrl: string;
+       let mimeType = 'image/jpeg';
+
+       const imgElem = document.querySelector(`img[src="${url}"]`) as HTMLImageElement | null;
+       if (imgElem && imgElem.complete) {
+         const canvas = document.createElement('canvas');
+         canvas.width = imgElem.naturalWidth;
+         canvas.height = imgElem.naturalHeight;
+         const ctx = canvas.getContext('2d');
+         ctx?.drawImage(imgElem, 0, 0);
+         dataUrl = canvas.toDataURL();
+         mimeType = dataUrl.split(';')[0].slice(5);
+
+        // reverse lookup from mimeToExt
+
+         console.log('[bookmarklet] extracted dataUrl from DOM image');
+       } else {
+         console.log('[bookmarklet] fetching via network:', url);
+         const resp = await fetch(url);
+         const blob = await resp.blob();
+         mimeType = blob.type;
+         dataUrl = await new Promise<string>((res) => {
+           const reader = new FileReader();
+           reader.onload = () => res(reader.result as string);
+           reader.readAsDataURL(blob);
+         });
+       }
+        return { url, data: dataUrl, type: mimeType, success: true };
+      } catch (err) {
+       console.error('[bookmarklet] error processing url:', url, err);
+        return { url, error: err.message || String(err), success: false };
+      }
+    }));
+    // Reply back to PWA
+    savrWindow.postMessage(
+      { source: 'SAVR_BOOKMARKLET', action: 'resource-response', messageId, resources },
+      '*'
+    );
+  }
+});
 })();

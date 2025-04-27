@@ -27,7 +27,7 @@ export const DB_FILE_NAME='db.json'
 
 
 // TODO: maybe dont need this mapping since the subtype is the extension
-const mimeToExt: Record<string, string> = {
+export const mimeToExt: Record<string, string> = {
   'text/html': 'html',
   'image/jpeg': 'jpg',
   'image/png': 'png',

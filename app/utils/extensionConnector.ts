@@ -1,37 +1,15 @@
-// This file was moved from the browser-extension project (pwa-part.ts)
+// ExtensionConnector.ts
+// Communication bridge between SAVR PWA and bookmarklet/opener window
 
-import { ingestCurrentPage, ingestHtml2 } from "@savr/lib";
+import { init } from "@/storage";
+import { ingestCurrentPage } from "@savr/lib";
+import { mimeToExt } from "@savr/lib/lib";
+import RemoteStorage from "remotestoragejs";
+import BaseClient from "remotestoragejs/release/types/baseclient";
 
-// Extension communication module for SAVR PWA
-// Add this to your PWA code
+import md5 from "js-md5";
 
-// Interface definitions
-interface PWAMessage {
-  source: string;
-  messageId: string;
-  action: string;
-  payload?: any;
-  success?: boolean;
-  error?: string;
-}
-
-interface ExtensionMessage {
-  source: string;
-  messageId: string;
-  action?: string;
-  payload?: any;
-  success?: boolean;
-  resources?: ResourceResponse[];
-  error?: string;
-}
-
-interface PageData {
-  url: string;
-  html: string;
-  title: string;
-}
-
-interface ResourceResponse {
+export interface ResourceResponse {
   url: string;
   data?: string;
   type?: string;
@@ -39,466 +17,201 @@ interface ResourceResponse {
   error?: string;
 }
 
-interface ResourceRequest {
-  url: string;
-  data: string;
-  mimeType: string;
-  savedAt: string;
-}
-
-interface PageRequest {
-  url: string;
-  title: string;
-  html: string;
-  savedAt: string;
-}
-
 interface Storage {
-  pages: {
-    save: (data: PageRequest) => Promise<void>;
-  };
-  resources: {
-    save: (data: ResourceRequest) => Promise<void>;
-  };
+  remoteStorage: RemoteStorage;
+  client: BaseClient;
 }
+
+// interface Storage {
+//   pages: {
+//     save: (data: { url: string; title?: string; html: string; savedAt: string }) => Promise<void>;
+//   };
+//   resources: {
+//     save: (data: { url: string; data: string; type: string; savedAt: string }) => Promise<void>;
+//   };
+// }
 
 class ExtensionConnector {
-  private isExtensionAvailable: boolean = false;
-  private pendingResourceRequests: Record<string, string> = {};
-  private storageClient: any; // TODO: Use the correct type for storageClient
-  private pendingMessage: { url: string; html: string } | null = null; // Store pending message data
-  private progressCallback: ((percent: number | null, message: string | null) => void) | null = null; // Store progress callback
+  private openerWindow: Window | null = null;
+  private storageClient: any = null;
+  private pendingMessage: { url: string; html: string } | null = null;
+  private progressCallback: ((percent: number | null, message: string | null) => void) | null =
+    null;
+  private pendingResourceCallbacks = new Map<string, (resources: ResourceResponse[]) => void>();
+
+  private store: { remoteStorage: RemoteStorage; client: BaseClient } | null = null;
 
   constructor() {
     this.initializeListener();
-    this.checkExtensionPresence();
-    // Send a ready message to the opening window/tab
-    // This is needed for the bookmarklet to know when the PWA is ready to receive the article data.
+
+    // const setup = async () => {
+    //   this.store = await init();
+    // };
+    // setup();
+
+    // const { remoteStorage: store, client } = await init();
+
     if (window.opener) {
-      // Check if this window was opened by another window
-      window.opener.postMessage({ source: "SAVR_PWA", action: "savr-ready" }, "*"); // TODO: Specify targetOrigin
+      this.openerWindow = window.opener;
+      window.opener.postMessage({ action: "savr-ready", source: "SAVR_PWA" }, "*");
     }
   }
 
-  // Method to set the storage client
-  public setStorageClient(client: any): void {
-    // TODO: Use the correct type
-    this.storageClient = client;
-    console.log("SAVR PWA: Storage client set in ExtensionConnector.");
-    // If there's a pending message, process it now
-    if (this.pendingMessage) {
-      this.processBookmarkletMessage(this.pendingMessage.url, this.pendingMessage.html);
-      this.pendingMessage = null; // Clear the pending message
-    }
-  }
-
-  // Method to set the progress callback
-  public setProgressCallback(callback: (percent: number | null, message: string | null) => void): void {
-    this.progressCallback = callback;
-    console.log("SAVR PWA: Progress callback set in ExtensionConnector.");
-  }
-
-  // Set up the message listeners
   private initializeListener(): void {
-    // Listener for messages from the browser extension
-    // window.addEventListener("message", this.handleExtensionMessage.bind(this));
-    // Listener for messages from the parent window (for bookmarklet)
     window.addEventListener("message", this.handleBookmarkletMessage.bind(this));
+    window.addEventListener("message", this.handleOpenerMessage.bind(this));
   }
 
-  // Handle incoming messages from the bookmarklet (parent window)
-  private async handleBookmarkletMessage(event: MessageEvent): Promise<void> {
-    // Check if the message has the expected data structure (from bookmarklet)
-    // TODO: Add origin check for security in production
-    if (event.data && event.data.url && event.data.html) {
-      const { url, html } = event.data;
-
-      console.log("SAVR PWA: Received URL and HTML from bookmarklet:", url);
-
-      // If storageClient is not set yet, store the message and wait
+  private handleBookmarkletMessage(event: MessageEvent): void {
+    const msg = event.data as any;
+    if (msg.url && msg.html) {
+      console.log("PWA: Received bookmarklet page", msg.url);
       if (!this.storageClient) {
-        console.log("SAVR PWA: Storage client not yet available, storing message.");
-        this.pendingMessage = { url, html };
-        return;
+        this.pendingMessage = { url: msg.url, html: msg.html };
+      } else {
+        this.processBookmarkletMessage(msg.url, msg.html);
       }
+    }
+  }
 
-      // If storageClient is set, process the message immediately
+  private handleOpenerMessage(event: MessageEvent): void {
+    const msg = event.data as any;
+    if (
+      event.source === this.openerWindow &&
+      msg.source === "SAVR_BOOKMARKLET" &&
+      msg.action === "resource-response"
+    ) {
+      console.log("PWA: Received resource-response", msg.messageId);
+      const cb = this.pendingResourceCallbacks.get(msg.messageId);
+      if (cb) {
+        cb(msg.resources as ResourceResponse[]);
+        this.pendingResourceCallbacks.delete(msg.messageId);
+      }
+    }
+  }
+
+  public setStorageClient(client: any): void {
+    this.storageClient = client;
+    console.log("PWA: Storage client set");
+    if (this.pendingMessage) {
+      const { url, html } = this.pendingMessage;
+      this.pendingMessage = null;
       this.processBookmarkletMessage(url, html);
     }
   }
 
+  public setProgressCallback(
+    callback: (percent: number | null, message: string | null) => void
+  ): void {
+    this.progressCallback = callback;
+    console.log("PWA: Progress callback set");
+  }
+
+  public requestResourcesFromOpener(slug: string, urls: string[]): Promise<ResourceResponse[]> {
+    console.log("PWA: requestResourcesFromOpener", urls);
+    if (!this.openerWindow) {
+      console.warn("PWA: No opener window for resource requests");
+      return Promise.resolve([]);
+    }
+    const messageId = "resource-request-" + Date.now();
+    return new Promise((resolve) => {
+      this.pendingResourceCallbacks.set(messageId, resolve);
+      this.openerWindow!.postMessage(
+        { action: "request-resources", source: "SAVR_PWA", messageId, slug, urls },
+        "*"
+      );
+    });
+  }
+
   private async processBookmarkletMessage(url: string, html: string): Promise<void> {
     try {
-      await ingestCurrentPage(
+      const article = await ingestCurrentPage(
         this.storageClient,
         html,
         "text/html",
         url,
-        (percent: number | null, message: string | null) => {
-          console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
-          // Call the stored progress callback
-          if (this.progressCallback) {
-            this.progressCallback(percent, message);
+        (percent, message) => {
+          console.log(`PWA: ingest progress ${percent}% - ${message}`);
+          this.progressCallback?.(percent, message);
+        }
+      );
+      console.log("PWA: ingest complete, extracting images");
+      const imageUrls = this.extractImageUrls(html, url);
+      if (imageUrls.length) {
+        this.progressCallback?.(0, `Downloading images: 0/${imageUrls.length}`);
+        const resources = await this.requestResourcesFromOpener(article.slug, imageUrls);
+        for (let idx = 0; idx < resources.length; idx++) {
+          const r = resources[idx];
+          const pct = Math.floor(((idx + 1) / resources.length) * 100);
+          this.progressCallback?.(pct, `Downloading images: ${idx + 1}/${resources.length}`);
+          if (r.success && r.data) {
+            await this.saveResource(r.url, article.slug, r.data, r.type || "image/jpeg");
           }
         }
-      );
-      // await ingestHtml2(
-      //   this.storageClient,
-      //   html,
-      //   "text/html",
-      //   url,
-      //   (percent: number | null, message: string | null) => {
-      //     console.log(`SAVR PWA Ingest progress: ${percent}% - ${message}`);
-      //     // TODO: Potentially send progress back to the bookmarklet/user
-      //   }
-      // );
-      console.log("SAVR PWA: Successfully ingested page from bookmarklet.");
-      // Optionally send a success response back to the bookmarklet
-      // event.source.postMessage(
-      //   { success: true, message: "Page sent to SAVR for ingestion" },
-      //   event.origin
-      // );
-    } catch (error) {
-      console.error("SAVR PWA: Error handling bookmarklet message:", error);
-      // Optionally send an error response back to the bookmarklet
-      // event.source.postMessage({ success: false, error: error.message }, event.origin);
+      }
+      console.log("PWA: Page and resources ingested successfully");
+    } catch (err) {
+      console.error("PWA: Error in processBookmarkletMessage:", err);
     }
   }
 
-  // Check if the extension is available
-  private checkExtensionPresence(): void {
-    // Send a ping to see if the extension is active
-    window.postMessage(
-      {
-        source: "SAVR_PWA",
-        action: "ping",
-        messageId: "ping-" + Date.now(),
-      },
-      "*"
-    );
-
-    // Set a timeout to check for response
-    setTimeout(() => {
-      if (!this.isExtensionAvailable) {
-        console.log("SAVR Extension not detected");
-      }
-    }, 500);
-  }
-
-  // Handle incoming messages from the extension
-  private handleExtensionMessage(event: MessageEvent): void {
-    // Check if the message is from our extension
-    const eventData = event.data as ExtensionMessage;
-    if (event.source !== window || !eventData || eventData.source !== "SAVR_EXTENSION") {
-      return;
-    }
-
-    // Mark the extension as available
-    this.isExtensionAvailable = true;
-
-    const { action, messageId, payload, success, resources, error } = eventData;
-
-    // Handle different message types
-    if (action === "saveHtml" && payload) {
-      this.handleSaveHtml(messageId, payload);
-    } else if (success !== undefined && resources) {
-      // This is a response to our fetchResources request
-      this.handleResourcesResponse(messageId, success, resources, error);
-    } else if (action === "ping") {
-      // Respond to ping
-      window.postMessage(
-        {
-          source: "SAVR_PWA",
-          messageId,
-          action: "pong",
-          success: true,
-        },
-        "*"
-      );
-    }
-  }
-
-  // Handle saving HTML received from the extension
-  private async handleSaveHtml(messageId: string, payload: PageData): Promise<void> {
-    try {
-      const { url, html, title } = payload;
-
-      // Clean HTML - this function should be implemented according to your needs
-      const cleanHtml = this.cleanHtml(html);
-
-      // Save the HTML to IndexedDB using your existing storage mechanism
-      await this.saveToIndexedDB(url, cleanHtml, title);
-
-      // Extract image URLs from the cleaned HTML
-      const imageUrls = this.extractImageUrls(cleanHtml, url);
-
-      // Request images from the extension if there are any
-      if (imageUrls.length > 0) {
-        this.fetchResources(imageUrls, messageId);
-      } else {
-        // No images to fetch, send success response
-        window.postMessage(
-          {
-            source: "SAVR_PWA",
-            messageId,
-            success: true,
-            data: { message: "Page saved successfully without images" },
-          },
-          "*"
-        );
-      }
-    } catch (error) {
-      console.error("Error handling HTML save:", error);
-      window.postMessage(
-        {
-          source: "SAVR_PWA",
-          messageId,
-          success: false,
-          error: error instanceof Error ? error.message : "Unknown error",
-        },
-        "*"
-      );
-    }
-  }
-
-  // Request resources (images) from the extension
-  private fetchResources(urls: string[], originalMessageId: string): void {
-    const resourceMessageId = "resources-" + Date.now();
-
-    // Store the original message ID for callback
-    this.pendingResourceRequests[resourceMessageId] = originalMessageId;
-
-    // Request resources from the extension
-    window.postMessage(
-      {
-        source: "SAVR_PWA",
-        messageId: resourceMessageId,
-        action: "fetchResources",
-        urls,
-      },
-      "*"
-    );
-  }
-
-  // Handle response with fetched resources
-  private async handleResourcesResponse(
-    messageId: string,
-    success: boolean,
-    resources: ResourceResponse[],
-    error?: string
-  ): Promise<void> {
-    try {
-      // Find the original message ID
-      const originalMessageId = this.pendingResourceRequests[messageId];
-
-      // Remove from pending requests regardless of success
-      delete this.pendingResourceRequests[messageId];
-
-      if (!originalMessageId) {
-        console.warn(
-          "SAVR Extension PWA: Original message ID not found for resource response:",
-          messageId
-        );
-        // If original message ID is not found, we can't send a response back.
-        return;
-      }
-
-      if (!success) {
-        console.error("SAVR Extension PWA: Failed to fetch resources:", error);
-        window.postMessage(
-          {
-            source: "SAVR_PWA",
-            messageId: originalMessageId,
-            success: false,
-            error: error || "Failed to fetch resources",
-          },
-          "*"
-        );
-        return;
-      }
-
-      // Process and save received resources
-      for (const resource of resources) {
-        if (resource.success && resource.data) {
-          console.log("SAVR Extension PWA: Saving fetched resource:", resource.url);
-          await this.saveResourceToIndexedDB(
-            resource.url,
-            resource.data,
-            resource.type || "image/jpeg"
-          );
-        } else {
-          console.warn(
-            "SAVR Extension PWA: Failed to save individual resource:",
-            resource.url,
-            resource.error
-          );
-        }
-      }
-
-      console.log(
-        "SAVR Extension PWA: All resources processed, sending final response to original message ID:",
-        originalMessageId
-      );
-      // Send final success response to the original request
-      window.postMessage(
-        {
-          source: "SAVR_PWA",
-          messageId: originalMessageId,
-          success: true,
-          data: {
-            message: "Page and resources saved successfully",
-            savedResources: resources.filter((r) => r.success).length,
-            failedResources: resources.filter((r) => !r.success).length,
-          },
-        },
-        "*"
-      );
-    } catch (error) {
-      console.error("SAVR Extension PWA: Error handling resources response:", error);
-
-      // Attempt to send error response to the original request if available
-      const originalMessageId = this.pendingResourceRequests[messageId]; // Re-check in case of error before deletion
-      if (originalMessageId) {
-        window.postMessage(
-          {
-            source: "SAVR_PWA",
-            messageId: originalMessageId,
-            success: false,
-            error:
-              error instanceof Error ? error.message : "Unknown error during resource handling",
-          },
-          "*"
-        );
-      }
-    }
-  }
-
-  // Utility function to clean HTML
-  private cleanHtml(html: string): string {
-    // Create a DOM parser
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, "text/html");
-
-    // Remove scripts
-    const scripts = doc.querySelectorAll("script");
-    scripts.forEach((script) => script.remove());
-
-    // Remove inline event handlers
-    const allElements = doc.querySelectorAll("*");
-    allElements.forEach((el) => {
-      const attributes = el.attributes;
-      for (let i = attributes.length - 1; i >= 0; i--) {
-        const attrName = attributes[i].name;
-        if (attrName.startsWith("on")) {
-          el.removeAttribute(attrName);
-        }
-      }
-    });
-
-    // Serialize back to string
-    return new XMLSerializer().serializeToString(doc);
-  }
-
-  // Utility function to extract image URLs from HTML
   private extractImageUrls(html: string, baseUrl: string): string[] {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-
-    // Get all image elements
-    const images = doc.querySelectorAll("img");
-    const imageUrls: string[] = [];
-
-    images.forEach((img) => {
-      const src = img.getAttribute("src");
-      if (src) {
-        // Convert relative URLs to absolute
+    return Array.from(doc.querySelectorAll("img"))
+      .map((img) => img.getAttribute("src") || "")
+      .filter((src) => src)
+      .map((src) => {
         try {
-          const absoluteUrl = new URL(src, baseUrl).href;
-          imageUrls.push(absoluteUrl);
-        } catch (e) {
-          console.warn("Invalid URL:", src);
+          return new URL(src, baseUrl).href;
+        } catch {
+          return "";
         }
-      }
-    });
-
-    // Get background images from inline styles (simplified)
-    const elementsWithStyle = doc.querySelectorAll('[style*="background"]');
-    elementsWithStyle.forEach((el) => {
-      const style = el.getAttribute("style");
-      const urlMatch = style?.match(/url\(['"]?([^'"()]+)['"]?\)/);
-      if (urlMatch && urlMatch[1]) {
-        try {
-          const absoluteUrl = new URL(urlMatch[1], baseUrl).href;
-          imageUrls.push(absoluteUrl);
-        } catch (e) {
-          console.warn("Invalid URL in style:", urlMatch[1]);
-        }
-      }
-    });
-
-    return [...new Set(imageUrls)]; // Remove duplicates
+      })
+      .filter((u) => u);
   }
 
-  // These methods should be implemented according to your storage approach
-  private async saveToIndexedDB(url: string, html: string, title: string): Promise<void> {
-    // Implementation depends on your IndexedDB setup
-    console.log(`Saving HTML for ${url} with title: ${title}`);
-
-    // This is a placeholder - replace with your actual implementation
-    const storage = await this.getStorage();
-    await storage.pages.save({
-      url,
-      title,
-      html,
-      savedAt: new Date().toISOString(),
-    });
-  }
-
-  private async saveResourceToIndexedDB(
+  private async saveResource(
     url: string,
+    slug: string,
     dataUrl: string,
     mimeType: string
   ): Promise<void> {
-    // Implementation depends on your IndexedDB setup
-    console.log(`Saving resource: ${url}`);
+    // TODO: change to checksum
+    const name = self.crypto.randomUUID();
 
-    // This is a placeholder - replace with your actual implementation
+    // calcualte the checksum of the url
+
+    // const checksum = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url));
+    // const checksumHex = Array.from(new Uint8Array(checksum))
+    //   .map((byte) => byte.toString(16).padStart(2, "0"))
+    //   .join("");
+
+    const hash = md5.md5(url);
+
+    const ext = mimeToExt[mimeType] || "unknown";
+
+    const path = `saves/${slug}/resources/${hash}.${ext}`;
+
+    console.log("PWA: saving resource", url, path);
+
     const storage = await this.getStorage();
-    await storage.resources.save({
-      url,
-      data: dataUrl,
-      mimeType,
-      savedAt: new Date().toISOString(),
-    });
+
+    await storage.client.storeFile(mimeType, path, dataUrl);
+
+    // await storage.resources.save({ url, data: dataUrl, type: mimeType, savedAt: now });
+
+    console.log(`PWA: Saved resource: ${url}`);
   }
 
-  // Helper method to get storage reference - replace with your actual implementation
+  // private async getStorage(): Promise<Storage> {
   private async getStorage(): Promise<Storage> {
-    // This is a placeholder - replace with your actual storage implementation
-    return {
-      pages: {
-        save: async (data: PageRequest): Promise<void> => {
-          // Your actual implementation using remoteStorage.js
-          console.log("Would save page:", data);
-        },
-      },
-      resources: {
-        save: async (data: ResourceRequest): Promise<void> => {
-          // Your actual implementation using remoteStorage.js
-          console.log("Would save resource:", data);
-        },
-      },
-    };
-  }
+    if (!this.store) {
+      this.store = await init();
+    }
 
-  // Public method to check if extension is available
-  public isAvailable(): boolean {
-    return this.isExtensionAvailable;
+    return this.store;
   }
 }
 
-// Initialize the connector when the PWA loads
-const extensionConnector = new ExtensionConnector();
-
-// Export for use in your application
-export default extensionConnector;
+export default new ExtensionConnector();
