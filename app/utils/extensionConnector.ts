@@ -7,6 +7,8 @@ import { mimeToExt } from "@savr/lib/lib";
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 
+import filenamifyUrl from "filenamify-url";
+
 import md5 from "js-md5";
 
 export interface ResourceResponse {
@@ -160,7 +162,8 @@ class ExtensionConnector {
     const doc = parser.parseFromString(html, "text/html");
     return Array.from(doc.querySelectorAll("img"))
       .map((img) => img.getAttribute("src") || "")
-      .filter((src) => src)
+      // Skip empty and data URLs
+      .filter((src) => src && !src.startsWith("data:"))
       .map((src) => {
         try {
           return new URL(src, baseUrl).href;
@@ -178,7 +181,9 @@ class ExtensionConnector {
     mimeType: string
   ): Promise<void> {
     // TODO: change to checksum
-    const name = self.crypto.randomUUID();
+    // const name = self.crypto.randomUUID();
+
+    const name = filenamifyUrl(url, { replacement: "__" });
 
     // calcualte the checksum of the url
 
@@ -191,7 +196,9 @@ class ExtensionConnector {
 
     const ext = mimeToExt[mimeType] || "unknown";
 
-    const path = `saves/${slug}/resources/${hash}.${ext}`;
+    // const path = `saves/${slug}/resources/${hash}.${ext}`;
+
+    const path = `saves/${slug}/resources/${name}`;
 
     console.log("PWA: saving resource", url, path);
 

@@ -36,6 +36,7 @@
     "expo-symbols": "~0.2.0",
     "expo-system-ui": "~4.0.4",
     "expo-web-browser": "~14.0.1",
+    "filenamify-url": "^3.1.0",
     "jimp": "^0.22.12",
     "js-md5": "^0.8.3",
     "minimatch": "^10.0.1",

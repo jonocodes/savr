@@ -30,11 +30,11 @@ function init() {
 
 let remotePrms;
 
-
 async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
   const listing = await client.getListing(path);
   let files: string[] = [];
-  for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) { // Type assertion here
+  for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+    // Type assertion here
     if (name.endsWith("/")) {
       // Recursively list subfolder
       const subFiles = await recursiveList(client, path + name);
@@ -59,8 +59,8 @@ function initRemote() {
       //   modules: ["sync"],
     });
     remoteStorage.setApiKeys({
-      //   googledrive: "?????1058o7k4p0f5rvuv2.apps.googleusercontent.com",
-      dropbox: "c53glfgceos23cj",  // dropbox is not yet working. 409 errors
+      googledrive: "298611806550-k3kc4obucu2ds6v9dlmvteqp6ve5dn6m.apps.googleusercontent.com", // have not figured out how to get this to work in production yet
+      dropbox: "c53glfgceos23cj", // dropbox is not yet working. 409 errors
     });
     remoteStorage.access.claim("savr", "rw");
 
@@ -74,7 +74,7 @@ function initRemote() {
 
       // Initialize the extension connector when remote storage is ready
       window.extensionConnector = extensionConnector;
-      console.log('SAVR PWA: ExtensionConnector initialized and available globally');
+      console.log("SAVR PWA: ExtensionConnector initialized and available globally");
 
       //   remoteStorage.documents.subscribe(changeHandler);
     });
@@ -98,13 +98,12 @@ function initRemote() {
       for (const path of matches) {
         console.log(path);
 
-        const file = await client.getFile(path) as { data: string }; // Type assertion here
+        const file = (await client.getFile(path)) as { data: string }; // Type assertion here
 
         const article: Article = JSON.parse(file.data);
 
         // put => upsert
         const ins = await db.articles.put(article);
-
       }
     });
 

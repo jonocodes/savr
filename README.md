@@ -6,9 +6,7 @@ For the most part, Savr is an [Android app](#android) and a local [web app](#web
 
 # REWRITE IN PROGRESS
 
-I am currently in the process of rewriting the previous version of the app from Kotlin to Expo.
-
-There are not yet any tags/releases for the Expo version, so I recommend waiting for those if you want to try the app.
+I am currently in the process of rewriting the previous version of the app from Kotlin to a frontend-only web app/PWA.
 
 The following parts of this document are showing the state of the Kotlin version, which is no longer active, so take it with a grain of salt. I have kept it here since the screenshots and motivation are still relevant.
 
@@ -20,7 +18,7 @@ The following parts of this document are showing the state of the Kotlin version
 - Share articles with friends
 - No dependency on a service/company to do the scraping or storage
 - Scraped content works well outside the app (plain html and images)
-- Plays well with file synchronization across devices. Just BYOB (bring your own backend).
+- Plays well with file synchronization across devices. Just BYOS (bring your own storage).
 
 # How to use it
 

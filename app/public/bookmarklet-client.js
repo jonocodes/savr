@@ -22,7 +22,11 @@
   
     var currentPageUrl = window.location.href;
     // var currentPageHtml = document.documentElement.outerHTML;
-  
+
+    function findImageByAbsoluteUrl(url) {
+      return Array.from(document.images).find(img => img.src === url);
+    }
+    
     /* remove javascript */
     const docClone = document.documentElement.cloneNode(true);
     const scripts = docClone.querySelectorAll('script');
@@ -77,13 +81,24 @@
      console.log('[bookmarklet] request-resources received:', event.data);
       const { messageId, slug, urls } = event.data;
       const resources = await Promise.all(urls.map(async (url) => {
-       console.log('[bookmarklet] (${slug}) processing url: ${url}');
+      //  console.log(`[bookmarklet] (${slug}) processing url: ${url}`);
         try {
          // Try using already loaded <img> in DOM
          let dataUrl;
          let mimeType = 'image/jpeg';
-  
-         const imgElem = document.querySelector(`img[src="${url}"]`);
+
+        //  const imgElem = document.querySelector(`img[src="${url}"]`);
+         const imgElem = findImageByAbsoluteUrl(url);
+
+          // TODO: remove this. not used
+          if (imgElem && imgElem.src.startsWith('data:')) {
+
+            console.log('[bookmarklet] found base64 image in DOM. skipping');
+            alert('weird skip')
+            return;
+          }
+
+          console.log(`[bookmarklet] (${slug}) processing url: ${url}   ${imgElem}`);
   
          if (imgElem && imgElem.complete) {
            try {
@@ -96,6 +111,9 @@
              mimeType = dataUrl.split(';')[0].slice(5);
              console.log('[bookmarklet] extracted dataUrl from DOM image');
            } catch (e) {
+
+            alert("error", e)
+              
              console.warn('[bookmarklet] CORS canvas draw error, fallback to network fetch:', e);
              // Fallback to network fetch
              const resp = await fetch(url);
@@ -132,6 +150,7 @@
          }
           return { url, data: dataUrl, type: mimeType, success: true };
         } catch (err) {
+          this.alert('error processing url', url, err);
          console.error('[bookmarklet] error processing url:', url, err);
           return { url, error: err.message || String(err), success: false };
         }
