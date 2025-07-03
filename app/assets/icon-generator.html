@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>SAVR Icon Generator</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .icon-preview { margin: 20px 0; }
+        .download-btn { 
+            background: #007AFF; 
+            color: white; 
+            border: none; 
+            padding: 10px 20px; 
+            border-radius: 5px; 
+            cursor: pointer; 
+            margin: 5px; 
+        }
+        canvas { border: 1px solid #ccc; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>SAVR Icon Generator</h1>
+    <p>This tool helps you generate PNG icons from the SVG. Click the buttons below to download icons at different sizes.</p>
+    
+    <div class="icon-preview">
+        <h3>Icon Preview:</h3>
+        <div id="svg-container"></div>
+    </div>
+    
+    <div class="icon-generator">
+        <h3>Generate Icons:</h3>
+        <button class="download-btn" onclick="generateIcon(16, 'favicon.png')">Download 16x16 (favicon)</button>
+        <button class="download-btn" onclick="generateIcon(32, 'favicon-32x32.png')">Download 32x32</button>
+        <button class="download-btn" onclick="generateIcon(192, 'icon.png')">Download 192x192 (PWA)</button>
+        <button class="download-btn" onclick="generateIcon(512, 'adaptive-icon.png')">Download 512x512 (Android)</button>
+        <button class="download-btn" onclick="generateIcon(180, 'apple-touch-icon.png')">Download 180x180 (Apple)</button>
+    </div>
+    
+    <div id="canvas-container"></div>
+
+    <script>
+        // Load the SVG
+        const svgContent = `<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background circle -->
+  <circle cx="256" cy="256" r="240" fill="#007AFF" stroke="#0056CC" stroke-width="8"/>
+  
+  <!-- Book/Article icon -->
+  <rect x="160" y="140" width="192" height="232" rx="8" fill="white" stroke="#333" stroke-width="4"/>
+  
+  <!-- Text lines -->
+  <rect x="180" y="180" width="152" height="8" rx="4" fill="#333"/>
+  <rect x="180" y="200" width="120" height="8" rx="4" fill="#666"/>
+  <rect x="180" y="220" width="140" height="8" rx="4" fill="#666"/>
+  <rect x="180" y="240" width="100" height="8" rx="4" fill="#666"/>
+  <rect x="180" y="260" width="130" height="8" rx="4" fill="#666"/>
+  <rect x="180" y="280" width="110" height="8" rx="4" fill="#666"/>
+  <rect x="180" y="300" width="90" height="8" rx="4" fill="#666"/>
+  
+  <!-- Bookmark tab -->
+  <rect x="320" y="120" width="40" height="60" rx="4" fill="#FF6B35"/>
+  
+  <!-- SAVR text -->
+  <text x="256" y="380" text-anchor="middle" font-family="Arial, sans-serif" font-size="32" font-weight="bold" fill="white">SAVR</text>
+</svg>`;
+
+        // Display SVG preview
+        document.getElementById('svg-container').innerHTML = svgContent;
+
+        function generateIcon(size, filename) {
+            // Create canvas
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            
+            // Create image from SVG
+            const img = new Image();
+            const svgBlob = new Blob([svgContent], {type: 'image/svg+xml'});
+            const url = URL.createObjectURL(svgBlob);
+            
+            img.onload = function() {
+                // Clear canvas
+                ctx.clearRect(0, 0, size, size);
+                
+                // Draw SVG scaled to size
+                ctx.drawImage(img, 0, 0, size, size);
+                
+                // Convert to blob and download
+                canvas.toBlob(function(blob) {
+                    const downloadUrl = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = downloadUrl;
+                    a.download = filename;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(downloadUrl);
+                }, 'image/png');
+                
+                URL.revokeObjectURL(url);
+            };
+            
+            img.src = url;
+            
+            // Show preview
+            const container = document.getElementById('canvas-container');
+            container.innerHTML = `<h4>${filename} (${size}x${size}) Preview:</h4>`;
+            container.appendChild(canvas);
+        }
+    </script>
+</body>
+</html> 

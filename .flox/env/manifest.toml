@@ -16,6 +16,7 @@ version = 1
 ## -------------------------------------------------------------------
 [install]
 nodejs = { pkg-path = "nodejs" }
+imagemagick.pkg-path = "imagemagick"
 
 
 ## Environment Variables ---------------------------------------------

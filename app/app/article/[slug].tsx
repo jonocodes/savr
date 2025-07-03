@@ -295,12 +295,13 @@ export default function ArticleScreen() {
         }}
       >
         {Platform.OS === "web" ? (
-          <ScrollView
+          <View
             // contentContainerStyle={{
             //   flexGrow: 1,
             // }}
             style={{
               margin: 8,
+              backgroundColor: theme.colors.background,
               // fontSize: 30,
             }}
           >
@@ -312,7 +313,7 @@ export default function ArticleScreen() {
               }}
               dangerouslySetInnerHTML={{ __html: html }}
             />
-          </ScrollView>
+          </View>
         ) : (
           // TODO: may need to use react-native-render-html
           <WebView originWhitelist={["*"]} source={{ html: html }} />

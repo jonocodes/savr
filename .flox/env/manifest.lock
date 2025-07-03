@@ -3,6 +3,9 @@
   "manifest": {
     "version": 1,
     "install": {
+      "imagemagick": {
+        "pkg-path": "imagemagick"
+      },
       "nodejs": {
         "pkg-path": "nodejs"
       }
@@ -17,23 +20,143 @@
         "aarch64-linux",
         "x86_64-darwin",
         "x86_64-linux"
-      ],
-      "allow": {
-        "licenses": []
-      },
-      "semver": {}
+      ]
     },
     "services": {
       "web": {
-        "command": "cd web && npm run web",
-        "vars": null,
-        "is-daemon": null,
-        "shutdown": null,
-        "systems": null
+        "command": "cd web && npm run web"
       }
     }
   },
   "packages": [
+    {
+      "attr_path": "imagemagick",
+      "broken": false,
+      "derivation": "/nix/store/gwvxqz5fjpxzwpfkyjf5gvhbhwcpwn7z-imagemagick-7.1.1-43.drv",
+      "description": "Software suite to create, edit, compose, or convert bitmap images",
+      "install_id": "imagemagick",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "name": "imagemagick-7.1.1-43",
+      "pname": "imagemagick",
+      "rev": "eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "rev_count": 738172,
+      "rev_date": "2025-01-14T19:41:48Z",
+      "scrape_date": "2025-01-16T00:14:48Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "7.1.1-43",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/i6v0zr0q3qxrr04laq3lz8l757qq8lvn-imagemagick-7.1.1-43-dev",
+        "doc": "/nix/store/b0332x03230n8hm19zq1fa346v88gsh0-imagemagick-7.1.1-43-doc",
+        "out": "/nix/store/wqw36sai4sbib15ydj925339ffvp1xqn-imagemagick-7.1.1-43"
+      },
+      "system": "aarch64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "imagemagick",
+      "broken": false,
+      "derivation": "/nix/store/7bbg8kn37gynzhzrc5f9383w1cg9nl2f-imagemagick-7.1.1-43.drv",
+      "description": "Software suite to create, edit, compose, or convert bitmap images",
+      "install_id": "imagemagick",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "name": "imagemagick-7.1.1-43",
+      "pname": "imagemagick",
+      "rev": "eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "rev_count": 738172,
+      "rev_date": "2025-01-14T19:41:48Z",
+      "scrape_date": "2025-01-16T00:14:48Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "7.1.1-43",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/bfbdw0bcmk3yzqqq5yb1n749bvzzpgf2-imagemagick-7.1.1-43-dev",
+        "doc": "/nix/store/6xw17i4pcmzaiv31sfvd6w4dih2m1pmb-imagemagick-7.1.1-43-doc",
+        "out": "/nix/store/mxm3wfj0xylkziimr1i85q46vclv1b8a-imagemagick-7.1.1-43"
+      },
+      "system": "aarch64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "imagemagick",
+      "broken": false,
+      "derivation": "/nix/store/d28fagksj6xwqscbwypc2chx8apgwjfh-imagemagick-7.1.1-43.drv",
+      "description": "Software suite to create, edit, compose, or convert bitmap images",
+      "install_id": "imagemagick",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "name": "imagemagick-7.1.1-43",
+      "pname": "imagemagick",
+      "rev": "eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "rev_count": 738172,
+      "rev_date": "2025-01-14T19:41:48Z",
+      "scrape_date": "2025-01-16T00:14:48Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "7.1.1-43",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/9wbim3jp1hip0cgs0hk41v0fbqy28n81-imagemagick-7.1.1-43-dev",
+        "doc": "/nix/store/wgjp76w0s7ixfh4nq9cfcwjasqckrbbv-imagemagick-7.1.1-43-doc",
+        "out": "/nix/store/f98fn7bbq4chyrg7wabhbyqvky2yj0pv-imagemagick-7.1.1-43"
+      },
+      "system": "x86_64-darwin",
+      "group": "toplevel",
+      "priority": 5
+    },
+    {
+      "attr_path": "imagemagick",
+      "broken": false,
+      "derivation": "/nix/store/00aisfn60k7vqwvnfhjvwgfgjqhhivj3-imagemagick-7.1.1-43.drv",
+      "description": "Software suite to create, edit, compose, or convert bitmap images",
+      "install_id": "imagemagick",
+      "license": "Apache-2.0",
+      "locked_url": "https://github.com/flox/nixpkgs?rev=eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "name": "imagemagick-7.1.1-43",
+      "pname": "imagemagick",
+      "rev": "eb62e6aa39ea67e0b8018ba8ea077efe65807dc8",
+      "rev_count": 738172,
+      "rev_date": "2025-01-14T19:41:48Z",
+      "scrape_date": "2025-01-16T00:14:48Z",
+      "stabilities": [
+        "staging",
+        "unstable"
+      ],
+      "unfree": false,
+      "version": "7.1.1-43",
+      "outputs_to_install": [
+        "out"
+      ],
+      "outputs": {
+        "dev": "/nix/store/s77ik3wgzf99lzam0m9fgkjjvss420ly-imagemagick-7.1.1-43-dev",
+        "doc": "/nix/store/yfa5p3acq9dp4x3q2xr5123ksqipf5ah-imagemagick-7.1.1-43-doc",
+        "out": "/nix/store/wj4gp2b1mks14ry6m25rfwkpbj0qwvc0-imagemagick-7.1.1-43"
+      },
+      "system": "x86_64-linux",
+      "group": "toplevel",
+      "priority": 5
+    },
     {
       "attr_path": "nodejs",
       "broken": false,
@@ -49,6 +172,7 @@
       "rev_date": "2025-01-14T19:41:48Z",
       "scrape_date": "2025-01-16T00:14:48Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -79,6 +203,7 @@
       "rev_date": "2025-01-14T19:41:48Z",
       "scrape_date": "2025-01-16T00:14:48Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -109,6 +234,7 @@
       "rev_date": "2025-01-14T19:41:48Z",
       "scrape_date": "2025-01-16T00:14:48Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,
@@ -139,6 +265,7 @@
       "rev_date": "2025-01-14T19:41:48Z",
       "scrape_date": "2025-01-16T00:14:48Z",
       "stabilities": [
+        "staging",
         "unstable"
       ],
       "unfree": false,

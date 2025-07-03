@@ -8,7 +8,7 @@
     "scheme": "savr",
     "userInterfaceStyle": "automatic",
     "splash": {
-      "image": "./assets/splash.png",
+      "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -25,7 +25,11 @@
       }
     },
     "web": {
-      "bundler": "metro"
+      "bundler": "metro",
+      "favicon": "./assets/favicon.png",
+      "themeColor": "#000000",
+      "backgroundColor": "#ffffff",
+      "template": "./public/index.html"
     },
     "plugins": [
       "expo-router"

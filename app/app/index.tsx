@@ -442,7 +442,11 @@ export default function ArticleListScreen() {
           <IconButton icon="cog" onPress={() => router.push("/preferences")} />
         </View>
 
-        <ScrollView>
+        <View
+          style={{
+            backgroundColor: theme.colors.surface,
+          }}
+        >
           <FlatList
             data={filteredArticles}
             // renderItem={renderItem}
@@ -450,7 +454,7 @@ export default function ArticleListScreen() {
             keyExtractor={(item) => item.slug}
             style={styles.list}
           />
-        </ScrollView>
+        </View>
 
         {/* <FAB
           icon="plus"

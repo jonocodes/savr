@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, ScrollView, Platform } from "react-native";
+import { StyleSheet, ScrollView, Platform, View } from "react-native";
+import { ThemedView } from "@/components/ThemedView";
 
 import {
   List,
@@ -21,7 +22,7 @@ import { router } from "expo-router";
 // import { DarkTheme, DefaultTheme } from "@react-navigation/native";
 
 
-// TODO: this is useful for dev, but can cause CORE issues on some sites like npm.org, so the actual source needs to be in the bookmarklet
+// TODO: this is useful for dev, but can cause CORES issues on some sites like npm.org, so the actual source needs to be in the bookmarklet
 const bookmarklet = "javascript:(function(){const app = 'http://localhost:8081'; var s = document.createElement('script'); s.src = app + '/bookmarklet-client.js'; document.body.appendChild(s); })();"
 
 export default function PreferencesScreen() {
@@ -88,11 +89,7 @@ export default function PreferencesScreen() {
   // TODO: I should not have to use PaperProvider since its in the layout.
   //  also should not have to set ScrollView style excplicitly or have have to extract the bg only
   return (
-      <PaperProvider 
-      // theme={theme}
-      theme={theme}
-      >
-
+      <View style={{ flex: 1 }}>
         <Appbar.Header 
         theme={theme}
         >
@@ -108,15 +105,12 @@ export default function PreferencesScreen() {
           <Appbar.Content title="Preferences" />
         </Appbar.Header>
 
-        <ScrollView
-    // style={styles.container} 
-    // style={colorScheme.colors }
-    style={{ 
-      backgroundColor: theme.colors.background,
-      }}
-    // style={currentTheme.colors}
-    >
-
+        <View
+          style={{ 
+            // flex: 1,
+            backgroundColor: theme.colors.background
+          }}
+        >
 
 <List.Section>
         <List.Subheader>Fetching content</List.Subheader>
@@ -146,7 +140,7 @@ export default function PreferencesScreen() {
 
           right={() => (
             <TextInput
-              value={corsProxy}
+              value={corsProxy || ''}
               onChangeText={setCorsProxy}
               placeholder="https://"
               // style={styles.input}
@@ -213,9 +207,8 @@ export default function PreferencesScreen() {
         />
       </List.Section>
 
-    </ScrollView>
-    {/* </View> */}
-      </PaperProvider>
+        </View>
+      </View>
   );
 }
 
