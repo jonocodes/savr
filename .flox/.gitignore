@@ -2,3 +2,4 @@ run/
 cache/
 lib/
 log/
+env.lock
