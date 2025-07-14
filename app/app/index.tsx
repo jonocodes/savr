@@ -1,5 +1,13 @@
 import React, { useState, useEffect } from "react";
-import { View, FlatList, StyleSheet, ScrollView, SafeAreaView } from "react-native";
+import {
+  View,
+  FlatList,
+  StyleSheet,
+  ScrollView,
+  SafeAreaView,
+  Modal,
+  TouchableOpacity,
+} from "react-native";
 import {
   List,
   IconButton,
@@ -21,7 +29,7 @@ import {
 
 import { useLiveQuery } from "dexie-react-hooks";
 
-import { Image, Platform, Linking, TouchableOpacity } from "react-native";
+import { Image, Platform, Linking } from "react-native";
 
 // import RemoteStorage from "remotestoragejs";
 // import Widget from "remotestorage-widget";
@@ -224,9 +232,10 @@ function ArticleItem(props: { item: Article }) {
           <Menu.Item
             leadingIcon="share-variant"
             onPress={() => {
-              navigator.clipboard.writeText(item.url);
-
-              alert("Url copied to clipboard: " + item.url);
+              if (item.url) {
+                navigator.clipboard.writeText(item.url);
+                alert("Url copied to clipboard: " + item.url);
+              }
 
               closeMenu();
             }}
@@ -378,7 +387,6 @@ export default function ArticleListScreen() {
   return (
     <PaperProvider theme={theme}>
       <View
-        //  style={globalStyles.container}
         style={{
           flex: 1,
           backgroundColor: theme.colors.background,
@@ -445,63 +453,86 @@ export default function ArticleListScreen() {
         <View
           style={{
             backgroundColor: theme.colors.surface,
+            flex: 1,
           }}
         >
-          <FlatList
-            data={filteredArticles}
-            // renderItem={renderItem}
-            renderItem={({ item }) => <ArticleItem item={item} />}
-            keyExtractor={(item) => item.slug}
-            style={styles.list}
-          />
+          {filteredArticles && filteredArticles.length > 0 ? (
+            <View style={{ backgroundColor: "red", flex: 1, paddingRight: 0 }}>
+              <View style={{ maxWidth: 650, alignSelf: "center", width: "100%" }}>
+                {filteredArticles.map((item) => (
+                  <ArticleItem key={item.slug} item={item} />
+                ))}
+              </View>
+            </View>
+          ) : (
+            <View style={styles.emptyStateContainer}>
+              <View style={styles.emptyState}>
+                <Text style={[styles.emptyStateTitle, { color: theme.colors.onSurface }]}>
+                  Welcome to Savr
+                </Text>
+                <Text style={[styles.emptyStateSubtitle, { color: theme.colors.onSurface }]}>
+                  {filter === "unread"
+                    ? "Start saving articles to see them here"
+                    : "No archived articles yet"}
+                </Text>
+                <Button
+                  mode="contained"
+                  onPress={() => {
+                    setDialogVisible(true);
+                    setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+                  }}
+                  style={styles.addFirstButton}
+                >
+                  Add Your First Article
+                </Button>
+              </View>
+            </View>
+          )}
         </View>
 
-        {/* <FAB
-          icon="plus"
-          style={styles.fab}
-          onPress={() => {
-            setIngestStatus(null);
-            setDialogVisible(true);
-
-            setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
-          }}
-        /> */}
-
-        {/* <AddArticleDialog open={dialogVisible} onClose={() => setDialogVisible(false)} /> */}
-
-        <Portal>
-          <Dialog
-            visible={dialogVisible}
-            onDismiss={() => setDialogVisible(false)}
-            style={styles.dialog}
+        <Modal
+          visible={dialogVisible}
+          onRequestClose={() => setDialogVisible(false)}
+          transparent={true}
+          animationType="fade"
+        >
+          <TouchableOpacity
+            style={styles.modalOverlay}
+            activeOpacity={1}
+            onPress={() => setDialogVisible(false)}
           >
-            <Dialog.Title>Add Article</Dialog.Title>
-            <Dialog.Content>
-              <TextInput label="URL" value={url} onChangeText={setUrl} mode="outlined" />
+            <TouchableOpacity
+              style={[styles.modalContent, { backgroundColor: theme.colors.surface }]}
+              activeOpacity={1}
+              onPress={(e) => e.stopPropagation()}
+            >
+              <Text style={[styles.modalTitle, { color: theme.colors.onSurface }]}>
+                Add Article
+              </Text>
+              <TextInput
+                label="URL"
+                value={url}
+                onChangeText={setUrl}
+                mode="outlined"
+                style={styles.textInput}
+              />
 
               {ingestPercent != 0 && (
                 <>
-                  <Text
-                    style={{
-                      // textAlign: "center",
-                      marginTop: 20,
-                      marginBottom: 10,
-                    }}
-                  >
+                  <Text style={[styles.progressText, { color: theme.colors.onSurface }]}>
                     {ingestStatus}
                   </Text>
-
                   <ProgressBar progress={ingestPercent / 100} />
                 </>
               )}
-            </Dialog.Content>
 
-            <Dialog.Actions>
-              <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
-              <Button onPress={saveUrl}>Save</Button>
-            </Dialog.Actions>
-          </Dialog>
-        </Portal>
+              <View style={styles.modalActions}>
+                <Button onPress={() => setDialogVisible(false)}>Cancel</Button>
+                <Button onPress={saveUrl}>Save</Button>
+              </View>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </Modal>
       </View>
     </PaperProvider>
   );
@@ -513,12 +544,76 @@ const styles = StyleSheet.create({
   // },
   list: {
     flex: 1,
-    maxWidth: 650,
-    alignSelf: "center",
   },
   dialog: {
     width: 500, // TODO: make this a max width somehow
     alignSelf: "center",
+  },
+  portalContainer: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    zIndex: 1000,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    borderRadius: 8,
+    padding: 20,
+    width: 500,
+    maxWidth: "90%",
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 20,
+  },
+  textInput: {
+    marginBottom: 20,
+  },
+  progressText: {
+    marginTop: 20,
+    marginBottom: 10,
+  },
+  modalActions: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    marginTop: 20,
+  },
+  emptyStateContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: "100%",
+  },
+  emptyState: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  emptyStateTitle: {
+    fontSize: 24,
+    fontWeight: "bold",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  emptyStateSubtitle: {
+    fontSize: 16,
+    marginBottom: 24,
+    textAlign: "center",
+    opacity: 0.7,
+  },
+  addFirstButton: {
+    marginTop: 8,
   },
   fab: {
     position: "absolute",

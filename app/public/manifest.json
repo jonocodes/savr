@@ -1,6 +1,6 @@
 {
-    "name": "SAVR - Save Articles for Reading",
-    "short_name": "SAVR",
+    "name": "Savr - Save Articles for Reading",
+    "short_name": "Savr",
     "description": "Save and read articles offline with a clean, distraction-free interface",
     "start_url": "/",
     "display": "standalone",
@@ -26,5 +26,13 @@
             "type": "image/png",
             "purpose": "any maskable"
         }
-    ]
+    ],
+    "share_target": {
+        "action": "/share-handler",
+        "method": "GET",
+        "params": {
+            "text": "content",
+            "url": "link"
+        }
+    }
 }
