@@ -49,7 +49,7 @@ const mockArticle = {
 };
 
 export default function ArticleScreen() {
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   const [fontSize, setFontSize] = useState(16);
   const [viewMode, setViewMode] = useState<"cleaned" | "original">("cleaned");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
@@ -75,17 +75,17 @@ export default function ArticleScreen() {
 
   const handleDelete = () => {
     alert("Delete functionality would be implemented here");
-    navigate({ to: "/" });
+    // navigate({ to: "/" });
   };
 
   const handleArchive = () => {
     alert("Archive functionality would be implemented here");
-    navigate({ to: "/" });
+    // navigate({ to: "/" });
   };
 
   const handleUnarchive = () => {
     alert("Unarchive functionality would be implemented here");
-    navigate({ to: "/" });
+    // navigate({ to: "/" });
   };
 
   return (
@@ -95,7 +95,9 @@ export default function ArticleScreen() {
           <IconButton
             edge="start"
             color="inherit"
-            onClick={() => navigate({ to: "/" })}
+            onClick={
+              () => {} //navigate({ to: "/" })
+            }
             sx={{ mr: 2 }}
           >
             <ArrowBackIcon />
