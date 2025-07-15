@@ -13,7 +13,7 @@ import {
   // MD3DarkTheme as DarkTheme,
 } from "react-native-paper";
 import { SnackbarProvider } from "@/components/SnackbarProvider";
-import { loadColorScheme, useMyStore, useThemeStore } from "./tools";
+import { loadColorScheme, useMyStore, useThemeStore } from "../tools";
 import { RemoteStorageProvider } from "@/components/RemoteStorageProvider";
 
 // Prevent the splash screen from auto-hiding before asset loading is complete.

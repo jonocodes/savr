@@ -45,7 +45,7 @@ import {
   updateArticleState,
   useMyStore,
   useThemeStore,
-} from "@/app/tools";
+} from "@/tools";
 import { Article, generateInfoForCard } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { globalStyles } from "./_layout";

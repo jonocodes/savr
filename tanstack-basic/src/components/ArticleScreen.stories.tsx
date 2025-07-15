@@ -1,4 +1,4 @@
-import type { Meta, StoryObj } from "@storybook/react";
+import type { Meta, StoryObj } from "@storybook/react-vite";
 import ArticleScreen from "./ArticleScreen";
 
 const meta: Meta<typeof ArticleScreen> = {

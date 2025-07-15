@@ -8,13 +8,14 @@ import {
   useFontStore,
   useMyStore,
   useThemeStore,
-} from "../tools";
+} from "../../tools";
 import { Appbar, IconButton, Menu, Tooltip } from "react-native-paper";
 import { Article } from "@savr/lib";
 import { useSnackbar } from "@/components/SnackbarProvider";
 import { PaperProvider } from "react-native-paper";
 import { useRemoteStorage } from "@/components/RemoteStorageProvider";
 import { db } from "@/db";
+import ArticleView from "@/components/ArticleView";
 
 export default function ArticleScreen() {
   const { slug } = useLocalSearchParams();
@@ -31,6 +32,8 @@ export default function ArticleScreen() {
   const [viewMode, setViewMode] = useState("cleaned");
 
   const [html, setHtml] = useState("");
+
+  const [content, setContent] = useState("");
 
   const [article, setArticle] = useState({} as Article);
 
@@ -65,13 +68,15 @@ export default function ArticleScreen() {
           return;
         }
         setArticle(article);
+        console.log("loading from db article", article);
       });
 
       try {
         if (viewMode === "original") {
           storage.client
             ?.getFile(`saves/${slug}/raw.html`)
-            .then((file) => {
+            .then((file: any) => {
+              setContent(file.data);
               setHtml(`${file.data}`);
             })
             .catch((error) => {
@@ -83,20 +88,23 @@ export default function ArticleScreen() {
 
           storage.client
             ?.getFile(`saves/${slug}/index.html`)
-            .then((file) => {
+            .then((file: any) => {
+              setContent(file.data);
               setHtml(`<link rel="stylesheet" href="${style.uri}">${file.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);
             });
         }
+
+        console.log("loading from content article", html);
       } catch (e) {
         console.error(e);
       }
     };
 
     setup();
-  }, [viewMode]);
+  }, [viewMode, slug, storage]);
 
   const deleteArticle = async () => {
     console.log(`Deleting ${article.slug}`);
@@ -254,7 +262,7 @@ export default function ArticleScreen() {
               var url: string | null | undefined = article.url;
               // if (url === null) url = undefined;
 
-              const newTab = window.open(url, "_blank");
+              const newTab = window.open(url || undefined, "_blank");
               // if (newTab) {
               //   newTab.focus();
               // } else {
@@ -268,7 +276,7 @@ export default function ArticleScreen() {
           <Menu.Item
             leadingIcon="share-variant"
             onPress={() => {
-              navigator.clipboard.writeText(article.url);
+              navigator.clipboard.writeText(article.url || "");
 
               alert("Url copied to clipboard: " + article.url);
 
@@ -294,32 +302,31 @@ export default function ArticleScreen() {
           backgroundColor: theme.colors.background,
         }}
       >
-        {Platform.OS === "web" ? (
-          <View
-            // contentContainerStyle={{
-            //   flexGrow: 1,
-            // }}
+        <ArticleView
+          //article={article}
+          content={content}
+          viewMode={viewMode as "cleaned" | "original"}
+        />
+        {/* <View
+          // contentContainerStyle={{
+          //   flexGrow: 1,
+          // }}
+          style={{
+            margin: 8,
+            backgroundColor: theme.colors.background,
+            // fontSize: 30,
+          }}
+        >
+          <div
             style={{
-              margin: 8,
-              backgroundColor: theme.colors.background,
-              // fontSize: 30,
+              flex: 1,
+              fontSize: fontSize,
+              color: theme.colors.onBackground,
             }}
-          >
-            <div
-              style={{
-                flex: 1,
-                fontSize: fontSize,
-                color: theme.colors.onBackground,
-              }}
-              dangerouslySetInnerHTML={{ __html: html }}
-            />
-          </View>
-        ) : (
-          // TODO: may need to use react-native-render-html
-          <WebView originWhitelist={["*"]} source={{ html: html }} />
-        )}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
+        </View> */}
       </View>
-      {/* </View> */}
     </PaperProvider>
   );
 }

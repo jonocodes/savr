@@ -15,7 +15,7 @@ import {
 } from "react-native-paper";
 
 
-import { DarkTheme, getDir, LightTheme, useMyStore, useThemeStore } from "@/app/tools";
+import { DarkTheme, getDir, LightTheme, useMyStore, useThemeStore } from "@/tools";
 
 import { version } from "../package.json" with { type: "json" };
 import { router } from "expo-router";
