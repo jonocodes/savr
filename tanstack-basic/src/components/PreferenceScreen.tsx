@@ -84,6 +84,7 @@ export default function PreferencesScreen() {
 
   const handleBack = () => {
     console.log("Navigate back to home");
+    window.location.href = "/";
   };
 
   const handleThemeToggle = () => {

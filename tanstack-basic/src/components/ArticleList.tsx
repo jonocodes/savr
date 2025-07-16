@@ -138,12 +138,13 @@ function ArticleItem({ item }: { item: Article }) {
         },
       }}
     >
-      <ListItemAvatar>
+      <ListItemAvatar onClick={() => (window.location.href = "/article/sample-article")}>
         <Avatar>
           <ArticleIcon />
         </Avatar>
       </ListItemAvatar>
       <ListItemText
+        onClick={() => (window.location.href = "/article/sample-article")}
         primary={item.title}
         secondary={
           <Box>
@@ -192,9 +193,9 @@ function ArticleItem({ item }: { item: Article }) {
   );
 }
 
-export default function ArticleListScreen() {
+export default function ArticleListScreen({ initialArticles }: { initialArticles?: Article[] }) {
   const [dialogVisible, setDialogVisible] = useState(false);
-  const [articles] = useState<Article[]>(mockArticles);
+  const [articles] = useState<Article[]>(initialArticles || mockArticles);
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
@@ -285,7 +286,7 @@ export default function ArticleListScreen() {
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="Settings">
-            <IconButton>
+            <IconButton onClick={() => (window.location.href = "/prefs")}>
               <SettingsIcon />
             </IconButton>
           </Tooltip>
@@ -328,7 +329,7 @@ export default function ArticleListScreen() {
                 }}
                 sx={{ mt: 2 }}
               >
-                Add Your First Article
+                Add Article
               </Button>
             </Box>
           )}
@@ -369,7 +370,7 @@ export default function ArticleListScreen() {
         </Dialog>
 
         {/* Floating Action Button */}
-        <Fab
+        {/* <Fab
           color="primary"
           aria-label="add"
           sx={{
@@ -383,7 +384,7 @@ export default function ArticleListScreen() {
           }}
         >
           <AddIcon />
-        </Fab>
+        </Fab> */}
       </Box>
     </ThemeProvider>
   );

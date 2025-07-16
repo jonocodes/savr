@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Box, Typography, Button, AppBar, Toolbar, Container, Paper } from "@mui/material";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
+import ArticleListScreen from "~/components/ArticleList";
 
 const theme = createTheme({
   palette: {
@@ -16,35 +17,34 @@ export const Route = createFileRoute("/")({
   component: Home,
 });
 
-function Home() {
-  return (
-    <Box sx={{ flexGrow: 1 }}>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Savr - Article Reader
-          </Typography>
-          <Button color="inherit">Login</Button>
-        </Toolbar>
-      </AppBar>
+const mockArticles = [
+  {
+    slug: "sample-article-1",
+    title: "Sample Article Title 1",
+    url: "https://example.com/article1",
+    state: "unread" as const,
+    ingestDate: new Date("2024-01-15"),
+    description: "This is a sample article description for demonstration purposes.",
+  },
+  {
+    slug: "sample-article-2",
+    title: "Sample Article Title 2",
+    url: "https://example.com/article2",
+    state: "archived" as const,
+    ingestDate: new Date("2024-01-10"),
+    description: "Another sample article description for demonstration purposes.",
+  },
+  {
+    slug: "sample-article-3",
+    title: "Sample Article Title 3",
+    url: "https://example.com/article3",
+    state: "unread" as const,
+    ingestDate: new Date("2024-01-05"),
+    description: "Yet another sample article description for demonstration purposes.",
+  },
+];
 
-      <Container maxWidth="md" sx={{ mt: 4 }}>
-        <Paper sx={{ p: 3 }}>
-          <Typography variant="h4" component="h1" gutterBottom>
-            Welcome to Savr!
-          </Typography>
-          <Typography variant="body1" paragraph>
-            This is a test page to verify that MUI components are working correctly.
-          </Typography>
-          <Button
-            variant="contained"
-            color="primary"
-            onClick={() => (window.location.href = "/article/sample-article")}
-          >
-            View Sample Article
-          </Button>
-        </Paper>
-      </Container>
-    </Box>
-  );
+function Home() {
+  return <ArticleListScreen initialArticles={mockArticles} />;
+
 }

@@ -95,9 +95,10 @@ export default function ArticleScreen() {
           <IconButton
             edge="start"
             color="inherit"
-            onClick={
-              () => {} //navigate({ to: "/" })
-            }
+            // onClick={
+            //   () => {} //navigate({ to: "/" })
+            // }
+            onClick={() => (window.location.href = "/")}
             sx={{ mr: 2 }}
           >
             <ArrowBackIcon />

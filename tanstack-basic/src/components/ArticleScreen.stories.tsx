@@ -1,11 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import ArticleScreen from "./ArticleScreen";
 import React from "react";
-import { createRouter } from "../router";
-import { RouterProvider } from "@tanstack/react-router";
-
-// Create a minimal router for Storybook
-const storybookRouter = createRouter();
 
 const meta: Meta<typeof ArticleScreen> = {
   title: "Components/ArticleScreen",
@@ -20,13 +15,6 @@ const meta: Meta<typeof ArticleScreen> = {
     },
   },
   tags: ["autodocs"],
-  decorators: [
-    (Story) => (
-      // <RouterProvider router={storybookRouter}>
-      <Story />
-      // </RouterProvider>
-    ),
-  ],
 };
 
 export default meta;
