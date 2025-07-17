@@ -15,6 +15,7 @@ const meta: Meta<typeof PreferenceScreen> = {
       },
     },
   },
+  tags: ["autodocs"],
   decorators: [
     (Story) => (
       <ThemeProvider theme={createTheme()}>
@@ -62,23 +63,6 @@ export const DarkTheme: Story = {
     },
   },
 };
-
-// Custom CORS proxy configuration
-export const CustomCorsProxy: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story: "Preference screen with custom CORS proxy configuration.",
-      },
-    },
-  },
-  play: async ({ canvasElement }) => {
-    // This would be used for interactions if we had access to the component's internal state
-    // For now, this demonstrates the story structure
-  },
-};
-
 // Mobile viewport
 export const Mobile: Story = {
   args: {},
@@ -92,110 +76,11 @@ export const Mobile: Story = {
       },
     },
   },
-};
-
-// Tablet viewport
-export const Tablet: Story = {
-  args: {},
-  parameters: {
-    viewport: {
-      defaultViewport: "tablet",
-    },
-    docs: {
-      description: {
-        story: "Preference screen on tablet device viewport.",
-      },
-    },
-  },
-};
-
-// Desktop viewport
-export const Desktop: Story = {
-  args: {},
-  parameters: {
-    viewport: {
-      defaultViewport: "desktop",
-    },
-    docs: {
-      description: {
-        story: "Preference screen on desktop viewport.",
-      },
-    },
-  },
-};
-
-// Interactive theme toggle
-export const InteractiveThemeToggle: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Interactive preference screen where you can toggle between light and dark themes by clicking the theme option.",
-      },
-    },
-  },
-};
-
-// CORS proxy editing
-export const CorsProxyEditing: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story: "Preference screen where you can edit the CORS proxy URL in the text field.",
-      },
-    },
-  },
-};
-
-// All sections expanded
-export const AllSections: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story:
-          "Complete preference screen showing all sections: Fetching content, Reading preferences, and About information.",
-      },
-    },
-  },
-};
-
-// Accessibility focused
-export const Accessibility: Story = {
-  args: {},
-  parameters: {
-    a11y: {
-      config: {
-        rules: [
-          {
-            id: "color-contrast",
-            enabled: true,
-          },
-          {
-            id: "button-name",
-            enabled: true,
-          },
-        ],
-      },
-    },
-    docs: {
-      description: {
-        story: "Preference screen with accessibility testing enabled.",
-      },
-    },
-  },
-};
-
-// Performance testing
-export const Performance: Story = {
-  args: {},
-  parameters: {
-    docs: {
-      description: {
-        story: "Preference screen for performance testing and monitoring.",
-      },
-    },
-  },
+  decorators: [
+    (Story) => (
+      <div style={{ width: "400px", margin: "0 auto" }}>
+        <Story />
+      </div>
+    ),
+  ],
 };

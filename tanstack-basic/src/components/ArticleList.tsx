@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Box,
   List,
@@ -93,6 +94,7 @@ interface Article {
 }
 
 function ArticleItem({ item }: { item: Article }) {
+  const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
@@ -138,13 +140,15 @@ function ArticleItem({ item }: { item: Article }) {
         },
       }}
     >
-      <ListItemAvatar onClick={() => (window.location.href = "/article/sample-article")}>
+      <ListItemAvatar
+        onClick={() => navigate({ to: "/article/$slug", params: { slug: item.slug } })}
+      >
         <Avatar>
           <ArticleIcon />
         </Avatar>
       </ListItemAvatar>
       <ListItemText
-        onClick={() => (window.location.href = "/article/sample-article")}
+        onClick={() => navigate({ to: "/article/$slug", params: { slug: item.slug } })}
         primary={item.title}
         secondary={
           <Box>
@@ -194,6 +198,7 @@ function ArticleItem({ item }: { item: Article }) {
 }
 
 export default function ArticleListScreen({ initialArticles }: { initialArticles?: Article[] }) {
+  const navigate = useNavigate();
   const [dialogVisible, setDialogVisible] = useState(false);
   const [articles] = useState<Article[]>(initialArticles || mockArticles);
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
@@ -286,7 +291,7 @@ export default function ArticleListScreen({ initialArticles }: { initialArticles
           <Box sx={{ flexGrow: 1 }} />
 
           <Tooltip title="Settings">
-            <IconButton onClick={() => (window.location.href = "/prefs")}>
+            <IconButton onClick={() => navigate({ to: "/prefs" })}>
               <SettingsIcon />
             </IconButton>
           </Tooltip>

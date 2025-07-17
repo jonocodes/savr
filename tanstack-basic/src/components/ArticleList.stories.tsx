@@ -94,7 +94,7 @@ export const MobileView: Story = {
   },
   decorators: [
     (Story) => (
-      <div style={{ width: "600px", margin: "0 auto" }}>
+      <div style={{ width: "400px", margin: "0 auto" }}>
         <Story />
       </div>
     ),

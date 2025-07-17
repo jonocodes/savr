@@ -13,7 +13,6 @@ import { createServerRootRoute } from '@tanstack/react-start/server'
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RedirectRouteImport } from './routes/redirect'
 import { Route as PrefsRouteImport } from './routes/prefs'
-import { Route as PostsRouteImport } from './routes/posts'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ArticleSlugRouteImport } from './routes/article.$slug'
 import { ServerRoute as ApiUsersServerRouteImport } from './routes/api/users'
@@ -29,11 +28,6 @@ const RedirectRoute = RedirectRouteImport.update({
 const PrefsRoute = PrefsRouteImport.update({
   id: '/prefs',
   path: '/prefs',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const PostsRoute = PostsRouteImport.update({
-  id: '/posts',
-  path: '/posts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -59,14 +53,12 @@ const ApiUsersUserIdServerRoute = ApiUsersUserIdServerRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/posts': typeof PostsRoute
   '/prefs': typeof PrefsRoute
   '/redirect': typeof RedirectRoute
   '/article/$slug': typeof ArticleSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/posts': typeof PostsRoute
   '/prefs': typeof PrefsRoute
   '/redirect': typeof RedirectRoute
   '/article/$slug': typeof ArticleSlugRoute
@@ -74,22 +66,20 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/posts': typeof PostsRoute
   '/prefs': typeof PrefsRoute
   '/redirect': typeof RedirectRoute
   '/article/$slug': typeof ArticleSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/posts' | '/prefs' | '/redirect' | '/article/$slug'
+  fullPaths: '/' | '/prefs' | '/redirect' | '/article/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/posts' | '/prefs' | '/redirect' | '/article/$slug'
-  id: '__root__' | '/' | '/posts' | '/prefs' | '/redirect' | '/article/$slug'
+  to: '/' | '/prefs' | '/redirect' | '/article/$slug'
+  id: '__root__' | '/' | '/prefs' | '/redirect' | '/article/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  PostsRoute: typeof PostsRoute
   PrefsRoute: typeof PrefsRoute
   RedirectRoute: typeof RedirectRoute
   ArticleSlugRoute: typeof ArticleSlugRoute
@@ -133,13 +123,6 @@ declare module '@tanstack/react-router' {
       path: '/prefs'
       fullPath: '/prefs'
       preLoaderRoute: typeof PrefsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/posts': {
-      id: '/posts'
-      path: '/posts'
-      fullPath: '/posts'
-      preLoaderRoute: typeof PostsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -191,7 +174,6 @@ const ApiUsersServerRouteWithChildren = ApiUsersServerRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  PostsRoute: PostsRoute,
   PrefsRoute: PrefsRoute,
   RedirectRoute: RedirectRoute,
   ArticleSlugRoute: ArticleSlugRoute,

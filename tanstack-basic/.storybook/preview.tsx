@@ -3,6 +3,12 @@ import type { Preview } from "@storybook/react-vite";
 import React from "react";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
+import {
+  RouterProvider,
+  createMemoryHistory,
+  createRootRoute,
+  createRouter,
+} from "@tanstack/react-router";
 
 const theme = createTheme({
   palette: {
@@ -27,12 +33,22 @@ const preview: Preview = {
     },
   },
   decorators: [
-    (Story) => (
-      <ThemeProvider theme={theme}>
-        <CssBaseline />
-        <Story />
-      </ThemeProvider>
-    ),
+    (Story) => {
+      const router = createRouter({
+        history: createMemoryHistory(),
+        routeTree: createRootRoute({
+          component: Story,
+        }),
+      });
+      return <RouterProvider router={router} />;
+    },
+
+    // (Story) => (
+    //   <ThemeProvider theme={theme}>
+    //     <CssBaseline />
+    //     <Story />
+    //   </ThemeProvider>
+    // ),
   ],
 };
 

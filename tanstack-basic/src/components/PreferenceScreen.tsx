@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 import {
   Box,
   List,
@@ -81,10 +82,11 @@ const bookmarklet =
 export default function PreferencesScreen() {
   const { theme, setTheme } = useMockThemeStore();
   const { corsProxy, setCorsProxy } = useMockStore();
+  const navigate = useNavigate();
 
   const handleBack = () => {
     console.log("Navigate back to home");
-    window.location.href = "/";
+    navigate({ to: "/" });
   };
 
   const handleThemeToggle = () => {
