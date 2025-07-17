@@ -42,6 +42,14 @@ import {
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
 } from "@mui/icons-material";
+import extensionConnector from "~/utils/extensionConnector";
+import { db } from "~/utils/db";
+import { ingestUrl2 } from "../../../lib/src/ingestion";
+import { useMyStore } from "~/utils/tools";
+import { useRemoteStorage } from "./RemoteStorageProvider";
+
+import { useLiveQuery } from "dexie-react-hooks";
+import { Article } from "../../../lib/src/models";
 
 // Mock data for demonstration
 const mockArticles = [
@@ -84,14 +92,14 @@ const sampleArticleUrls = [
   "https://leejo.github.io/2024/09/29/holding_out_for_the_heros_to_fuck_off/",
 ];
 
-interface Article {
-  slug: string;
-  title: string;
-  url: string;
-  state: "unread" | "archived";
-  ingestDate: Date;
-  description: string;
-}
+// interface Article {
+//   slug: string;
+//   title: string;
+//   url: string;
+//   state: "unread" | "archived";
+//   ingestDate: Date;
+//   description: string;
+// }
 
 function ArticleItem({ item }: { item: Article }) {
   const navigate = useNavigate();
@@ -152,11 +160,12 @@ function ArticleItem({ item }: { item: Article }) {
         primary={item.title}
         secondary={
           <Box>
-            <Typography variant="body2" color="text.secondary">
+            {/* <Typography variant="body2" color="text.secondary">
               {item.description}
-            </Typography>
+            </Typography> */}
             <Typography variant="caption" color="text.secondary">
-              {formatDate(item.ingestDate)}
+              {item.ingestDate}
+              {/* {formatDate(item.ingestDate)} */}
             </Typography>
           </Box>
         }
@@ -200,11 +209,18 @@ function ArticleItem({ item }: { item: Article }) {
 export default function ArticleListScreen({ initialArticles }: { initialArticles?: Article[] }) {
   const navigate = useNavigate();
   const [dialogVisible, setDialogVisible] = useState(false);
-  const [articles] = useState<Article[]>(initialArticles || mockArticles);
+  // const [articles] = useState<Article[]>(initialArticles || mockArticles);
+
+  const articles = useLiveQuery(() => db.articles.orderBy("ingestDate").reverse().toArray());
+
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
+
+  const corsProxy = useMyStore((state) => state.corsProxy);
+
+  const { remoteStorage, client, widget } = useRemoteStorage();
 
   const theme = createTheme({
     palette: {
@@ -218,29 +234,80 @@ export default function ArticleListScreen({ initialArticles }: { initialArticles
     },
   });
 
-  const filteredArticles = articles.filter((article) => article.state === filter);
+  useEffect(() => {
+    // Set the storage client in the extension connector
+    if (client) {
+      // alert("set storage client");
+      extensionConnector.setStorageClient(client);
 
-  const saveUrl = async () => {
-    setIngestPercent(0);
-    setIngestStatus("Starting ingestion...");
-
-    // Simulate progress
-    const interval = setInterval(() => {
-      setIngestPercent((prev) => {
-        if (prev >= 100) {
-          clearInterval(interval);
+      // Set the progress callback for the extension connector
+      extensionConnector.setProgressCallback((percent, message) => {
+        if (percent !== null) {
+          setIngestStatus(message);
+          setIngestPercent(percent);
+          // Show the dialog when ingestion starts
+          if (!dialogVisible) {
+            setDialogVisible(true);
+          }
+        }
+        // Optionally hide the dialog when ingestion is complete (percent is 100)
+        if (percent === 100) {
           setTimeout(() => {
             setDialogVisible(false);
-            setIngestPercent(0);
-            setIngestStatus(null);
-          }, 1000);
-          return 100;
+          }, 2000); // Hide after 2 seconds
         }
-        return prev + 10;
       });
-    }, 200);
+    }
+  }, [client, dialogVisible]); // Run this effect when the client or dialogVisible changes
 
-    setIngestStatus("Processing article...");
+  const filteredArticles = articles?.filter((article) => article.state === filter);
+
+  const saveUrl = async () => {
+    // TODO: pass in headers/cookies for downloading
+
+    // This function is now primarily for the manual URL input in the dialog.
+    // The bookmarklet ingestion will use the progress callback set in useEffect.
+    await ingestUrl2(client, corsProxy, url, (percent: number | null, message: string | null) => {
+      if (percent !== null) {
+        setIngestStatus(message);
+        setIngestPercent(percent);
+      }
+      console.log(`INGESTED URL ${url}`);
+    })
+      .then((article) => {
+        db.articles.put(article);
+        // showMessage("Article saved");
+
+        // wait a bit before closing the dialog
+        setTimeout(() => {
+          setDialogVisible(false);
+        }, 4000);
+      })
+      .catch((error) => {
+        console.error(error);
+        // showMessage("Error saving article", true);
+      });
+
+    // setIngestPercent(0);
+    // setIngestStatus("Starting ingestion...");
+
+    // // Simulate progress
+    // const interval = setInterval(() => {
+    //   setIngestPercent((prev) => {
+    //     if (prev >= 100) {
+    //       clearInterval(interval);
+    //       setTimeout(() => {
+    //         setDialogVisible(false);
+    //         setIngestPercent(0);
+    //         setIngestStatus(null);
+    //       }, 1000);
+    //       return 100;
+    //     }
+    //     return prev + 10;
+    //   });
+    // }, 200);
+
+    // setIngestStatus("Processing article...");
   };
 
   return (
@@ -299,7 +366,7 @@ export default function ArticleListScreen({ initialArticles }: { initialArticles
 
         {/* Content */}
         <Container maxWidth="md" sx={{ mt: 2 }}>
-          {filteredArticles.length > 0 ? (
+          {filteredArticles && filteredArticles.length > 0 ? (
             <Paper elevation={1}>
               <List>
                 {filteredArticles.map((item) => (

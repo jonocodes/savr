@@ -8,6 +8,7 @@ import appCss from "~/styles/app.css?url";
 import { seo } from "~/utils/seo";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
+import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 
 // Create a default theme for the entire app
 const theme = createTheme({
@@ -61,8 +62,8 @@ export const Route = createRootRoute({
     ],
     scripts: [
       {
-        src: "/customScript.js",
-        type: "text/javascript",
+        // src: "/customScript.js",
+        // type: "text/javascript",
       },
     ],
   }),
@@ -72,19 +73,33 @@ export const Route = createRootRoute({
 });
 
 function RootDocument({ children }: { children: React.ReactNode }) {
+  const [isClient, setIsClient] = React.useState(false);
+
+  React.useEffect(() => {
+    // I think this disables SSR. not sure.
+    setIsClient(true);
+  }, []);
+
   return (
     <html>
       <head>
         <HeadContent />
       </head>
       <body>
-        <ThemeProvider theme={theme}>
-          <CssBaseline />
-
-          {children}
-          <TanStackRouterDevtools position="bottom-right" />
-          <Scripts />
-        </ThemeProvider>
+        <RemoteStorageProvider>
+          <ThemeProvider theme={theme}>
+            <CssBaseline />
+            {isClient ? (
+              <>
+                {children}
+                <TanStackRouterDevtools position="bottom-right" />
+              </>
+            ) : (
+              <div>Loading...</div>
+            )}
+            <Scripts />
+          </ThemeProvider>
+        </RemoteStorageProvider>
       </body>
     </html>
   );
