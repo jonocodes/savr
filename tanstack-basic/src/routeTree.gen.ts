@@ -11,6 +11,7 @@
 import { createServerRootRoute } from '@tanstack/react-start/server'
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as ShareHandlerRouteImport } from './routes/share-handler'
 import { Route as RedirectRouteImport } from './routes/redirect'
 import { Route as PrefsRouteImport } from './routes/prefs'
 import { Route as IndexRouteImport } from './routes/index'
@@ -20,6 +21,11 @@ import { ServerRoute as ApiUsersUserIdServerRouteImport } from './routes/api/use
 
 const rootServerRouteImport = createServerRootRoute()
 
+const ShareHandlerRoute = ShareHandlerRouteImport.update({
+  id: '/share-handler',
+  path: '/share-handler',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RedirectRoute = RedirectRouteImport.update({
   id: '/redirect',
   path: '/redirect',
@@ -55,12 +61,14 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/prefs': typeof PrefsRoute
   '/redirect': typeof RedirectRoute
+  '/share-handler': typeof ShareHandlerRoute
   '/article/$slug': typeof ArticleSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/prefs': typeof PrefsRoute
   '/redirect': typeof RedirectRoute
+  '/share-handler': typeof ShareHandlerRoute
   '/article/$slug': typeof ArticleSlugRoute
 }
 export interface FileRoutesById {
@@ -68,20 +76,28 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/prefs': typeof PrefsRoute
   '/redirect': typeof RedirectRoute
+  '/share-handler': typeof ShareHandlerRoute
   '/article/$slug': typeof ArticleSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/prefs' | '/redirect' | '/article/$slug'
+  fullPaths: '/' | '/prefs' | '/redirect' | '/share-handler' | '/article/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/prefs' | '/redirect' | '/article/$slug'
-  id: '__root__' | '/' | '/prefs' | '/redirect' | '/article/$slug'
+  to: '/' | '/prefs' | '/redirect' | '/share-handler' | '/article/$slug'
+  id:
+    | '__root__'
+    | '/'
+    | '/prefs'
+    | '/redirect'
+    | '/share-handler'
+    | '/article/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   PrefsRoute: typeof PrefsRoute
   RedirectRoute: typeof RedirectRoute
+  ShareHandlerRoute: typeof ShareHandlerRoute
   ArticleSlugRoute: typeof ArticleSlugRoute
 }
 export interface FileServerRoutesByFullPath {
@@ -111,6 +127,13 @@ export interface RootServerRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/share-handler': {
+      id: '/share-handler'
+      path: '/share-handler'
+      fullPath: '/share-handler'
+      preLoaderRoute: typeof ShareHandlerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/redirect': {
       id: '/redirect'
       path: '/redirect'
@@ -176,6 +199,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   PrefsRoute: PrefsRoute,
   RedirectRoute: RedirectRoute,
+  ShareHandlerRoute: ShareHandlerRoute,
   ArticleSlugRoute: ArticleSlugRoute,
 }
 export const routeTree = rootRouteImport

@@ -668,7 +668,6 @@ async function ingestHtml(fileManager: FileManager, html: string, contentType: s
 }
 
 
-
 export async function ingestHtml2(storageClient: BaseClient|null, html: string, contentType: string, url: string|null,
   sendMessage: (percent: number | null, message: string | null) => void
 ) : Promise<Article> {

@@ -9,6 +9,7 @@ import { seo } from "~/utils/seo";
 import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
+import { PWARegister } from "~/components/PWARegister";
 
 import { SnackbarProvider, VariantType, useSnackbar } from "notistack";
 
@@ -96,6 +97,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
                 <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
                   {children}
                   <TanStackRouterDevtools position="bottom-left" />
+                  <PWARegister />
                 </div>
               ) : (
                 <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
