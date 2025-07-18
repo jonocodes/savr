@@ -30,6 +30,7 @@ import {
   CardContent,
   Container,
   Paper,
+  Stack,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -45,39 +46,12 @@ import {
 import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
 import { ingestUrl2 } from "../../../lib/src/ingestion";
-import { useMyStore } from "~/utils/tools";
+import { removeArticle, updateArticleState, useMyStore } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../../lib/src/models";
-
-// Mock data for demonstration
-const mockArticles = [
-  {
-    slug: "sample-article-1",
-    title: "Sample Article Title 1",
-    url: "https://example.com/article1",
-    state: "unread" as const,
-    ingestDate: new Date("2024-01-15"),
-    description: "This is a sample article description for demonstration purposes.",
-  },
-  {
-    slug: "sample-article-2",
-    title: "Sample Article Title 2",
-    url: "https://example.com/article2",
-    state: "archived" as const,
-    ingestDate: new Date("2024-01-10"),
-    description: "Another sample article description for demonstration purposes.",
-  },
-  {
-    slug: "sample-article-3",
-    title: "Sample Article Title 3",
-    url: "https://example.com/article3",
-    state: "unread" as const,
-    ingestDate: new Date("2024-01-05"),
-    description: "Yet another sample article description for demonstration purposes.",
-  },
-];
+import { useSnackbar } from "notistack";
 
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
@@ -92,18 +66,13 @@ const sampleArticleUrls = [
   "https://leejo.github.io/2024/09/29/holding_out_for_the_heros_to_fuck_off/",
 ];
 
-// interface Article {
-//   slug: string;
-//   title: string;
-//   url: string;
-//   state: "unread" | "archived";
-//   ingestDate: Date;
-//   description: string;
-// }
-
-function ArticleItem({ item }: { item: Article }) {
+function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const storage = useRemoteStorage();
+
+  const { enqueueSnackbar } = useSnackbar();
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -114,24 +83,43 @@ function ArticleItem({ item }: { item: Article }) {
   };
 
   const handleShare = () => {
-    navigator.clipboard.writeText(item.url);
-    alert("Url copied to clipboard: " + item.url);
+    if (article.url) {
+      navigator.clipboard.writeText(article.url);
+      alert("Url copied to clipboard: " + article.url);
+    }
     closeMenu();
   };
 
   const handleArchive = () => {
-    alert("Archive functionality would be implemented here");
-    closeMenu();
+    try {
+      updateArticleState(storage.client!, article.slug, "archived");
+      enqueueSnackbar("Article archived");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to archive article", { variant: "error" });
+    }
   };
 
   const handleUnarchive = () => {
-    alert("Unarchive functionality would be implemented here");
-    closeMenu();
+    if (!article) throw new Error("Article is undefined");
+
+    try {
+      updateArticleState(storage.client!, article.slug, "unread");
+      enqueueSnackbar("Article unarchived");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to unarchive article", { variant: "error" });
+    }
   };
 
-  const handleDelete = () => {
-    alert("Delete functionality would be implemented here");
-    closeMenu();
+  const handleDelete = async () => {
+    try {
+      await removeArticle(storage.client!, article.slug);
+      enqueueSnackbar("Article deleted");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to delete article", { variant: "error" });
+    }
   };
 
   const formatDate = (date: Date) => {
@@ -141,40 +129,39 @@ function ArticleItem({ item }: { item: Article }) {
   return (
     <ListItem
       sx={{
-        borderBottom: "1px solid",
-        borderColor: "divider",
+        // borderBottom: "1px solid",
+        // borderColor: "divider",
         "&:hover": {
           backgroundColor: "action.hover",
         },
       }}
     >
       <ListItemAvatar
-        onClick={() => navigate({ to: "/article/$slug", params: { slug: item.slug } })}
+        onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
       >
-        <Avatar>
-          <ArticleIcon />
-        </Avatar>
+        <img
+          src="/static/article_bw.webp"
+          alt="Article"
+          style={{ width: 100, height: 100, objectFit: "cover" }}
+        />
       </ListItemAvatar>
       <ListItemText
-        onClick={() => navigate({ to: "/article/$slug", params: { slug: item.slug } })}
-        primary={item.title}
+        sx={{
+          marginLeft: 2,
+        }}
+        onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
+        primary={article.title}
         secondary={
-          <Box>
-            {/* <Typography variant="body2" color="text.secondary">
-              {item.description}
-            </Typography> */}
-            <Typography variant="caption" color="text.secondary">
-              {item.ingestDate}
-              {/* {formatDate(item.ingestDate)} */}
-            </Typography>
-          </Box>
+          <Typography variant="caption" color="text.secondary">
+            {new Date(article.ingestDate).toLocaleDateString()}
+          </Typography>
         }
       />
       <IconButton onClick={openMenu}>
         <MoreVertIcon />
       </IconButton>
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
-        {item.state === "archived" ? (
+        {article.state === "archived" ? (
           <MenuItem onClick={handleUnarchive}>
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
@@ -206,10 +193,10 @@ function ArticleItem({ item }: { item: Article }) {
   );
 }
 
-export default function ArticleListScreen({ initialArticles }: { initialArticles?: Article[] }) {
+export default function ArticleListScreen() {
   const navigate = useNavigate();
+
   const [dialogVisible, setDialogVisible] = useState(false);
-  // const [articles] = useState<Article[]>(initialArticles || mockArticles);
 
   const articles = useLiveQuery(() => db.articles.orderBy("ingestDate").reverse().toArray());
 
@@ -260,7 +247,7 @@ export default function ArticleListScreen({ initialArticles }: { initialArticles
     }
   }, [client, dialogVisible]); // Run this effect when the client or dialogVisible changes
 
-  const filteredArticles = articles?.filter((article) => article.state === filter);
+  const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
 
   const saveUrl = async () => {
     // TODO: pass in headers/cookies for downloading
@@ -335,27 +322,27 @@ export default function ArticleListScreen({ initialArticles }: { initialArticles
             </IconButton>
           </Tooltip>
 
-          <ToggleButtonGroup
-            value={filter}
-            exclusive
-            onChange={(_, newFilter) => {
-              if (newFilter !== null) {
-                setFilter(newFilter);
-              }
-            }}
-            size="small"
-          >
-            <ToggleButton value="unread">
-              <ArticleIcon sx={{ mr: 1 }} />
-              Saves
-            </ToggleButton>
-            <ToggleButton value="archived">
-              <ArchiveIcon2 sx={{ mr: 1 }} />
-              Archive
-            </ToggleButton>
-          </ToggleButtonGroup>
-
-          <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
+            <ToggleButtonGroup
+              value={filter}
+              exclusive
+              onChange={(_, newFilter) => {
+                if (newFilter !== null) {
+                  setFilter(newFilter);
+                }
+              }}
+              size="small"
+            >
+              <ToggleButton value="unread">
+                <ArticleIcon sx={{ mr: 1 }} />
+                Saves
+              </ToggleButton>
+              <ToggleButton value="archived">
+                <ArchiveIcon2 sx={{ mr: 1 }} />
+                Archive
+              </ToggleButton>
+            </ToggleButtonGroup>
+          </Box>
 
           <Tooltip title="Settings">
             <IconButton onClick={() => navigate({ to: "/prefs" })}>
@@ -365,15 +352,17 @@ export default function ArticleListScreen({ initialArticles }: { initialArticles
         </Paper>
 
         {/* Content */}
-        <Container maxWidth="md" sx={{ mt: 2 }}>
-          {filteredArticles && filteredArticles.length > 0 ? (
-            <Paper elevation={1}>
-              <List>
-                {filteredArticles.map((item) => (
-                  <ArticleItem key={item.slug} item={item} />
-                ))}
-              </List>
-            </Paper>
+        <Container
+          maxWidth="sm"
+          sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
+        >
+          {filteredArticles.length > 0 ? (
+            // TODO: make this a stack if I want spacing between items
+            <List>
+              {filteredArticles.map((article) => (
+                <ArticleItem key={article.slug} article={article} />
+              ))}
+            </List>
           ) : (
             <Box
               sx={{

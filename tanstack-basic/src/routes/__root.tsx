@@ -10,6 +10,8 @@ import { ThemeProvider, createTheme } from "@mui/material/styles";
 import { CssBaseline } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 
+import { SnackbarProvider, VariantType, useSnackbar } from "notistack";
+
 // Create a default theme for the entire app
 const theme = createTheme({
   palette: {
@@ -81,25 +83,29 @@ function RootDocument({ children }: { children: React.ReactNode }) {
   }, []);
 
   return (
-    <html>
+    <html style={{ height: "100%" }}>
       <head>
         <HeadContent />
       </head>
-      <body>
-        <RemoteStorageProvider>
-          <ThemeProvider theme={theme}>
-            <CssBaseline />
-            {isClient ? (
-              <>
-                {children}
-                <TanStackRouterDevtools position="bottom-right" />
-              </>
-            ) : (
-              <div>Loading...</div>
-            )}
-            <Scripts />
-          </ThemeProvider>
-        </RemoteStorageProvider>
+      <body style={{ height: "100%", margin: 0, padding: 0 }}>
+        <SnackbarProvider maxSnack={3}>
+          <RemoteStorageProvider>
+            <ThemeProvider theme={theme}>
+              <CssBaseline enableColorScheme />
+              {isClient ? (
+                <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
+                  {children}
+                  <TanStackRouterDevtools position="bottom-left" />
+                </div>
+              ) : (
+                <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
+                  Loading...
+                </div>
+              )}
+              <Scripts />
+            </ThemeProvider>
+          </RemoteStorageProvider>
+        </SnackbarProvider>
       </body>
     </html>
   );

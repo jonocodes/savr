@@ -32,7 +32,6 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       setRemoteStorage(store);
       setClient(client);
 
-      // Only create widget on web platform
       if (typeof window !== "undefined") {
         // Check if widget already exists
         const existingWidget = document.getElementById("remotestorage-widget");
@@ -67,12 +66,10 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   return (
     <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>
       {/* This div is where the widget will be attached */}
-      {typeof window !== "undefined" && (
-        <div
-          id="remotestorage-container"
-          style={{ position: "fixed", bottom: "10px", right: "10px", zIndex: 1000 }}
-        />
-      )}
+      <div
+        id="remotestorage-container"
+        style={{ position: "fixed", bottom: "10px", right: "10px", zIndex: 1000 }}
+      />
       {children}
     </RemoteStorageContext.Provider>
   );
