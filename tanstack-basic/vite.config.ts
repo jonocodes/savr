@@ -4,15 +4,20 @@ import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
+import basicSsl from '@vitejs/plugin-basic-ssl'
+
 export default defineConfig({
   server: {
+	host: '0.0.0.0',
     port: 3000,
+	allowedHosts: true
   },
   plugins: [
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
     tanstackStart({ customViteReactPlugin: true }),
+//	basicSsl(),
     viteReact(),
     VitePWA({
       registerType: "autoUpdate",
