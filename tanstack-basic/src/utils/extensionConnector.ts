@@ -1,6 +1,8 @@
 // ExtensionConnector.ts
 // Communication bridge between SAVR PWA and bookmarklet/opener window
 
+// This script is the receiving end in the app that the bookmarklet-client communicates with.
+
 import { init } from "./storage";
 import { ingestCurrentPage } from "../../../lib/src/ingestion";
 import { mimeToExt } from "../../../lib/src/lib";
@@ -10,6 +12,7 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import filenamifyUrl from "filenamify-url";
 
 import md5 from "js-md5";
+import { db } from "./db";
 
 export interface ResourceResponse {
   url: string;
@@ -44,8 +47,10 @@ class ExtensionConnector {
   private store: { remoteStorage: RemoteStorage; client: BaseClient } | null = null;
 
   constructor() {
+    console.log("PWA: ExtensionConnector constructor called");
     // Only initialize if we're in a browser environment
     if (typeof window !== "undefined") {
+      console.log("PWA: Browser environment detected, initializing...");
       this.initializeListener();
 
       // const setup = async () => {
@@ -56,54 +61,88 @@ class ExtensionConnector {
       // const { remoteStorage: store, client } = await init();
 
       if (window.opener) {
+        console.log("PWA: Window has opener, setting up communication...");
         this.openerWindow = window.opener;
+        console.log("PWA: Sending savr-ready message to opener");
         window.opener.postMessage({ action: "savr-ready", source: "SAVR_PWA" }, "*");
+        console.log("PWA: savr-ready message sent");
+      } else {
+        console.log("PWA: No opener window found");
       }
+    } else {
+      console.log("PWA: Not in browser environment, skipping initialization");
     }
   }
 
   private initializeListener(): void {
     if (typeof window !== "undefined") {
+      console.log("PWA: Setting up message listeners...");
       window.addEventListener("message", this.handleBookmarkletMessage.bind(this));
       window.addEventListener("message", this.handleOpenerMessage.bind(this));
+      console.log("PWA: Message listeners set up");
     }
   }
 
   private handleBookmarkletMessage(event: MessageEvent): void {
+    console.log("PWA: Message received:", event.data);
     const msg = event.data as any;
     if (msg.url && msg.html) {
-      console.log("PWA: Received bookmarklet page", msg.url);
+      console.log("PWA: Received bookmarklet page", msg.url, "HTML length:", msg.html.length);
       if (!this.storageClient) {
+        console.log("PWA: No storage client, storing message for later");
         this.pendingMessage = { url: msg.url, html: msg.html };
       } else {
-        this.processBookmarkletMessage(msg.url, msg.html);
+        console.log("PWA: Processing bookmarklet message immediately");
+        this.processSaveUrl(msg.url, msg.html);
       }
+    } else {
+      console.log("PWA: Message received but missing url or html:", msg);
     }
   }
 
   private handleOpenerMessage(event: MessageEvent): void {
+    console.log("PWA: Opener message received:", event.data);
     const msg = event.data as any;
     if (
       event.source === this.openerWindow &&
       msg.source === "SAVR_BOOKMARKLET" &&
       msg.action === "resource-response"
     ) {
-      console.log("PWA: Received resource-response", msg.messageId);
+      console.log(
+        "PWA: Received resource-response",
+        msg.messageId,
+        "resources:",
+        msg.resources?.length
+      );
       const cb = this.pendingResourceCallbacks.get(msg.messageId);
       if (cb) {
+        console.log("PWA: Found callback for messageId:", msg.messageId);
         cb(msg.resources as ResourceResponse[]);
         this.pendingResourceCallbacks.delete(msg.messageId);
+      } else {
+        console.log("PWA: No callback found for messageId:", msg.messageId);
       }
+    } else {
+      console.log("PWA: Message not from opener or not resource-response:", {
+        source: event.source,
+        openerWindow: this.openerWindow,
+        msgSource: msg.source,
+        msgAction: msg.action,
+      });
     }
   }
 
   public setStorageClient(client: any): void {
+    console.log("PWA: setStorageClient called with:", client ? "client" : "null");
     this.storageClient = client;
     console.log("PWA: Storage client set");
     if (this.pendingMessage) {
+      console.log("PWA: Processing pending message after storage client set");
       const { url, html } = this.pendingMessage;
       this.pendingMessage = null;
-      this.processBookmarkletMessage(url, html);
+      this.processSaveUrl(url, html);
+    } else {
+      console.log("PWA: No pending message to process");
     }
   }
 
@@ -130,8 +169,10 @@ class ExtensionConnector {
     });
   }
 
-  private async processBookmarkletMessage(url: string, html: string): Promise<void> {
+  private async processSaveUrl(url: string, html: string): Promise<void> {
+    console.log("PWA: processSaveUrl called with URL:", url, "HTML length:", html.length);
     try {
+      console.log("PWA: Starting ingestCurrentPage...");
       const article = await ingestCurrentPage(
         this.storageClient,
         html,
@@ -142,7 +183,13 @@ class ExtensionConnector {
           this.progressCallback?.(percent, message);
         }
       );
-      console.log("PWA: ingest complete, extracting images");
+
+      console.log("PWA: db", db.articles.orderBy("ingestDate").reverse().toArray());
+
+      console.log("PWA: article", article);
+
+      console.log("PWA: html ingest complete, extracting images");
+
       const imageUrls = this.extractImageUrls(html, url);
       if (imageUrls.length) {
         this.progressCallback?.(0, `Downloading images: 0/${imageUrls.length}`);
@@ -156,7 +203,12 @@ class ExtensionConnector {
           }
         }
       }
+
+      db.articles.put(article);
+
       console.log("PWA: Page and resources ingested successfully");
+
+      console.log("PWA: db after", db.articles.orderBy("ingestDate").reverse().toArray());
     } catch (err) {
       console.error("PWA: Error in processBookmarkletMessage:", err);
     }

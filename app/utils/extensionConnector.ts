@@ -1,6 +1,8 @@
 // ExtensionConnector.ts
 // Communication bridge between SAVR PWA and bookmarklet/opener window
 
+// This script is the receiving end in the app that the bookmarklet-client communicates with.
+
 import { init } from "@/storage";
 import { ingestCurrentPage } from "@savr/lib";
 import { mimeToExt } from "@savr/lib/lib";
@@ -10,6 +12,7 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import filenamifyUrl from "filenamify-url";
 
 import md5 from "js-md5";
+import { db } from "@/db";
 
 export interface ResourceResponse {
   url: string;
@@ -71,7 +74,7 @@ class ExtensionConnector {
       if (!this.storageClient) {
         this.pendingMessage = { url: msg.url, html: msg.html };
       } else {
-        this.processBookmarkletMessage(msg.url, msg.html);
+        this.processSaveUrl(msg.url, msg.html);
       }
     }
   }
@@ -98,7 +101,7 @@ class ExtensionConnector {
     if (this.pendingMessage) {
       const { url, html } = this.pendingMessage;
       this.pendingMessage = null;
-      this.processBookmarkletMessage(url, html);
+      this.processSaveUrl(url, html);
     }
   }
 
@@ -125,7 +128,7 @@ class ExtensionConnector {
     });
   }
 
-  private async processBookmarkletMessage(url: string, html: string): Promise<void> {
+  private async processSaveUrl(url: string, html: string): Promise<void> {
     try {
       const article = await ingestCurrentPage(
         this.storageClient,
@@ -137,7 +140,13 @@ class ExtensionConnector {
           this.progressCallback?.(percent, message);
         }
       );
-      console.log("PWA: ingest complete, extracting images");
+
+      console.log("PWA: db", db.articles.orderBy("ingestDate").reverse().toArray());
+
+      console.log("PWA: article", article);
+
+      console.log("PWA: html ingest complete, extracting images");
+
       const imageUrls = this.extractImageUrls(html, url);
       if (imageUrls.length) {
         this.progressCallback?.(0, `Downloading images: 0/${imageUrls.length}`);
@@ -151,7 +160,11 @@ class ExtensionConnector {
           }
         }
       }
+
+      db.articles.put(article);
+
       console.log("PWA: Page and resources ingested successfully");
+      console.log("PWA: db after", db.articles.orderBy("ingestDate").reverse().toArray());
     } catch (err) {
       console.error("PWA: Error in processBookmarkletMessage:", err);
     }
@@ -160,18 +173,20 @@ class ExtensionConnector {
   private extractImageUrls(html: string, baseUrl: string): string[] {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, "text/html");
-    return Array.from(doc.querySelectorAll("img"))
-      .map((img) => img.getAttribute("src") || "")
-      // Skip empty and data URLs
-      .filter((src) => src && !src.startsWith("data:"))
-      .map((src) => {
-        try {
-          return new URL(src, baseUrl).href;
-        } catch {
-          return "";
-        }
-      })
-      .filter((u) => u);
+    return (
+      Array.from(doc.querySelectorAll("img"))
+        .map((img) => img.getAttribute("src") || "")
+        // Skip empty and data URLs
+        .filter((src) => src && !src.startsWith("data:"))
+        .map((src) => {
+          try {
+            return new URL(src, baseUrl).href;
+          } catch {
+            return "";
+          }
+        })
+        .filter((u) => u)
+    );
   }
 
   private async saveResource(

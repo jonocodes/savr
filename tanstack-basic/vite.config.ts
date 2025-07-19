@@ -3,21 +3,26 @@ import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-
-import basicSsl from '@vitejs/plugin-basic-ssl'
+import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig({
   server: {
-	host: '0.0.0.0',
+    host: "0.0.0.0",
     port: 3000,
-	allowedHosts: true
+    allowedHosts: true,
+    proxy: { // for some reason, the basicSsl plugin is not working, so we're using a proxy?
+      // "/api": {
+      //   target: "http://localhost:8081",
+      //   changeOrigin: true,
+      // },
+    },
   },
   plugins: [
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
     tanstackStart({ customViteReactPlugin: true }),
-//	basicSsl(),
+    basicSsl(),
     viteReact(),
     VitePWA({
       registerType: "autoUpdate",
@@ -69,9 +74,6 @@ export default defineConfig({
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
               },
-              cacheKeyWillBeUsed: async ({ request }) => {
-                return `${request.url}`;
-              },
             },
           },
           {
@@ -82,9 +84,6 @@ export default defineConfig({
               expiration: {
                 maxEntries: 10,
                 maxAgeSeconds: 60 * 60 * 24 * 365, // <== 365 days
-              },
-              cacheKeyWillBeUsed: async ({ request }) => {
-                return `${request.url}`;
               },
             },
           },
