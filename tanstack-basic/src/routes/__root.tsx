@@ -12,19 +12,26 @@ import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 import { PWARegister } from "~/components/PWARegister";
 
 import { SnackbarProvider, VariantType, useSnackbar } from "notistack";
+import { getThemeFromCookie, getEffectiveTheme, useSystemThemeListener } from "~/utils/cookies";
 
-// Create a default theme for the entire app
-const theme = createTheme({
-  palette: {
-    mode: "light",
-    primary: {
-      main: "#1976d2",
+// Create theme based on cookie
+const createAppTheme = () => {
+  const themeMode = getThemeFromCookie();
+  const effectiveTheme = getEffectiveTheme(themeMode);
+  return createTheme({
+    palette: {
+      mode: effectiveTheme,
+      primary: {
+        main: "#1976d2",
+      },
+      secondary: {
+        main: "#dc004e",
+      },
     },
-    secondary: {
-      main: "#dc004e",
-    },
-  },
-});
+  });
+};
+
+const theme = createAppTheme();
 
 export const Route = createRootRoute({
   head: () => ({
@@ -77,11 +84,45 @@ export const Route = createRootRoute({
 
 function RootDocument({ children }: { children: React.ReactNode }) {
   const [isClient, setIsClient] = React.useState(false);
+  const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
 
   React.useEffect(() => {
     // I think this disables SSR. not sure.
     setIsClient(true);
   }, []);
+
+  // Listen for theme changes
+  React.useEffect(() => {
+    const handleThemeChange = () => {
+      setCurrentTheme(getThemeFromCookie());
+    };
+
+    // Listen for custom theme change event
+    window.addEventListener("themeChanged", handleThemeChange);
+
+    return () => {
+      window.removeEventListener("themeChanged", handleThemeChange);
+    };
+  }, []);
+
+  // Listen for system theme changes
+  useSystemThemeListener();
+
+  const appTheme = React.useMemo(() => {
+    const effectiveTheme = getEffectiveTheme(currentTheme);
+    console.log("Theme debug:", { currentTheme, effectiveTheme });
+    return createTheme({
+      palette: {
+        mode: effectiveTheme,
+        primary: {
+          main: "#1976d2",
+        },
+        secondary: {
+          main: "#dc004e",
+        },
+      },
+    });
+  }, [currentTheme]);
 
   return (
     <html style={{ height: "100%" }}>
@@ -91,7 +132,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
       <body style={{ height: "100%", margin: 0, padding: 0 }}>
         <SnackbarProvider maxSnack={3}>
           <RemoteStorageProvider>
-            <ThemeProvider theme={theme}>
+            <ThemeProvider theme={appTheme}>
               <CssBaseline enableColorScheme />
               {isClient ? (
                 <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>

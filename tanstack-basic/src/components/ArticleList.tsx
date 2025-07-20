@@ -19,9 +19,6 @@ import {
   MenuItem,
   ListItemIcon,
   Tooltip,
-  ThemeProvider,
-  createTheme,
-  CssBaseline,
   LinearProgress,
   ToggleButtonGroup,
   ToggleButton,
@@ -46,12 +43,13 @@ import {
 import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
 import { ingestUrl2 } from "../../../lib/src/ingestion";
-import { removeArticle, updateArticleState, useMyStore } from "~/utils/tools";
+import { removeArticle, updateArticleState, getCorsProxyValue } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../../lib/src/models";
 import { useSnackbar } from "notistack";
+import { shouldEnableSampleUrls } from "~/config/environment";
 
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
@@ -205,21 +203,9 @@ export default function ArticleListScreen() {
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  const corsProxy = useMyStore((state) => state.corsProxy);
+  const corsProxy = getCorsProxyValue();
 
   const { remoteStorage, client, widget } = useRemoteStorage();
-
-  const theme = createTheme({
-    palette: {
-      mode: "light",
-      primary: {
-        main: "#1976d2",
-      },
-      secondary: {
-        main: "#dc004e",
-      },
-    },
-  });
 
   useEffect(() => {
     // Set the storage client in the extension connector
@@ -298,140 +284,142 @@ export default function ArticleListScreen() {
   };
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box sx={{ flexGrow: 1, backgroundColor: "background.default" }}>
-        {/* Header */}
-        <Paper
-          elevation={1}
-          sx={{
-            p: 2,
-            display: "flex",
-            alignItems: "center",
-            gap: 2,
-          }}
-        >
-          <Tooltip title="Add article">
-            <IconButton
-              onClick={() => {
-                setDialogVisible(true);
+    <Box sx={{ flexGrow: 1, backgroundColor: "background.default" }}>
+      {/* Header */}
+      <Paper
+        elevation={1}
+        sx={{
+          p: 2,
+          display: "flex",
+          alignItems: "center",
+          gap: 2,
+        }}
+      >
+        <Tooltip title="Add article">
+          <IconButton
+            onClick={() => {
+              setDialogVisible(true);
+              if (shouldEnableSampleUrls()) {
                 setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
-              }}
-            >
-              <AddIcon />
-            </IconButton>
-          </Tooltip>
+              }
+            }}
+          >
+            <AddIcon />
+          </IconButton>
+        </Tooltip>
 
-          <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
-            <ToggleButtonGroup
-              value={filter}
-              exclusive
-              onChange={(_, newFilter) => {
-                if (newFilter !== null) {
-                  setFilter(newFilter);
-                }
-              }}
-              size="small"
-            >
-              <ToggleButton value="unread">
-                <ArticleIcon sx={{ mr: 1 }} />
-                Saves
-              </ToggleButton>
-              <ToggleButton value="archived">
-                <ArchiveIcon2 sx={{ mr: 1 }} />
-                Archive
-              </ToggleButton>
-            </ToggleButtonGroup>
-          </Box>
+        <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
+          <ToggleButtonGroup
+            value={filter}
+            exclusive
+            onChange={(_, newFilter) => {
+              if (newFilter !== null) {
+                setFilter(newFilter);
+              }
+            }}
+            size="small"
+          >
+            <ToggleButton value="unread">
+              <ArticleIcon sx={{ mr: 1 }} />
+              Saves
+            </ToggleButton>
+            <ToggleButton value="archived">
+              <ArchiveIcon2 sx={{ mr: 1 }} />
+              Archive
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
 
-          <Tooltip title="Settings">
-            <IconButton onClick={() => navigate({ to: "/prefs" })}>
-              <SettingsIcon />
-            </IconButton>
-          </Tooltip>
-        </Paper>
+        <Tooltip title="Settings">
+          <IconButton onClick={() => navigate({ to: "/prefs" })}>
+            <SettingsIcon />
+          </IconButton>
+        </Tooltip>
+      </Paper>
 
-        {/* Content */}
-        <Container
-          maxWidth="sm"
-          sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
-        >
-          {filteredArticles.length > 0 ? (
-            // TODO: make this a stack if I want spacing between items
-            <List>
-              {filteredArticles.map((article) => (
-                <ArticleItem key={article.slug} article={article} />
-              ))}
-            </List>
-          ) : (
-            <Box
-              sx={{
-                display: "flex",
-                flexDirection: "column",
-                alignItems: "center",
-                justifyContent: "center",
-                minHeight: "50vh",
-                textAlign: "center",
-              }}
-            >
-              <Typography variant="h4" gutterBottom>
-                Welcome to Savr
-              </Typography>
-              <Typography variant="body1" color="text.secondary" gutterBottom>
-                {filter === "unread"
-                  ? "Start saving articles to see them here"
-                  : "No archived articles yet"}
-              </Typography>
+      {/* Content */}
+      <Container
+        maxWidth="sm"
+        sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
+      >
+        {filteredArticles.length > 0 ? (
+          // TODO: make this a stack if I want spacing between items
+          <List>
+            {filteredArticles.map((article) => (
+              <ArticleItem key={article.slug} article={article} />
+            ))}
+          </List>
+        ) : (
+          <Box
+            sx={{
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minHeight: "50vh",
+              textAlign: "center",
+            }}
+          >
+            <Typography variant="h4" gutterBottom>
+              Welcome to Savr
+            </Typography>
+            <Typography variant="body1" color="text.secondary" gutterBottom>
+              {filter === "unread"
+                ? "Start saving articles to see them here"
+                : "No archived articles yet"}
+            </Typography>
+
+            {filter === "unread" ? (
               <Button
                 variant="contained"
                 onClick={() => {
                   setDialogVisible(true);
-                  setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+                  if (shouldEnableSampleUrls()) {
+                    setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
+                  }
                 }}
                 sx={{ mt: 2 }}
               >
                 Add Article
               </Button>
+            ) : (
+              <></>
+            )}
+          </Box>
+        )}
+      </Container>
+
+      {/* Add Article Dialog */}
+      <Dialog open={dialogVisible} onClose={() => setDialogVisible(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Add Article</DialogTitle>
+        <DialogContent>
+          <TextField
+            label="URL"
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            fullWidth
+            margin="normal"
+          />
+
+          {ingestPercent > 0 && (
+            <Box sx={{ mt: 2 }}>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {ingestStatus}
+              </Typography>
+              <LinearProgress variant="determinate" value={ingestPercent} />
             </Box>
           )}
-        </Container>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
+          <Button onClick={saveUrl} variant="contained">
+            Save
+          </Button>
+        </DialogActions>
+      </Dialog>
 
-        {/* Add Article Dialog */}
-        <Dialog
-          open={dialogVisible}
-          onClose={() => setDialogVisible(false)}
-          maxWidth="sm"
-          fullWidth
-        >
-          <DialogTitle>Add Article</DialogTitle>
-          <DialogContent>
-            <TextField
-              label="URL"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              fullWidth
-              margin="normal"
-            />
-
-            {ingestPercent > 0 && (
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="body2" color="text.secondary" gutterBottom>
-                  {ingestStatus}
-                </Typography>
-                <LinearProgress variant="determinate" value={ingestPercent} />
-              </Box>
-            )}
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
-            <Button onClick={saveUrl} variant="contained">
-              Save
-            </Button>
-          </DialogActions>
-        </Dialog>
-
-        {/* Floating Action Button */}
-        {/* <Fab
+      {/* Floating Action Button */}
+      {/* <Fab
           color="primary"
           aria-label="add"
           sx={{
@@ -446,7 +434,6 @@ export default function ArticleListScreen() {
         >
           <AddIcon />
         </Fab> */}
-      </Box>
-    </ThemeProvider>
+    </Box>
   );
 }

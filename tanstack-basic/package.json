@@ -5,7 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
+    "dev:prod": "VITE_APP_MODE=production vite dev",
     "build": "vite build && tsc --noEmit",
+    "build:dev": "VITE_APP_MODE=development vite build && tsc --noEmit",
+    "build:prod": "VITE_APP_MODE=production vite build && tsc --noEmit",
     "start": "node .output/server/index.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"

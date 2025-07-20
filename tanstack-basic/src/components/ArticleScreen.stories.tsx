@@ -91,59 +91,6 @@ const MockRemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   );
 };
 
-// Create a simplified ArticleScreen component for Storybook
-const StorybookArticleScreen: React.FC = () => {
-  const [html, setHtml] = useState("");
-  const [article, setArticle] = useState<Article | null>(null);
-  const [fontSize, setFontSize] = useState(16);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadContent = async () => {
-      try {
-        setLoading(true);
-
-        // Fetch article data
-        const articleData = await fetchArticleData();
-        setArticle(articleData);
-
-        // Fetch HTML content
-        const file = await mockStorageClient.getFile("saves/dune-part-two/index.html");
-        setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
-      } catch (error) {
-        console.error("Error loading content:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    loadContent();
-  }, []);
-
-  if (loading) {
-    return (
-      <div style={{ padding: "20px", textAlign: "center" }}>
-        <p>Loading article...</p>
-      </div>
-    );
-  }
-
-  if (!article) {
-    return (
-      <div style={{ padding: "20px", color: "red" }}>
-        <p>Error loading article data</p>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ height: "80vh", overflow: "auto", backgroundColor: "#f5f5f5" }}>
-      <div style={{ padding: "20px", maxWidth: "800px", margin: "0 auto" }}>
-        <ArticleComponent html={html} fontSize={fontSize} />
-      </div>
-    </div>
-  );
-};
-
 // Wrapper component that provides mock context and populates database
 const ArticleScreenWithMockData: React.FC = () => {
   // Populate database with fetched article data
@@ -163,7 +110,9 @@ const ArticleScreenWithMockData: React.FC = () => {
 
   return (
     <MockRemoteStorageProvider>
-      <StorybookArticleScreen />
+      <div style={{ height: "80vh", overflow: "auto" }}>
+        <ArticleScreen />
+      </div>
     </MockRemoteStorageProvider>
   );
 };

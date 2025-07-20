@@ -5,6 +5,7 @@ import { minimatch } from "minimatch";
 import { db } from "./db";
 import { Article } from "../../../lib/src/models";
 import extensionConnector from "./extensionConnector"; // Import the extension connector
+import { environmentConfig } from "~/config/environment";
 
 declare global {
   interface Window {
@@ -59,8 +60,8 @@ function initRemote() {
       //   modules: ["sync"],
     });
     remoteStorage.setApiKeys({
-      googledrive: "298611806550-k3kc4obucu2ds6v9dlmvteqp6ve5dn6m.apps.googleusercontent.com", // have not figured out how to get this to work in production yet
-      dropbox: "c53glfgceos23cj", // dropbox is not yet working. 409 errors
+      googledrive: environmentConfig.apiKeys.googleDrive,
+      dropbox: environmentConfig.apiKeys.dropbox,
     });
     remoteStorage.access.claim("savr", "rw");
 

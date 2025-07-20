@@ -42,6 +42,8 @@ import { Article } from "../../../lib/src/models";
 import { removeArticle, updateArticleState } from "~/utils/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
+import { CookieThemeToggle } from "./CookieThemeToggle";
+import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 
 interface Props {
   /**
@@ -80,7 +82,7 @@ export default function ArticleScreen(props: Props) {
   const { enqueueSnackbar } = useSnackbar();
 
   const navigate = useNavigate();
-  const [fontSize, setFontSize] = useState(16);
+  const [fontSize, setFontSize] = useState(getFontSizeFromCookie());
   const [viewMode, setViewMode] = useState<"cleaned" | "original">("cleaned");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [editDrawerOpen, setEditDrawerOpen] = useState(false);
@@ -236,16 +238,32 @@ export default function ArticleScreen(props: Props) {
             </Typography>
 
             <Tooltip title="Increase font size">
-              <IconButton color="inherit" onClick={() => setFontSize(fontSize + 2)}>
+              <IconButton
+                color="inherit"
+                onClick={() => {
+                  const newSize = fontSize + 2;
+                  setFontSize(newSize);
+                  setFontSizeInCookie(newSize);
+                }}
+              >
                 <AddIcon />
               </IconButton>
             </Tooltip>
 
             <Tooltip title="Decrease font size">
-              <IconButton color="inherit" onClick={() => setFontSize(fontSize - 2)}>
+              <IconButton
+                color="inherit"
+                onClick={() => {
+                  const newSize = fontSize - 2;
+                  setFontSize(newSize);
+                  setFontSizeInCookie(newSize);
+                }}
+              >
                 <RemoveIcon />
               </IconButton>
             </Tooltip>
+
+            <CookieThemeToggle size="small" />
 
             {article.state === ("archived" as any) ? (
               <Tooltip title="Unarchive">

@@ -1,12 +1,47 @@
-# Welcome to TanStack.com!
+# Savr - Article Reader
 
-This site is built with TanStack Router!
+A modern article reader built with TanStack Router and Material-UI.
 
-- [TanStack Router Docs](https://tanstack.com/router)
+## Environment Configuration
 
-It's deployed automagically with Netlify!
+This application supports different configurations for development and production environments:
 
-- [Netlify](https://netlify.com/)
+### Development Mode (Default)
+- Sample article URLs are enabled for testing
+- CORS proxy is enabled for development
+- Debug logging is enabled
+
+### Production Mode
+- Sample article URLs are disabled
+- CORS proxy is disabled
+- Optimized for production deployment
+
+### Environment Variables
+
+The application uses the following environment variables:
+
+- `VITE_APP_MODE`: Set to `development` or `production` (defaults to `development`)
+- `VITE_GOOGLE_DRIVE_API_KEY`: Google Drive API key for remote storage
+- `VITE_DROPBOX_API_KEY`: Dropbox API key for remote storage
+
+### Available Scripts
+
+```sh
+# Development mode (default)
+pnpm dev
+
+# Production mode development
+pnpm dev:prod
+
+# Build for development
+pnpm build:dev
+
+# Build for production
+pnpm build:prod
+
+# Build (uses current environment)
+pnpm build
+```
 
 ## Development
 
