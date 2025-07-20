@@ -39,11 +39,12 @@ import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article } from "../../../lib/src/models";
-import { removeArticle, updateArticleState } from "~/utils/tools";
+import { removeArticle, updateArticleMetadata } from "~/utils/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
+import { getFilePathMetadata, getFilePathRaw } from "../../../lib/src/lib";
 
 interface Props {
   /**
@@ -131,7 +132,8 @@ export default function ArticleScreen(props: Props) {
 
   const handleArchive = () => {
     try {
-      updateArticleState(storage.client!, article.slug, "archived");
+      // updateArticleState(storage.client!, article.slug, "archived");
+      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
 
       enqueueSnackbar("Article archived");
       navigate({ to: "/" });
@@ -146,7 +148,8 @@ export default function ArticleScreen(props: Props) {
     if (!article) throw new Error("Article is undefined");
 
     try {
-      updateArticleState(storage.client!, article.slug, "unread");
+      // updateArticleState(storage.client!, article.slug, "unread");
+      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
 
       enqueueSnackbar("Article unarchived");
       navigate({ to: "/" });
@@ -166,9 +169,43 @@ export default function ArticleScreen(props: Props) {
 
   const handleSaveEdit = async () => {
     try {
-      const updatedArticle = { ...article, title: editTitle, author: editAuthor };
-      await db.articles.put(updatedArticle);
+      const updatedArticle = await updateArticleMetadata(storage.client!, {
+        ...article,
+        title: editTitle,
+        author: editAuthor,
+      });
+
+      // await db.articles.put(updatedArticle);
       setArticle(updatedArticle);
+
+      // // Load the current HTML from storage
+      // const file = (await storage.client?.getFile(`saves/${slug}/index.html`)) as { data: string };
+      // if (!file) {
+      //   throw new Error("Could not load HTML from storage");
+      // }
+
+      // // Update the HTML content with new title/author
+      // const parser = new DOMParser();
+      // const doc = parser.parseFromString(file.data, "text/html");
+
+      // // Update metadata in the document
+      // const metaDiv = doc.querySelector("#savr-metadata");
+      // if (metaDiv) {
+      //   metaDiv.textContent = JSON.stringify(
+      //     {
+      //       title: editTitle,
+      //       author: editAuthor,
+      //       // Preserve other metadata
+      //       ...JSON.parse(metaDiv.textContent || "{}"),
+      //     },
+      //     null,
+      //     2
+      //   );
+      // }
+
+      // // Save the updated HTML back to storage
+      // const updatedHtml = doc.documentElement.outerHTML;
+      // await storage.client?.storeFile("text/html", `saves/${slug}/index.html`, updatedHtml);
       setEditDrawerOpen(false);
       enqueueSnackbar("Article info updated");
     } catch (e) {
@@ -190,7 +227,7 @@ export default function ArticleScreen(props: Props) {
       try {
         if (viewMode === "original") {
           storage.client
-            ?.getFile(`saves/${slug}/raw.html`)
+            ?.getFile(getFilePathRaw(slug))
             .then((file: any) => {
               setContent(file.data);
               setHtml(`${file.data}`);

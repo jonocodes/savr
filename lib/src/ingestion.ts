@@ -3,17 +3,11 @@ import {parseHTML} from 'linkedom';
 import * as uri from "uri-js";
 import { Article } from "./models";
 import { version } from '../package.json' with { type: "json" };
-// import { MIMEType } from "util";
 import mime from 'mime';
-// import pdf2html, { thumbnail }  from "pdf2html";
-// import crypto from "crypto";
-// import { pipeline } from 'stream/promises';
-// import { Readable } from 'stream';
-import showdown from "showdown";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate from "./article";
 // import { listTemplateMoustache } from "./list";
-import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, renderListTemplate, toArticleAndRender, calcReadingTime } from "./lib";
+import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, renderListTemplate, calcReadingTime, getFilePathRaw, getFilePathContent, getFilePathMetadata } from "./lib";
 
 
 // const __filename = fileURLToPath(import.meta.url);
@@ -676,10 +670,10 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
 
   let [article, content] = readabilityToArticle(html, contentType, url)
 
-  const saveDir =  "saves/" + article.slug;
+  // const saveDir =  "saves/" + article.slug;
 
   // TODO: sanitize out the js before saving raw
-  storageClient?.storeFile("text/html", `${saveDir}/raw.html`, html);
+  storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
 
   // storageClient?.storeFile("text/html", `${saveDir}/index.html`, content);
 
@@ -696,9 +690,9 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
     // namespace: rootPath,
 
-  })  
+  })
 
-  storageClient?.storeFile("text/html", `${saveDir}/index.html`, rendered);
+  storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
 
   return article
 }
@@ -950,10 +944,9 @@ export async function ingestUrl(
     throw new Error("error during ingestion")
   }
 
-  const saveDir = "saves/" + article.slug;
+  // const saveDir = "saves/" + article.slug;
 
-  dbManager.fileManager.writeTextFile(saveDir + "/article.json", JSON.stringify(article, null, 2))
-  // fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
+  dbManager.fileManager.writeTextFile(getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
 
   dbManager.upsertArticle(article);
 
@@ -1044,9 +1037,9 @@ export async function ingestUrl2(
     throw new Error("error during ingestion")
   }
 
-  const saveDir = "saves/" + article.slug;
+  // const saveDir = "saves/" + article.slug;
 
-  storageClient?.storeFile("application/json", saveDir + "/article.json", JSON.stringify(article, null, 2))
+  storageClient?.storeFile("application/json", getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
 
   // TODO: dbManager.upsertArticle(article); 
 
@@ -1134,10 +1127,7 @@ export async function ingestCurrentPage(
     throw new Error("error during ingestion")
   }
 
-  const saveDir = "saves/" + article.slug;
-  debugger
-
-  storageClient?.storeFile("application/json", saveDir + "/article.json", JSON.stringify(article, null, 2))
+  storageClient?.storeFile("application/json", getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
 
   // TODO: dbManager.upsertArticle(article); 
 

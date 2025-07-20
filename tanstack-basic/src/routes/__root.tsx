@@ -6,32 +6,13 @@ import { DefaultCatchBoundary } from "~/components/DefaultCatchBoundary";
 import { NotFound } from "~/components/NotFound";
 import appCss from "~/styles/app.css?url";
 import { seo } from "~/utils/seo";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { CssBaseline } from "@mui/material";
+import { ThemeProvider, CssBaseline } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 import { PWARegister } from "~/components/PWARegister";
 
 import { SnackbarProvider, VariantType, useSnackbar } from "notistack";
 import { getThemeFromCookie, getEffectiveTheme, useSystemThemeListener } from "~/utils/cookies";
-
-// Create theme based on cookie
-const createAppTheme = () => {
-  const themeMode = getThemeFromCookie();
-  const effectiveTheme = getEffectiveTheme(themeMode);
-  return createTheme({
-    palette: {
-      mode: effectiveTheme,
-      primary: {
-        main: "#1976d2",
-      },
-      secondary: {
-        main: "#dc004e",
-      },
-    },
-  });
-};
-
-const theme = createAppTheme();
+import { createAppTheme } from "~/utils/theme";
 
 export const Route = createRootRoute({
   head: () => ({
@@ -110,18 +91,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
 
   const appTheme = React.useMemo(() => {
     const effectiveTheme = getEffectiveTheme(currentTheme);
-    console.log("Theme debug:", { currentTheme, effectiveTheme });
-    return createTheme({
-      palette: {
-        mode: effectiveTheme,
-        primary: {
-          main: "#1976d2",
-        },
-        secondary: {
-          main: "#dc004e",
-        },
-      },
-    });
+    return createAppTheme(effectiveTheme);
   }, [currentTheme]);
 
   return (

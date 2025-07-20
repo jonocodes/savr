@@ -325,44 +325,17 @@ export class DbManager {
 
 }
 
-// interface IFileManager {
-//   directory: string;
-//   readTextFile(filename: string): Promise<string>;
-//   readTextFile(filename: string): Promise<string>;
-//   generateJsonDbManager(): DbManager;
-//   downloadAndResizeImage(url: string, targetDir: string): Promise<void>;
-// }
+export function getFilePathContent(slug: string): string {
+  return `saves/${slug}/index.html`;
+}
 
-// export class FileManager {
+export function getFilePathMetadata(slug: string): string {
+  return `saves/${slug}/article.json`;
+}
 
-//   // public directory: string; // TODO rename basepath?
-//   // protected directory: string;
-
-//   // // #directory: string; // a url or SAF path, or local dir
-
-//   // constructor(directory: string) {
-//   //   this.directory = directory;
-//   // }
-
-//   // public getDirectory(): string {
-//   //   return this.directory;
-//   // }
-
-//   public writeTextFile(filename: string, content: string): Promise<void> {
-//     throw new Error("Method not implemented."); 
-//   };
-
-//   public readTextFile(filename: string): Promise<string> {
-//     throw new Error("Method not implemented."); 
-//   };;
-//   public generateJsonDbManager(): DbManager {
-//     throw new Error("Method not implemented."); 
-//   };;
-
-//   public downloadAndResizeImage(url: string, targetDir: string): Promise<void> {
-//     throw new Error("Method not implemented."); 
-//   };;
-// }
+export function getFilePathRaw(slug: string): string {
+  return `saves/${slug}/raw.html`;
+}
 
 export abstract class FileManager {
 

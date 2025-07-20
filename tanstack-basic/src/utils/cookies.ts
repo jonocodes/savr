@@ -84,14 +84,14 @@ export const getFontSizeFromCookie = (): number => {
 // Get CORS proxy from cookie
 export const getCorsProxyFromCookie = (): string | null => {
   if (typeof document === "undefined") return null;
-
+  
   const cookies = document.cookie.split(";");
   const corsProxyCookie = cookies.find((cookie) =>
     cookie.trim().startsWith(`${CORS_PROXY_COOKIE_NAME}=`)
   );
 
   if (corsProxyCookie) {
-    const value = corsProxyCookie.split("=")[1];
+    const value = corsProxyCookie.replace(`${CORS_PROXY_COOKIE_NAME}=`, "");
     return value || null;
   }
 

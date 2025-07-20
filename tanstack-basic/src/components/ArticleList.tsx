@@ -43,7 +43,7 @@ import {
 import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
 import { ingestUrl2 } from "../../../lib/src/ingestion";
-import { removeArticle, updateArticleState, getCorsProxyValue } from "~/utils/tools";
+import { removeArticle, getCorsProxyValue, updateArticleMetadata } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 
 import { useLiveQuery } from "dexie-react-hooks";
@@ -90,7 +90,8 @@ function ArticleItem({ article }: { article: Article }) {
 
   const handleArchive = () => {
     try {
-      updateArticleState(storage.client!, article.slug, "archived");
+      // updateArticleState(storage.client!, article.slug, "archived");
+      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
       enqueueSnackbar("Article archived");
     } catch (e) {
       console.error(e);
@@ -102,7 +103,8 @@ function ArticleItem({ article }: { article: Article }) {
     if (!article) throw new Error("Article is undefined");
 
     try {
-      updateArticleState(storage.client!, article.slug, "unread");
+      // updateArticleState(storage.client!, article.slug, "unread");
+      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
       enqueueSnackbar("Article unarchived");
     } catch (e) {
       console.error(e);
@@ -240,6 +242,7 @@ export default function ArticleListScreen() {
 
     // This function is now primarily for the manual URL input in the dialog.
     // The bookmarklet ingestion will use the progress callback set in useEffect.
+    setIngestStatus("Ingesting...");
     await ingestUrl2(client, corsProxy, url, (percent: number | null, message: string | null) => {
       if (percent !== null) {
         setIngestStatus(message);
@@ -254,7 +257,10 @@ export default function ArticleListScreen() {
         // wait a bit before closing the dialog
         setTimeout(() => {
           setDialogVisible(false);
-        }, 4000);
+          setIngestStatus(null);
+          setIngestPercent(0);
+          setUrl("");
+        }, 2000);
       })
       .catch((error) => {
         console.error(error);
@@ -412,7 +418,11 @@ export default function ArticleListScreen() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
-          <Button onClick={saveUrl} variant="contained">
+          <Button
+            onClick={saveUrl}
+            variant="contained"
+            disabled={ingestStatus !== null || !url.trim()}
+          >
             Save
           </Button>
         </DialogActions>

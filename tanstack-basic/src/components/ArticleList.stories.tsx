@@ -202,7 +202,9 @@ export const MobileView: Story = {
       }, []);
 
       return (
-        <div style={{ width: "400px", margin: "0 auto" }}>
+        <div
+          style={{ width: "400px", margin: "0 auto", border: "1px solid black", height: "600px" }}
+        >
           <Story />
         </div>
       );

@@ -4,7 +4,7 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db, DbType } from "./db";
 import { glob } from "./storage";
 import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
-
+import { getFilePathMetadata } from "../../../lib/src/lib";
 
 // Cookie-based CORS proxy functions
 export const getCorsProxyValue = (): string | null => {
@@ -14,15 +14,6 @@ export const getCorsProxyValue = (): string | null => {
 export const setCorsProxyValue = (value: string | null): void => {
   setCorsProxyInCookie(value);
 };
-
-
-function getFilePathContent(slug: string): string {
-  return `saves/${slug}/index.html`;
-}
-
-function getFilePathMetadata(slug: string): string {
-  return `saves/${slug}/article.json`;
-}
 
 // delete the article from the db and the file system
 export async function removeArticle(storeClient: BaseClient, slug: string): Promise<void> {
@@ -40,38 +31,23 @@ export async function removeArticle(storeClient: BaseClient, slug: string): Prom
   await db.articles.delete(slug);
 }
 
-export async function updateArticleState(
-  // db: DbType,
+export async function updateArticleMetadata(
   storeClient: BaseClient,
-  slug: string,
-  state: string
+  updatedArticle: Article
 ): Promise<Article> {
-  // const metadataPath = getFilePathMetadata(slug);
-
-  // delete the directory if deleting. TODO: recursive
-  // storeClient?.remove(`saves/${slug}/index.html`);
-
-  // set the state in the file
-
-  const article = await db.articles.get(slug);
-
-  if (article === undefined) {
-    throw new Error("article empty");
-  }
-
-  article.state = state;
+  // update the metadata file in the storage
 
   await storeClient.storeFile(
     "application/json",
-    getFilePathMetadata(slug),
-    JSON.stringify(article)
+    getFilePathMetadata(updatedArticle.slug),
+    JSON.stringify(updatedArticle)
   );
 
-  // set the state in the db
+  // update the state in the db
 
-  await db.articles.put(article);
+  await db.articles.put(updatedArticle);
 
-  return article;
+  return updatedArticle;
 }
 
 //   public async downloadAndResizeImage(url: string, targetDir: string) {

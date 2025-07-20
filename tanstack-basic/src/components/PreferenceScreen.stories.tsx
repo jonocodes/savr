@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import PreferenceScreen from "./PreferenceScreen";
-import { ThemeProvider, createTheme } from "@mui/material/styles";
-import { CssBaseline } from "@mui/material";
+import { ThemeProvider, CssBaseline } from "@mui/material";
 import { setThemeInCookie } from "~/utils/cookies";
+import { createAppTheme, withLightTheme, withDarkTheme, withSystemTheme } from "~/utils/theme";
 
 // Theme decorator that sets up the theme based on cookie
 const withTheme = (themeMode: "light" | "dark" | "system") => (Story: any) => {
@@ -11,17 +11,7 @@ const withTheme = (themeMode: "light" | "dark" | "system") => (Story: any) => {
     setThemeInCookie(themeMode);
   }
 
-  const theme = createTheme({
-    palette: {
-      mode: themeMode === "system" ? "light" : themeMode,
-      primary: {
-        main: "#1976d2",
-      },
-      secondary: {
-        main: "#dc004e",
-      },
-    },
-  });
+  const theme = createAppTheme(themeMode);
 
   return (
     <ThemeProvider theme={theme}>
@@ -77,18 +67,6 @@ export const DarkTheme: Story = {
     },
   },
 };
-// System theme variant
-export const SystemTheme: Story = {
-  args: {},
-  decorators: [withTheme("system")],
-  parameters: {
-    docs: {
-      description: {
-        story: "Preference screen with system theme applied (follows OS preference).",
-      },
-    },
-  },
-};
 
 // Mobile viewport
 export const Mobile: Story = {
@@ -106,7 +84,7 @@ export const Mobile: Story = {
   decorators: [
     withTheme("light"),
     (Story) => (
-      <div style={{ width: "400px", margin: "0 auto" }}>
+      <div style={{ width: "400px", margin: "0 auto", border: "1px solid black" }}>
         <Story />
       </div>
     ),
