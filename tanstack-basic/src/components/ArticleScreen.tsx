@@ -15,6 +15,10 @@ import {
   Container,
   Slide,
   useScrollTrigger,
+  Drawer,
+  TextField,
+  Button,
+  Stack,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -29,6 +33,7 @@ import {
   OpenInNew as OpenInNewIcon,
   Share as ShareIcon,
   Delete as DeleteIcon,
+  Edit as EditIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -36,6 +41,7 @@ import { db } from "~/utils/db";
 import { Article } from "../../../lib/src/models";
 import { removeArticle, updateArticleState } from "~/utils/tools";
 import { useSnackbar } from "notistack";
+import ArticleComponent from "./ArticleComponent";
 
 interface Props {
   /**
@@ -77,6 +83,9 @@ export default function ArticleScreen(props: Props) {
   const [fontSize, setFontSize] = useState(16);
   const [viewMode, setViewMode] = useState<"cleaned" | "original">("cleaned");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [editTitle, setEditTitle] = useState("");
+  const [editAuthor, setEditAuthor] = useState("");
 
   const [html, setHtml] = useState("");
 
@@ -143,6 +152,26 @@ export default function ArticleScreen(props: Props) {
       console.error(e);
 
       enqueueSnackbar("Failed to unarchive article", { variant: "error" });
+    }
+  };
+
+  const handleEditInfo = () => {
+    setEditTitle(article.title || "");
+    setEditAuthor(article.author || "");
+    setEditDrawerOpen(true);
+    closeMenu();
+  };
+
+  const handleSaveEdit = async () => {
+    try {
+      const updatedArticle = { ...article, title: editTitle, author: editAuthor };
+      await db.articles.put(updatedArticle);
+      setArticle(updatedArticle);
+      setEditDrawerOpen(false);
+      enqueueSnackbar("Article info updated");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to update article info", { variant: "error" });
     }
   };
 
@@ -272,6 +301,13 @@ export default function ArticleScreen(props: Props) {
                 <ListItemText>Visit Original</ListItemText>
               </MenuItem>
 
+              <MenuItem onClick={handleEditInfo}>
+                <ListItemIcon>
+                  <EditIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Edit Info</ListItemText>
+              </MenuItem>
+
               <MenuItem onClick={handleShare}>
                 <ListItemIcon>
                   <ShareIcon fontSize="small" />
@@ -291,15 +327,55 @@ export default function ArticleScreen(props: Props) {
       </HideOnScroll>
 
       <Container maxWidth="md" sx={{ mt: 2, mb: 4 }}>
-        
-          <Box
-            sx={{
-              fontSize: fontSize,
-              lineHeight: 1.6,
-            }}
-            dangerouslySetInnerHTML={{ __html: html }}
-          />
+        <ArticleComponent html={html} fontSize={fontSize} />
       </Container>
+
+      {/* Edit Info Bottom Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={editDrawerOpen}
+        onClose={() => setEditDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: "50vh",
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 3 }}>
+            Edit Article Info
+          </Typography>
+
+          <Stack spacing={3}>
+            <TextField
+              label="Title"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              fullWidth
+              variant="outlined"
+            />
+
+            <TextField
+              label="Author"
+              value={editAuthor}
+              onChange={(e) => setEditAuthor(e.target.value)}
+              fullWidth
+              variant="outlined"
+            />
+
+            <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
+              <Button variant="outlined" onClick={() => setEditDrawerOpen(false)}>
+                Cancel
+              </Button>
+              <Button variant="contained" onClick={handleSaveEdit}>
+                Save
+              </Button>
+            </Box>
+          </Stack>
+        </Box>
+      </Drawer>
     </Box>
   );
 }
