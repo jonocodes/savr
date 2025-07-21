@@ -38,13 +38,13 @@ import {
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
-import { Article } from "../../../lib/src/models";
+import { Article } from "../../lib/src/models";
 import { removeArticle, updateArticleMetadata } from "~/utils/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
-import { getFilePathMetadata, getFilePathRaw } from "../../../lib/src/lib";
+import { getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
 
 interface Props {
   /**

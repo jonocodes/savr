@@ -1,5 +1,5 @@
 import Dexie, { type EntityTable } from "dexie";
-import { Article } from "../../../lib/src/models";
+import { Article } from "../../lib/src/models";
 
 type DbType = Dexie & {
   articles: EntityTable<Article, "slug">;

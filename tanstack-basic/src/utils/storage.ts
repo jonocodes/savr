@@ -3,7 +3,7 @@ import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
 import { db } from "./db";
-import { Article } from "../../../lib/src/models";
+import { Article } from "../../lib/src/models";
 import extensionConnector from "./extensionConnector"; // Import the extension connector
 import { environmentConfig } from "~/config/environment";
 

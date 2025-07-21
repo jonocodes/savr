@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import ArticleScreen from "./ArticleScreen";
 import ArticleComponent from "./ArticleComponent";
 import React, { createContext, useContext, useState, useEffect } from "react";
-import { Article } from "../../../lib/src/models";
+import { Article } from "../../lib/src/models";
 import { db } from "~/utils/db";
 
 // Fetch article data from filesystem

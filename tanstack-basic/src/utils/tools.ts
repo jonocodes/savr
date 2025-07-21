@@ -1,10 +1,10 @@
-import { Article, ArticleAndRender } from "../../../lib/src/models";
+import { Article, ArticleAndRender } from "../../lib/src/models";
 import { getCorsProxy } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db, DbType } from "./db";
 import { glob } from "./storage";
 import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
-import { getFilePathMetadata } from "../../../lib/src/lib";
+import { getFilePathMetadata } from "../../lib/src/lib";
 
 // Cookie-based CORS proxy functions
 export const getCorsProxyValue = (): string | null => {

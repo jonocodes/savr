@@ -4,8 +4,8 @@
 // This script is the receiving end in the app that the bookmarklet-client communicates with.
 
 import { init } from "./storage";
-import { ingestCurrentPage } from "../../../lib/src/ingestion";
-import { mimeToExt } from "../../../lib/src/lib";
+import { ingestCurrentPage } from "../../lib/src/ingestion";
+import { mimeToExt } from "../../lib/src/lib";
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 

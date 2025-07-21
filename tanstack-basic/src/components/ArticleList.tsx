@@ -42,12 +42,12 @@ import {
 } from "@mui/icons-material";
 import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
-import { ingestUrl2 } from "../../../lib/src/ingestion";
+import { ingestUrl2 } from "../../lib/src/ingestion";
 import { removeArticle, getCorsProxyValue, updateArticleMetadata } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 
 import { useLiveQuery } from "dexie-react-hooks";
-import { Article } from "../../../lib/src/models";
+import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { shouldEnableSampleUrls } from "~/config/environment";
 
