@@ -2,7 +2,7 @@ import { Readability } from "@mozilla/readability";
 import {parseHTML} from 'linkedom';
 import * as uri from "uri-js";
 import { Article } from "./models";
-import { version } from '../package.json' with { type: "json" };
+import { version } from '../../package.json' with { type: "json" };
 import mime from 'mime';
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate from "./article";

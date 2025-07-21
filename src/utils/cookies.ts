@@ -23,10 +23,8 @@ export const getEffectiveTheme = (mode: ThemeMode): "light" | "dark" => {
   console.log("getEffectiveTheme called with mode:", mode);
   if (mode === "system") {
     const systemTheme = getSystemTheme();
-    console.log("System mode detected, returning:", systemTheme);
     return systemTheme;
   }
-  console.log("Non-system mode, returning:", mode);
   return mode;
 };
 

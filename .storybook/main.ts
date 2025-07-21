@@ -13,7 +13,7 @@ const config: StorybookConfig = {
     options: {},
   },
 
-  staticDirs: ["../test_date"],
+  staticDirs: ["../test_data"],
 
   viteFinal: async (config) => {
     // Add any custom Vite config here if needed
