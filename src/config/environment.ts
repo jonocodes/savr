@@ -3,7 +3,7 @@ export interface EnvironmentConfig {
   isDevelopment: boolean;
   isProduction: boolean;
   enableSampleUrls: boolean;
-  corsProxy: string | null;
+  defaultCorsProxy: string;
   apiKeys: {
     googleDrive?: string;
     dropbox?: string;
@@ -31,10 +31,7 @@ export const environmentConfig: EnvironmentConfig = {
   isDevelopment: getEnvironmentMode() === "development",
   isProduction: getEnvironmentMode() === "production",
   enableSampleUrls: getEnvironmentMode() === "development",
-  corsProxy:
-    getEnvironmentMode() === "development"
-      ? "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url="
-      : null,
+  defaultCorsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
   apiKeys: {
     googleDrive: getEnvVar(
       "VITE_GOOGLE_DRIVE_API_KEY",
@@ -48,4 +45,4 @@ export const environmentConfig: EnvironmentConfig = {
 export const isDevelopment = () => environmentConfig.isDevelopment;
 export const isProduction = () => environmentConfig.isProduction;
 export const shouldEnableSampleUrls = () => environmentConfig.enableSampleUrls;
-export const getCorsProxy = () => environmentConfig.corsProxy;
+export const getDefaultCorsProxy = () => environmentConfig.defaultCorsProxy;

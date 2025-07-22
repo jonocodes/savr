@@ -45,6 +45,7 @@ import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
+import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 
 interface Props {
   /**
@@ -86,13 +87,17 @@ export default function ArticleScreen(props: Props) {
   const [fontSize, setFontSize] = useState(getFontSizeFromCookie());
   const [viewMode, setViewMode] = useState<"cleaned" | "original">("cleaned");
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-  const [editDrawerOpen, setEditDrawerOpen] = useState(false);
+  const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
 
   const [html, setHtml] = useState("");
 
   const [content, setContent] = useState("");
+  const [storageSize, setStorageSize] = useState<{
+    totalSize: number;
+    files: { path: string; size: number }[];
+  } | null>(null);
 
   const [article, setArticle] = useState({} as Article);
 
@@ -163,7 +168,7 @@ export default function ArticleScreen(props: Props) {
   const handleEditInfo = () => {
     setEditTitle(article.title || "");
     setEditAuthor(article.author || "");
-    setEditDrawerOpen(true);
+    setInfoDrawerOpen(true);
     closeMenu();
   };
 
@@ -206,7 +211,7 @@ export default function ArticleScreen(props: Props) {
       // // Save the updated HTML back to storage
       // const updatedHtml = doc.documentElement.outerHTML;
       // await storage.client?.storeFile("text/html", `saves/${slug}/index.html`, updatedHtml);
-      setEditDrawerOpen(false);
+      setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
     } catch (e) {
       console.error(e);
@@ -248,6 +253,14 @@ export default function ArticleScreen(props: Props) {
         }
 
         console.log("loading from content article", html);
+
+        // Calculate storage size for this article
+        try {
+          const sizeInfo = await calculateArticleStorageSize(slug);
+          setStorageSize(sizeInfo);
+        } catch (error) {
+          console.error("Failed to calculate storage size:", error);
+        }
       } catch (e) {
         console.error(e);
       }
@@ -360,7 +373,7 @@ export default function ArticleScreen(props: Props) {
                 <ListItemIcon>
                   <EditIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>Edit Info</ListItemText>
+                <ListItemText>Info</ListItemText>
               </MenuItem>
 
               <MenuItem onClick={handleShare}>
@@ -385,11 +398,11 @@ export default function ArticleScreen(props: Props) {
         <ArticleComponent html={html} fontSize={fontSize} />
       </Container>
 
-      {/* Edit Info Bottom Drawer */}
+      {/* Info Bottom Drawer */}
       <Drawer
         anchor="bottom"
-        open={editDrawerOpen}
-        onClose={() => setEditDrawerOpen(false)}
+        open={infoDrawerOpen}
+        onClose={() => setInfoDrawerOpen(false)}
         PaperProps={{
           sx: {
             borderTopLeftRadius: 16,
@@ -400,7 +413,10 @@ export default function ArticleScreen(props: Props) {
       >
         <Box sx={{ p: 3 }}>
           <Typography variant="h6" sx={{ mb: 3 }}>
-            Edit Article Info
+            Article Info
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Size: {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
           </Typography>
 
           <Stack spacing={3}>
@@ -421,7 +437,7 @@ export default function ArticleScreen(props: Props) {
             />
 
             <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
-              <Button variant="outlined" onClick={() => setEditDrawerOpen(false)}>
+              <Button variant="outlined" onClick={() => setInfoDrawerOpen(false)}>
                 Cancel
               </Button>
               <Button variant="contained" onClick={handleSaveEdit}>

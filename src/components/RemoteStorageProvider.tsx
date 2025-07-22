@@ -20,14 +20,27 @@ const RemoteStorageContext = createContext<RemoteStorageContextType>({
 
 export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [remoteStorage, setRemoteStorage] = useState<RemoteStorage | null>(null);
-
   const [client, setClient] = useState<BaseClient | null>(null);
-
   const [widget, setWidget] = useState<any>(null);
+  const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
   // const widgetContainerRef = useRef<View>(null);
 
   useEffect(() => {
+    // Get sync setting from cookies
+    const getSyncEnabled = () => {
+      const syncCookie = document.cookie.split("; ").find((row) => row.startsWith("syncEnabled="));
+      if (syncCookie) {
+        const syncValue = syncCookie.split("=")[1];
+        return syncValue === "true";
+      }
+      return true; // Default to enabled
+    };
+
     const initializeStorage = async () => {
+      const isSyncEnabled = getSyncEnabled();
+      setSyncEnabled(isSyncEnabled);
+
+      // Always initialize remote storage, but control widget visibility
       const { remoteStorage: store, client } = await init();
       setRemoteStorage(store);
       setClient(client);
@@ -45,14 +58,46 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
           // Attach the widget to a DOM element
           newWidget.attach("remotestorage-container"); // This will look for an element with id="remotestorage-container"
           setWidget(newWidget);
+
+          // Set initial visibility based on sync setting
+          setTimeout(() => {
+            const widgetElement = document.getElementById("remotestorage-widget");
+            if (widgetElement) {
+              widgetElement.style.display = isSyncEnabled ? "block" : "none";
+            }
+          }, 100);
         }
       }
     };
 
     initializeStorage();
 
+    // Listen for cookie changes
+    const checkSyncSetting = () => {
+      const isSyncEnabled = getSyncEnabled();
+      if (isSyncEnabled !== syncEnabled) {
+        setSyncEnabled(isSyncEnabled);
+
+        // Always try to find the widget element
+        const widgetElement = document.getElementById("remotestorage-widget");
+        if (widgetElement) {
+          if (!isSyncEnabled) {
+            // Hide widget when sync is disabled
+            widgetElement.style.display = "none";
+          } else {
+            // Show widget when sync is enabled
+            widgetElement.style.display = "block";
+          }
+        }
+      }
+    };
+
+    // Check for cookie changes periodically
+    const interval = setInterval(checkSyncSetting, 1000);
+
     // Cleanup function
     return () => {
+      clearInterval(interval);
       if (widget && typeof window !== "undefined") {
         // There's no official detach method, but you might want to remove the DOM element
         const widgetElement = document.getElementById("remotestorage-widget");
@@ -61,14 +106,20 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
     };
-  }, []);
+  }, []); // Remove dependencies to prevent infinite loops
 
   return (
     <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>
       {/* This div is where the widget will be attached */}
       <div
         id="remotestorage-container"
-        style={{ position: "fixed", bottom: "10px", right: "10px", zIndex: 1000 }}
+        style={{
+          position: "fixed",
+          bottom: "10px",
+          right: "10px",
+          zIndex: 1000,
+          display: syncEnabled ? "block" : "none",
+        }}
       />
       {children}
     </RemoteStorageContext.Provider>

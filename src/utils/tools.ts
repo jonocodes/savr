@@ -1,14 +1,15 @@
 import { Article, ArticleAndRender } from "../../lib/src/models";
-import { getCorsProxy } from "~/config/environment";
+import { getDefaultCorsProxy } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
-import { db, DbType } from "./db";
-import { glob } from "./storage";
+import { db } from "./db";
+import { deleteArticleStorage, glob } from "./storage";
 import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
 import { getFilePathMetadata } from "../../lib/src/lib";
 
 // Cookie-based CORS proxy functions
-export const getCorsProxyValue = (): string | null => {
-  return getCorsProxyFromCookie() || getCorsProxy();
+export const getCorsProxyValue = (): string => {
+  const customValue = getCorsProxyFromCookie();
+  return customValue || getDefaultCorsProxy();
 };
 
 export const setCorsProxyValue = (value: string | null): void => {
@@ -17,12 +18,22 @@ export const setCorsProxyValue = (value: string | null): void => {
 
 // delete the article from the db and the file system
 export async function removeArticle(storeClient: BaseClient, slug: string): Promise<void> {
-  // const files = await glob(storeClient, `saves/${slug}/*`);
+  await deleteArticleStorage(slug);
 
-  for (const file of await glob(storeClient, `saves/${slug}/*`)) {
-    console.log("Deleting file", file);
-    await storeClient.remove(file);
-  }
+  // for (const file of await glob(storeClient, `saves/${slug}/*`)) {
+  //   console.log("Deleting file", file);
+  //   const result = await storeClient.remove(file);
+  //   console.log("result", result);
+
+  //   console.log("deleting non existing file test");
+  //   const result2 = await storeClient.remove("bad-file");
+  //   console.log("result2", result2);
+
+  //   storeClient
+  //     .remove(file)
+  //     .then(() => console.log("result3 File/object deleted!"))
+  //     .catch((err) => console.error(err));
+  // }
 
   // delete the directory. is this needed?
   // storeClient.remove(`saves/${slug}`);

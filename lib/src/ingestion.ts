@@ -1,14 +1,23 @@
 import { Readability } from "@mozilla/readability";
-import {parseHTML} from 'linkedom';
+import { parseHTML } from "linkedom";
 import * as uri from "uri-js";
 import { Article } from "./models";
-import { version } from '../../package.json' with { type: "json" };
-import mime from 'mime';
+import { version } from "../../package.json" with { type: "json" };
+import mime from "mime";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate from "./article";
 // import { listTemplateMoustache } from "./list";
-import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, renderListTemplate, calcReadingTime, getFilePathRaw, getFilePathContent, getFilePathMetadata } from "./lib";
-
+import {
+  FileManager,
+  articlesToRender,
+  DbManager,
+  generateInfoForArticle,
+  renderListTemplate,
+  calcReadingTime,
+  getFilePathRaw,
+  getFilePathContent,
+  getFilePathMetadata,
+} from "./lib";
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);
@@ -24,21 +33,19 @@ import  { FileManager, articlesToRender, DbManager, generateInfoForArticle, rend
 
 // const savesDir = dataDir + "/saves";
 
-
 // TODO: maybe dont need this mapping since the subtype is the extension
 const mimeToExt: Record<string, string> = {
-  'text/html': 'html',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'application/pdf': 'pdf',
-  'text/plain': 'txt',
-  'text/markdown': 'md',
+  "text/html": "html",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+  "text/plain": "txt",
+  "text/markdown": "md",
   // application/epub+zip
 };
 
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
-
 
 // export function upsertArticleToList(articles: Article[], article: Article){
 
@@ -50,7 +57,6 @@ type ImageData = [string, string, HTMLImageElement]; // url, path, image
 //   }
 // }
 
-
 function getBaseDirectory(articleUrl: string): string {
   const parsedUrl = uri.parse(articleUrl);
   const path = parsedUrl.path;
@@ -58,11 +64,11 @@ function getBaseDirectory(articleUrl: string): string {
   return path.endsWith("/") ? articleUrl : uri.resolve(articleUrl, ".");
 }
 
-async function extractImageUrls(doc: Document, articleUrl: string|null): Promise<ImageData[]> {
+async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
   const imgElements = doc.querySelectorAll("img");
   const imgData: ImageData[] = [];
 
-  let baseDirectory = null
+  let baseDirectory = null;
 
   if (articleUrl !== null) {
     baseDirectory = getBaseDirectory(articleUrl);
@@ -92,7 +98,6 @@ async function downloadAndResizeImages(
   maxDimension: number,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<void> {
-
   // if (!fs.existsSync(outputDir)) {
   //   fs.mkdirSync(outputDir);
   // }
@@ -118,7 +123,7 @@ async function downloadAndResizeImages(
       // Resize the image using Jimp
       // const image = await Jimp.read(imageBuffer);
       // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
-      
+
       const outputFilePath = outputDir + "/" + modifiedPath;
 
       // const ext = outputFilePath.split('.').pop();
@@ -151,14 +156,12 @@ function updateImageSrc(doc: Document, imageData: ImageData[], outputDir: string
 }
 
 async function processHtmlAndImages(
-  articleUrl: string|null,
+  articleUrl: string | null,
   htmlText: string,
   saveDir: string,
   sendMessage: (percent: number | null, message: string | null) => void
-):
-Promise<string> {
-
-  const { document:doc } = parseHTML(htmlText);
+): Promise<string> {
+  const { document: doc } = parseHTML(htmlText);
 
   const imageData = await extractImageUrls(doc, articleUrl);
   const outputDir = saveDir + "/images";
@@ -177,13 +180,13 @@ Promise<string> {
   sendMessage(95, "creating thumbnail");
   // create the thumbnail
 
-  const imageFileNames = imageData.map(item => outputDir + "/" + item[1]);
+  const imageFileNames = imageData.map((item) => outputDir + "/" + item[1]);
 
   await createThumbnail(imageFileNames, saveDir);
 
   // Serialize the updated DOM to get the updated HTML string
   // return dom.serialize();
-  return doc.documentElement.outerHTML
+  return doc.documentElement.outerHTML;
 }
 
 function stringToSlug(str: string): string {
@@ -225,7 +228,7 @@ async function createThumbnail(fileNames: string[], outputDirPath: string) {
 
     // const area = metadata.width * metadata.height;
 
-    const area = 1024 * 1024
+    const area = 1024 * 1024;
 
     // Ignore small images
     if (area < 5000) {
@@ -253,7 +256,7 @@ async function createThumbnail(fileNames: string[], outputDirPath: string) {
     // await image
     //   .scaleToFit({w: maxDimensionThumb, h: maxDimensionThumb}) // Resize using ScaleToFitOptions
     //   .write(`${outputFilePath}.${'png'}`); // Save as PNG
-      
+
     console.log(`Thumbnail created: ${outputFilePath}`);
   } catch (error) {
     console.error(`Error creating thumbnail: ${error}`);
@@ -267,18 +270,16 @@ function guessContentType(input: string): string {
   // Simplified HTML check: match any tag or <!DOCTYPE html>
   const htmlTagRegex = /^(<!DOCTYPE html>|<\s*[a-zA-Z][^>]*>.*<\/\s*[a-zA-Z][^>]*>)$/s;
   if (htmlTagRegex.test(trimmedInput)) {
-    return 'text/html';
+    return "text/html";
   }
 
   // Markdown check: only look for headings
   const markdownHeadingRegex = /^#{1,6}\s+/m; // Match lines starting with 1-6 # symbols
   if (markdownHeadingRegex.test(trimmedInput)) {
-    return 'text/markdown';
+    return "text/markdown";
   }
-  
 
   // TODO: this does not work well. try htmlparser2 and markdown-it/showdown parsing test
-
 
   // // Check for HTML
   // if (/<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(trimmedInput)) {
@@ -295,9 +296,8 @@ function guessContentType(input: string): string {
   // }
 
   // Default to plain text
-  return 'text/plain';
+  return "text/plain";
 }
-
 
 // export function dirList() {
 //   const dirs = fs
@@ -308,7 +308,6 @@ function guessContentType(input: string): string {
 //   return dirs;
 // }
 
-
 // export async function articleList() {
 //   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 //   return db.data.articles;
@@ -317,10 +316,8 @@ function guessContentType(input: string): string {
 // export async function getArticles(dbManager: DbManager): Promise<Article[]> {
 
 //   return await dbManager.getArticles()
-  
+
 // }
-
-
 
 // export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
 
@@ -341,14 +338,9 @@ function guessContentType(input: string): string {
 
 // }
 
-
 // export function renderListTemplate(view: object) {
 //   return Mustache.render(listTemplateMoustache, view);
 // }
-
-
-
-
 
 // /**
 //  * Recursively copies all files and directories from the source directory to the destination directory.
@@ -382,18 +374,17 @@ function guessContentType(input: string): string {
 // }
 
 export async function createLocalHtmlList(dbManager: DbManager) {
-
   // const htmlOutfile = await dbManager.fileManager.readTextFile('list.html')
 
   // const htmlOutfile = dataDir + "/list.html";
 
-  const rootPath = "."
+  const rootPath = ".";
 
-  const articles = await dbManager.getArticles()
+  const articles = await dbManager.getArticles();
 
   // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const [readable, archived] = articlesToRender(articles)
+  const [readable, archived] = articlesToRender(articles);
 
   const rendered = renderListTemplate({
     readable,
@@ -401,31 +392,28 @@ export async function createLocalHtmlList(dbManager: DbManager) {
     // rootPath: rootPath,
     namespace: rootPath,
     static: true,
-    metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+    metadata: JSON.stringify({ ingestPlatform: version }, null, 2),
   });
 
-  dbManager.fileManager.writeTextFile('list.html', rendered)
+  dbManager.fileManager.writeTextFile("list.html", rendered);
 
   // fs.writeFileSync(htmlOutfile, rendered);
 
   // copyStaticFiles()
 }
 
-
 export async function setState(dbManager: DbManager, slug: string, state: string) {
-
   // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  const article = await dbManager.getArticle(slug)
+  const article = await dbManager.getArticle(slug);
 
   if (!article) {
-    throw new Error("article not found")
+    throw new Error("article not found");
   }
 
-  article.state = state
+  article.state = state;
 
-  await dbManager.upsertArticle(article)
-
+  await dbManager.upsertArticle(article);
 
   // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.slug === slug);
 
@@ -434,28 +422,31 @@ export async function setState(dbManager: DbManager, slug: string, state: string
 
   // await db.write();
 
-  if (state == 'deleted') 
+  if (state == "deleted")
     try {
-  // TODO: delete the directory
+      // TODO: delete the directory
       // fs.rmdirSync(savesDir + "/" + slug, { recursive: true })
     } catch (error) {
-      console.log(error)
+      console.log(error);
     }
 
   await createLocalHtmlList(dbManager);
 
-  console.log(`set state to ${state} for ${slug}`)
+  console.log(`set state to ${state} for ${slug}`);
 }
 
-export function readabilityToArticle(html: string, contentType: string, url: string|null): [Article, string] {
-
-  var options = {}
+export function readabilityToArticle(
+  html: string,
+  contentType: string,
+  url: string | null
+): [Article, string] {
+  var options = {};
 
   if (url !== null) {
-    options = { url, contentType }
+    options = { url, contentType };
   }
 
-  console.log('running readability')
+  console.log("running readability");
 
   const { document } = parseHTML(html);
 
@@ -467,7 +458,7 @@ export function readabilityToArticle(html: string, contentType: string, url: str
   }
 
   if (readabilityResult.title == "") {
-    readabilityResult.title = `${mimeToExt[contentType]} ${Date.now() + 0}`
+    readabilityResult.title = `${mimeToExt[contentType]} ${Date.now() + 0}`;
   }
 
   console.log(`title: ${readabilityResult.title}`);
@@ -485,7 +476,7 @@ export function readabilityToArticle(html: string, contentType: string, url: str
   //   fs.mkdirSync(saveDir, { recursive: true });
   // }
 
-  const content = readabilityResult.content
+  const content = readabilityResult.content;
 
   // sendMessage(15, "collecting images");
 
@@ -499,7 +490,6 @@ export function readabilityToArticle(html: string, contentType: string, url: str
     if (isNaN(pubDate.getTime())) {
       pubDate = null;
     }
-
   }
 
   const readingTimeMinutes = calcReadingTime(content);
@@ -522,7 +512,7 @@ export function readabilityToArticle(html: string, contentType: string, url: str
     progress: 0,
   };
 
-  return [article, content]
+  return [article, content];
 }
 
 // function getReadableStream(response: Response): Readable {
@@ -533,7 +523,6 @@ export function readabilityToArticle(html: string, contentType: string, url: str
 
 //   return readableStreamToNodeReadable(response.body)
 // }
-
 
 // function readableStreamToNodeReadable(stream: ReadableStream): Readable {
 
@@ -550,7 +539,6 @@ export function readabilityToArticle(html: string, contentType: string, url: str
 //     }
 //   });
 // }
-
 
 // function articleFromImage(mimeType: MIMEType, checksum: string, url: string
 // ) : Article {
@@ -576,7 +564,6 @@ export function readabilityToArticle(html: string, contentType: string, url: str
 
 //   return article
 // }
-
 
 // async function articleFromPdf(checksum: string, url: string): Promise<Article> {
 
@@ -620,55 +607,59 @@ export function readabilityToArticle(html: string, contentType: string, url: str
 //   return article
 // }
 
-async function ingestHtml(fileManager: FileManager, html: string, contentType: string, url: string|null,
-  sendMessage: (percent: number | null, message: string | null) => void
-) : Promise<Article> {
+// async function ingestHtml(
+//   fileManager: FileManager,
+//   html: string,
+//   contentType: string,
+//   url: string | null,
+//   sendMessage: (percent: number | null, message: string | null) => void
+// ): Promise<Article> {
+//   sendMessage(10, "scraping article");
 
+//   let [article, content] = readabilityToArticle(html, contentType, url);
+
+//   const saveDir = "saves/" + article.slug;
+
+//   sendMessage(15, "collecting images");
+
+//   content = await processHtmlAndImages(url, content, saveDir, sendMessage);
+
+//   const rendered = ArticleTemplate({
+//     title: article.title,
+//     byline: article.author || "unknown author",
+//     published: generateInfoForArticle(article),
+//     readTime: `${article.readTimeMinutes} minute read`,
+//     content: content,
+//     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+//     // namespace: rootPath,
+//   });
+
+//   // const rendered = renderTemplate("article", {
+//   //   title: article.title,
+//   //   byline: article.author,
+//   //   published: generateInfoForArticle(article),
+//   //   readTime: `${article.readTimeMinutes} minute read`,
+//   //   content: content,
+//   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+//   //   // namespace: rootPath,
+//   // });
+
+//   // fs.writeFileSync(saveDir + "/index.html", rendered);
+//   fileManager.writeTextFile(saveDir + "/index.html", rendered);
+
+//   return article;
+// }
+
+export async function ingestHtml2(
+  storageClient: BaseClient | null,
+  html: string,
+  contentType: string,
+  url: string | null,
+  sendMessage: (percent: number | null, message: string | null) => void
+): Promise<Article> {
   sendMessage(10, "scraping article");
 
-  let [article, content] = readabilityToArticle(html, contentType, url)
-
-  const saveDir =  "saves/" + article.slug;
-
-  sendMessage(15, "collecting images");
-
-  content = await processHtmlAndImages(url, content, saveDir, sendMessage);
-
-  const rendered = ArticleTemplate({
-    title: article.title,
-    byline: article.author || 'unknown author',
-    published: generateInfoForArticle(article),
-    readTime: `${article.readTimeMinutes} minute read`,
-    content: content,
-    // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-    // namespace: rootPath,
-
-  })  
-
-  // const rendered = renderTemplate("article", {
-  //   title: article.title,
-  //   byline: article.author,
-  //   published: generateInfoForArticle(article),
-  //   readTime: `${article.readTimeMinutes} minute read`,
-  //   content: content,
-  //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-  //   // namespace: rootPath,
-  // });
-
-  // fs.writeFileSync(saveDir + "/index.html", rendered);
-  fileManager.writeTextFile(saveDir + "/index.html", rendered)
-
-  return article
-}
-
-
-export async function ingestHtml2(storageClient: BaseClient|null, html: string, contentType: string, url: string|null,
-  sendMessage: (percent: number | null, message: string | null) => void
-) : Promise<Article> {
-
-  sendMessage(10, "scraping article");
-
-  let [article, content] = readabilityToArticle(html, contentType, url)
+  let [article, content] = readabilityToArticle(html, contentType, url);
 
   // const saveDir =  "saves/" + article.slug;
 
@@ -683,21 +674,18 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
 
   const rendered = ArticleTemplate({
     title: article.title,
-    byline: article.author || 'unknown author',
+    byline: article.author || "unknown author",
     published: generateInfoForArticle(article),
     readTime: `${article.readTimeMinutes} minute read`,
     content: content,
     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
     // namespace: rootPath,
-
-  })
+  });
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
 
-  return article
+  return article;
 }
-
-
 
 // function ingestPlainText(text: string, url: string|null): Article {
 
@@ -735,7 +723,7 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
 //     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
 //     // namespace: rootPath,
 
-//   })  
+//   })
 
 //   // const rendered = renderTemplate("article", {
 //   //   title: article.title,
@@ -757,8 +745,8 @@ export async function ingestHtml2(storageClient: BaseClient|null, html: string, 
 // }
 
 function generateRandomString() {
-  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  let randomString = '';
+  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let randomString = "";
   for (let i = 0; i < 16; i++) {
     randomString += characters.charAt(Math.floor(Math.random() * characters.length));
   }
@@ -863,111 +851,109 @@ console.log(generateRandomString());
 //   sendMessage(100, "finished");
 // }
 
+// export async function ingestUrl(
+//   dbManager: DbManager,
+//   url: string,
+//   sendMessage: (percent: number | null, message: string | null) => void
+// ) {
+//   sendMessage(0, "start");
 
-export async function ingestUrl(
-  dbManager: DbManager,
-  url: string,
-  sendMessage: (percent: number | null, message: string | null) => void
-) {
-  sendMessage(0, "start");
+//   // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
 
-  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
+//   const articles = await dbManager.getArticles();
 
-  const articles = await dbManager.getArticles();
+//   const existingArticleIndex = articles.findIndex((article: Article) => article.url === url);
 
-  const existingArticleIndex = articles.findIndex((article: Article) => article.url === url);
+//   // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.url === url);
 
-  // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.url === url);
+//   if (existingArticleIndex != -1) {
+//     sendMessage(5, "article already exists - reingesting");
+//   }
 
-  if (existingArticleIndex != -1) {
-    sendMessage(5, "article already exists - reingesting");
-  }
+//   const response = await fetch(url);
 
-  const response = await fetch(url);
+//   const contentTypeHeader = response.headers.get("content-type")
 
-  const contentTypeHeader = response.headers.get("content-type")
+//   if (!contentTypeHeader) {
+//     throw new Error("cant determine content type")
+//   }
 
-  if (!contentTypeHeader) {
-    throw new Error("cant determine content type")
-  }
+//   // sendMessage(10, "scraping article");
 
-  // sendMessage(10, "scraping article");
+//   var article: Article | null = null
 
-  var article: Article | null = null
+//   console.log(`contentTypeHeader = ${contentTypeHeader}`)
 
-  console.log(`contentTypeHeader = ${contentTypeHeader}`)
+//   try {
 
-  try {
+//     const extension = mime.getExtension(contentTypeHeader)
+//     const mimeType = mime.getType(extension??"");
 
-    const extension = mime.getExtension(contentTypeHeader)
-    const mimeType = mime.getType(extension??"");
+//     // const mimeType = new MIMEType(contentTypeHeader);
 
-    // const mimeType = new MIMEType(contentTypeHeader);
+//     if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
+//       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
+//     }
 
-    if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
-      throw new Error(`Unsupported content type: ${contentTypeHeader}`);
-    }
+//     if (mimeType === 'text/html') {
 
-    if (mimeType === 'text/html') {
+//       article = await ingestHtml(dbManager.fileManager, await response.text(), contentTypeHeader, url, sendMessage)
 
-      article = await ingestHtml(dbManager.fileManager, await response.text(), contentTypeHeader, url, sendMessage)
+//     // } else if (mimeType.subtype === 'pdf') {
 
-    // } else if (mimeType.subtype === 'pdf') {
+//     //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+//     //   article = await articleFromPdf(checksum, url)
 
-    //   article = await articleFromPdf(checksum, url)
+//     //   finalizeFileLocation(tempLocalPath, article)
 
-    //   finalizeFileLocation(tempLocalPath, article)
+//     //   // TODO: thumbnail
 
-    //   // TODO: thumbnail
+//     // } else if (mimeType.type === 'image') {
 
-    // } else if (mimeType.type === 'image') {
+//     //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+//     //   article = articleFromImage(mimeType, checksum, url)
 
-    //   article = articleFromImage(mimeType, checksum, url)
+//     //   finalizeFileLocation(tempLocalPath, article)
 
-    //   finalizeFileLocation(tempLocalPath, article)
+//     //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
 
-    //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
+//     } else {
+//       throw new Error(`No handler for content type ${contentTypeHeader}`)
+//     }
 
-    } else {
-      throw new Error(`No handler for content type ${contentTypeHeader}`)
-    }
+//     article.ingestSource = "url"
+//     article.mimeType = mimeType
 
-    article.ingestSource = "url"
-    article.mimeType = mimeType
+//   } catch(error) {
+//     console.error(error)
+//     throw new Error("error during ingestion")
+//   }
 
-  } catch(error) {
-    console.error(error)
-    throw new Error("error during ingestion")
-  }
+//   // const saveDir = "saves/" + article.slug;
 
-  // const saveDir = "saves/" + article.slug;
+//   dbManager.fileManager.writeTextFile(getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
 
-  dbManager.fileManager.writeTextFile(getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
+//   dbManager.upsertArticle(article);
 
-  dbManager.upsertArticle(article);
+//   // if (existingArticleIndex != -1) {
+//   //   db.data.articles[existingArticleIndex] = article;
+//   // } else {
+//   //   // keep the most recent at the top since its easier to read that way
+//   //   db.data.articles.unshift(article);
+//   // }
 
-  // if (existingArticleIndex != -1) {
-  //   db.data.articles[existingArticleIndex] = article;
-  // } else {
-  //   // keep the most recent at the top since its easier to read that way
-  //   db.data.articles.unshift(article);
-  // }
+//   // await db.write();
 
-  // await db.write();
+//   await createLocalHtmlList(dbManager);
 
-  await createLocalHtmlList(dbManager);
-
-  sendMessage(100, "finished");
-}
-
+//   sendMessage(100, "finished");
+// }
 
 export async function ingestUrl2(
-  storageClient: BaseClient|null,
-  corsProxy: string|null,
+  storageClient: BaseClient | null,
+  corsProxy: string | null,
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
@@ -978,22 +964,21 @@ export async function ingestUrl2(
 
   const response = await fetch(`${corsProxy}${url}`);
 
-  const contentTypeHeader = response.headers.get("content-type")
+  const contentTypeHeader = response.headers.get("content-type");
 
   if (!contentTypeHeader) {
-    throw new Error("cant determine content type")
+    throw new Error("cant determine content type");
   }
 
   // sendMessage(10, "scraping article");
 
-  var article: Article | null = null
+  var article: Article | null = null;
 
-  console.log(`contentTypeHeader = ${contentTypeHeader}`)
+  console.log(`contentTypeHeader = ${contentTypeHeader}`);
 
   try {
-
-    const extension = mime.getExtension(contentTypeHeader)
-    const mimeType = mime.getType(extension??"");
+    const extension = mime.getExtension(contentTypeHeader);
+    const mimeType = mime.getType(extension ?? "");
 
     // const mimeType = new MIMEType(contentTypeHeader);
 
@@ -1001,47 +986,56 @@ export async function ingestUrl2(
       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
     }
 
-    if (mimeType === 'text/html') {
+    if (mimeType === "text/html") {
+      article = await ingestHtml2(
+        storageClient,
+        await response.text(),
+        contentTypeHeader,
+        url,
+        sendMessage
+      );
 
-      article = await ingestHtml2(storageClient, await response.text(), contentTypeHeader, url, sendMessage)
+      // } else if (mimeType.subtype === 'pdf') {
 
-    // } else if (mimeType.subtype === 'pdf') {
+      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+      //   article = await articleFromPdf(checksum, url)
 
-    //   article = await articleFromPdf(checksum, url)
+      //   finalizeFileLocation(tempLocalPath, article)
 
-    //   finalizeFileLocation(tempLocalPath, article)
+      //   // TODO: thumbnail
 
-    //   // TODO: thumbnail
+      // } else if (mimeType.type === 'image') {
 
-    // } else if (mimeType.type === 'image') {
+      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+      //   article = articleFromImage(mimeType, checksum, url)
 
-    //   article = articleFromImage(mimeType, checksum, url)
+      //   finalizeFileLocation(tempLocalPath, article)
 
-    //   finalizeFileLocation(tempLocalPath, article)
-
-    //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
-
+      //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
     } else {
-      throw new Error(`No handler for content type ${contentTypeHeader}`)
+      throw new Error(`No handler for content type ${contentTypeHeader}`);
     }
 
-    article.ingestSource = "url"
-    article.mimeType = mimeType
-
-  } catch(error) {
-    console.error(error)
-    throw new Error("error during ingestion")
+    article.ingestSource = "url";
+    article.mimeType = mimeType;
+  } catch (error) {
+    console.error(error);
+    throw new Error("error during ingestion");
   }
 
   // const saveDir = "saves/" + article.slug;
 
-  storageClient?.storeFile("application/json", getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
+  storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article, null, 2)
+  );
 
-  // TODO: dbManager.upsertArticle(article); 
+  // client.declareType("my-custom-type", {});
+
+  // TODO: dbManager.upsertArticle(article);
 
   // if (existingArticleIndex != -1) {
   //   db.data.articles[existingArticleIndex] = article;
@@ -1056,14 +1050,16 @@ export async function ingestUrl2(
 
   sendMessage(100, `Finished saving: ${article.title}`);
 
-  return article
+  return article;
 }
 
 export async function ingestCurrentPage(
-  storageClient: BaseClient|null, html: string, contentType: string, url: string|null,
+  storageClient: BaseClient | null,
+  html: string,
+  contentType: string,
+  url: string | null,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
-
   sendMessage(0, "start");
 
   // const response = await fetch(`${corsProxy}${url}`);
@@ -1071,19 +1067,18 @@ export async function ingestCurrentPage(
   const contentTypeHeader = 'text/html' //response.headers.get("content-type")
 
   if (!contentTypeHeader) {
-    throw new Error("cant determine content type")
+    throw new Error("cant determine content type");
   }
 
   // sendMessage(10, "scraping article");
 
-  var article: Article | null = null
+  var article: Article | null = null;
 
-  console.log(`contentTypeHeader = ${contentTypeHeader}`)
+  console.log(`contentTypeHeader = ${contentTypeHeader}`);
 
   try {
-
-    const extension = mime.getExtension(contentTypeHeader)
-    const mimeType = mime.getType(extension??"");
+    const extension = mime.getExtension(contentTypeHeader);
+    const mimeType = mime.getType(extension ?? "");
 
     // const mimeType = new MIMEType(contentTypeHeader);
 
@@ -1091,45 +1086,46 @@ export async function ingestCurrentPage(
       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
     }
 
-    if (mimeType === 'text/html') {
+    if (mimeType === "text/html") {
+      article = await ingestHtml2(storageClient, html, contentTypeHeader, url, sendMessage);
 
-      article = await ingestHtml2(storageClient, html, contentTypeHeader, url, sendMessage)
+      // } else if (mimeType.subtype === 'pdf') {
 
-    // } else if (mimeType.subtype === 'pdf') {
+      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+      //   article = await articleFromPdf(checksum, url)
 
-    //   article = await articleFromPdf(checksum, url)
+      //   finalizeFileLocation(tempLocalPath, article)
 
-    //   finalizeFileLocation(tempLocalPath, article)
+      //   // TODO: thumbnail
 
-    //   // TODO: thumbnail
+      // } else if (mimeType.type === 'image') {
 
-    // } else if (mimeType.type === 'image') {
+      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-    //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+      //   article = articleFromImage(mimeType, checksum, url)
 
-    //   article = articleFromImage(mimeType, checksum, url)
+      //   finalizeFileLocation(tempLocalPath, article)
 
-    //   finalizeFileLocation(tempLocalPath, article)
-
-    //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
-
+      //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
     } else {
-      throw new Error(`No handler for content type ${contentTypeHeader}`)
+      throw new Error(`No handler for content type ${contentTypeHeader}`);
     }
 
-    article.ingestSource = "url"
-    article.mimeType = mimeType
-
-  } catch(error) {
-    console.error(error)
-    throw new Error("error during ingestion")
+    article.ingestSource = "url";
+    article.mimeType = mimeType;
+  } catch (error) {
+    console.error(error);
+    throw new Error("error during ingestion");
   }
 
-  storageClient?.storeFile("application/json", getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
+  storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article, null, 2)
+  );
 
-  // TODO: dbManager.upsertArticle(article); 
+  // TODO: dbManager.upsertArticle(article);
 
   // if (existingArticleIndex != -1) {
   //   db.data.articles[existingArticleIndex] = article;
@@ -1144,6 +1140,5 @@ export async function ingestCurrentPage(
 
   sendMessage(100, `Finished saving: ${article.title}`);
 
-  return article
+  return article;
 }
-

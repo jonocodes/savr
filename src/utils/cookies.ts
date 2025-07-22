@@ -82,14 +82,15 @@ export const getFontSizeFromCookie = (): number => {
 // Get CORS proxy from cookie
 export const getCorsProxyFromCookie = (): string | null => {
   if (typeof document === "undefined") return null;
-  
+
   const cookies = document.cookie.split(";");
   const corsProxyCookie = cookies.find((cookie) =>
     cookie.trim().startsWith(`${CORS_PROXY_COOKIE_NAME}=`)
   );
 
   if (corsProxyCookie) {
-    const value = corsProxyCookie.replace(`${CORS_PROXY_COOKIE_NAME}=`, "");
+    const value = corsProxyCookie.replace(`${CORS_PROXY_COOKIE_NAME}=`, "").trim();
+    // Only return the value if it's not empty (user has explicitly set a custom value)
     return value || null;
   }
 
@@ -104,10 +105,11 @@ export const setCorsProxyInCookie = (corsProxy: string | null): void => {
   const expires = new Date();
   expires.setFullYear(expires.getFullYear() + 1);
 
-  if (corsProxy) {
-    document.cookie = `${CORS_PROXY_COOKIE_NAME}=${corsProxy}; expires=${expires.toUTCString()}; path=/`;
+  if (corsProxy && corsProxy.trim()) {
+    // Only save if user has explicitly set a non-empty value
+    document.cookie = `${CORS_PROXY_COOKIE_NAME}=${corsProxy.trim()}; expires=${expires.toUTCString()}; path=/`;
   } else {
-    // Remove cookie if value is null
+    // Remove cookie if value is null or empty
     document.cookie = `${CORS_PROXY_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
   }
 };

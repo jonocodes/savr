@@ -10,8 +10,9 @@ const db: DbType = new Dexie("savrDb") as Dexie & {
 };
 
 // Schema declaration:
-db.version(1).stores({
-  articles: "slug, ingestDate",
+db.version(2).stores({
+  articles: "slug, ingestDate, state",
 });
 
-export { db, DbType };
+export { db };
+export type { DbType };
