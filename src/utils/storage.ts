@@ -6,6 +6,9 @@ import { db } from "./db";
 import { Article } from "../../lib/src/models";
 import extensionConnector from "./extensionConnector"; // Import the extension connector
 import { environmentConfig } from "~/config/environment";
+import filenamifyUrl from "filenamify-url";
+import { md5 } from "js-md5";
+import { mimeToExt } from "lib/src/lib";
 
 declare global {
   interface Window {
@@ -33,6 +36,7 @@ let remotePrms;
 
 async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
   const listing = await client.getListing(path);
+  console.log("recursiveList", path, listing);
   let files: string[] = [];
   for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
     // Type assertion here
@@ -159,20 +163,50 @@ function initRemote() {
   return remotePrms;
 }
 
-// const isBusy = new Map();   // per-ID
-// const queue  = new Map();   // queue of length one per ID
+export async function saveResource(
+  url: string,
+  slug: string,
+  dataUrl: string,
+  mimeType: string
+): Promise<string> {
+  // TODO: change to checksum
+  // const name = self.crypto.randomUUID();
 
-// /**
-//  * Inserts or updates a note in IDB and (if needed) RemoteStorage.
-//  * @param {NodeNote} nodeNote should have been created by NodeNote constructor
-//  * @param {string} initiator
-//  * @returns {Promise<NodeNote|SerializedNote>} NodeNote if busy, SerializedNote if not
-//  */
-// async function upsertNote(nodeNote, initiator) {
-//   const id = nodeNote.id;
-//   queue.set(id, {note: NodeNote.clone(nodeNote), initiator});   // when busy, overwrites any previous value
-//   return await storeQueued(id);   // return expected to be serialized note
-// }
+  let name = filenamifyUrl(url, { replacement: "__" });
+
+  // calcualte the checksum of the url
+
+  // const checksum = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url));
+  // const checksumHex = Array.from(new Uint8Array(checksum))
+  //   .map((byte) => byte.toString(16).padStart(2, "0"))
+  //   .join("");
+
+  // const hash = md5(url);
+
+  const ext = mimeToExt[mimeType] || "unknown";
+
+  if (mimeType.startsWith("image/")) {
+    const hash = md5(url);
+
+    name = `${hash}.${ext}`;
+  }
+
+  // const path = `saves/${slug}/resources/${hash}.${ext}`;
+
+  const path = `saves/${slug}/resources/${name}`;
+
+  console.log("saving resource", url, path);
+
+  const storage = await init();
+
+  await storage.client.storeFile(mimeType, path, dataUrl);
+
+  // await storage.resources.save({ url, data: dataUrl, type: mimeType, savedAt: now });
+
+  console.log(`Saved resource: ${url}`);
+
+  return path;
+}
 
 async function calculateTotalStorage(): Promise<{
   size: number;
@@ -189,7 +223,7 @@ async function calculateTotalStorage(): Promise<{
         const allFiles = await recursiveList(store.client, "");
         files = allFiles.length;
 
-        // TODO: this is not working as expected. its not seeing all the files???
+        // TODO: this is not working as expected. its not seeing all the files???  ???
 
         console.log("calculateTotalStorage", allFiles);
 

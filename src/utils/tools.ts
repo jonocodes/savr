@@ -61,6 +61,62 @@ export async function updateArticleMetadata(
   return updatedArticle;
 }
 
+export async function fetchToDataUrl(url: string) {
+  const corsProxy = getCorsProxyValue();
+
+  // TODO: create error if fetch times out. this happens if you are offline
+  const response = await fetch(`${corsProxy}${url}`);
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+  }
+
+  const contentType = response.headers.get("content-type");
+  if (!contentType || !contentType.startsWith("image/")) {
+    throw new Error(`Expected image content type, got: ${contentType}`);
+  }
+
+  const blob = await response.blob();
+
+  const dataUrl: string = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      if (reader.result) {
+        resolve(reader.result as string);
+      } else {
+        reject(new Error("Failed to read blob as data URL"));
+      }
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+
+  return dataUrl;
+}
+
+export function extractImageUrls(html: string, baseUrl: string): string[] {
+  if (typeof window === "undefined") {
+    return [];
+  }
+
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  return (
+    Array.from(doc.querySelectorAll("img"))
+      .map((img) => img.getAttribute("src") || "")
+      // Skip empty and data URLs
+      .filter((src) => src && !src.startsWith("data:"))
+      .map((src) => {
+        try {
+          return new URL(src, baseUrl).href;
+        } catch {
+          return "";
+        }
+      })
+      .filter((u) => u)
+  );
+}
+
 //   public async downloadAndResizeImage(url: string, targetDir: string) {
 //     const maxDimension = 200;
 //     const filePath = url.split("/").pop();

@@ -10,7 +10,8 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 3000,
     allowedHosts: true,
-    proxy: { // for some reason, the basicSsl plugin is not working, so we're using a proxy?
+    proxy: {
+      // for some reason, the basicSsl plugin is not working, so we're using a proxy?
       // "/api": {
       //   target: "http://localhost:8081",
       //   changeOrigin: true,

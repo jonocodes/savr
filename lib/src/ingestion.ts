@@ -18,6 +18,8 @@ import {
   getFilePathContent,
   getFilePathMetadata,
 } from "./lib";
+import { saveResource } from "~/utils/storage";
+import { fetchToDataUrl } from "~/utils/tools";
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);
@@ -70,6 +72,8 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
 
   let baseDirectory = null;
 
+  // TODO: why is baseDirectory needed here any more? when the dom is generated the baseurl should cover this
+
   if (articleUrl !== null) {
     baseDirectory = getBaseDirectory(articleUrl);
   }
@@ -94,7 +98,8 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
 
 async function downloadAndResizeImages(
   imageData: ImageData[],
-  outputDir: string,
+  // outputDir: string,
+  article: Article,
   maxDimension: number,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<void> {
@@ -109,39 +114,82 @@ async function downloadAndResizeImages(
   const step = Math.round((endPercent - percent) / imageData.length / 2);
 
   for (const [url, modifiedPath] of imageData) {
-    try {
-      sendMessage(percent, `downloading image ${imageCount + 1} of ${imageData.length}`);
+    // try {
+    sendMessage(percent, `downloading image ${imageCount + 1} of ${imageData.length}`);
 
-      // Download the image
-      const response = await fetch(url);
-      const imageBuffer = await response.arrayBuffer();
+    const ext = modifiedPath.split(".").pop();
 
-      percent = percent + step;
+    // TODO: add support for .avif as on dgt.is
+    const mimeType = mime.getType(ext ?? "image/jpeg");
 
-      sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
+    // Download the image
+    // const response = await fetch(url);
+    // const imageBuffer = await response.arrayBuffer();
 
-      // Resize the image using Jimp
-      // const image = await Jimp.read(imageBuffer);
-      // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
+    // // Convert ArrayBuffer to data URL for embedded img src
+    // const uint8Array = new Uint8Array(imageBuffer);
+    // const dataUrl = `data:${mimeType};base64,${btoa(String.fromCharCode(...uint8Array))}`;
 
-      const outputFilePath = outputDir + "/" + modifiedPath;
+    const dataUrl = await fetchToDataUrl(url);
 
-      // const ext = outputFilePath.split('.').pop();
-      // // TODO: remove exp from outputFilePath
+    // const dataUrl: string = await fetch(url)
+    //   .then((response) => response.blob())
+    //   .then((blob) => {
+    //     return new Promise<string>((resolve, reject) => {
+    //       const reader = new FileReader();
+    //       reader.onloadend = () => {
+    //         if (reader.result) {
+    //           resolve(reader.result as string);
+    //         } else {
+    //           reject(new Error("Failed to read blob as data URL"));
+    //         }
+    //       };
+    //       reader.onerror = reject;
+    //       reader.readAsDataURL(blob);
+    //     });
+    //   });
 
-      // await resizedImage.write(`${outputFilePath}.${ext}`);
-      // console.log(`Downloaded and resized: ${outputFilePath}`);
+    percent = percent + step;
 
-      // Store the file path for later use
-      imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.localPath =
-        outputFilePath;
+    sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
 
-      imageCount += 1;
+    // Resize the image using Jimp
+    // const image = await Jimp.read(imageBuffer);
+    // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
 
-      percent = percent + step;
-    } catch (error) {
-      console.error(`Error downloading or resizing image from ${url}:`, error);
-    }
+    // const outputFilePath = outputDir + "/" + modifiedPath;
+
+    const outputFilePath = await saveResource(article.url!, article.slug, dataUrl, mimeType);
+
+    console.log("outputFilePath", outputFilePath);
+    console.log("dataurl", dataUrl);
+
+    const localPath = outputFilePath.replace("saves/" + article.slug + "/", "");
+
+    // await resizedImage.write(`${outputFilePath}.${ext}`);
+    // console.log(`Downloaded and resized: ${outputFilePath}`);
+
+    // Store the file path for later use
+    // imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.localPath = outputFilePath;
+
+    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.localPath =
+      localPath;
+
+    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.origSrc = url;
+
+    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.path =
+      outputFilePath;
+
+    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].src = localPath;
+
+    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].src = dataUrl;
+
+    imageCount += 1;
+
+    percent = percent + step;
+    // } catch (error) {
+    //   console.error(`Error downloading or resizing image from ${url}:`, error);
+    // }
   }
 }
 
@@ -156,33 +204,34 @@ function updateImageSrc(doc: Document, imageData: ImageData[], outputDir: string
 }
 
 async function processHtmlAndImages(
-  articleUrl: string | null,
+  // articleUrl: string | null,
+  article: Article,
   htmlText: string,
-  saveDir: string,
+  // saveDir: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<string> {
   const { document: doc } = parseHTML(htmlText);
 
-  const imageData = await extractImageUrls(doc, articleUrl);
-  const outputDir = saveDir + "/images";
+  const imageData = await extractImageUrls(doc, article.url);
+  // const outputDir = saveDir + "/images";
   const maxDimension = 1024;
 
-  console.log(imageData);
+  console.log("imageData", imageData);
 
   sendMessage(20, "downloading images");
 
-  await downloadAndResizeImages(imageData, outputDir, maxDimension, sendMessage);
+  await downloadAndResizeImages(imageData, article, maxDimension, sendMessage);
 
   // Update the src attribute of the img elements in the document
-  updateImageSrc(doc, imageData, "images");
+  // updateImageSrc(doc, imageData, "images");
 
   // yield { percent: 50, message: "creating thumbnail" };
   sendMessage(95, "creating thumbnail");
   // create the thumbnail
 
-  const imageFileNames = imageData.map((item) => outputDir + "/" + item[1]);
+  // const imageFileNames = imageData.map((item) => outputDir + "/" + item[1]);
 
-  await createThumbnail(imageFileNames, saveDir);
+  // await createThumbnail(imageFileNames, saveDir);
 
   // Serialize the updated DOM to get the updated HTML string
   // return dom.serialize();
@@ -448,10 +497,23 @@ export function readabilityToArticle(
 
   console.log("running readability");
 
+  console.log("html", html);
+
   const { document } = parseHTML(html);
+
+  // assigning a url allows relative paths to be resolved for images
+  const base = document.createElement("base");
+  base.href = url ?? ""; // Set your desired base URL here. will this work for all paths?
+
+  // Append the base element into the head
+  document.head.appendChild(base);
+
+  console.log("outerHTML", document.documentElement.outerHTML);
 
   let reader = new Readability(document);
   let readabilityResult = reader.parse();
+
+  console.log("readabilityResult", readabilityResult);
 
   if (readabilityResult === null) {
     throw new Error("Readability did not parse");
@@ -661,16 +723,14 @@ export async function ingestHtml2(
 
   let [article, content] = readabilityToArticle(html, contentType, url);
 
-  // const saveDir =  "saves/" + article.slug;
-
   // TODO: sanitize out the js before saving raw
   storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
 
-  // storageClient?.storeFile("text/html", `${saveDir}/index.html`, content);
-
   sendMessage(15, "collecting images");
 
-  // content = await processHtmlAndImages(url, content, saveDir, sendMessage);
+  console.log("content", content);
+
+  content = await processHtmlAndImages(article, content, sendMessage);
 
   const rendered = ArticleTemplate({
     title: article.title,
@@ -683,6 +743,22 @@ export async function ingestHtml2(
   });
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
+
+  // const imageUrls = await extractImageUrls2(html, url);
+  // if (imageUrls.length) {
+  //   sendMessage(0, `Downloading images: 0/${imageUrls.length}`);
+
+  //   const resources = await this.requestResourcesFromOpener(article.slug, imageUrls);
+
+  //   for (let idx = 0; idx < resources.length; idx++) {
+  //     const r = resources[idx];
+  //     const pct = Math.floor(((idx + 1) / resources.length) * 100);
+  //     sendMessage(pct, `Downloading images: ${idx + 1}/${resources.length}`);
+  //     if (r.success && r.data) {
+  //       await saveResource(r.url, article.slug, r.data, r.type || "image/jpeg");
+  //     }
+  //   }
+  // }
 
   return article;
 }
@@ -962,7 +1038,12 @@ export async function ingestUrl2(
   // TODO: add back these lines
   // const articles = await dbManager.getArticles();
 
+  // TODO: create error if fetch times out. this happens if you are offline
   const response = await fetch(`${corsProxy}${url}`);
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  }
 
   const contentTypeHeader = response.headers.get("content-type");
 
@@ -1064,7 +1145,7 @@ export async function ingestCurrentPage(
 
   // const response = await fetch(`${corsProxy}${url}`);
 
-  const contentTypeHeader = 'text/html' //response.headers.get("content-type")
+  const contentTypeHeader = "text/html"; //response.headers.get("content-type")
 
   if (!contentTypeHeader) {
     throw new Error("cant determine content type");

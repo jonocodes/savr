@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Box,
@@ -208,6 +208,99 @@ export default function ArticleListScreen() {
   const corsProxy = getCorsProxyValue();
 
   const { remoteStorage, client, widget } = useRemoteStorage();
+  const { enqueueSnackbar } = useSnackbar();
+
+  const saveUrl = useCallback(
+    async (closeAfterSave: boolean = false) => {
+      // TODO: pass in headers/cookies for downloading
+
+      // This function is now primarily for the manual URL input in the dialog.
+      // The bookmarklet ingestion will use the progress callback set in useEffect.
+
+      // Wait until URL is not empty
+      if (!url.trim()) {
+        return;
+      }
+
+      setIngestStatus("Ingesting...");
+      try {
+        const article = await ingestUrl2(
+          client,
+          corsProxy,
+          url,
+          (percent: number | null, message: string | null) => {
+            if (percent !== null) {
+              setIngestStatus(message);
+              setIngestPercent(percent);
+            }
+            console.log(`INGESTED URL ${url}`);
+          }
+        );
+
+        db.articles.put(article);
+        enqueueSnackbar("Article saved successfully", { variant: "success" });
+
+        // wait a bit before closing the dialog
+        setTimeout(() => {
+          setDialogVisible(false);
+          setIngestStatus(null);
+          setIngestPercent(0);
+          setUrl("");
+
+          console.log("closeAfterSave", closeAfterSave);
+
+          // Close the tab if closeAfterSave is true. used by bookmarklet.
+          if (closeAfterSave) {
+            window.close();
+          }
+        }, 2000);
+      } catch (error) {
+        console.error(error);
+        enqueueSnackbar("Error requesting article", { variant: "error" });
+        setIngestStatus(null);
+        setIngestPercent(0);
+      }
+    },
+    [
+      client,
+      corsProxy,
+      url,
+      setDialogVisible,
+      setIngestStatus,
+      setIngestPercent,
+      setUrl,
+      enqueueSnackbar,
+    ]
+  );
+
+  // Handle saveUrl query parameter
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const saveUrlParam = urlParams.get("saveUrl");
+    const closeAfterSaveParam = urlParams.get("closeAfterSave");
+
+    if (saveUrlParam && client) {
+      // Decode the URL parameter
+      const decodedUrl = decodeURIComponent(saveUrlParam);
+      setUrl(decodedUrl);
+      setDialogVisible(true);
+
+      // Automatically submit the form after a short delay to ensure the dialog is open
+      setTimeout(() => {
+        // Remove the saveUrl parameter from the URL before submitting
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        currentUrlParams.delete("saveUrl");
+        currentUrlParams.delete("closeAfterSave");
+        const newSearch = currentUrlParams.toString();
+        const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
+
+        // Pass the closeAfterSave parameter to saveUrl
+        const shouldCloseAfterSave = closeAfterSaveParam === "true";
+        saveUrl(shouldCloseAfterSave);
+      }, 100);
+    }
+  }, [client, saveUrl]); // Only run when client is available
 
   useEffect(() => {
     // Set the storage client in the extension connector
@@ -236,58 +329,6 @@ export default function ArticleListScreen() {
   }, [client, dialogVisible]); // Run this effect when the client or dialogVisible changes
 
   const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
-
-  const saveUrl = async () => {
-    // TODO: pass in headers/cookies for downloading
-
-    // This function is now primarily for the manual URL input in the dialog.
-    // The bookmarklet ingestion will use the progress callback set in useEffect.
-    setIngestStatus("Ingesting...");
-    await ingestUrl2(client, corsProxy, url, (percent: number | null, message: string | null) => {
-      if (percent !== null) {
-        setIngestStatus(message);
-        setIngestPercent(percent);
-      }
-      console.log(`INGESTED URL ${url}`);
-    })
-      .then((article) => {
-        db.articles.put(article);
-        // showMessage("Article saved");
-
-        // wait a bit before closing the dialog
-        setTimeout(() => {
-          setDialogVisible(false);
-          setIngestStatus(null);
-          setIngestPercent(0);
-          setUrl("");
-        }, 2000);
-      })
-      .catch((error) => {
-        console.error(error);
-        // showMessage("Error saving article", true);
-      });
-
-    // setIngestPercent(0);
-    // setIngestStatus("Starting ingestion...");
-
-    // // Simulate progress
-    // const interval = setInterval(() => {
-    //   setIngestPercent((prev) => {
-    //     if (prev >= 100) {
-    //       clearInterval(interval);
-    //       setTimeout(() => {
-    //         setDialogVisible(false);
-    //         setIngestPercent(0);
-    //         setIngestStatus(null);
-    //       }, 1000);
-    //       return 100;
-    //     }
-    //     return prev + 10;
-    //   });
-    // }, 200);
-
-    // setIngestStatus("Processing article...");
-  };
 
   return (
     <Box sx={{ flexGrow: 1, backgroundColor: "background.default" }}>
@@ -419,7 +460,7 @@ export default function ArticleListScreen() {
         <DialogActions>
           <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
           <Button
-            onClick={saveUrl}
+            onClick={() => saveUrl()}
             variant="contained"
             disabled={ingestStatus !== null || !url.trim()}
           >
