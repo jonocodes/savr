@@ -18,9 +18,10 @@ import {
   getFilePathContent,
   getFilePathMetadata,
   getFilePathThumbnail,
+  getFileFetchLog,
 } from "./lib";
 import { saveResource } from "~/utils/storage";
-import { fetchAndResizeImage, imageToDataUrl } from "~/utils/tools";
+import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/tools";
 import { md5 } from "js-md5";
 
 // const __filename = fileURLToPath(import.meta.url);
@@ -132,61 +133,65 @@ async function downloadAndResizeImages(
     // TODO: add support for .avif as on dgt.is
     const mimeType = mime.getType(ext ?? "image/jpeg");
 
-    const { blob, width, height } = await fetchAndResizeImage(url, maxDimensionImage);
+    try {
+      const { blob, width, height } = await fetchAndResizeImage(url, maxDimensionImage);
 
-    const dataUrl = await imageToDataUrl(blob);
+      const dataUrl = await imageToDataUrl(blob);
 
-    percent = percent + step;
+      percent = percent + step;
 
-    sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
+      sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
 
-    // Resize the image using Jimp
-    // const image = await Jimp.read(imageBuffer);
-    // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
+      // Resize the image using Jimp
+      // const image = await Jimp.read(imageBuffer);
+      // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
 
-    const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
+      const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
 
-    console.log("outputFilePath", outputFilePath);
-    console.log("dataurl", dataUrl);
+      console.log("outputFilePath", outputFilePath);
+      console.log("dataurl", dataUrl);
 
-    const relativePath = outputFilePath.replace("saves/" + article.slug + "/", "");
+      const relativePath = outputFilePath.replace("saves/" + article.slug + "/", "");
 
-    imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.localPath = relativePath;
+      imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.localPath = relativePath;
 
-    imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.origSrc = url;
+      imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.origSrc = url;
 
-    imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.path = outputFilePath;
+      imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.path = outputFilePath;
 
-    imageData.find(([imgUrl]) => imgUrl === url)![2].src = relativePath;
+      imageData.find(([imgUrl]) => imgUrl === url)![2].src = relativePath;
 
-    imageData.find(([imgUrl]) => imgUrl === url)![2].src = dataUrl;
+      imageData.find(([imgUrl]) => imgUrl === url)![2].src = dataUrl;
 
-    imageCount += 1;
+      imageCount += 1;
 
-    percent = percent + step;
+      percent = percent + step;
 
-    // thumbnail
+      // thumbnail
 
-    console.log("check thumb for localPath", localPath);
+      console.log("check thumb for localPath", localPath);
 
-    // const filePath = localPath;
+      // const filePath = localPath;
 
-    const area = width * height;
+      const area = width * height;
 
-    console.log("area", area);
+      console.log("area", area);
 
-    // Ignore small images
-    if (area < 5000) {
-      console.log("too small");
-      // continue;
-    }
+      // Ignore small images
+      if (area < 5000) {
+        console.log("too small");
+        // continue;
+      }
 
-    // Prefer images with more pixels (likely higher quality)
-    else if (area > maxArea) {
-      console.log("new maxArea", area);
-      maxArea = area;
-      thumbnailPath = localPath;
-      thumbnailBlob = blob;
+      // Prefer images with more pixels (likely higher quality)
+      else if (area > maxArea) {
+        console.log("new maxArea", area);
+        maxArea = area;
+        thumbnailPath = localPath;
+        thumbnailBlob = blob;
+      }
+    } catch (e) {
+      console.error("error downloading and saving image", e);
     }
   }
 
@@ -197,24 +202,9 @@ async function downloadAndResizeImages(
       ([url, localPath]) => localPath === thumbnailPath
     )!;
 
-    // fetchAndResizeImage(url, )
-
-    // Read the chosen file into a blob
-    // const response = await fetch(url);
-    // if (!response.ok) {
-    //   throw new Error(`Failed to fetch image: ${response.statusText}`);
-    // }
-    // const blob = await response.blob();
-
-    const {
-      blob: resizedBlob,
-      // width,
-      // height,
-    } = await resizeImage(thumbnailBlob, maxDimensionThumb);
+    const { blob: resizedBlob } = await resizeImage(thumbnailBlob, maxDimensionThumb);
 
     const webpBlob = await convertToWebP(resizedBlob);
-
-    // const dataUrl = URL.createObjectURL(webpBlob);
 
     const dataUrl = await new Promise<string>((resolve, reject) => {
       const reader = new FileReader();
@@ -229,12 +219,6 @@ async function downloadAndResizeImages(
       reader.readAsDataURL(webpBlob);
     });
 
-    // const thumbPath = getFilePathThumbnail(article.slug);
-
-    // console.log("thumbPath", thumbPath);
-
-    // const mimeType = "image/webp";
-
     const outputFilePath = await saveResource(
       "thumbnail.webp.data",
       article.slug,
@@ -245,16 +229,6 @@ async function downloadAndResizeImages(
     console.log("outputFilePath", outputFilePath);
   }
 }
-
-// function updateImageSrc(doc: Document, imageData: ImageData[], outputDir: string): void {
-//   imageData.forEach(([url, localPath, imgElement]) => {
-//     // Use the local path set during downloading
-//     const localPath = (imgElement as any).dataset.localPath;
-//     if (localPath) {
-//       imgElement.src = `${outputDir}/${localPath}`;
-//     }
-//   });
-// }
 
 async function processHtmlAndImages(
   article: Article,
@@ -650,10 +624,6 @@ export function readabilityToArticle(
     options = { url, contentType };
   }
 
-  console.log("running readability");
-
-  console.log("html", html);
-
   const { document } = parseHTML(html);
 
   // assigning a url allows relative paths to be resolved for images
@@ -662,8 +632,6 @@ export function readabilityToArticle(
 
   // Append the base element into the head
   document.head.appendChild(base);
-
-  console.log("outerHTML", document.documentElement.outerHTML);
 
   let reader = new Readability(document);
   let readabilityResult = reader.parse();
@@ -867,7 +835,7 @@ export function readabilityToArticle(
 //   return article;
 // }
 
-export async function ingestHtml2(
+export async function ingestHtml(
   storageClient: BaseClient | null,
   html: string,
   contentType: string,
@@ -877,6 +845,15 @@ export async function ingestHtml2(
   sendMessage(10, "scraping article");
 
   let [article, content] = readabilityToArticle(html, contentType, url);
+
+  const fetchLog = getFileFetchLog(article.slug);
+
+  // TODO: figure out if there is a way to append these lines one by one
+  await storageClient?.storeFile(
+    "text/plain",
+    fetchLog,
+    `readability finished for ${article.slug}`
+  );
 
   // TODO: sanitize out the js before saving raw
   storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
@@ -898,22 +875,6 @@ export async function ingestHtml2(
   });
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
-
-  // const imageUrls = await extractImageUrls2(html, url);
-  // if (imageUrls.length) {
-  //   sendMessage(0, `Downloading images: 0/${imageUrls.length}`);
-
-  //   const resources = await this.requestResourcesFromOpener(article.slug, imageUrls);
-
-  //   for (let idx = 0; idx < resources.length; idx++) {
-  //     const r = resources[idx];
-  //     const pct = Math.floor(((idx + 1) / resources.length) * 100);
-  //     sendMessage(pct, `Downloading images: ${idx + 1}/${resources.length}`);
-  //     if (r.success && r.data) {
-  //       await saveResource(r.url, article.slug, r.data, r.type || "image/jpeg");
-  //     }
-  //   }
-  // }
 
   return article;
 }
@@ -986,215 +947,17 @@ function generateRandomString() {
 
 console.log(generateRandomString());
 
-// async function storeBinary(mimeType: MIMEType, stream: Readable) : Promise<[string, string]> {
-
-//   let id = Date.now() + 0
-//   const tempLocalPath = `/tmp/savr-${id}.${mimeToExt[mimeType.essence]}`
-
-//   // const hash = crypto.createHash('md5');
-
-//   const fileStream = fs.createWriteStream(tempLocalPath);
-//   // await pipeline(stream, hash, fileStream) // TODO: get this to work in 1 pass
-//   // const checksum = hash.digest('hex')
-
-//   await pipeline(stream, fileStream)
-
-//   const checksum = generateRandomString();  // TODO: actually calculate
-
-//   // const checksum = crypto.randomUUID();  // TODO: actually calculate
-
-//   return [tempLocalPath, checksum]
-// }
-
-// function finalizeFileLocation(tempLocalPath: string, article: Article) {
-
-//   const saveDir = getSaveDirPath(article.slug)
-
-//   if (!fs.existsSync(saveDir)) {
-//     fs.mkdirSync(saveDir, { recursive: true });
-//   }
-
-//   const finalPath = `${saveDir}/${getFileName(article)}`
-
-//   fs.copyFileSync(tempLocalPath, finalPath)
-//   // TODO: move instead of copy
-//   // fs.renameSync(tempLocalPath, finalPath)
-
-//   // TODO: create thumbnail
-// }
-
-// function getFileName(article: Article) {
-//   return `index.${mimeToExt[article.mimeType]}`
-// }
-
-// function getSaveDirPath(slug: string) {
-//   return `${savesDir}/${slug}`;
-// }
-
-// function getFilePath(article: Article) {
-//   return `${getSaveDirPath(article.slug)}/${getFileName(article)}`
-// }
-
-// export async function ingestText(dbManager: DbManager, text: string, sendMessage: (percent: number | null, message: string | null) => void
-// ) {
-//   sendMessage(0, "start");
-
-//   // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-
-//   const contentType = guessContentType(text)
-
-//   console.log(`guessed content type ${contentType}`)
-//   const mimeType = new MIMEType(contentType);
-
-//   let article
-
-//   sendMessage(10, "scraping article");
-
-//   if (mimeType.subtype == "html") {
-//   // NOTE: for now we assume input text is html
-//     article = await ingestHtml(dbManager.fileManager, text, contentType, null, sendMessage)
-
-//   } else if (mimeType.subtype == "markdown") {
-//     const converter = new showdown.Converter(),
-//     html = converter.makeHtml(text);
-
-//     article = await ingestHtml(dbManager.fileManager, html, contentType, null, sendMessage)
-//     article
-//     // article.mimeType = contentType
-
-//   } else {
-//     article = ingestPlainText(text, null)
-//   }
-
-//   article.mimeType = contentType
-
-//   const saveDir = "saves/" + article.slug;
-//   fs.writeFileSync(saveDir + "/article.json", JSON.stringify(article, null, 2));
-
-//   // keep the most recent at the top since its easier to read that way
-//   // db.data.articles.unshift(article);
-//   await dbManager.upsertArticle(article);
-
-//   // await db.write();
-
-//   await createLocalHtmlList(dbManager);
-
-//   sendMessage(100, "finished");
-// }
-
-// export async function ingestUrl(
-//   dbManager: DbManager,
-//   url: string,
-//   sendMessage: (percent: number | null, message: string | null) => void
-// ) {
-//   sendMessage(0, "start");
-
-//   // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-
-//   const articles = await dbManager.getArticles();
-
-//   const existingArticleIndex = articles.findIndex((article: Article) => article.url === url);
-
-//   // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.url === url);
-
-//   if (existingArticleIndex != -1) {
-//     sendMessage(5, "article already exists - reingesting");
-//   }
-
-//   const response = await fetch(url);
-
-//   const contentTypeHeader = response.headers.get("content-type")
-
-//   if (!contentTypeHeader) {
-//     throw new Error("cant determine content type")
-//   }
-
-//   // sendMessage(10, "scraping article");
-
-//   var article: Article | null = null
-
-//   console.log(`contentTypeHeader = ${contentTypeHeader}`)
-
-//   try {
-
-//     const extension = mime.getExtension(contentTypeHeader)
-//     const mimeType = mime.getType(extension??"");
-
-//     // const mimeType = new MIMEType(contentTypeHeader);
-
-//     if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
-//       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
-//     }
-
-//     if (mimeType === 'text/html') {
-
-//       article = await ingestHtml(dbManager.fileManager, await response.text(), contentTypeHeader, url, sendMessage)
-
-//     // } else if (mimeType.subtype === 'pdf') {
-
-//     //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
-
-//     //   article = await articleFromPdf(checksum, url)
-
-//     //   finalizeFileLocation(tempLocalPath, article)
-
-//     //   // TODO: thumbnail
-
-//     // } else if (mimeType.type === 'image') {
-
-//     //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
-
-//     //   article = articleFromImage(mimeType, checksum, url)
-
-//     //   finalizeFileLocation(tempLocalPath, article)
-
-//     //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
-
-//     } else {
-//       throw new Error(`No handler for content type ${contentTypeHeader}`)
-//     }
-
-//     article.ingestSource = "url"
-//     article.mimeType = mimeType
-
-//   } catch(error) {
-//     console.error(error)
-//     throw new Error("error during ingestion")
-//   }
-
-//   // const saveDir = "saves/" + article.slug;
-
-//   dbManager.fileManager.writeTextFile(getFilePathMetadata(article.slug), JSON.stringify(article, null, 2))
-
-//   dbManager.upsertArticle(article);
-
-//   // if (existingArticleIndex != -1) {
-//   //   db.data.articles[existingArticleIndex] = article;
-//   // } else {
-//   //   // keep the most recent at the top since its easier to read that way
-//   //   db.data.articles.unshift(article);
-//   // }
-
-//   // await db.write();
-
-//   await createLocalHtmlList(dbManager);
-
-//   sendMessage(100, "finished");
-// }
-
-export async function ingestUrl2(
+export async function ingestUrl(
   storageClient: BaseClient | null,
-  corsProxy: string | null,
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
   sendMessage(0, "start");
 
-  // TODO: add back these lines
-  // const articles = await dbManager.getArticles();
+  sendMessage(3, "fetching article");
 
   // TODO: create error if fetch times out. this happens if you are offline
-  const response = await fetch(`${corsProxy}${url}`);
+  const response = await fetchWithTimeout(url);
 
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -1206,7 +969,7 @@ export async function ingestUrl2(
     throw new Error("cant determine content type");
   }
 
-  // sendMessage(10, "scraping article");
+  sendMessage(5, "scraping article");
 
   var article: Article | null = null;
 
@@ -1216,14 +979,12 @@ export async function ingestUrl2(
     const extension = mime.getExtension(contentTypeHeader);
     const mimeType = mime.getType(extension ?? "");
 
-    // const mimeType = new MIMEType(contentTypeHeader);
-
     if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
     }
 
     if (mimeType === "text/html") {
-      article = await ingestHtml2(
+      article = await ingestHtml(
         storageClient,
         await response.text(),
         contentTypeHeader,
@@ -1261,8 +1022,6 @@ export async function ingestUrl2(
     throw new Error("error during ingestion");
   }
 
-  // const saveDir = "saves/" + article.slug;
-
   storageClient?.storeFile(
     "application/json",
     getFilePathMetadata(article.slug),
@@ -1272,15 +1031,6 @@ export async function ingestUrl2(
   // client.declareType("my-custom-type", {});
 
   // TODO: dbManager.upsertArticle(article);
-
-  // if (existingArticleIndex != -1) {
-  //   db.data.articles[existingArticleIndex] = article;
-  // } else {
-  //   // keep the most recent at the top since its easier to read that way
-  //   db.data.articles.unshift(article);
-  // }
-
-  // await db.write();
 
   // TODO: await createLocalHtmlList(dbManager);
 

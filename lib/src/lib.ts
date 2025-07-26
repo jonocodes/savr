@@ -203,29 +203,9 @@ export function articlesToRender(articles: Article[]): [ArticleAndRender[], Arti
   return [readable, archived];
 }
 
-// export function renderTemplate(templateName: string, view: object) {
-//   const mustacheTemplatePath = `${__dirname}/templates/${templateName}.mustache`;
-
-//   const mustacheTemplate = fs.readFileSync(mustacheTemplatePath, "utf-8");
-
-//   return Mustache.render(mustacheTemplate, view);
-// }
-
 export function renderListTemplate(view: object) {
   return Mustache.render(listTemplateMoustache, view);
 }
-
-// function getFileName(article: Article) {
-//   return `index.${mimeToExt[article.mimeType]}`
-// }
-
-// function getSaveDirPath(slug: string) {
-//   return `${savesDir}/${slug}`;
-// }
-
-// function getFilePath(article: Article) {
-//   return `${getSaveDirPath(article.slug)}/${getFileName(article)}`
-// }
 
 export class DbManager {
   public fileManager: FileManager;
@@ -296,6 +276,10 @@ export function getFilePathMetadata(slug: string): string {
 
 export function getFilePathRaw(slug: string): string {
   return `saves/${slug}/raw.html`;
+}
+
+export function getFileFetchLog(slug: string): string {
+  return `saves/${slug}/fetch.log`;
 }
 
 export function getFilePathThumbnail(slug: string): string {

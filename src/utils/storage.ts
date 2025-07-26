@@ -1,4 +1,3 @@
-
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
@@ -36,7 +35,7 @@ let remotePrms;
 
 async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
   const listing = await client.getListing(path);
-  console.log("recursiveList", path, listing);
+
   let files: string[] = [];
   for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
     // Type assertion here
@@ -59,7 +58,7 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
 function initRemote() {
   remotePrms = new Promise<RemoteStorage>((resolve) => {
     const remoteStorage = new RemoteStorage({
-      logging: true,
+      logging: false,
       // cache: false
       //   modules: ["sync"],
     });
@@ -163,35 +162,13 @@ function initRemote() {
   return remotePrms;
 }
 
+// Saves things like images to dataurls in remote storage
 export async function saveResource(
   localPath: string,
   slug: string,
   dataUrl: string,
   mimeType: string
 ): Promise<string> {
-  // TODO: change to checksum
-  // const name = self.crypto.randomUUID();
-
-  // let name = filenamifyUrl(url, { replacement: "__" });
-
-  // calcualte the checksum of the url
-
-  // const checksum = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(url));
-  // const checksumHex = Array.from(new Uint8Array(checksum))
-  //   .map((byte) => byte.toString(16).padStart(2, "0"))
-  //   .join("");
-
-  // const hash = md5(url);
-
-  // const ext = mimeToExt[mimeType] || "unknown";
-
-  // if (mimeType.startsWith("image/")) {
-  //   const hash = md5(url);
-
-  //   name = `${hash}.${ext}`;
-  // }
-
-  // const path = `saves/${slug}/resources/${hash}.${ext}`;
 
   const fullPath = `saves/${slug}/resources/${localPath}`;
 
@@ -200,8 +177,6 @@ export async function saveResource(
   const storage = await init();
 
   await storage.client.storeFile(mimeType, fullPath, dataUrl);
-
-  // await storage.resources.save({ url, data: dataUrl, type: mimeType, savedAt: now });
 
   console.log(`Saved resource: ${localPath}`);
 
@@ -400,6 +375,35 @@ async function deleteAllRemoteStorage(): Promise<{
   } catch (error) {
     errors.push(`General error: ${error}`);
     console.error("Error deleting all remote storage:", error);
+  }
+
+  console.log("deleting left over items in indexeddb");
+
+  // TODO: remove this hack once I figure out why deleting everything from remote storage is not sufficient
+
+  // Delete all data from IndexedDB
+  const databases = await window.indexedDB.databases();
+  for (const db of databases) {
+    if (db.name) {
+      try {
+        await new Promise<void>((resolve, reject) => {
+          const request = window.indexedDB.deleteDatabase(db.name!);
+          request.onsuccess = () => {
+            console.log(`Deleted IndexedDB database: ${db.name}`);
+            resolve();
+          };
+          request.onerror = () => {
+            const error = `Failed to delete IndexedDB database ${db.name}`;
+            errors.push(error);
+            console.warn(error);
+            reject(new Error(error));
+          };
+        });
+      } catch (error) {
+        errors.push(`Error deleting database ${db.name}: ${error}`);
+        console.error(`Error deleting database ${db.name}:`, error);
+      }
+    }
   }
 
   return {

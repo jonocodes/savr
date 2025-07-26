@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AppBar,
@@ -44,8 +44,9 @@ import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
-import { getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
+import { debug } from "console";
 
 interface Props {
   /**
@@ -55,23 +56,6 @@ interface Props {
 
   window?: () => Window;
   children?: React.ReactElement<unknown>;
-}
-
-// Never got this to work. https://mui.com/material-ui/react-app-bar/#hide-app-bar
-function HideOnScroll(props: Props) {
-  const { children, window } = props;
-  // Note that you normally won't need to set the window ref as useScrollTrigger
-  // will default to window.
-  // This is only being set here because the demo is in an iframe.
-  const trigger = useScrollTrigger({
-    target: window ? window() : undefined,
-  });
-
-  return (
-    <Slide appear={false} direction="down" in={!trigger}>
-      {children ?? <div />}
-    </Slide>
-  );
 }
 
 export default function ArticleScreen(props: Props) {
@@ -153,7 +137,6 @@ export default function ArticleScreen(props: Props) {
     if (!article) throw new Error("Article is undefined");
 
     try {
-      // updateArticleState(storage.client!, article.slug, "unread");
       updateArticleMetadata(storage.client!, { ...article, state: "unread" });
 
       enqueueSnackbar("Article unarchived");
@@ -180,37 +163,45 @@ export default function ArticleScreen(props: Props) {
         author: editAuthor,
       });
 
+      console.log("updatedArticle", updatedArticle);
+
       // await db.articles.put(updatedArticle);
       setArticle(updatedArticle);
 
-      // // Load the current HTML from storage
-      // const file = (await storage.client?.getFile(`saves/${slug}/index.html`)) as { data: string };
-      // if (!file) {
-      //   throw new Error("Could not load HTML from storage");
-      // }
+      // const raw = await storage.client?.getFile(getFilePathRaw(slug));
 
-      // // Update the HTML content with new title/author
-      // const parser = new DOMParser();
-      // const doc = parser.parseFromString(file.data, "text/html");
+      // Load the current HTML from storage
+      const file = (await storage.client?.getFile(getFilePathContent(slug))) as { data: string };
+      if (!file) {
+        throw new Error("Could not load HTML from storage");
+      }
 
-      // // Update metadata in the document
-      // const metaDiv = doc.querySelector("#savr-metadata");
-      // if (metaDiv) {
-      //   metaDiv.textContent = JSON.stringify(
-      //     {
-      //       title: editTitle,
-      //       author: editAuthor,
-      //       // Preserve other metadata
-      //       ...JSON.parse(metaDiv.textContent || "{}"),
-      //     },
-      //     null,
-      //     2
-      //   );
-      // }
+      // Update the HTML content with new title/author
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(file.data, "text/html");
 
-      // // Save the updated HTML back to storage
-      // const updatedHtml = doc.documentElement.outerHTML;
-      // await storage.client?.storeFile("text/html", `saves/${slug}/index.html`, updatedHtml);
+      // Update metadata in the document
+      const metaDiv = doc.querySelector("#savr-metadata");
+      if (metaDiv) {
+        debugger;
+        metaDiv.textContent = JSON.stringify(
+          {
+            title: editTitle,
+            author: editAuthor,
+            // Preserve other metadata
+            ...JSON.parse(metaDiv.textContent || "{}"),
+          },
+          null,
+          2
+        );
+
+        console.log("metaDiv", metaDiv);
+      }
+
+      // Save the updated HTML back to storage
+      const updatedHtml = doc.documentElement.outerHTML;
+      await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
+
       setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
     } catch (e) {
@@ -218,6 +209,32 @@ export default function ArticleScreen(props: Props) {
       enqueueSnackbar("Failed to update article info", { variant: "error" });
     }
   };
+
+  // Sticky hide-on-scroll header logic
+  const [showHeader, setShowHeader] = useState(true);
+  const lastScrollY = useRef(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      if (currentScrollY < 0) return;
+      if (currentScrollY < 50) {
+        setShowHeader(true);
+        lastScrollY.current = currentScrollY;
+        return;
+      }
+      if (currentScrollY > lastScrollY.current) {
+        // Scrolling down
+        setShowHeader(false);
+      } else if (currentScrollY < lastScrollY.current) {
+        // Scrolling up
+        setShowHeader(true);
+      }
+      lastScrollY.current = currentScrollY;
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     const setup = async () => {
@@ -252,8 +269,6 @@ export default function ArticleScreen(props: Props) {
             });
         }
 
-        console.log("loading from content article", html);
-
         // Calculate storage size for this article
         try {
           const sizeInfo = await calculateArticleStorageSize(slug);
@@ -271,128 +286,134 @@ export default function ArticleScreen(props: Props) {
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "background.default" }}>
-      <HideOnScroll {...props}>
-        <AppBar position="static">
-          <Toolbar>
+      <AppBar
+        position="sticky"
+        sx={{
+          top: 0,
+          zIndex: 1200,
+          transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
+          transform: showHeader ? "translateY(0)" : "translateY(-110%)",
+        }}
+      >
+        <Toolbar>
+          <IconButton
+            edge="start"
+            color="inherit"
+            onClick={() => navigate({ to: "/" })}
+            sx={{ mr: 2 }}
+          >
+            <ArrowBackIcon />
+          </IconButton>
+
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            {/* {article.title} */}
+          </Typography>
+
+          <Tooltip title="Increase font size">
             <IconButton
-              edge="start"
               color="inherit"
-              onClick={() => navigate({ to: "/" })}
-              sx={{ mr: 2 }}
+              onClick={() => {
+                const newSize = fontSize + 2;
+                setFontSize(newSize);
+                setFontSizeInCookie(newSize);
+              }}
             >
-              <ArrowBackIcon />
+              <AddIcon />
             </IconButton>
+          </Tooltip>
 
-            <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-              {/* {article.title} */}
-            </Typography>
+          <Tooltip title="Decrease font size">
+            <IconButton
+              color="inherit"
+              onClick={() => {
+                const newSize = fontSize - 2;
+                setFontSize(newSize);
+                setFontSizeInCookie(newSize);
+              }}
+            >
+              <RemoveIcon />
+            </IconButton>
+          </Tooltip>
 
-            <Tooltip title="Increase font size">
-              <IconButton
-                color="inherit"
-                onClick={() => {
-                  const newSize = fontSize + 2;
-                  setFontSize(newSize);
-                  setFontSizeInCookie(newSize);
-                }}
-              >
-                <AddIcon />
+          <CookieThemeToggle size="small" />
+
+          {article.state === ("archived" as any) ? (
+            <Tooltip title="Unarchive">
+              <IconButton color="inherit" onClick={handleUnarchive}>
+                <UnarchiveIcon />
               </IconButton>
             </Tooltip>
-
-            <Tooltip title="Decrease font size">
-              <IconButton
-                color="inherit"
-                onClick={() => {
-                  const newSize = fontSize - 2;
-                  setFontSize(newSize);
-                  setFontSizeInCookie(newSize);
-                }}
-              >
-                <RemoveIcon />
+          ) : (
+            <Tooltip title="Archive">
+              <IconButton color="inherit" onClick={handleArchive}>
+                <ArchiveIcon />
               </IconButton>
             </Tooltip>
+          )}
 
-            <CookieThemeToggle size="small" />
+          <IconButton color="inherit" onClick={openMenu}>
+            <MoreVertIcon />
+          </IconButton>
 
-            {article.state === ("archived" as any) ? (
-              <Tooltip title="Unarchive">
-                <IconButton color="inherit" onClick={handleUnarchive}>
-                  <UnarchiveIcon />
-                </IconButton>
-              </Tooltip>
-            ) : (
-              <Tooltip title="Archive">
-                <IconButton color="inherit" onClick={handleArchive}>
-                  <ArchiveIcon />
-                </IconButton>
-              </Tooltip>
+          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
+            {viewMode === "cleaned" && (
+              <MenuItem
+                onClick={() => {
+                  setViewMode("original");
+                  closeMenu();
+                }}
+              >
+                <ListItemIcon>
+                  <CodeIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>Show Original</ListItemText>
+              </MenuItem>
             )}
 
-            <IconButton color="inherit" onClick={openMenu}>
-              <MoreVertIcon />
-            </IconButton>
-
-            <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
-              {viewMode === "cleaned" && (
-                <MenuItem
-                  onClick={() => {
-                    setViewMode("original");
-                    closeMenu();
-                  }}
-                >
-                  <ListItemIcon>
-                    <CodeIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>Show Original</ListItemText>
-                </MenuItem>
-              )}
-
-              {viewMode === "original" && (
-                <MenuItem
-                  onClick={() => {
-                    setViewMode("cleaned");
-                    closeMenu();
-                  }}
-                >
-                  <ListItemIcon>
-                    <TextFieldsIcon fontSize="small" />
-                  </ListItemIcon>
-                  <ListItemText>Show Cleaned</ListItemText>
-                </MenuItem>
-              )}
-
-              <MenuItem onClick={handleVisitOriginal}>
+            {viewMode === "original" && (
+              <MenuItem
+                onClick={() => {
+                  setViewMode("cleaned");
+                  closeMenu();
+                }}
+              >
                 <ListItemIcon>
-                  <OpenInNewIcon fontSize="small" />
+                  <TextFieldsIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>Visit Original</ListItemText>
+                <ListItemText>Show Cleaned</ListItemText>
               </MenuItem>
+            )}
 
-              <MenuItem onClick={handleEditInfo}>
-                <ListItemIcon>
-                  <EditIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Info</ListItemText>
-              </MenuItem>
+            <MenuItem onClick={handleVisitOriginal}>
+              <ListItemIcon>
+                <OpenInNewIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Visit Original</ListItemText>
+            </MenuItem>
 
-              <MenuItem onClick={handleShare}>
-                <ListItemIcon>
-                  <ShareIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Share</ListItemText>
-              </MenuItem>
+            {/* <MenuItem onClick={handleEditInfo}>
+              <ListItemIcon>
+                <EditIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Info</ListItemText>
+            </MenuItem> */}
 
-              <MenuItem onClick={handleDelete}>
-                <ListItemIcon>
-                  <DeleteIcon fontSize="small" />
-                </ListItemIcon>
-                <ListItemText>Delete</ListItemText>
-              </MenuItem>
-            </Menu>
-          </Toolbar>
-        </AppBar>
-      </HideOnScroll>
+            <MenuItem onClick={handleShare}>
+              <ListItemIcon>
+                <ShareIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Share</ListItemText>
+            </MenuItem>
+
+            <MenuItem onClick={handleDelete}>
+              <ListItemIcon>
+                <DeleteIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Delete</ListItemText>
+            </MenuItem>
+          </Menu>
+        </Toolbar>
+      </AppBar>
 
       <Container maxWidth="md" sx={{ mt: 2, mb: 4 }}>
         <ArticleComponent html={html} fontSize={fontSize} />

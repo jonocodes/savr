@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import ArticleListScreen from "./ArticleList";
+import ArticleListScreen from "./ArticleListScreen";
 import { Article } from "../../lib/src/models";
 import { db } from "~/utils/db";
 import React from "react";

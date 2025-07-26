@@ -110,7 +110,6 @@ export default function PreferencesScreen() {
     return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
   });
 
-  // Total article count for confirmation dialog
   const totalArticleCount = useLiveQuery(() => db.articles.count());
 
   // Calculate storage usage
@@ -129,23 +128,10 @@ export default function PreferencesScreen() {
 
   const handleDeleteAllArticles = async () => {
     try {
-      // Get all articles before clearing the database
-      const allArticles = await db.articles.toArray();
-
-      // Clear the database
       await db.articles.clear();
 
-      // Delete content from remote storage if available
       if (storageClient) {
         await deleteAllRemoteStorage();
-        // for (const article of allArticles) {
-        //   try {
-        //     // Delete the article directory from storage
-        //     await storageClient.remove(`saves/${article.slug}/`);
-        //   } catch (error) {
-        //     console.warn(`Failed to delete storage for article ${article.slug}:`, error);
-        //   }
-        // }
       }
 
       setDeleteDialogOpen(false);
@@ -251,7 +237,15 @@ export default function PreferencesScreen() {
   return (
     <Box sx={{ flexGrow: 1, backgroundColor: "background.default" }}>
       {/* Header */}
-      <AppBar position="static">
+      <AppBar
+        sx={{
+          // display: "flex",
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          // backgroundColor: "background.paper",
+        }}
+      >
         <Toolbar>
           <IconButton edge="start" color="inherit" onClick={handleBack} sx={{ mr: 2 }}>
             <ArrowBackIcon />

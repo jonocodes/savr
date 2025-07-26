@@ -25,4 +25,4 @@ export { type ArticleAndRender } from "./models";
 export { type ArticleRenderExtra } from "./models";
 export { type Article } from "./models";
 
-export { ingestHtml2 } from "./ingestion";
+export { ingestHtml as ingestHtml2 } from "./ingestion";

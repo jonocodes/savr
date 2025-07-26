@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Box,
@@ -42,7 +42,7 @@ import {
 } from "@mui/icons-material";
 // import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
-import { ingestUrl2 } from "../../lib/src/ingestion";
+import { ingestUrl } from "../../lib/src/ingestion";
 import {
   removeArticle,
   getCorsProxyValue,
@@ -82,7 +82,6 @@ function ArticleItem({ article }: { article: Article }) {
   useEffect(() => {
     const loadThumbnailData = async () => {
       try {
-        console.log("loadThumbnailData", article.slug);
         const thumbnailData = await loadThumbnail(article.slug);
         setThumbnailSrc(thumbnailData);
       } catch (error) {
@@ -227,7 +226,7 @@ export default function ArticleListScreen() {
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  const corsProxy = getCorsProxyValue();
+  // const corsProxy = getCorsProxyValue();
 
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
@@ -236,9 +235,6 @@ export default function ArticleListScreen() {
     async (closeAfterSave: boolean = false) => {
       // TODO: pass in headers/cookies for downloading
 
-      // This function is now primarily for the manual URL input in the dialog.
-      // The bookmarklet ingestion will use the progress callback set in useEffect.
-
       // Wait until URL is not empty
       if (!url.trim()) {
         return;
@@ -246,9 +242,9 @@ export default function ArticleListScreen() {
 
       setIngestStatus("Ingesting...");
       try {
-        const article = await ingestUrl2(
+        const article = await ingestUrl(
           client,
-          corsProxy,
+          // corsProxy,
           url,
           (percent: number | null, message: string | null) => {
             if (percent !== null) {
@@ -283,16 +279,7 @@ export default function ArticleListScreen() {
         setIngestPercent(0);
       }
     },
-    [
-      client,
-      corsProxy,
-      url,
-      setDialogVisible,
-      setIngestStatus,
-      setIngestPercent,
-      setUrl,
-      enqueueSnackbar,
-    ]
+    [client, url, setDialogVisible, setIngestStatus, setIngestPercent, setUrl, enqueueSnackbar]
   );
 
   // Handle saveUrl query parameter
@@ -324,31 +311,6 @@ export default function ArticleListScreen() {
     }
   }, [client, saveUrl]); // Only run when client is available
 
-  useEffect(() => {
-    // Set the storage client in the extension connector
-    if (client) {
-      // // alert("set storage client");
-      // extensionConnector.setStorageClient(client);
-      // // Set the progress callback for the extension connector
-      // extensionConnector.setProgressCallback((percent, message) => {
-      //   if (percent !== null) {
-      //     setIngestStatus(message);
-      //     setIngestPercent(percent);
-      //     // Show the dialog when ingestion starts
-      //     if (!dialogVisible) {
-      //       setDialogVisible(true);
-      //     }
-      //   }
-      //   // Optionally hide the dialog when ingestion is complete (percent is 100)
-      //   if (percent === 100) {
-      //     setTimeout(() => {
-      //       setDialogVisible(false);
-      //     }, 2000); // Hide after 2 seconds
-      //   }
-      // });
-    }
-  }, [client, dialogVisible]); // Run this effect when the client or dialogVisible changes
-
   const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
 
   return (
@@ -361,6 +323,10 @@ export default function ArticleListScreen() {
           display: "flex",
           alignItems: "center",
           gap: 2,
+          position: "sticky",
+          top: 0,
+          zIndex: 1000,
+          backgroundColor: "background.paper",
         }}
       >
         <Tooltip title="Add article">

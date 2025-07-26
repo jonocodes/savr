@@ -1,10 +1,8 @@
-// In app/contexts/RemoteStorageContext.tsx
 import React, { createContext, useContext, useState, useEffect, useRef } from "react";
 import RemoteStorage from "remotestoragejs";
-// import Widget from "remotestorage-widget";
 import { init } from "~/utils/storage";
-// import { View, Platform } from "react-native";
 import BaseClient from "remotestoragejs/release/types/baseclient";
+import { useRouter } from "@tanstack/react-router";
 
 type RemoteStorageContextType = {
   remoteStorage: RemoteStorage | null;
@@ -23,6 +21,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   const [client, setClient] = useState<BaseClient | null>(null);
   const [widget, setWidget] = useState<any>(null);
   const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
+  const router = useRouter();
   // const widgetContainerRef = useRef<View>(null);
 
   useEffect(() => {
@@ -118,7 +117,10 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
           bottom: "10px",
           right: "10px",
           zIndex: 1000,
-          display: syncEnabled ? "block" : "none",
+          display:
+            syncEnabled && !router.state.location.pathname.startsWith("/article/")
+              ? "block"
+              : "none",
         }}
       />
       {children}
