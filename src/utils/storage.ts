@@ -1,20 +1,20 @@
-// import { openDB } from "idb";
+
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
 import { db } from "./db";
 import { Article } from "../../lib/src/models";
-import extensionConnector from "./extensionConnector"; // Import the extension connector
+// import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
 import filenamifyUrl from "filenamify-url";
 import { md5 } from "js-md5";
 import { mimeToExt } from "lib/src/lib";
 
-declare global {
-  interface Window {
-    extensionConnector: typeof extensionConnector;
-  }
-}
+// declare global {
+//   interface Window {
+//     extensionConnector: typeof extensionConnector;
+//   }
+// }
 
 let store;
 
@@ -78,10 +78,10 @@ function initRemote() {
       resolve(remoteStorage);
 
       // Initialize the extension connector when remote storage is ready
-      if (typeof window !== "undefined") {
-        window.extensionConnector = extensionConnector;
-        console.log("SAVR PWA: ExtensionConnector initialized and available globally");
-      }
+      // if (typeof window !== "undefined") {
+      //   window.extensionConnector = extensionConnector;
+      //   console.log("SAVR PWA: ExtensionConnector initialized and available globally");
+      // }
 
       //   remoteStorage.documents.subscribe(changeHandler);
     });
@@ -164,7 +164,7 @@ function initRemote() {
 }
 
 export async function saveResource(
-  url: string,
+  localPath: string,
   slug: string,
   dataUrl: string,
   mimeType: string
@@ -172,7 +172,7 @@ export async function saveResource(
   // TODO: change to checksum
   // const name = self.crypto.randomUUID();
 
-  let name = filenamifyUrl(url, { replacement: "__" });
+  // let name = filenamifyUrl(url, { replacement: "__" });
 
   // calcualte the checksum of the url
 
@@ -183,29 +183,29 @@ export async function saveResource(
 
   // const hash = md5(url);
 
-  const ext = mimeToExt[mimeType] || "unknown";
+  // const ext = mimeToExt[mimeType] || "unknown";
 
-  if (mimeType.startsWith("image/")) {
-    const hash = md5(url);
+  // if (mimeType.startsWith("image/")) {
+  //   const hash = md5(url);
 
-    name = `${hash}.${ext}`;
-  }
+  //   name = `${hash}.${ext}`;
+  // }
 
   // const path = `saves/${slug}/resources/${hash}.${ext}`;
 
-  const path = `saves/${slug}/resources/${name}`;
+  const fullPath = `saves/${slug}/resources/${localPath}`;
 
-  console.log("saving resource", url, path);
+  console.log("saving resource", fullPath);
 
   const storage = await init();
 
-  await storage.client.storeFile(mimeType, path, dataUrl);
+  await storage.client.storeFile(mimeType, fullPath, dataUrl);
 
   // await storage.resources.save({ url, data: dataUrl, type: mimeType, savedAt: now });
 
-  console.log(`Saved resource: ${url}`);
+  console.log(`Saved resource: ${localPath}`);
 
-  return path;
+  return localPath;
 }
 
 async function calculateTotalStorage(): Promise<{

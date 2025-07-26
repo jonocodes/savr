@@ -23,7 +23,6 @@ export { DbManager } from "./lib";
 
 export { type ArticleAndRender } from "./models";
 export { type ArticleRenderExtra } from "./models";
-export { type Articles } from "./models";
 export { type Article } from "./models";
 
-export { ingestHtml2, ingestCurrentPage } from "./ingestion";
+export { ingestHtml2 } from "./ingestion";

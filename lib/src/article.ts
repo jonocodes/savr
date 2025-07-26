@@ -1,5 +1,43 @@
 // import * as fs from 'fs';
 
+import { Article } from "./models";
+
+// class ArticleObj {
+//   constructor(data: Article) {
+//     this.data = data;
+//   }
+
+//   pathContent(): string {
+//     return `saves/${this.slug}/content.html`;
+//   }
+// }
+
+type ArticleObj = {
+  // data: Article;
+  pathContent: () => string;
+  pathThumbnail: () => string;
+  pathMetadata: () => string;
+  pathResources: () => string;
+};
+
+export function createArticleObject(data: Article): ArticleObj {
+  return {
+    ...data,
+    pathContent() {
+      return `saves/${data.slug}/content.html`;
+    },
+    pathThumbnail() {
+      return `saves/${data.slug}/thumbnail.png`;
+    },
+    pathMetadata() {
+      return `saves/${data.slug}/metadata.json`;
+    },
+    pathResources() {
+      return `saves/${data.slug}/resources`;
+    },
+  };
+}
+
 interface ArticleTemplateProps {
   title: string;
   byline: string;

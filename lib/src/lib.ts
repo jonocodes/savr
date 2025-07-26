@@ -1,11 +1,10 @@
 // import { Jimp } from "jimp";
 import Mustache from "mustache";
-import { ArticleAndRender, ArticleRenderExtra, Articles, Article } from "./models";
-import { version } from '../package.json' with { type: "json" };
+import { ArticleAndRender, ArticleRenderExtra, Article } from "./models";
+// import { version } from '../package.json' with { type: "json" };
 
 // import pdf2html, { thumbnail }  from "pdf2html";
 import { listTemplateMoustache } from "./list";
-
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);
@@ -19,30 +18,27 @@ import { listTemplateMoustache } from "./list";
 //   throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
 // }
 
-export const DB_FILE_NAME='db.json'
+export const DB_FILE_NAME = "db.json";
 
 // export const dbFile = `${dataDir}/${DB_FILE_NAME}`;
 
 // const savesDir = dataDir + "/saves";
 
-
 // TODO: maybe dont need this mapping since the subtype is the extension
 export const mimeToExt: Record<string, string> = {
-  'text/html': 'html',
-  'image/jpeg': 'jpg',
-  'image/png': 'png',
-  'image/webp': 'webp',
-  'application/pdf': 'pdf',
-  'text/plain': 'txt',
-  'text/markdown': 'md',
+  "text/html": "html",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+  "application/pdf": "pdf",
+  "text/plain": "txt",
+  "text/markdown": "md",
   // application/epub+zip
 };
 
 type ImageData = [string, string, HTMLImageElement]; // url, path, image
 
-
 // export const defaultData: Articles = { articles: [] };
-
 
 function extractDomain(url: string): string | null {
   try {
@@ -61,7 +57,6 @@ function extractDomain(url: string): string | null {
 }
 
 export function calcReadingTime(text: string): number {
-
   const wordCount = text.split(/\s+/).length;
 
   const wordsPerMinute = 200; // adjust this value if needed
@@ -75,7 +70,7 @@ export function calcReadingTime(text: string): number {
 }
 
 export function humanReadableSize(bytes: number): string {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const units = ["B", "KB", "MB", "GB", "TB"];
   let index = 0;
   while (bytes >= 1024 && index < units.length - 1) {
     bytes /= 1024;
@@ -84,44 +79,37 @@ export function humanReadableSize(bytes: number): string {
   return `${bytes.toFixed(2)} ${units[index]}`;
 }
 
-
 export function generateInfoForCard(article: Article): string {
-
-  var result = ""
+  var result = "";
 
   if (article.author != null && article.author != "") {
-    result = article.author
+    result = article.author;
   }
 
   if (article.publishedDate != null && article.publishedDate != undefined) {
+    const pubDate = new Date(article.publishedDate);
 
-    const pubDate = new Date(article.publishedDate)
-    
     if (result == "") {
-      result = pubDate.toDateString()
+      result = pubDate.toDateString();
     } else {
-      result = result + ", " + pubDate.toDateString()
+      result = result + ", " + pubDate.toDateString();
     }
-
   }
 
   if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
-
-    const read = `${article.readTimeMinutes} minute read`
+    const read = `${article.readTimeMinutes} minute read`;
 
     if (result == "") {
-        result = read
+      result = read;
     } else {
-        result = `${result} • ${read}`
+      result = `${result} • ${read}`;
     }
-
   }
 
-  return result
+  return result;
 }
 
-export function upsertArticleToList(articles: Article[], article: Article){
-
+export function upsertArticleToList(articles: Article[], article: Article) {
   const existingArticleIndex = articles.findIndex((a) => a.slug === article.slug);
   if (existingArticleIndex !== -1) {
     articles[existingArticleIndex] = article;
@@ -134,32 +122,28 @@ export function getArticleBySlug(articles: Article[], slug: string): Article | u
   return articles.find((article: Article) => article.slug === slug);
 }
 
-
 export function generateInfoForArticle(article: Article): string {
-
-  var result = ""
+  var result = "";
 
   if (article.url != null) {
     const domain = extractDomain(article.url);
 
     if (domain != null) {
-      result = `<a href=${article.url}>${domain}</a>`
+      result = `<a href=${article.url}>${domain}</a>`;
     }
   }
 
   if (article.publishedDate != null && article.publishedDate != undefined) {
+    const pubDate = new Date(article.publishedDate);
 
-    const pubDate = new Date(article.publishedDate)
-    
     if (result == "") {
-      result = pubDate.toDateString()
+      result = pubDate.toDateString();
     } else {
-      result = result + " &#x2022; " + pubDate.toDateString()
+      result = result + " &#x2022; " + pubDate.toDateString();
     }
-
   }
 
-  return result
+  return result;
 }
 
 // export async function articleList() {
@@ -170,64 +154,53 @@ export function generateInfoForArticle(article: Article): string {
 // export async function getArticles(dbManager: DbManager): Promise<Article[]> {
 
 //   return await dbManager.getArticles()
-  
+
 // }
 
 export function filterAndPrepareArticles(articles: Article[]): ArticleAndRender[] {
-
-  const readable: ArticleAndRender[] = []
+  const readable: ArticleAndRender[] = [];
 
   for (const article of articles) {
+    const articleAndRender = toArticleAndRender(article);
 
-    const articleAndRender = toArticleAndRender(article)
-
-    if (article.state != "deleted")
-      readable.push(articleAndRender)
+    if (article.state != "deleted") readable.push(articleAndRender);
   }
 
-  return readable
-
+  return readable;
 }
 
 export function toArticleAndRender(article: Article): ArticleAndRender {
-
   // const mimeType = new MIMEType(article.mimeType)
-  let ext = mimeToExt[article.mimeType]
+  let ext = mimeToExt[article.mimeType];
 
   // if (mimeType.type == "text") {
   if (article.mimeType.startsWith("text/")) {
-    ext = "html"
+    ext = "html";
   }
 
   const newValues: ArticleRenderExtra = {
     infoForCard: generateInfoForCard(article),
-    fileName: `index.${ext}`
-  }
+    fileName: `index.${ext}`,
+  };
 
   return {
     article: article,
     extra: newValues,
-  }
+  };
 }
 
-
 export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
-
-  const readable: ArticleAndRender[] = []
-  const archived: ArticleAndRender[] = []
+  const readable: ArticleAndRender[] = [];
+  const archived: ArticleAndRender[] = [];
 
   for (const article of articles) {
+    const articleAndRender = toArticleAndRender(article);
 
-    const articleAndRender = toArticleAndRender(article)
-
-    if (article.state === "archived")
-      archived.push(articleAndRender)
-    else if (article.state != "deleted")
-      readable.push(articleAndRender)
+    if (article.state === "archived") archived.push(articleAndRender);
+    else if (article.state != "deleted") readable.push(articleAndRender);
   }
 
-  return [readable, archived]
-
+  return [readable, archived];
 }
 
 // export function renderTemplate(templateName: string, view: object) {
@@ -238,12 +211,9 @@ export function articlesToRender(articles: Article[]): [ArticleAndRender[], Arti
 //   return Mustache.render(mustacheTemplate, view);
 // }
 
-
-
 export function renderListTemplate(view: object) {
   return Mustache.render(listTemplateMoustache, view);
 }
-
 
 // function getFileName(article: Article) {
 //   return `index.${mimeToExt[article.mimeType]}`
@@ -257,51 +227,45 @@ export function renderListTemplate(view: object) {
 //   return `${getSaveDirPath(article.slug)}/${getFileName(article)}`
 // }
 
-
 export class DbManager {
-
-  public fileManager: FileManager
+  public fileManager: FileManager;
 
   constructor(fm: FileManager) {
-    this.fileManager = fm
+    this.fileManager = fm;
   }
 
-  public async setArticleState(slug: string, state: string) : Promise<Article> {
-
+  public async setArticleState(slug: string, state: string): Promise<Article> {
     const articles = await this.getArticles();
 
     const existingArticleIndex = articles.findIndex((a) => a.slug === slug);
     // if (existingArticleIndex !== -1) {
-      articles[existingArticleIndex].state = state
+    articles[existingArticleIndex].state = state;
 
-      this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
+    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({ articles }, null, 2));
 
-      return articles[existingArticleIndex]
+    return articles[existingArticleIndex];
     // } else {
     //   console.error("article not found")
     // }
-
   }
 
   public async upsertArticle(article: Article) {
-
     const articles = await this.getArticles();
 
     const contentPre = await this.fileManager.readTextFile(DB_FILE_NAME);
-    
-    console.log("db before insert:", contentPre)
+
+    console.log("db before insert:", contentPre);
 
     upsertArticleToList(articles, article);
 
-    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({articles}, null, 2));
+    this.fileManager.writeTextFile(DB_FILE_NAME, JSON.stringify({ articles }, null, 2));
 
     const content = await this.fileManager.readTextFile(DB_FILE_NAME);
-    
-    console.log("db after insert:", content)
+
+    console.log("db after insert:", content);
   }
 
-  public async getArticle(slug: string): Promise<Article|undefined> {
-    
+  public async getArticle(slug: string): Promise<Article | undefined> {
     // TODO: read from single article json file?
 
     const articles = await this.getArticles();
@@ -310,7 +274,6 @@ export class DbManager {
   }
 
   public async getArticles(): Promise<Article[]> {
-
     const content = await this.fileManager.readTextFile(DB_FILE_NAME);
 
     const articles = JSON.parse(content).articles;
@@ -319,10 +282,8 @@ export class DbManager {
     // // const articles: ArticleAndRender[] = await response.json();
     // const articles: Article[] = await response.json();
 
-    return articles
-    
+    return articles;
   }
-
 }
 
 export function getFilePathContent(slug: string): string {
@@ -337,8 +298,11 @@ export function getFilePathRaw(slug: string): string {
   return `saves/${slug}/raw.html`;
 }
 
-export abstract class FileManager {
+export function getFilePathThumbnail(slug: string): string {
+  return `saves/${slug}/resources/thumbnail.webp.data`;
+}
 
+export abstract class FileManager {
   // // public directory: string; // TODO rename basepath?
   public abstract directory: string;
 
@@ -362,4 +326,3 @@ export abstract class FileManager {
 
   public abstract deleteDir(dir: string): Promise<void>;
 }
-

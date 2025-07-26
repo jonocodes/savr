@@ -2,9 +2,10 @@ import { Article, ArticleAndRender } from "../../lib/src/models";
 import { getDefaultCorsProxy } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db } from "./db";
-import { deleteArticleStorage, glob } from "./storage";
+import { deleteArticleStorage, glob, init } from "./storage";
 import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
-import { getFilePathMetadata } from "../../lib/src/lib";
+import { getFilePathMetadata, getFilePathThumbnail } from "../../lib/src/lib";
+import { maxDimensionImage, resizeImage } from "../../lib/src/ingestion";
 
 // Cookie-based CORS proxy functions
 export const getCorsProxyValue = (): string => {
@@ -61,7 +62,10 @@ export async function updateArticleMetadata(
   return updatedArticle;
 }
 
-export async function fetchToDataUrl(url: string) {
+export async function fetchAndResizeImage(
+  url: string,
+  maxDimension: number
+): Promise<{ blob: Blob; width: number; height: number }> {
   const corsProxy = getCorsProxyValue();
 
   // TODO: create error if fetch times out. this happens if you are offline
@@ -78,6 +82,27 @@ export async function fetchToDataUrl(url: string) {
 
   const blob = await response.blob();
 
+  const { blob: resizedBlob, width, height } = await resizeImage(blob, maxDimension);
+
+  // const dataUrl = await imageToDataUrl(resizedBlob);
+
+  // const dataUrl: string = await new Promise<string>((resolve, reject) => {
+  //   const reader = new FileReader();
+  //   reader.onloadend = () => {
+  //     if (reader.result) {
+  //       resolve(reader.result as string);
+  //     } else {
+  //       reject(new Error("Failed to read blob as data URL"));
+  //     }
+  //   };
+  //   reader.onerror = reject;
+  //   reader.readAsDataURL(resizedBlob);
+  // });
+
+  return { blob: resizedBlob, width, height };
+}
+
+export async function imageToDataUrl(blob: Blob): Promise<string> {
   const dataUrl: string = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onloadend = () => {
@@ -115,6 +140,27 @@ export function extractImageUrls(html: string, baseUrl: string): string[] {
       })
       .filter((u) => u)
   );
+}
+
+export async function loadThumbnail(slug: string): Promise<string> {
+  try {
+    // Try to load the thumbnail from storage
+    const storage = await init();
+    if (storage && storage.client) {
+      const thumbnailPath = getFilePathThumbnail(slug);
+      console.log("thumbnailPath", thumbnailPath);
+      const file = (await storage.client.getFile(thumbnailPath)) as { data: string };
+      console.log("thumb file", file);
+      if (file && file.data) {
+        return file.data;
+      }
+    }
+  } catch (error) {
+    console.warn(`Failed to load thumbnail for ${slug}:`, error);
+  }
+
+  // Fallback to static image
+  return "/static/article_bw.webp";
 }
 
 //   public async downloadAndResizeImage(url: string, targetDir: string) {

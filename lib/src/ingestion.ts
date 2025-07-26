@@ -5,7 +5,7 @@ import { Article } from "./models";
 import { version } from "../../package.json" with { type: "json" };
 import mime from "mime";
 import BaseClient from "remotestoragejs/release/types/baseclient";
-import ArticleTemplate from "./article";
+import ArticleTemplate, { createArticleObject } from "./article";
 // import { listTemplateMoustache } from "./list";
 import {
   FileManager,
@@ -17,9 +17,11 @@ import {
   getFilePathRaw,
   getFilePathContent,
   getFilePathMetadata,
+  getFilePathThumbnail,
 } from "./lib";
 import { saveResource } from "~/utils/storage";
-import { fetchToDataUrl } from "~/utils/tools";
+import { fetchAndResizeImage, imageToDataUrl } from "~/utils/tools";
+import { md5 } from "js-md5";
 
 // const __filename = fileURLToPath(import.meta.url);
 // const __dirname = dirname(__filename);
@@ -47,7 +49,10 @@ const mimeToExt: Record<string, string> = {
   // application/epub+zip
 };
 
-type ImageData = [string, string, HTMLImageElement]; // url, path, image
+export const maxDimensionImage = 1024;
+export const maxDimensionThumb = 256;
+
+type ImageData = [string, string, HTMLImageElement, number, number]; // url, path, image, width, height
 
 // export function upsertArticleToList(articles: Article[], article: Article){
 
@@ -72,8 +77,6 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
 
   let baseDirectory = null;
 
-  // TODO: why is baseDirectory needed here any more? when the dom is generated the baseurl should cover this
-
   if (articleUrl !== null) {
     baseDirectory = getBaseDirectory(articleUrl);
   }
@@ -86,11 +89,15 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
       imgUrl = new URL(imgUrl, baseDirectory).href;
     }
 
-    // Remove the protocol part and replace slashes with double underscores
-    let pathWithoutProtocol = imgUrl.replace(/^[a-zA-Z]+:\/\//, "");
-    let modifiedPath = pathWithoutProtocol.replace(/\//g, "__");
+    const ext = imgUrl.split(".").pop();
 
-    imgData.push([imgUrl, modifiedPath, img]);
+    const hash = md5(imgUrl);
+
+    const localPath = `${hash}.${ext}`;
+
+    console.log("localPath", localPath);
+
+    imgData.push([imgUrl, localPath, img, img.width, img.height]);
   });
 
   return imgData;
@@ -100,7 +107,7 @@ async function downloadAndResizeImages(
   imageData: ImageData[],
   // outputDir: string,
   article: Article,
-  maxDimension: number,
+  // maxDimension: number,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<void> {
   // if (!fs.existsSync(outputDir)) {
@@ -113,41 +120,21 @@ async function downloadAndResizeImages(
 
   const step = Math.round((endPercent - percent) / imageData.length / 2);
 
-  for (const [url, modifiedPath] of imageData) {
-    // try {
+  let thumbnailPath: string | null = null;
+  let thumbnailBlob: Blob | null = null;
+  let maxArea = 0;
+
+  for (const [url, localPath] of imageData) {
     sendMessage(percent, `downloading image ${imageCount + 1} of ${imageData.length}`);
 
-    const ext = modifiedPath.split(".").pop();
+    const ext = url.split(".").pop();
 
     // TODO: add support for .avif as on dgt.is
     const mimeType = mime.getType(ext ?? "image/jpeg");
 
-    // Download the image
-    // const response = await fetch(url);
-    // const imageBuffer = await response.arrayBuffer();
+    const { blob, width, height } = await fetchAndResizeImage(url, maxDimensionImage);
 
-    // // Convert ArrayBuffer to data URL for embedded img src
-    // const uint8Array = new Uint8Array(imageBuffer);
-    // const dataUrl = `data:${mimeType};base64,${btoa(String.fromCharCode(...uint8Array))}`;
-
-    const dataUrl = await fetchToDataUrl(url);
-
-    // const dataUrl: string = await fetch(url)
-    //   .then((response) => response.blob())
-    //   .then((blob) => {
-    //     return new Promise<string>((resolve, reject) => {
-    //       const reader = new FileReader();
-    //       reader.onloadend = () => {
-    //         if (reader.result) {
-    //           resolve(reader.result as string);
-    //         } else {
-    //           reject(new Error("Failed to read blob as data URL"));
-    //         }
-    //       };
-    //       reader.onerror = reject;
-    //       reader.readAsDataURL(blob);
-    //     });
-    //   });
+    const dataUrl = await imageToDataUrl(blob);
 
     percent = percent + step;
 
@@ -157,85 +144,146 @@ async function downloadAndResizeImages(
     // const image = await Jimp.read(imageBuffer);
     // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
 
-    // const outputFilePath = outputDir + "/" + modifiedPath;
-
-    const outputFilePath = await saveResource(article.url!, article.slug, dataUrl, mimeType);
+    const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
 
     console.log("outputFilePath", outputFilePath);
     console.log("dataurl", dataUrl);
 
-    const localPath = outputFilePath.replace("saves/" + article.slug + "/", "");
+    const relativePath = outputFilePath.replace("saves/" + article.slug + "/", "");
 
-    // await resizedImage.write(`${outputFilePath}.${ext}`);
-    // console.log(`Downloaded and resized: ${outputFilePath}`);
+    imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.localPath = relativePath;
 
-    // Store the file path for later use
-    // imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.localPath = outputFilePath;
+    imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.origSrc = url;
 
-    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.localPath =
-      localPath;
+    imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.path = outputFilePath;
 
-    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.origSrc = url;
+    imageData.find(([imgUrl]) => imgUrl === url)![2].src = relativePath;
 
-    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].dataset.path =
-      outputFilePath;
-
-    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].src = localPath;
-
-    imageData.find(([imgUrl, imgPath]) => imgPath === modifiedPath)![2].src = dataUrl;
+    imageData.find(([imgUrl]) => imgUrl === url)![2].src = dataUrl;
 
     imageCount += 1;
 
     percent = percent + step;
-    // } catch (error) {
-    //   console.error(`Error downloading or resizing image from ${url}:`, error);
+
+    // thumbnail
+
+    console.log("check thumb for localPath", localPath);
+
+    // const filePath = localPath;
+
+    const area = width * height;
+
+    console.log("area", area);
+
+    // Ignore small images
+    if (area < 5000) {
+      console.log("too small");
+      // continue;
+    }
+
+    // Prefer images with more pixels (likely higher quality)
+    else if (area > maxArea) {
+      console.log("new maxArea", area);
+      maxArea = area;
+      thumbnailPath = localPath;
+      thumbnailBlob = blob;
+    }
+  }
+
+  // make the thumbnail
+
+  if (thumbnailBlob !== null) {
+    const [url, localPath, img] = imageData.find(
+      ([url, localPath]) => localPath === thumbnailPath
+    )!;
+
+    // fetchAndResizeImage(url, )
+
+    // Read the chosen file into a blob
+    // const response = await fetch(url);
+    // if (!response.ok) {
+    //   throw new Error(`Failed to fetch image: ${response.statusText}`);
     // }
+    // const blob = await response.blob();
+
+    const {
+      blob: resizedBlob,
+      // width,
+      // height,
+    } = await resizeImage(thumbnailBlob, maxDimensionThumb);
+
+    const webpBlob = await convertToWebP(resizedBlob);
+
+    // const dataUrl = URL.createObjectURL(webpBlob);
+
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          resolve(reader.result as string);
+        } else {
+          reject(new Error("Failed to read blob as data URL"));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(webpBlob);
+    });
+
+    // const thumbPath = getFilePathThumbnail(article.slug);
+
+    // console.log("thumbPath", thumbPath);
+
+    // const mimeType = "image/webp";
+
+    const outputFilePath = await saveResource(
+      "thumbnail.webp.data",
+      article.slug,
+      dataUrl,
+      webpBlob.type
+    );
+
+    console.log("outputFilePath", outputFilePath);
   }
 }
 
-function updateImageSrc(doc: Document, imageData: ImageData[], outputDir: string): void {
-  imageData.forEach(([url, modifiedPath, imgElement]) => {
-    // Use the local path set during downloading
-    const localPath = (imgElement as any).dataset.localPath;
-    if (localPath) {
-      imgElement.src = `${outputDir}/${modifiedPath}`;
-    }
-  });
-}
+// function updateImageSrc(doc: Document, imageData: ImageData[], outputDir: string): void {
+//   imageData.forEach(([url, localPath, imgElement]) => {
+//     // Use the local path set during downloading
+//     const localPath = (imgElement as any).dataset.localPath;
+//     if (localPath) {
+//       imgElement.src = `${outputDir}/${localPath}`;
+//     }
+//   });
+// }
 
 async function processHtmlAndImages(
-  // articleUrl: string | null,
   article: Article,
   htmlText: string,
-  // saveDir: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<string> {
-  const { document: doc } = parseHTML(htmlText);
+  const { document } = parseHTML(htmlText);
 
-  const imageData = await extractImageUrls(doc, article.url);
-  // const outputDir = saveDir + "/images";
-  const maxDimension = 1024;
+  // assigning a url allows relative paths to be resolved for images
+  // const base = document.createElement("base");
+  // base.href = article.url ?? ""; // Set your desired base URL here. will this work for all paths?
+
+  const imageData = await extractImageUrls(document, article.url);
 
   console.log("imageData", imageData);
 
   sendMessage(20, "downloading images");
 
-  await downloadAndResizeImages(imageData, article, maxDimension, sendMessage);
+  await downloadAndResizeImages(imageData, article, sendMessage);
 
-  // Update the src attribute of the img elements in the document
-  // updateImageSrc(doc, imageData, "images");
-
-  // yield { percent: 50, message: "creating thumbnail" };
   sendMessage(95, "creating thumbnail");
-  // create the thumbnail
 
-  // const imageFileNames = imageData.map((item) => outputDir + "/" + item[1]);
+  // const artObj = createArticleObject(article);
 
-  // await createThumbnail(imageFileNames, saveDir);
+  // await createThumbnail(imageData, article);
 
   // Serialize the updated DOM to get the updated HTML string
   // return dom.serialize();
-  return doc.documentElement.outerHTML;
+  return document.documentElement.outerHTML;
 }
 
 function stringToSlug(str: string): string {
@@ -259,58 +307,165 @@ function stringToSlug(str: string): string {
   return str;
 }
 
-async function createThumbnail(fileNames: string[], outputDirPath: string) {
-  let chosenFile: string | null = null;
-  let maxArea = 0;
-  const maxDimensionThumb = 512;
+// Helper function to resize image to max dimension
+export async function resizeImage(
+  blob: Blob,
+  maxDimension: number
+): Promise<{ blob: Blob; width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
 
-  for (const fileName of fileNames) {
-    const filePath = fileName;
+      if (!ctx) {
+        reject(new Error("Failed to get canvas context"));
+        return;
+      }
 
-    // if (!fs.existsSync(filePath)) {
-    //   continue;
-    // }
+      // Calculate new dimensions maintaining aspect ratio
+      let { width, height } = img;
+      if (width > height) {
+        if (width > maxDimension) {
+          height = (height * maxDimension) / width;
+          width = maxDimension;
+        }
+      } else {
+        if (height > maxDimension) {
+          width = (width * maxDimension) / height;
+          height = maxDimension;
+        }
+      }
 
-    // Use Jimp to get image metadata
-    // const image = await Jimp.read(filePath);
-    // const metadata = image.bitmap;
+      canvas.width = width;
+      canvas.height = height;
 
-    // const area = metadata.width * metadata.height;
+      // Draw the resized image
+      ctx.drawImage(img, 0, 0, width, height);
 
-    const area = 1024 * 1024;
+      // Convert to blob
+      canvas.toBlob(
+        (resizedBlob) => {
+          if (resizedBlob) {
+            resolve({ blob: resizedBlob, width, height });
+          } else {
+            reject(new Error("Failed to resize image"));
+          }
+        },
+        blob.type || "image/jpeg",
+        0.8
+      ); // Use original type or default to JPEG with 0.8 quality
+    };
 
-    // Ignore small images
-    if (area < 5000) {
-      continue;
-    }
-
-    // Prefer images with more pixels (likely higher quality)
-    if (area > maxArea) {
-      maxArea = area;
-      chosenFile = filePath;
-    }
-  }
-
-  if (chosenFile === null) return;
-
-  const outputFilePath = outputDirPath + "/" + "thumbnail";
-
-  try {
-    // const image = await Jimp.read(chosenFile);
-    // // await image
-    // //   .cover(maxDimensionThumb, maxDimensionThumb)
-    // //   .quality(80)
-    // //   .writeAsync(outputFilePath);
-
-    // await image
-    //   .scaleToFit({w: maxDimensionThumb, h: maxDimensionThumb}) // Resize using ScaleToFitOptions
-    //   .write(`${outputFilePath}.${'png'}`); // Save as PNG
-
-    console.log(`Thumbnail created: ${outputFilePath}`);
-  } catch (error) {
-    console.error(`Error creating thumbnail: ${error}`);
-  }
+    img.onerror = () => reject(new Error("Failed to load image for resizing"));
+    img.src = URL.createObjectURL(blob);
+  });
 }
+
+export async function convertToWebP(blob: Blob): Promise<Blob> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        reject(new Error("Failed to get canvas context"));
+        return;
+      }
+
+      canvas.width = img.width;
+      canvas.height = img.height;
+      ctx.drawImage(img, 0, 0);
+
+      canvas.toBlob(
+        (webpBlob) => {
+          if (webpBlob) {
+            console.log("webpBlob", webpBlob);
+            resolve(webpBlob);
+          } else {
+            reject(new Error("Failed to convert to WebP"));
+          }
+        },
+        "image/webp",
+        0.8
+      );
+    };
+    img.onerror = () => reject(new Error("Failed to load image for WebP conversion"));
+    img.src = URL.createObjectURL(blob);
+  });
+}
+
+// async function createThumbnail(imageData: ImageData[], article: Article) {
+//   let chosenFile: string | null = null;
+//   let maxArea = 0;
+
+//   for (const [url, localPath, img, width, height] of imageData) {
+//     console.log("check thumb for localPath", localPath);
+
+//     // const filePath = localPath;
+
+//     const area = width * height;
+
+//     console.log("area", area);
+
+//     // Ignore small images
+//     if (area < 5000) {
+//       console.log("too small");
+//       continue;
+//     }
+
+//     // Prefer images with more pixels (likely higher quality)
+//     if (area > maxArea) {
+//       console.log("new maxArea", area);
+//       maxArea = area;
+//       chosenFile = localPath;
+//     }
+//   }
+
+//   if (chosenFile === null) return;
+
+//   try {
+//     const [url, localPath, img] = imageData.find(([url]) => url === chosenFile)!;
+
+//     // Read the chosen file into a blob
+//     const response = await fetch(url);
+//     if (!response.ok) {
+//       throw new Error(`Failed to fetch image: ${response.statusText}`);
+//     }
+//     const blob = await response.blob();
+
+//     const { blob: resizedBlob, width, height } = await resizeImage(blob, maxDimensionThumb);
+
+//     const webpBlob = await convertToWebP(resizedBlob);
+
+//     const dataUrl = URL.createObjectURL(webpBlob);
+
+//     const thumbPath = getFilePathThumbnail(article.slug);
+
+//     console.log("thumbPath", thumbPath);
+
+//     const mimeType = "image/webp";
+
+//     const outputFilePath = await saveResource(thumbPath, article.slug, dataUrl, webpBlob.type);
+
+//     console.log("outputFilePath", outputFilePath);
+
+//     // const image = await Jimp.read(chosenFile);
+//     // // await image
+//     // //   .cover(maxDimensionThumb, maxDimensionThumb)
+//     // //   .quality(80)
+//     // //   .writeAsync(outputFilePath);
+
+//     // await image
+//     //   .scaleToFit({w: maxDimensionThumb, h: maxDimensionThumb}) // Resize using ScaleToFitOptions
+//     //   .write(`${outputFilePath}.${'png'}`); // Save as PNG
+
+//     console.log(`Thumbnail created: ${outputFilePath}`);
+//   } catch (error) {
+//     console.error(`Error creating thumbnail: ${error}`);
+//   }
+// }
 
 function guessContentType(input: string): string {
   // Trim input to remove leading/trailing whitespace
@@ -1094,7 +1249,7 @@ export async function ingestUrl2(
 
       //   finalizeFileLocation(tempLocalPath, article)
 
-      //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
+      // createThumbnail([getFilePathContent(article.slug)], getSaveDirPath(article.slug))
     } else {
       throw new Error(`No handler for content type ${contentTypeHeader}`);
     }
@@ -1134,92 +1289,92 @@ export async function ingestUrl2(
   return article;
 }
 
-export async function ingestCurrentPage(
-  storageClient: BaseClient | null,
-  html: string,
-  contentType: string,
-  url: string | null,
-  sendMessage: (percent: number | null, message: string | null) => void
-) {
-  sendMessage(0, "start");
+// export async function ingestCurrentPage(
+//   storageClient: BaseClient | null,
+//   html: string,
+//   contentType: string,
+//   url: string | null,
+//   sendMessage: (percent: number | null, message: string | null) => void
+// ) {
+//   sendMessage(0, "start");
 
-  // const response = await fetch(`${corsProxy}${url}`);
+//   // const response = await fetch(`${corsProxy}${url}`);
 
-  const contentTypeHeader = "text/html"; //response.headers.get("content-type")
+//   const contentTypeHeader = "text/html"; //response.headers.get("content-type")
 
-  if (!contentTypeHeader) {
-    throw new Error("cant determine content type");
-  }
+//   if (!contentTypeHeader) {
+//     throw new Error("cant determine content type");
+//   }
 
-  // sendMessage(10, "scraping article");
+//   // sendMessage(10, "scraping article");
 
-  var article: Article | null = null;
+//   var article: Article | null = null;
 
-  console.log(`contentTypeHeader = ${contentTypeHeader}`);
+//   console.log(`contentTypeHeader = ${contentTypeHeader}`);
 
-  try {
-    const extension = mime.getExtension(contentTypeHeader);
-    const mimeType = mime.getType(extension ?? "");
+//   try {
+//     const extension = mime.getExtension(contentTypeHeader);
+//     const mimeType = mime.getType(extension ?? "");
 
-    // const mimeType = new MIMEType(contentTypeHeader);
+//     // const mimeType = new MIMEType(contentTypeHeader);
 
-    if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
-      throw new Error(`Unsupported content type: ${contentTypeHeader}`);
-    }
+//     if (!mimeType || !mimeToExt.hasOwnProperty(mimeType)) {
+//       throw new Error(`Unsupported content type: ${contentTypeHeader}`);
+//     }
 
-    if (mimeType === "text/html") {
-      article = await ingestHtml2(storageClient, html, contentTypeHeader, url, sendMessage);
+//     if (mimeType === "text/html") {
+//       article = await ingestHtml2(storageClient, html, contentTypeHeader, url, sendMessage);
 
-      // } else if (mimeType.subtype === 'pdf') {
+//       // } else if (mimeType.subtype === 'pdf') {
 
-      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+//       //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-      //   article = await articleFromPdf(checksum, url)
+//       //   article = await articleFromPdf(checksum, url)
 
-      //   finalizeFileLocation(tempLocalPath, article)
+//       //   finalizeFileLocation(tempLocalPath, article)
 
-      //   // TODO: thumbnail
+//       //   // TODO: thumbnail
 
-      // } else if (mimeType.type === 'image') {
+//       // } else if (mimeType.type === 'image') {
 
-      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
+//       //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
 
-      //   article = articleFromImage(mimeType, checksum, url)
+//       //   article = articleFromImage(mimeType, checksum, url)
 
-      //   finalizeFileLocation(tempLocalPath, article)
+//       //   finalizeFileLocation(tempLocalPath, article)
 
-      //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
-    } else {
-      throw new Error(`No handler for content type ${contentTypeHeader}`);
-    }
+//       //   createThumbnail([getFilePath(article)], getSaveDirPath(article.slug))
+//     } else {
+//       throw new Error(`No handler for content type ${contentTypeHeader}`);
+//     }
 
-    article.ingestSource = "url";
-    article.mimeType = mimeType;
-  } catch (error) {
-    console.error(error);
-    throw new Error("error during ingestion");
-  }
+//     article.ingestSource = "url";
+//     article.mimeType = mimeType;
+//   } catch (error) {
+//     console.error(error);
+//     throw new Error("error during ingestion");
+//   }
 
-  storageClient?.storeFile(
-    "application/json",
-    getFilePathMetadata(article.slug),
-    JSON.stringify(article, null, 2)
-  );
+//   storageClient?.storeFile(
+//     "application/json",
+//     getFilePathMetadata(article.slug),
+//     JSON.stringify(article, null, 2)
+//   );
 
-  // TODO: dbManager.upsertArticle(article);
+//   // TODO: dbManager.upsertArticle(article);
 
-  // if (existingArticleIndex != -1) {
-  //   db.data.articles[existingArticleIndex] = article;
-  // } else {
-  //   // keep the most recent at the top since its easier to read that way
-  //   db.data.articles.unshift(article);
-  // }
+//   // if (existingArticleIndex != -1) {
+//   //   db.data.articles[existingArticleIndex] = article;
+//   // } else {
+//   //   // keep the most recent at the top since its easier to read that way
+//   //   db.data.articles.unshift(article);
+//   // }
 
-  // await db.write();
+//   // await db.write();
 
-  // TODO: await createLocalHtmlList(dbManager);
+//   // TODO: await createLocalHtmlList(dbManager);
 
-  sendMessage(100, `Finished saving: ${article.title}`);
+//   sendMessage(100, `Finished saving: ${article.title}`);
 
-  return article;
-}
+//   return article;
+// }

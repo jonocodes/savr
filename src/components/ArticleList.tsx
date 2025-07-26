@@ -40,10 +40,15 @@ import {
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
 } from "@mui/icons-material";
-import extensionConnector from "~/utils/extensionConnector";
+// import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
 import { ingestUrl2 } from "../../lib/src/ingestion";
-import { removeArticle, getCorsProxyValue, updateArticleMetadata } from "~/utils/tools";
+import {
+  removeArticle,
+  getCorsProxyValue,
+  updateArticleMetadata,
+  loadThumbnail,
+} from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 
 import { useLiveQuery } from "dexie-react-hooks";
@@ -67,10 +72,27 @@ const sampleArticleUrls = [
 function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
 
   const storage = useRemoteStorage();
 
   const { enqueueSnackbar } = useSnackbar();
+
+  // Load thumbnail on component mount
+  useEffect(() => {
+    const loadThumbnailData = async () => {
+      try {
+        console.log("loadThumbnailData", article.slug);
+        const thumbnailData = await loadThumbnail(article.slug);
+        setThumbnailSrc(thumbnailData);
+      } catch (error) {
+        console.warn(`Failed to load thumbnail for ${article.slug}:`, error);
+        // Keep the fallback image
+      }
+    };
+
+    loadThumbnailData();
+  }, []);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -140,7 +162,7 @@ function ArticleItem({ article }: { article: Article }) {
         onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
       >
         <img
-          src="/static/article_bw.webp"
+          src={thumbnailSrc}
           alt="Article"
           style={{ width: 100, height: 100, objectFit: "cover" }}
         />
@@ -305,26 +327,25 @@ export default function ArticleListScreen() {
   useEffect(() => {
     // Set the storage client in the extension connector
     if (client) {
-      // alert("set storage client");
-      extensionConnector.setStorageClient(client);
-
-      // Set the progress callback for the extension connector
-      extensionConnector.setProgressCallback((percent, message) => {
-        if (percent !== null) {
-          setIngestStatus(message);
-          setIngestPercent(percent);
-          // Show the dialog when ingestion starts
-          if (!dialogVisible) {
-            setDialogVisible(true);
-          }
-        }
-        // Optionally hide the dialog when ingestion is complete (percent is 100)
-        if (percent === 100) {
-          setTimeout(() => {
-            setDialogVisible(false);
-          }, 2000); // Hide after 2 seconds
-        }
-      });
+      // // alert("set storage client");
+      // extensionConnector.setStorageClient(client);
+      // // Set the progress callback for the extension connector
+      // extensionConnector.setProgressCallback((percent, message) => {
+      //   if (percent !== null) {
+      //     setIngestStatus(message);
+      //     setIngestPercent(percent);
+      //     // Show the dialog when ingestion starts
+      //     if (!dialogVisible) {
+      //       setDialogVisible(true);
+      //     }
+      //   }
+      //   // Optionally hide the dialog when ingestion is complete (percent is 100)
+      //   if (percent === 100) {
+      //     setTimeout(() => {
+      //       setDialogVisible(false);
+      //     }, 2000); // Hide after 2 seconds
+      //   }
+      // });
     }
   }, [client, dialogVisible]); // Run this effect when the client or dialogVisible changes
 
