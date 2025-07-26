@@ -53,13 +53,11 @@ import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
 import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/utils/storage";
-
-// TODO: get version from package.json or git rev
-const mockVersion = "1.0.0";
+import { version } from "../../package.json" with { type: "json" };
 
 // Bookmarklet for development
-const bookmarklet =
-  "javascript:(function(){const app = 'http://localhost:8081'; var s = document.createElement('script'); s.src = app + '/bookmarklet-client.js'; document.body.appendChild(s); })();";
+// const bookmarklet =
+//   "javascript:(function(){const app = 'http://localhost:8081'; var s = document.createElement('script'); s.src = app + '/bookmarklet-client.js'; document.body.appendChild(s); })();";
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
@@ -71,6 +69,9 @@ export default function PreferencesScreen() {
     size: number;
     files: number;
   } | null>(null);
+
+  const [bookmarklet, setBookmarklet] = React.useState<string>("");
+  const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   const { client: storageClient } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
@@ -92,6 +93,22 @@ export default function PreferencesScreen() {
     if (syncCookie) {
       const syncValue = syncCookie.split("=")[1];
       setSyncEnabled(syncValue === "true");
+    }
+
+    const saveRoute = window.location.origin + "/";
+    console.log("Absolute path to index for saving:", saveRoute);
+
+    setBookmarklet(
+      `data:text/html,<html><body><script>var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?closeAfterSave=true&saveUrl='+url,'_blank');</script></body></html>`
+    );
+  }, []);
+
+  // Set the javascript: URL directly on the DOM element
+  React.useEffect(() => {
+    if (bookmarkletRef.current) {
+      const saveRoute = window.location.origin + "/";
+      const bookmarkletJS = `javascript:(function(){var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?closeAfterSave=true&saveUrl='+url,'_blank');})();`;
+      bookmarkletRef.current.href = bookmarkletJS;
     }
   }, []);
   const navigate = useNavigate();
@@ -273,11 +290,17 @@ export default function PreferencesScreen() {
               />
               <Box sx={{ ml: 2 }}>
                 <a
-                  href={bookmarklet}
+                  ref={bookmarkletRef}
+                  draggable="true"
                   style={{
                     color: "primary.main",
                     textDecoration: "none",
                     fontWeight: "bold",
+                    padding: "8px 12px",
+                    border: "1px solid",
+                    borderColor: "primary.main",
+                    borderRadius: "4px",
+                    display: "inline-block",
                   }}
                 >
                   savr save
@@ -355,7 +378,7 @@ export default function PreferencesScreen() {
               <ListItemIcon>
                 <InfoIcon />
               </ListItemIcon>
-              <ListItemText primary="App Version" secondary={mockVersion} />
+              <ListItemText primary="App Version" secondary={version} />
             </ListItem>
 
             <ListItem>

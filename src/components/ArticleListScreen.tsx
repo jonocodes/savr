@@ -22,12 +22,8 @@ import {
   LinearProgress,
   ToggleButtonGroup,
   ToggleButton,
-  Avatar,
-  Card,
-  CardContent,
   Container,
   Paper,
-  Stack,
 } from "@mui/material";
 import {
   Add as AddIcon,
@@ -43,18 +39,14 @@ import {
 // import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
 import { ingestUrl } from "../../lib/src/ingestion";
-import {
-  removeArticle,
-  getCorsProxyValue,
-  updateArticleMetadata,
-  loadThumbnail,
-} from "~/utils/tools";
+import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { shouldEnableSampleUrls } from "~/config/environment";
+import { generateInfoForCard } from "../../lib/src/lib";
 
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
@@ -174,7 +166,7 @@ function ArticleItem({ article }: { article: Article }) {
         primary={article.title}
         secondary={
           <Typography variant="caption" color="text.secondary">
-            {new Date(article.ingestDate).toLocaleDateString()}
+            {generateInfoForCard(article)}
           </Typography>
         }
       />
@@ -218,6 +210,7 @@ export default function ArticleListScreen() {
   const navigate = useNavigate();
 
   const [dialogVisible, setDialogVisible] = useState(false);
+  const urlFieldRef = useRef<HTMLInputElement>(null);
 
   const articles = useLiveQuery(() => db.articles.orderBy("ingestDate").reverse().toArray());
 
@@ -271,7 +264,7 @@ export default function ArticleListScreen() {
           if (closeAfterSave) {
             window.close();
           }
-        }, 2000);
+        }, 1500);
       } catch (error) {
         console.error(error);
         enqueueSnackbar("Error requesting article", { variant: "error" });
@@ -310,6 +303,15 @@ export default function ArticleListScreen() {
       }, 100);
     }
   }, [client, saveUrl]); // Only run when client is available
+
+  // Ensure the TextField is focused when the dialog opens
+  useEffect(() => {
+    if (dialogVisible) {
+      setTimeout(() => {
+        urlFieldRef.current?.focus();
+      }, 100);
+    }
+  }, [dialogVisible]);
 
   const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
 
@@ -406,6 +408,7 @@ export default function ArticleListScreen() {
             {filter === "unread" ? (
               <Button
                 variant="contained"
+                type="submit"
                 onClick={() => {
                   setDialogVisible(true);
                   if (shouldEnableSampleUrls()) {
@@ -428,11 +431,19 @@ export default function ArticleListScreen() {
         <DialogTitle>Add Article</DialogTitle>
         <DialogContent>
           <TextField
+            inputRef={urlFieldRef}
             label="URL"
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             fullWidth
             margin="normal"
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && url.trim() && ingestStatus === null) {
+                e.preventDefault();
+                saveUrl();
+              }
+            }}
           />
 
           {ingestPercent > 0 && (

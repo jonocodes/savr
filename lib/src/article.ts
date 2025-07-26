@@ -1,5 +1,3 @@
-// import * as fs from 'fs';
-
 import { Article } from "./models";
 
 // class ArticleObj {
@@ -61,19 +59,6 @@ const ArticleTemplate = (props: ArticleTemplateProps) => {
     `;
 
   return html;
-
-  //   return (
-  //     <div id="savr-root">
-  //       <div id="savr-metadata">
-  //         <h1>{props.title}</h1>
-  //         <div id="savr-byline">{props.byline}</div>
-  //         <div id="savr-published">{props.published}</div>
-  //         <div id="savr-readTime">{props.readTime}</div>
-  //         <hr />
-  //         <div id="savr-content" dangerouslySetInnerHTML={{ __html: props.content }} />
-  //       </div>
-  //     </div>
-  //   );
 };
 
 export default ArticleTemplate;

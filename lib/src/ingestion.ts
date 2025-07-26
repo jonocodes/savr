@@ -6,64 +6,23 @@ import { version } from "../../package.json" with { type: "json" };
 import mime from "mime";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate, { createArticleObject } from "./article";
-// import { listTemplateMoustache } from "./list";
 import {
-  FileManager,
-  articlesToRender,
-  DbManager,
   generateInfoForArticle,
-  renderListTemplate,
   calcReadingTime,
   getFilePathRaw,
   getFilePathContent,
   getFilePathMetadata,
-  getFilePathThumbnail,
   getFileFetchLog,
+  mimeToExt,
 } from "./lib";
 import { saveResource } from "~/utils/storage";
 import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/tools";
 import { md5 } from "js-md5";
 
-// const __filename = fileURLToPath(import.meta.url);
-// const __dirname = dirname(__filename);
-
-// export const dataDir = process.env.DATA_DIR
-
-// if (dataDir === undefined)
-//   throw new Error("DATA_DIR env var not set")
-
-// if (!fs.existsSync(dataDir)) {
-//   throw new Error(`DATA_DIR ${dataDir} does not exist in filesystem`)
-// }
-
-// const savesDir = dataDir + "/saves";
-
-// TODO: maybe dont need this mapping since the subtype is the extension
-const mimeToExt: Record<string, string> = {
-  "text/html": "html",
-  "image/jpeg": "jpg",
-  "image/png": "png",
-  "image/webp": "webp",
-  "application/pdf": "pdf",
-  "text/plain": "txt",
-  "text/markdown": "md",
-  // application/epub+zip
-};
-
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
 
 type ImageData = [string, string, HTMLImageElement, number, number]; // url, path, image, width, height
-
-// export function upsertArticleToList(articles: Article[], article: Article){
-
-//   const existingArticleIndex = articles.findIndex((a) => a.slug === article.slug);
-//   if (existingArticleIndex !== -1) {
-//     articles[existingArticleIndex] = article;
-//   } else {
-//     articles.unshift(article);
-//   }
-// }
 
 function getBaseDirectory(articleUrl: string): string {
   const parsedUrl = uri.parse(articleUrl);
@@ -104,17 +63,12 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
   return imgData;
 }
 
+// Download all the images and create a thumbnail. Save them to dataUrls in storage.
 async function downloadAndResizeImages(
   imageData: ImageData[],
-  // outputDir: string,
   article: Article,
-  // maxDimension: number,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<void> {
-  // if (!fs.existsSync(outputDir)) {
-  //   fs.mkdirSync(outputDir);
-  // }
-
   let imageCount = 0;
   let percent = 25;
   const endPercent = 93;
@@ -142,10 +96,6 @@ async function downloadAndResizeImages(
 
       sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
 
-      // Resize the image using Jimp
-      // const image = await Jimp.read(imageBuffer);
-      // const resizedImage = image.scaleToFit({h: maxDimension, w: maxDimension});
-
       const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
 
       console.log("outputFilePath", outputFilePath);
@@ -153,15 +103,12 @@ async function downloadAndResizeImages(
 
       const relativePath = outputFilePath.replace("saves/" + article.slug + "/", "");
 
-      imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.localPath = relativePath;
-
-      imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.origSrc = url;
-
-      imageData.find(([imgUrl]) => imgUrl === url)![2].dataset.path = outputFilePath;
-
-      imageData.find(([imgUrl]) => imgUrl === url)![2].src = relativePath;
-
-      imageData.find(([imgUrl]) => imgUrl === url)![2].src = dataUrl;
+      const imgElement = imageData.find(([imgUrl]) => imgUrl === url)![2];
+      imgElement.dataset.localPath = relativePath;
+      imgElement.dataset.origSrc = url;
+      // imgElement.dataset.path = outputFilePath;
+      // imgElement.src = relativePath;
+      imgElement.src = dataUrl;
 
       imageCount += 1;
 
@@ -171,8 +118,6 @@ async function downloadAndResizeImages(
 
       console.log("check thumb for localPath", localPath);
 
-      // const filePath = localPath;
-
       const area = width * height;
 
       console.log("area", area);
@@ -180,7 +125,6 @@ async function downloadAndResizeImages(
       // Ignore small images
       if (area < 5000) {
         console.log("too small");
-        // continue;
       }
 
       // Prefer images with more pixels (likely higher quality)
@@ -245,7 +189,7 @@ async function processHtmlAndImages(
 
   console.log("imageData", imageData);
 
-  sendMessage(20, "downloading images");
+  sendMessage(25, "downloading images");
 
   await downloadAndResizeImages(imageData, article, sendMessage);
 
@@ -253,10 +197,6 @@ async function processHtmlAndImages(
 
   // const artObj = createArticleObject(article);
 
-  // await createThumbnail(imageData, article);
-
-  // Serialize the updated DOM to get the updated HTML string
-  // return dom.serialize();
   return document.documentElement.outerHTML;
 }
 
@@ -370,77 +310,6 @@ export async function convertToWebP(blob: Blob): Promise<Blob> {
   });
 }
 
-// async function createThumbnail(imageData: ImageData[], article: Article) {
-//   let chosenFile: string | null = null;
-//   let maxArea = 0;
-
-//   for (const [url, localPath, img, width, height] of imageData) {
-//     console.log("check thumb for localPath", localPath);
-
-//     // const filePath = localPath;
-
-//     const area = width * height;
-
-//     console.log("area", area);
-
-//     // Ignore small images
-//     if (area < 5000) {
-//       console.log("too small");
-//       continue;
-//     }
-
-//     // Prefer images with more pixels (likely higher quality)
-//     if (area > maxArea) {
-//       console.log("new maxArea", area);
-//       maxArea = area;
-//       chosenFile = localPath;
-//     }
-//   }
-
-//   if (chosenFile === null) return;
-
-//   try {
-//     const [url, localPath, img] = imageData.find(([url]) => url === chosenFile)!;
-
-//     // Read the chosen file into a blob
-//     const response = await fetch(url);
-//     if (!response.ok) {
-//       throw new Error(`Failed to fetch image: ${response.statusText}`);
-//     }
-//     const blob = await response.blob();
-
-//     const { blob: resizedBlob, width, height } = await resizeImage(blob, maxDimensionThumb);
-
-//     const webpBlob = await convertToWebP(resizedBlob);
-
-//     const dataUrl = URL.createObjectURL(webpBlob);
-
-//     const thumbPath = getFilePathThumbnail(article.slug);
-
-//     console.log("thumbPath", thumbPath);
-
-//     const mimeType = "image/webp";
-
-//     const outputFilePath = await saveResource(thumbPath, article.slug, dataUrl, webpBlob.type);
-
-//     console.log("outputFilePath", outputFilePath);
-
-//     // const image = await Jimp.read(chosenFile);
-//     // // await image
-//     // //   .cover(maxDimensionThumb, maxDimensionThumb)
-//     // //   .quality(80)
-//     // //   .writeAsync(outputFilePath);
-
-//     // await image
-//     //   .scaleToFit({w: maxDimensionThumb, h: maxDimensionThumb}) // Resize using ScaleToFitOptions
-//     //   .write(`${outputFilePath}.${'png'}`); // Save as PNG
-
-//     console.log(`Thumbnail created: ${outputFilePath}`);
-//   } catch (error) {
-//     console.error(`Error creating thumbnail: ${error}`);
-//   }
-// }
-
 function guessContentType(input: string): string {
   // Trim input to remove leading/trailing whitespace
   const trimmedInput = input.trim();
@@ -475,142 +344,6 @@ function guessContentType(input: string): string {
 
   // Default to plain text
   return "text/plain";
-}
-
-// export function dirList() {
-//   const dirs = fs
-//     .readdirSync(savesDir, { withFileTypes: true })
-//     .filter((item) => item.isDirectory())
-//     .map((item) => item.name);
-
-//   return dirs;
-// }
-
-// export async function articleList() {
-//   const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-//   return db.data.articles;
-// }
-
-// export async function getArticles(dbManager: DbManager): Promise<Article[]> {
-
-//   return await dbManager.getArticles()
-
-// }
-
-// export function articlesToRender(articles: Article[]): [ArticleAndRender[], ArticleAndRender[]] {
-
-//   const readable: ArticleAndRender[] = []
-//   const archived: ArticleAndRender[] = []
-
-//   for (const article of articles) {
-
-//     const articleAndRender = toArticleAndRender(article)
-
-//     if (article.state === "archived")
-//       archived.push(articleAndRender)
-//     else if (article.state != "deleted")
-//       readable.push(articleAndRender)
-//   }
-
-//   return [readable, archived]
-
-// }
-
-// export function renderListTemplate(view: object) {
-//   return Mustache.render(listTemplateMoustache, view);
-// }
-
-// /**
-//  * Recursively copies all files and directories from the source directory to the destination directory.
-//  * @param srcDir - Path to the source directory.
-//  * @param destDir - Path to the destination directory.
-//  */
-// function copyDirectorySync(srcDir: string, destDir: string): void {
-//   // Ensure the destination directory exists, creating it if needed
-//   if (!fs.existsSync(destDir)) {
-//     fs.mkdirSync(destDir, { recursive: true });
-//   }
-
-//   const entries = fs.readdirSync(srcDir, { withFileTypes: true });
-
-//   for (const entry of entries) {
-//     const srcPath = `${srcDir}/${entry.name}`; // path.join(srcDir, entry.name);
-//     const destPath =`${destDir}/${entry.name}`;
-
-//     if (entry.isDirectory()) {
-//       copyDirectorySync(srcPath, destPath);
-//     } else {
-//       fs.copyFileSync(srcPath, destPath);
-//     }
-//   }
-
-//   console.log(`All files have been copied from ${srcDir} to ${destDir}`);
-// }
-
-// function copyStaticFiles() {
-//   copyDirectorySync(__dirname + "/static/shared", dataDir + "/static")
-// }
-
-export async function createLocalHtmlList(dbManager: DbManager) {
-  // const htmlOutfile = await dbManager.fileManager.readTextFile('list.html')
-
-  // const htmlOutfile = dataDir + "/list.html";
-
-  const rootPath = ".";
-
-  const articles = await dbManager.getArticles();
-
-  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-
-  const [readable, archived] = articlesToRender(articles);
-
-  const rendered = renderListTemplate({
-    readable,
-    archived,
-    // rootPath: rootPath,
-    namespace: rootPath,
-    static: true,
-    metadata: JSON.stringify({ ingestPlatform: version }, null, 2),
-  });
-
-  dbManager.fileManager.writeTextFile("list.html", rendered);
-
-  // fs.writeFileSync(htmlOutfile, rendered);
-
-  // copyStaticFiles()
-}
-
-export async function setState(dbManager: DbManager, slug: string, state: string) {
-  // const db = await JSONFileSyncPreset<Articles>(dbFile, defaultData);
-
-  const article = await dbManager.getArticle(slug);
-
-  if (!article) {
-    throw new Error("article not found");
-  }
-
-  article.state = state;
-
-  await dbManager.upsertArticle(article);
-
-  // const existingArticleIndex = db.data.articles.findIndex((article: Article) => article.slug === slug);
-
-  // // TODO: check valid states
-  // db.data.articles[existingArticleIndex].state = state
-
-  // await db.write();
-
-  if (state == "deleted")
-    try {
-      // TODO: delete the directory
-      // fs.rmdirSync(savesDir + "/" + slug, { recursive: true })
-    } catch (error) {
-      console.log(error);
-    }
-
-  await createLocalHtmlList(dbManager);
-
-  console.log(`set state to ${state} for ${slug}`);
 }
 
 export function readabilityToArticle(
@@ -653,14 +386,6 @@ export function readabilityToArticle(
 
   const slug = stringToSlug(readabilityResult.title);
 
-  // const saveDir = savesDir + "/" + slug;
-
-  // console.log(saveDir);
-
-  // if (!fs.existsSync(saveDir)) {
-  //   fs.mkdirSync(saveDir, { recursive: true });
-  // }
-
   const content = readabilityResult.content;
 
   // sendMessage(15, "collecting images");
@@ -700,141 +425,6 @@ export function readabilityToArticle(
   return [article, content];
 }
 
-// function getReadableStream(response: Response): Readable {
-
-//   if (response.body === null) {
-//     throw new Error("null stream")
-//   }
-
-//   return readableStreamToNodeReadable(response.body)
-// }
-
-// function readableStreamToNodeReadable(stream: ReadableStream): Readable {
-
-//   const reader = stream.getReader();
-
-//   return new Readable({
-//     async read() {
-//       const { done, value } = await reader.read();
-//       if (done) {
-//         this.push(null); // Signal end of stream
-//       } else {
-//         this.push(value);
-//       }
-//     }
-//   });
-// }
-
-// function articleFromImage(mimeType: MIMEType, checksum: string, url: string
-// ) : Article {
-
-//   const title = `${mimeType.subtype} ${checksum}`
-
-//   const article: Article = {
-//     slug: stringToSlug(title),
-//     title: title,
-//     url: url,
-//     state: "unread",
-//     publication: null,
-//     author: null,
-//     // publishedDate: pubDate?.toISOString(),
-//     publishedDate: null,
-//     ingestDate: new Date().toISOString(),
-//     ingestPlatform: `typescript/web (${version})`,
-//     ingestSource: "????",
-//     mimeType: mimeType.essence,
-//     readTimeMinutes: null,
-//     progress: 0,
-//   };
-
-//   return article
-// }
-
-// async function articleFromPdf(checksum: string, url: string): Promise<Article> {
-
-//   let article: Article
-
-//   // try {
-//   //   // TODO: I think pdf2html requires java/tika, so not great. next try pds2htmlEX
-//   //   const html = await pdf2html.html(tempLocalPath);
-
-//   //   let [art, content] = readabilityToArticle(html, url)
-//   //   article = art
-//   // } catch (error) {
-
-//     // console.log("error in pdf2html")
-
-//     const title = `pdf ${checksum}`
-//     const slug = stringToSlug(title)
-
-//     article = {
-//       slug: slug,
-//       title: title,
-//       url: url,
-//       state: "unread", // unread, reading, finished, archived, deleted, ingesting
-//       publication: null,
-//       author: null,
-//       // publishedDate: pubDate?.toISOString(),
-//       publishedDate: null,
-//       ingestDate: new Date().toISOString(),
-//       ingestPlatform: `typescript/web (${version})`,
-//       ingestSource: "url",
-//       mimeType: "application/pdf",
-//       // readTimeMinutes: Math.round(readingStats.minutes),
-//       readTimeMinutes: null,
-//       progress: 0,
-//     };
-
-//   // }
-
-//   // TODO: create thumbnail
-
-//   return article
-// }
-
-// async function ingestHtml(
-//   fileManager: FileManager,
-//   html: string,
-//   contentType: string,
-//   url: string | null,
-//   sendMessage: (percent: number | null, message: string | null) => void
-// ): Promise<Article> {
-//   sendMessage(10, "scraping article");
-
-//   let [article, content] = readabilityToArticle(html, contentType, url);
-
-//   const saveDir = "saves/" + article.slug;
-
-//   sendMessage(15, "collecting images");
-
-//   content = await processHtmlAndImages(url, content, saveDir, sendMessage);
-
-//   const rendered = ArticleTemplate({
-//     title: article.title,
-//     byline: article.author || "unknown author",
-//     published: generateInfoForArticle(article),
-//     readTime: `${article.readTimeMinutes} minute read`,
-//     content: content,
-//     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-//     // namespace: rootPath,
-//   });
-
-//   // const rendered = renderTemplate("article", {
-//   //   title: article.title,
-//   //   byline: article.author,
-//   //   published: generateInfoForArticle(article),
-//   //   readTime: `${article.readTimeMinutes} minute read`,
-//   //   content: content,
-//   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-//   //   // namespace: rootPath,
-//   // });
-
-//   // fs.writeFileSync(saveDir + "/index.html", rendered);
-//   fileManager.writeTextFile(saveDir + "/index.html", rendered);
-
-//   return article;
-// }
-
 export async function ingestHtml(
   storageClient: BaseClient | null,
   html: string,
@@ -842,11 +432,11 @@ export async function ingestHtml(
   url: string | null,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<Article> {
-  sendMessage(10, "scraping article");
-
   let [article, content] = readabilityToArticle(html, contentType, url);
 
   const fetchLog = getFileFetchLog(article.slug);
+
+  // TODO: log each image. their original and final dimensions. and their final byte size
 
   // TODO: figure out if there is a way to append these lines one by one
   await storageClient?.storeFile(
@@ -858,7 +448,7 @@ export async function ingestHtml(
   // TODO: sanitize out the js before saving raw
   storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
 
-  sendMessage(15, "collecting images");
+  sendMessage(20, "collecting images");
 
   console.log("content", content);
 
@@ -870,71 +460,12 @@ export async function ingestHtml(
     published: generateInfoForArticle(article),
     readTime: `${article.readTimeMinutes} minute read`,
     content: content,
-    // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-    // namespace: rootPath,
   });
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
 
   return article;
 }
-
-// function ingestPlainText(text: string, url: string|null): Article {
-
-//   const title = `txt ${Date.now() + 0}`
-//   const slug = stringToSlug(title)
-
-//   const article: Article = {
-//     slug: slug,
-//     title: title,
-//     url: url,
-//     state: "unread",
-//     publication: null,
-//     author: null,
-//     publishedDate: null,
-//     ingestDate: new Date().toISOString(),
-//     ingestPlatform: `typescript/web (${version})`,
-//     ingestSource: "????",
-//     mimeType: "text/plain",
-//     readTimeMinutes: 1,  // TODO: set this correctly
-//     progress: 0,
-//   };
-
-//   const content = `<pre>${text}</pre>`
-
-//   // let [article, content] = readabilityToArticle(html, url)
-
-//   const saveDir = "saves/" + article.slug;
-
-//   const rendered = ArticleTemplate({
-//     title: article.title,
-//     byline: article.author || 'unknown author',
-//     published: generateInfoForArticle(article),
-//     readTime: `${article.readTimeMinutes} minute read`,
-//     content: content,
-//     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-//     // namespace: rootPath,
-
-//   })
-
-//   // const rendered = renderTemplate("article", {
-//   //   title: article.title,
-//   //   byline: article.author,
-//   //   published: generateInfoForArticle(article),
-//   //   readTime: `${article.readTimeMinutes} minute read`,
-//   //   content: content,
-//   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
-//   //   // namespace: rootPath,
-//   // });
-
-//   if (!fs.existsSync(saveDir)) {
-//     fs.mkdirSync(saveDir, { recursive: true });
-//   }
-
-//   fs.writeFileSync(saveDir + "/index.html", rendered);
-
-//   return article
-// }
 
 function generateRandomString() {
   const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
@@ -952,9 +483,9 @@ export async function ingestUrl(
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
-  sendMessage(0, "start");
+  sendMessage(0, "starting");
 
-  sendMessage(3, "fetching article");
+  sendMessage(10, "fetching article");
 
   // TODO: create error if fetch times out. this happens if you are offline
   const response = await fetchWithTimeout(url);
@@ -969,7 +500,7 @@ export async function ingestUrl(
     throw new Error("cant determine content type");
   }
 
-  sendMessage(5, "scraping article");
+  sendMessage(15, "scraping content");
 
   var article: Article | null = null;
 
@@ -1030,11 +561,10 @@ export async function ingestUrl(
 
   // client.declareType("my-custom-type", {});
 
-  // TODO: dbManager.upsertArticle(article);
-
-  // TODO: await createLocalHtmlList(dbManager);
-
-  sendMessage(100, `Finished saving: ${article.title}`);
+  sendMessage(
+    100,
+    `Finished saving: ${article.title.substring(0, 65)}${article.title.length > 65 ? "..." : ""}`
+  );
 
   return article;
 }
@@ -1124,7 +654,64 @@ export async function ingestUrl(
 
 //   // TODO: await createLocalHtmlList(dbManager);
 
-//   sendMessage(100, `Finished saving: ${article.title}`);
+//   sendMessage(100, `Finished saving: ${article.title.length > 200 ? article.title.substring(0, 200) + '...' : article.title}`);
 
 //   return article;
+// }
+
+// function ingestPlainText(text: string, url: string|null): Article {
+
+//   const title = `txt ${Date.now() + 0}`
+//   const slug = stringToSlug(title)
+
+//   const article: Article = {
+//     slug: slug,
+//     title: title,
+//     url: url,
+//     state: "unread",
+//     publication: null,
+//     author: null,
+//     publishedDate: null,
+//     ingestDate: new Date().toISOString(),
+//     ingestPlatform: `typescript/web (${version})`,
+//     ingestSource: "????",
+//     mimeType: "text/plain",
+//     readTimeMinutes: 1,  // TODO: set this correctly
+//     progress: 0,
+//   };
+
+//   const content = `<pre>${text}</pre>`
+
+//   // let [article, content] = readabilityToArticle(html, url)
+
+//   const saveDir = "saves/" + article.slug;
+
+//   const rendered = ArticleTemplate({
+//     title: article.title,
+//     byline: article.author || 'unknown author',
+//     published: generateInfoForArticle(article),
+//     readTime: `${article.readTimeMinutes} minute read`,
+//     content: content,
+//     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+//     // namespace: rootPath,
+
+//   })
+
+//   // const rendered = renderTemplate("article", {
+//   //   title: article.title,
+//   //   byline: article.author,
+//   //   published: generateInfoForArticle(article),
+//   //   readTime: `${article.readTimeMinutes} minute read`,
+//   //   content: content,
+//   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
+//   //   // namespace: rootPath,
+//   // });
+
+//   if (!fs.existsSync(saveDir)) {
+//     fs.mkdirSync(saveDir, { recursive: true });
+//   }
+
+//   fs.writeFileSync(saveDir + "/index.html", rendered);
+
+//   return article
 // }

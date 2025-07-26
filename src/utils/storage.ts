@@ -5,9 +5,6 @@ import { db } from "./db";
 import { Article } from "../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
-import filenamifyUrl from "filenamify-url";
-import { md5 } from "js-md5";
-import { mimeToExt } from "lib/src/lib";
 
 // declare global {
 //   interface Window {

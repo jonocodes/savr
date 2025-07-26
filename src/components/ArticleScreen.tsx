@@ -183,7 +183,6 @@ export default function ArticleScreen(props: Props) {
       // Update metadata in the document
       const metaDiv = doc.querySelector("#savr-metadata");
       if (metaDiv) {
-        debugger;
         metaDiv.textContent = JSON.stringify(
           {
             title: editTitle,
@@ -214,6 +213,12 @@ export default function ArticleScreen(props: Props) {
   const [showHeader, setShowHeader] = useState(true);
   const lastScrollY = useRef(0);
 
+  // Scroll percentage tracking
+  const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastLoggedPercentage = useRef<number | null>(null);
+  // const hasSetInitialScroll = useRef(false);
+  const [hasSetInitialScroll, setHasSetInitialScroll] = useState(false);
+
   useEffect(() => {
     const handleScroll = () => {
       const currentScrollY = window.scrollY;
@@ -231,10 +236,44 @@ export default function ArticleScreen(props: Props) {
         setShowHeader(true);
       }
       lastScrollY.current = currentScrollY;
+
+      // Clear existing timeout
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+
+      // Set new timeout to log scroll percentage after 1 second of inactivity
+      scrollTimeoutRef.current = setTimeout(async () => {
+        const scrollTop = window.scrollY;
+        const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const scrollPercentage = Math.round((scrollTop / documentHeight) * 100);
+
+        // Only log if the percentage has changed
+        if (scrollPercentage !== lastLoggedPercentage.current) {
+          console.log(`Article scroll percentage: ${scrollPercentage}%`);
+          lastLoggedPercentage.current = scrollPercentage;
+
+          if (storage.client) {
+            article.progress = scrollPercentage;
+
+            // console.log("updatingArticle with", article);
+
+            const updatedArticle = await updateArticleMetadata(storage.client, article);
+
+            console.log("updatedArticle", updatedArticle);
+          }
+        }
+      }, 1000);
     };
+
     window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+      if (scrollTimeoutRef.current) {
+        clearTimeout(scrollTimeoutRef.current);
+      }
+    };
+  }, [storage, article]);
 
   useEffect(() => {
     const setup = async () => {
@@ -283,6 +322,23 @@ export default function ArticleScreen(props: Props) {
 
     setup();
   }, [viewMode, slug, storage]);
+
+  // Set scroll position after content is loaded
+  useEffect(() => {
+    if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {
+      // Wait a bit for the DOM to fully render
+      setTimeout(() => {
+        const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+
+        if (documentHeight > 0) {
+          const scrollPosition = (article.progress / 100) * documentHeight;
+          console.log("setting scroll position to", scrollPosition);
+          window.scrollTo(0, scrollPosition);
+          setHasSetInitialScroll(true);
+        }
+      }, 100);
+    }
+  }, [hasSetInitialScroll, article.progress, content]);
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "background.default" }}>

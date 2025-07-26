@@ -118,6 +118,19 @@ This is a bit like token authentication. You can rotate it as often as you want,
 
 This is mostly a feature to deter port scanners, so use at your own risk.
 
+### Comparison
+
+| Feature                           | savr | Pocket 2024 (before shutdown) | Omnivore | Wallabag | Shiori | Pocket 2025 |
+| --------------------------------- | ---- | ----------------------------- | -------- | -------- | ------ | ----------- |
+| Open Source                       | ✓    | ✗                             |          |          |        |             |
+| Requires Tech Knowledge           |      |                               |          |          |        |             |
+| Own/Control Your Data             |      |                               |          |          |        |             |
+| Advanced Organization and Tagging |      |                               |          |          |        |             |
+| Other Content Types               |      |                               |          |          |        |             |
+| Works Offline                     |      |                               |          |          |        |             |
+| Cross Platform                    |      |                               |          |          |        |             |
+| Cross Browser Extension           |      |                               |          |          |        |             |
+
 ### SSL
 
 You can put this behind a [reverse proxy](https://fastify.dev/docs/latest/Guides/Recommendations/) with an SSL certificate.
