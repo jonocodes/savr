@@ -8,7 +8,7 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 
 - Save articles for reading later
 - Remove distractions like advertisements
-- Read content without an internet connection
+- Read content and images without an internet connection
 - No dependency on a service/company to do the scraping or storage
 - Authorization and cross device syncronization optional (using your Dropbox or Google Drive)
 - Open source, cross platform (mobile and desktop/web)

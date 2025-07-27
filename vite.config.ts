@@ -36,7 +36,7 @@ export default defineConfig({
         display: "standalone",
         background_color: "#ffffff",
         theme_color: "#000000",
-        orientation: "portrait",
+        orientation: "any",
         scope: "/",
         lang: "en",
         categories: ["productivity", "utilities"],
