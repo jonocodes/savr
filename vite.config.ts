@@ -11,8 +11,8 @@ export default defineConfig({
   },
   resolve: {
     alias: {
-      canvas: "./src/utils/canvas-stub.js",
-      "node:canvas": "./src/utils/canvas-stub.js",
+      canvas: "./node_modules/linkedom/commonjs/canvas-shim.cjs",
+      "node:canvas": "./node_modules/linkedom/commonjs/canvas-shim.cjs",
     },
   },
 
