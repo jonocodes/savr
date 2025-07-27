@@ -6,9 +6,13 @@ import { VitePWA } from "vite-plugin-pwa";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig({
+  optimizeDeps: {
+    include: ["./src/utils/canvas-stub.js"],
+  },
   resolve: {
     alias: {
       canvas: "./src/utils/canvas-stub.js",
+      "node:canvas": "./src/utils/canvas-stub.js",
     },
   },
 
