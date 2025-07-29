@@ -14,7 +14,7 @@ export default defineConfig({
   },
   plugins: [
     // Use different TanStack config based on environment
-    process.env.NODE_ENV === "production"
+    process.env.VITE_APP_MODE === "production"
       ? tanstackStart({ target: "cloudflare-module" })
       : tanstackStart({ customViteReactPlugin: true }),
     tsConfigPaths({
