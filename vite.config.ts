@@ -19,6 +19,7 @@ export default defineConfig({
     },
   },
   plugins: [
+    tanstackStart({ target: "cloudflare-module" }),
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
