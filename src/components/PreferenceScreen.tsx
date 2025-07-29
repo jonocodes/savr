@@ -73,6 +73,15 @@ export default function PreferencesScreen() {
   const [bookmarklet, setBookmarklet] = React.useState<string>("");
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
+  // Check if running as installed PWA
+  const isInstalledPWA = React.useMemo(() => {
+    return (
+      window.matchMedia("(display-mode: standalone)").matches ||
+      (window.navigator as any).standalone === true ||
+      document.referrer.includes("android-app://")
+    );
+  }, []);
+
   const { client: storageClient } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -280,33 +289,35 @@ export default function PreferencesScreen() {
           <List>
             <ListSubheader>Fetching content</ListSubheader>
 
-            <ListItem>
-              <ListItemIcon>
-                <BookmarkAddIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Bookmarklet"
-                secondary="Drag this link to your bookmarks bar"
-              />
-              <Box sx={{ ml: 2 }}>
-                <a
-                  ref={bookmarkletRef}
-                  draggable="true"
-                  style={{
-                    color: "primary.main",
-                    textDecoration: "none",
-                    fontWeight: "bold",
-                    padding: "8px 12px",
-                    border: "1px solid",
-                    borderColor: "primary.main",
-                    borderRadius: "4px",
-                    display: "inline-block",
-                  }}
-                >
-                  savr save
-                </a>
-              </Box>
-            </ListItem>
+            {!isInstalledPWA && (
+              <ListItem>
+                <ListItemIcon>
+                  <BookmarkAddIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Bookmarklet"
+                  secondary="Drag this link to your bookmarks bar"
+                />
+                <Box sx={{ ml: 2 }}>
+                  <a
+                    ref={bookmarkletRef}
+                    draggable="true"
+                    style={{
+                      color: "primary.main",
+                      textDecoration: "none",
+                      fontWeight: "bold",
+                      padding: "8px 12px",
+                      border: "1px solid",
+                      borderColor: "primary.main",
+                      borderRadius: "4px",
+                      display: "inline-block",
+                    }}
+                  >
+                    savr save
+                  </a>
+                </Box>
+              </ListItem>
+            )}
 
             <ListItem>
               <ListItemIcon>

@@ -12,9 +12,7 @@ function ShareHandler() {
 
   // Redirect to the main page with the shared URL
   if (sharedUrl) {
-    // TODO: implement logic here to automatically save the shared URL
-    // TODO: urlencode first?
-    window.location.href = "/?closeAfterSave=true&saveUrl=" + sharedUrl;
+    window.location.href = "/?closeAfterSave=true&saveUrl=" + encodeURIComponent(sharedUrl);
 
     return null;
   }

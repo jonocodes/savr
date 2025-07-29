@@ -10,20 +10,16 @@ export default defineConfig({
     host: "0.0.0.0",
     port: 3000,
     allowedHosts: true,
-    proxy: {
-      // for some reason, the basicSsl plugin is not working, so we're using a proxy?
-      // "/api": {
-      //   target: "http://localhost:8081",
-      //   changeOrigin: true,
-      // },
-    },
+    proxy: {},
   },
   plugins: [
-    tanstackStart({ target: "cloudflare-module" }),
+    // Use different TanStack config based on environment
+    process.env.NODE_ENV === "production"
+      ? tanstackStart({ target: "cloudflare-module" })
+      : tanstackStart({ customViteReactPlugin: true }),
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
-    tanstackStart({ customViteReactPlugin: true }),
     basicSsl(),
     viteReact(),
     VitePWA({

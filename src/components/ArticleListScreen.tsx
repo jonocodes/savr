@@ -212,7 +212,10 @@ export default function ArticleListScreen() {
   const [dialogVisible, setDialogVisible] = useState(false);
   const urlFieldRef = useRef<HTMLInputElement>(null);
 
-  const articles = useLiveQuery(() => db.articles.orderBy("ingestDate").reverse().toArray());
+  const articles = useLiveQuery(() => {
+    console.log("useLiveQuery triggered - fetching articles from IndexedDB");
+    return db.articles.orderBy("ingestDate").reverse().toArray();
+  });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
   const [url, setUrl] = useState<string>("");
@@ -223,6 +226,17 @@ export default function ArticleListScreen() {
 
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
+
+  // Add visual debugging for article count
+  useEffect(() => {
+    if (articles) {
+      console.log(`Articles loaded: ${articles.length} total articles`);
+      enqueueSnackbar(`Loaded ${articles.length} articles`, {
+        variant: "info",
+        autoHideDuration: 2000,
+      });
+    }
+  }, [articles, enqueueSnackbar]);
 
   const saveUrl = useCallback(
     async (closeAfterSave: boolean = false) => {
@@ -248,8 +262,20 @@ export default function ArticleListScreen() {
           }
         );
 
-        db.articles.put(article);
-        enqueueSnackbar("Article saved successfully", { variant: "success" });
+        console.log("About to save article to IndexedDB:", article);
+        await db.articles.put(article);
+        console.log("Article saved to IndexedDB successfully");
+
+        // Verify the article was actually saved
+        const savedArticle = await db.articles.get(article.slug);
+        console.log("Retrieved saved article from IndexedDB:", savedArticle);
+
+        // Force a database refresh by triggering a re-query
+        await db.articles.toArray();
+
+        enqueueSnackbar(`Article saved successfully! Slug: ${article.slug}`, {
+          variant: "success",
+        });
 
         // wait a bit before closing the dialog
         setTimeout(() => {
