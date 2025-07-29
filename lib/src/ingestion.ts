@@ -84,7 +84,7 @@ async function downloadAndResizeImages(
     const ext = url.split(".").pop();
 
     // TODO: add support for .avif as on dgt.is
-    const mimeType = mime.getType(ext ?? "image/jpeg");
+    const mimeType = mime.getType(ext ?? "image/jpeg") ?? "image/jpeg";
 
     try {
       const { blob, width, height } = await fetchAndResizeImage(url, maxDimensionImage);
