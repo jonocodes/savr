@@ -6,16 +6,6 @@ import { VitePWA } from "vite-plugin-pwa";
 import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig({
-  optimizeDeps: {
-    include: ["./src/utils/canvas-stub.js"],
-  },
-  resolve: {
-    alias: {
-      canvas: "./node_modules/linkedom/commonjs/canvas-shim.cjs",
-      "node:canvas": "./node_modules/linkedom/commonjs/canvas-shim.cjs",
-    },
-  },
-
   server: {
     host: "0.0.0.0",
     port: 3000,

@@ -40,7 +40,6 @@
     "filenamify-url": "^3.1.0",
     "http-proxy": "^1.18.1",
     "js-md5": "^0.8.3",
-    "linkedom": "^0.18.5",
     "mime": "^4.0.4",
     "minimatch": "^10.0.3",
     "mozilla-readability-cli": "^0.2.4",

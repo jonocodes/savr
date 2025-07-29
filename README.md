@@ -129,6 +129,8 @@ Of course you wont be able to modify your collection when the app is not running
 
 ## Why another read-it-later app?
 
+TODO: refer to https://0data.app/, https://unhosted.org/ and https://lofi.so/ apps, as concepts.
+
 I consider myself a self-hosting enthusiast, who does not like to self-host :smile:. I love open source and open formats, but I dont think every single purpose app should require a custom backend for it.
 
 After using Pocket for 10+ years I decided it was time to take control of my own content collection. But why does Pocket need a special backend? Yes, it helps scrape the articles, but for the most part its just an API that handles authorization and storing content. Moving the scraping into the mobile app makes the backend no longer necessary.

@@ -1,5 +1,4 @@
 import { Readability } from "@mozilla/readability";
-import { parseHTML } from "linkedom";
 import * as uri from "uri-js";
 import { Article } from "./models";
 import { version } from "../../package.json" with { type: "json" };
@@ -179,7 +178,11 @@ async function processHtmlAndImages(
   htmlText: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ): Promise<string> {
-  const { document } = parseHTML(htmlText);
+  const parser = new DOMParser();
+  const document = parser.parseFromString(htmlText, "text/html");
+  // console.log(doc.querySelector('title').textContent);
+
+  // const { document } = parseHTML(htmlText);
 
   // assigning a url allows relative paths to be resolved for images
   // const base = document.createElement("base");
@@ -357,7 +360,8 @@ export function readabilityToArticle(
     options = { url, contentType };
   }
 
-  const { document } = parseHTML(html);
+  const parser = new DOMParser();
+  const document = parser.parseFromString(html, "text/html");
 
   // assigning a url allows relative paths to be resolved for images
   const base = document.createElement("base");
