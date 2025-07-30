@@ -1,27 +1,46 @@
-import { tanstackStart } from "@tanstack/react-start/plugin/vite";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
-import viteReact from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
-import basicSsl from "@vitejs/plugin-basic-ssl";
 
 export default defineConfig({
+  build: {
+    rollupOptions: {
+      input: {
+        main: "public/index.html",
+      },
+    },
+  },
   server: {
     host: "0.0.0.0",
     port: 3000,
     allowedHosts: true,
     proxy: {},
+    fs: {
+      allow: [".."],
+    },
+  },
+  appType: "spa",
+  preview: {
+    port: 3000,
+  },
+  define: {
+    __DEV__: true,
   },
   plugins: [
-    // Use different TanStack config based on environment
-    process.env.VITE_APP_MODE === "production"
-      ? tanstackStart({ target: "cloudflare-pages" })
-      : tanstackStart({ customViteReactPlugin: true }),
+    {
+      name: "serve-index",
+      configureServer(server) {
+        server.middlewares.use((req, res, next) => {
+          if (req.url === "/") {
+            req.url = "/index.html";
+          }
+          next();
+        });
+      },
+    },
     tsConfigPaths({
       projects: ["./tsconfig.json"],
     }),
-    basicSsl(),
-    viteReact(),
     VitePWA({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "apple-touch-icon.png", "masked-icon.svg"],
