@@ -1,15 +1,13 @@
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
+import viteReact from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
   build: {
-    rollupOptions: {
-      input: {
-        main: "public/index.html",
-      },
-    },
+    outDir: "dist",
   },
+  base: "",
   server: {
     host: "0.0.0.0",
     port: 3000,
