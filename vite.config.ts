@@ -1,6 +1,8 @@
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
+
+import basicSsl from "@vitejs/plugin-basic-ssl";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig({
@@ -18,9 +20,6 @@ export default defineConfig({
     port: 3000,
     allowedHosts: true,
     proxy: {},
-    fs: {
-      allow: [".."],
-    },
   },
   appType: "spa",
   preview: {
@@ -30,6 +29,7 @@ export default defineConfig({
     __DEV__: true,
   },
   plugins: [
+    basicSsl(),
     {
       name: "serve-index",
       configureServer(server) {
@@ -78,7 +78,7 @@ export default defineConfig({
           method: "GET",
           params: {
             text: "content",
-            url: "link",
+            url: "url",
           },
         },
       },
