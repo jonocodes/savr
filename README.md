@@ -15,6 +15,29 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - Use the free hosted version, or self host it
 - Non-propietary since it integrates with any browser and does not need specific extentions installed (see bookmarklet)
 
+# Progress
+
+
+- [x] offline content and image sync
+- [x] browrser bookmarklet
+- [ ] pwa share action
+- [ ] info edit - so you can fix a missing title
+- [ ] remember scroll position
+- [ ] thumbnail generation
+- [ ] offline sync using remoteStorage.js
+  - [x] 5apps
+  - [ ] dropbox
+  - [ ] google drive
+- [ ] advanced image handling
+  - [ ] scrape lazy loaded images
+  - [ ] discover uncommon tags (ie - srcset and background images)
+  - [ ] allow for deferred image loading at view time
+- [ ] multiline url imports
+- [ ] additional document types (ie - markdown, plain text, pdf)
+- [ ] media types (solo images, audio, video)
+- [ ] import/export catalog
+
+
 # How to "install" it
 
 Savr is a PWA (progressive web app) which means it primarilly runs in a browser, but it can also be "installed" as an app on your phone. There it will work offline like your other mobile apps.

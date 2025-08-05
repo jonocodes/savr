@@ -137,6 +137,7 @@ export function extractImageUrls(html: string, baseUrl: string): string[] {
 export async function loadThumbnail(slug: string): Promise<string> {
   try {
     // Try to load the thumbnail from storage
+    console.log("loading thumbnail", slug);
     const storage = await init();
     if (storage && storage.client) {
       const thumbnailPath = getFilePathThumbnail(slug);

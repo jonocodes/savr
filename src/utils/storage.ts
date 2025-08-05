@@ -86,13 +86,13 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`remoteStorage connected to “${userAddress}”`);
 
-      client.getListing("").then((listing) => console.log(listing));
+      // client.getListing("").then((listing) => console.log("listing", listing));
 
       console.log("creating db");
 
-      const files = await recursiveList(client, "");
+      // const files = await recursiveList(client, "");
 
-      console.log(files);
+      // console.log("files", files);
 
       const matches = await glob(client, "saves/*/article.json");
 
@@ -166,7 +166,6 @@ export async function saveResource(
   dataUrl: string,
   mimeType: string
 ): Promise<string> {
-
   const fullPath = `saves/${slug}/resources/${localPath}`;
 
   console.log("saving resource", fullPath);

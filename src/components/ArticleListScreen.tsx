@@ -70,7 +70,6 @@ function ArticleItem({ article }: { article: Article }) {
 
   const { enqueueSnackbar } = useSnackbar();
 
-  // Load thumbnail on component mount
   useEffect(() => {
     const loadThumbnailData = async () => {
       try {
@@ -82,7 +81,9 @@ function ArticleItem({ article }: { article: Article }) {
       }
     };
 
-    loadThumbnailData();
+    // TODO: load these lazily perhaps so it does not grind to a halt
+
+    // loadThumbnailData();
   }, []);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
