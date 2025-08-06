@@ -150,6 +150,7 @@ function ArticleItem({ article }: { article: Article }) {
         },
         paddingLeft: 0,
         paddingRight: 0,
+        alignItems: "flex-start",
       }}
     >
       <ListItemAvatar

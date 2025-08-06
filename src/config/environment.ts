@@ -41,6 +41,8 @@ export const environmentConfig: EnvironmentConfig = {
   },
 };
 
+export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
+
 // Helper functions
 export const isDevelopment = () => environmentConfig.isDevelopment;
 export const isProduction = () => environmentConfig.isProduction;

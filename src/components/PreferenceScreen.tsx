@@ -38,6 +38,7 @@ import {
   Help as HelpIcon,
   Storage as StorageIcon,
   Sync as SyncIcon,
+  CalendarToday as CalendarTodayIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -54,6 +55,7 @@ import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
 import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/utils/storage";
 import { version } from "../../package.json" with { type: "json" };
+import { BUILD_TIMESTAMP } from "~/config/environment";
 
 // Bookmarklet for development
 // const bookmarklet =
@@ -390,6 +392,24 @@ export default function PreferencesScreen() {
                 <InfoIcon />
               </ListItemIcon>
               <ListItemText primary="App Version" secondary={version} />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <CalendarTodayIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Deployed Date"
+                secondary={new Date(BUILD_TIMESTAMP).toLocaleString("en-US", {
+                  year: "numeric",
+                  month: "2-digit",
+                  day: "2-digit",
+                  hour: "2-digit",
+                  minute: "2-digit",
+                  second: "2-digit",
+                  timeZoneName: "short",
+                })}
+              />
             </ListItem>
 
             <ListItem>
