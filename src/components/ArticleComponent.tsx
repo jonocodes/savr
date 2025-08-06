@@ -8,7 +8,7 @@ interface ArticleComponentProps {
 
 const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) => {
   return (
-    <Container maxWidth="md" sx={{ mt: 2, mb: 4 }}>
+    <Container maxWidth="md" sx={{ mt: 2, mb: 4, p: "12px" }}>
       <Box
         sx={{
           fontSize: fontSize,

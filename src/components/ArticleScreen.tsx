@@ -323,22 +323,23 @@ export default function ArticleScreen(props: Props) {
     setup();
   }, [viewMode, slug, storage]);
 
-  // Set scroll position after content is loaded
-  useEffect(() => {
-    if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {
-      // Wait a bit for the DOM to fully render
-      setTimeout(() => {
-        const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+  // // TODO: reenable once I find out why this is jumpy for some articles
+  // // Set scroll position after content is loaded
+  // useEffect(() => {
+  //   if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {
+  //     // Wait a bit for the DOM to fully render
+  //     setTimeout(() => {
+  //       const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
 
-        if (documentHeight > 0) {
-          const scrollPosition = (article.progress / 100) * documentHeight;
-          console.log("setting scroll position to", scrollPosition);
-          window.scrollTo(0, scrollPosition);
-          setHasSetInitialScroll(true);
-        }
-      }, 100);
-    }
-  }, [hasSetInitialScroll, article.progress, content]);
+  //       if (documentHeight > 0) {
+  //         const scrollPosition = (article.progress / 100) * documentHeight;
+  //         console.log("setting scroll position to", scrollPosition);
+  //         window.scrollTo(0, scrollPosition);
+  //         setHasSetInitialScroll(true);
+  //       }
+  //     }, 100);
+  //   }
+  // }, [hasSetInitialScroll, article.progress, content]);
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "background.default" }}>
@@ -471,9 +472,7 @@ export default function ArticleScreen(props: Props) {
         </Toolbar>
       </AppBar>
 
-      <Container maxWidth="md" sx={{ mt: 2, mb: 4 }}>
-        <ArticleComponent html={html} fontSize={fontSize} />
-      </Container>
+      <ArticleComponent html={html} fontSize={fontSize} />
 
       {/* Info Bottom Drawer */}
       <Drawer

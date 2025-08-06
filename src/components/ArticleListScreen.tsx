@@ -148,6 +148,8 @@ function ArticleItem({ article }: { article: Article }) {
         "&:hover": {
           backgroundColor: "action.hover",
         },
+        paddingLeft: 0,
+        paddingRight: 0,
       }}
     >
       <ListItemAvatar
@@ -164,7 +166,11 @@ function ArticleItem({ article }: { article: Article }) {
           marginLeft: 2,
         }}
         onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
-        primary={article.title}
+        primary={
+          <Typography variant="body1" sx={{ fontWeight: "bold", fontSize: "0.8rem" }}>
+            {article.title}
+          </Typography>
+        }
         secondary={
           <Typography variant="caption" color="text.secondary">
             {generateInfoForCard(article)}
@@ -223,8 +229,6 @@ export default function ArticleListScreen() {
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  // const corsProxy = getCorsProxyValue();
-
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
 
@@ -237,7 +241,7 @@ export default function ArticleListScreen() {
         autoHideDuration: 2000,
       });
     }
-  }, [articles, enqueueSnackbar]);
+  }, [articles]);
 
   // Debug panel for mobile testing
   const [showDebug, setShowDebug] = useState(false);
