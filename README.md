@@ -17,13 +17,12 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 
 # Progress
 
-
 - [x] offline content and image sync
-- [x] browrser bookmarklet
+- [x] browser bookmarklet
+- [x] thumbnail generation
 - [ ] pwa share action
 - [ ] info edit - so you can fix a missing title
 - [ ] remember scroll position
-- [ ] thumbnail generation
 - [ ] offline sync using remoteStorage.js
   - [x] 5apps
   - [x] dropbox
@@ -36,7 +35,6 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - [ ] additional document types (ie - markdown, plain text, pdf)
 - [ ] media types (solo images, audio, video)
 - [ ] import/export catalog
-
 
 # How to "install" it
 
@@ -86,7 +84,7 @@ OK, I lied. You do need to use a CORS proxy server to help fetch new articles, b
 
 Basic features have been implemented, but I would consider this in a beta stage. While in the 0.x version number range, features will be stabilizing, along with the API contract and database schema.
 
-# Android
+# Mobile
 
 ![screenshot](./screenshots/screenshots.png)
 
@@ -99,12 +97,6 @@ This is a front end react app. Run like so:
 
 Then visit https://localhost:3000
 
-<div align="center" width="100%">
-
-![web](./screenshots/web.png)
-
-</div>
-
 # Security
 
 All content is stored locally on your device. Savr has no server side storage. This makes it so we dont need to host any data, and so it can more simply be hosted by you if you want.
@@ -113,16 +105,18 @@ This also make it such that there is no login or account creation to use Savr. I
 
 # Comparison
 
-| Feature                           | savr | Pocket 2024 (before shutdown) | Omnivore | Wallabag | Shiori | Pocket 2025 |
-| --------------------------------- | ---- | ----------------------------- | -------- | -------- | ------ | ----------- |
-| Open Source                       | ✓    | ✗                             |          |          |        |             |
-| Requires Tech Knowledge           |      |                               |          |          |        |             |
-| Own/Control Your Data             |      |                               |          |          |        |             |
-| Advanced Organization and Tagging |      |                               |          |          |        |             |
-| Other Content Types               |      |                               |          |          |        |             |
-| Works Offline                     |      |                               |          |          |        |             |
-| Cross Platform                    |      |                               |          |          |        |             |
-| Cross Browser Extension           |      |                               |          |          |        |             |
+TBD
+
+| Feature                           | savr        | Pocket 2024   | Omnivore | Wallabag | Shiori | Pocket 2025 (after shutdown) |
+| --------------------------------- | ----------- | ------------- | -------- | -------- | ------ | ---------------------------- |
+| Open Source                       | ✓           | ✗             | ✓        | ✓        | ✓      | source released              |
+| Requires Little Tech Knowledge    | ✓           | ✓             | ✗        | ✗        | ✗      | ✗                            |
+| Own/Control Your Data             | ✓           | ✗             | ✓        | ✓        | ✓      |                              |
+| Advanced Organization and Tagging | ✗           | ✗             |          |          |        |                              |
+| Other Content Types               | in progress | ✗             | ✓        | ✓        | ✗      | ✗                            |
+| Offline mobile                    | ✓           | sometimes     | ✓        | ✓        | ✗      |                              |
+| Cross Platform (+mobile/browser)  | ✓           | ✓             | ✓        | ✓        | ✓      |                              |
+| Cross Browser Extension           | ✓           | ✗ (chrome/FF) | ✗        | ✗        | ✗      | ✗ (chrome/FF)                |
 
 Requires creating an account
 
