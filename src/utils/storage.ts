@@ -60,7 +60,7 @@ function initRemote() {
       //   modules: ["sync"],
     });
     remoteStorage.setApiKeys({
-      googledrive: environmentConfig.apiKeys.googleDrive,
+      // googledrive: environmentConfig.apiKeys.googleDrive,
       dropbox: environmentConfig.apiKeys.dropbox,
     });
     remoteStorage.access.claim("savr", "rw");
