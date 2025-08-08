@@ -37,8 +37,6 @@ export type ArticleAndRender = {
   extra: ArticleRenderExtra;
 };
 
-export type Articles = {
-  articles: Article[];
-};
-
-// export const modelVar = "articles"
+// export type Articles = {
+//   articles: Article[];
+// };

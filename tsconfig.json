@@ -1,21 +1,34 @@
 {
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ],
   "compilerOptions": {
-    "composite": true, // required for project references
-    
+    "types": [
+      "vite/client"
+    ],
+    "strict": true,
+    "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": [
+      "DOM",
+      "DOM.Iterable",
+      "ES2022"
+    ],
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "target": "ES2022",
+    "allowJs": true,
+    "forceConsistentCasingInFileNames": true,
     "baseUrl": ".",
     "paths": {
-      // "@/components/*": ["app/components/*"],
-      // "@/constants/*": ["app/constants/*"],
-      // "@/hooks/*": ["app/hooks/*"],
-      "web/*": ["web/src/*"]
+      "~/*": [
+        "./src/*"
+      ]
     },
-    "moduleResolution": "bundler",
-    "esModuleInterop": true
-  },
-  "type": "module",
-  "include": ["**/*.ts", "**/*.tsx"],
-  "references": [
-    { "path": "./lib" },
-    { "path": "./app" }
-  ]
+    "noEmit": true
+  }
 }

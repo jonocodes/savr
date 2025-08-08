@@ -2,31 +2,85 @@
 
 Savr is an app for saving online content to read later. It is [file-centric, offline first, future proof](#offline-use), and [favors decentralization](#how-to-use-it). Read about the design and motivation in the [FAQ](#faq).
 
-For the most part, Savr is an [Android app](#android) and a local [web app](#web). They can be used together or independently.
-
-# REWRITE IN PROGRESS
-
-I am currently in the process of rewriting the previous version of the app from Kotlin to a frontend-only web app/PWA.
-
-The following parts of this document are showing the state of the Kotlin version, which is no longer active, so take it with a grain of salt. I have kept it here since the screenshots and motivation are still relevant.
+When reading an article in a browser, share it to Savr. Then open Savr later to read it. For the most part, Savr is a free, hosted or self hosted, progressive web app. You can also install it on your phone for offline use.
 
 # Features
 
 - Save articles for reading later
 - Remove distractions like advertisements
-- Read content without an internet connection
-- Share articles with friends
+- Read content and images without an internet connection
 - No dependency on a service/company to do the scraping or storage
-- Scraped content works well outside the app (plain html and images)
-- Plays well with file synchronization across devices. Just BYOS (bring your own storage).
+- Authorization and cross device syncronization optional (using your Dropbox or Google Drive)
+- Open source, cross platform (mobile and desktop/web)
+- Use the free hosted version, or self host it
+- Non-propietary since it integrates with any browser and does not need specific extentions installed (see bookmarklet)
 
-# How to use it
+# Progress
 
-When reading an article in a browser, share it to Savr. Then open Savr later to read it.
 
-If you want to synchronize your articles for backup or for use across devices, just point your synchronization service to the Savr data directory.
+- [x] offline content and image sync
+- [x] browrser bookmarklet
+- [ ] pwa share action
+- [ ] info edit - so you can fix a missing title
+- [ ] remember scroll position
+- [ ] thumbnail generation
+- [ ] offline sync using remoteStorage.js
+  - [x] 5apps
+  - [x] dropbox
+  - [ ] google drive
+- [ ] advanced image handling
+  - [ ] scrape lazy loaded images
+  - [ ] discover uncommon tags (ie - srcset and background images)
+  - [ ] allow for deferred image loading at view time
+- [ ] multiline url imports
+- [ ] additional document types (ie - markdown, plain text, pdf)
+- [ ] media types (solo images, audio, video)
+- [ ] import/export catalog
 
-Use something like [Nextcloud](https://nextcloud.com/) for a centralized option or [Syncthing](https://syncthing.net/) for a decentralized one. Or use a third party service like Google Drive.
+
+# How to "install" it
+
+Savr is a PWA (progressive web app) which means it primarilly runs in a browser, but it can also be "installed" as an app on your phone. There it will work offline like your other mobile apps.
+
+https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Installing
+
+# How to save articles
+
+## In app
+
+When on the main screen you can always click the '+' button and enter a URL.
+
+## Bookmarklet
+
+The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save.
+
+(show screen shot of bookmarklet link)
+
+You should also be able to use the bookmarklet in your mobile web browser if you want.
+
+## Android (share to)
+
+If you have "installed" the mobile app, you can send articles to it. Once you visit an article in a mobile browser you can use the browsers "share" button to send it to your installed Savr app.
+
+## iOS
+
+iOS does not allow for sharing to progressive web apps. So use one of the other methods mentioned above.
+
+# Synchronization
+
+If you want to read and save articles on multiple devices you can authorize your cloud service provider (typically Dropbox or Google), to sync your articles. This is optional, and if you dont want to sync you dont need to create any account to use Savr.
+
+Note that you dont need to sync your articles to a cloud service for them to be available offline. They are automatically saved to your device either way.
+
+# How it works
+
+Savr is designed to work like a desktop app. It runs locally and minimizes the need for backend web services. This means that there is no Savr server that stores your info or content. It functions as a desktop app like your calculator or image editor in that you dont need to log in to use it. All content is on your device.
+
+Savr runs entirely as a frontend app so if you want to self host you can use static hosting like github pages.
+
+OK, I lied. You do need to use a CORS proxy server to help fetch new articles, but that is a generic service that has no knowledge of Savr.
+
+(TODO: add more about architecture and article saving flow diagram)
 
 # Current state of development
 
@@ -36,26 +90,14 @@ Basic features have been implemented, but I would consider this in a beta stage.
 
 ![screenshot](./screenshots/screenshots.png)
 
-## Installation
+# Development
 
-Since this is pre-release software, I have not put it in any app store. For now you can do one of the following:
+This is a front end react app. Run like so:
 
-- Use [Obtanium](https://obtainium.imranr.dev/) with the source URL: https://github.com/jonocodes/savr
-- [Install the APK directly from the releases page](https://github.com/jonocodes/savr/releases/latest).
+> npm install
+> npm run dev
 
-## Development
-
-The [android app](./android/) uses Kotlin and depends heavily on the Storage Access Framework and Android WebView.
-
-Build and debug using Andoid Studio.
-
-More details TBD...
-
-# Desktop
-
-There currently is no desktop specific application. However the web app is intended for running locally to serve your desktop needs. It is a simple site designed to render well on small screens and text browsers.
-
-# Web
+Then visit https://localhost:3000
 
 <div align="center" width="100%">
 
@@ -63,150 +105,32 @@ There currently is no desktop specific application. However the web app is inten
 
 </div>
 
-## Use
+# Security
 
-The [web](./web/) project provides a local web app that can be used to save, read, and administer your articles. By default it runs at: http://localhost:8080/savr
+All content is stored locally on your device. Savr has no server side storage. This makes it so we dont need to host any data, and so it can more simply be hosted by you if you want.
 
-To manually ingest an article enter the URL at the top of the page. If you want something less manual, use the [bookmarklet](#bookmarklet).
+This also make it such that there is no login or account creation to use Savr. If you decide to synchronize your data across devices you will need to bring a cloud service. But that authentication is brokered through your browser and does not go through Savr's servers. In the browser your are authenticating direcly to the cloud provider only.
 
-## Configuration
+# Comparison
 
-Set your local environment variable 'DATA_DIR' to be pointing an existing directory where you want Savr to store the database and content.
+| Feature                           | savr | Pocket 2024 (before shutdown) | Omnivore | Wallabag | Shiori | Pocket 2025 |
+| --------------------------------- | ---- | ----------------------------- | -------- | -------- | ------ | ----------- |
+| Open Source                       | ✓    | ✗                             |          |          |        |             |
+| Requires Tech Knowledge           |      |                               |          |          |        |             |
+| Own/Control Your Data             |      |                               |          |          |        |             |
+| Advanced Organization and Tagging |      |                               |          |          |        |             |
+| Other Content Types               |      |                               |          |          |        |             |
+| Works Offline                     |      |                               |          |          |        |             |
+| Cross Platform                    |      |                               |          |          |        |             |
+| Cross Browser Extension           |      |                               |          |          |        |             |
 
-## Development
-
-Here is how you may bring up the server locally.
-
-```bash
-export DATA_DIR=$HOME/savrdata  # or choose a different data location
-mkdir $DATA_DIR
-
-cd web
-npm install
-npm run web:dev
-```
-
-## Production
-
-For now the simplest way to use the web project as a long running backend service is with docker.
-
-```bash
-export DATA_DIR=$HOME/savrdata
-mkdir $DATA_DIR
-
-cd web
-docker compose up -d
-```
-
-## Security
-
-Savrd is a single user service. It has no authentication or account management. However there are a couple things you can do.
-
-### Token use
-
-The default namespace is of the web service is '/savr'. However you can update it to be more complex via environment variable. For example you can generate a UUID:
-
-```bash
-node -e "const { randomUUID } = require('crypto'); console.log(randomUUID());"
-```
-
-and set it like so:
-
-    SAVR_NAMESPACE="/savr/<uuid>"
-
-This is a bit like token authentication. You can rotate it as often as you want, but will need to update your client references to the service.
-
-This is mostly a feature to deter port scanners, so use at your own risk.
-
-### SSL
-
-You can put this behind a [reverse proxy](https://fastify.dev/docs/latest/Guides/Recommendations/) with an SSL certificate.
-
-## Topologies
-
-Here are some suggestions of how you may want to run your service. The following presumes you support a single user with multiple devices, and you want the same content on all devices.
-
-### Decentralized
-
-Run multiple Savr web services...
-
-SAVR_SERVICE=http://localhost:8080/savr,http://host1:8080/savr
-
-### Centralized
-
-Run a single instance of the service...
-
-TBD
-
-### Public
-
-If you want to access it outside your network ...
-
-TBD
+Requires creating an account
 
 # Bookmarklet
 
 <div align="center" width="100%">
 
 ![bookmarklet](./screenshots/bookmarklet.png)
-
-</div>
-
-There are several ways of creating a button in your browser to save the article you currently have open.
-
-In your browser add a new bookmark. Edit it and set the name to something like "Savr save". Copy the code from here: [bookmarklet/savr-save.js](bookmarklet/savr-save.js) and paste it unto the URL field.
-
-At the beginning of the bookmarklet code you should see something like this:
-
-```js
-const hosts = ["http://localhost:8080/savr"];
-```
-
-Edit that variable as needed to make sure that it is pointing to the URL of your running web app/service.
-
-## Development
-
-http://localhost:8080/savr/static/demo.html
-
-# CLI
-
-You can use the CLI for ingestion if you want.
-
-```bash
-cd web
-npm install
-tsx ./src/cli.ts <url>
-
-savr ingest <url>
-```
-
-# TUI
-
-<div align="center" width="100%">
-
-![TUI](./screenshots/tui.png)
-
-</div>
-
-Since the web service is run to render well in text browsers the TUI command is mostly a wrapper to your locally installed browser app...
-
-savr gui --browser=firefox # defaults to lynx
-
-SAVR_SERVICE=http://localhost..., ... , ...
-SAVR_DATA=/home/...
-
-first see if SERVICE is set
-then see if DATA is set
-
-more info TBD
-
-If you know exactly how you want to browse, you can skip the TUI command. For example:
-
-    browsh http://localhost:8080/savr
-
-<div align="center" width="100%">
-
-![Browsh](./screenshots/browsh.png)
 
 </div>
 
@@ -227,6 +151,8 @@ Of course you wont be able to modify your collection when the app is not running
 # FAQ
 
 ## Why another read-it-later app?
+
+TODO: refer to https://0data.app/, https://unhosted.org/ and https://lofi.so/ apps, as concepts.
 
 I consider myself a self-hosting enthusiast, who does not like to self-host :smile:. I love open source and open formats, but I dont think every single purpose app should require a custom backend for it.
 
@@ -253,6 +179,8 @@ There are some great projects like [Wallabag](https://wallabag.org/) and [Omnivo
 - authorization
 - all the other things that come with system administration
 
-## Is there a iOS app?
+## What is CORS
 
-We need to figure out how to deal with the filesystem restrictions. Possibly use OS-provided storage providers a la [keepassium](https://github.com/keepassium/KeePassium#automatic-sync).
+## What is a PWA
+
+## What is a bookmarklet
