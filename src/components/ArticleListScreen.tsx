@@ -83,10 +83,11 @@ function ArticleItem({ article }: { article: Article }) {
 
     // TODO: load these lazily perhaps so it does not grind to a halt
 
-    // loadThumbnailData();
+    loadThumbnailData();
   }, []);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
+    event.stopPropagation(); // Prevent the ListItem click from firing
     setAnchorEl(event.currentTarget);
   };
 
@@ -94,7 +95,8 @@ function ArticleItem({ article }: { article: Article }) {
     setAnchorEl(null);
   };
 
-  const handleShare = () => {
+  const handleShare = (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (article.url) {
       navigator.clipboard.writeText(article.url);
       alert("Url copied to clipboard: " + article.url);
@@ -102,7 +104,8 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleArchive = () => {
+  const handleArchive = (event: React.MouseEvent) => {
+    event.stopPropagation();
     try {
       // updateArticleState(storage.client!, article.slug, "archived");
       updateArticleMetadata(storage.client!, { ...article, state: "archived" });
@@ -111,9 +114,11 @@ function ArticleItem({ article }: { article: Article }) {
       console.error(e);
       enqueueSnackbar("Failed to archive article", { variant: "error" });
     }
+    closeMenu();
   };
 
-  const handleUnarchive = () => {
+  const handleUnarchive = (event: React.MouseEvent) => {
+    event.stopPropagation();
     if (!article) throw new Error("Article is undefined");
 
     try {
@@ -124,9 +129,11 @@ function ArticleItem({ article }: { article: Article }) {
       console.error(e);
       enqueueSnackbar("Failed to unarchive article", { variant: "error" });
     }
+    closeMenu();
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (event: React.MouseEvent) => {
+    event.stopPropagation();
     try {
       await removeArticle(storage.client!, article.slug);
       enqueueSnackbar("Article deleted");
@@ -134,6 +141,7 @@ function ArticleItem({ article }: { article: Article }) {
       console.error(e);
       enqueueSnackbar("Failed to delete article", { variant: "error" });
     }
+    closeMenu();
   };
 
   const formatDate = (date: Date) => {
@@ -152,6 +160,7 @@ function ArticleItem({ article }: { article: Article }) {
         paddingRight: 0,
         alignItems: "flex-start",
       }}
+      onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
     >
       <ListItemAvatar
         onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
@@ -233,14 +242,18 @@ export default function ArticleListScreen() {
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
 
+  // Track if we've shown the initial load message
+  const hasShownInitialLoad = useRef(false);
+
   // Add visual debugging for article count
   useEffect(() => {
-    if (articles) {
+    if (articles && !hasShownInitialLoad.current) {
       console.log(`Articles loaded: ${articles.length} total articles`);
       enqueueSnackbar(`Loaded ${articles.length} articles`, {
         variant: "info",
         autoHideDuration: 2000,
       });
+      hasShownInitialLoad.current = true;
     }
   }, [articles]);
 
@@ -289,7 +302,6 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-            console.log(`INGESTED URL ${url}`);
           }
         );
 

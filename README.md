@@ -26,7 +26,7 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - [ ] thumbnail generation
 - [ ] offline sync using remoteStorage.js
   - [x] 5apps
-  - [ ] dropbox
+  - [x] dropbox
   - [ ] google drive
 - [ ] advanced image handling
   - [ ] scrape lazy loaded images

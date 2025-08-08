@@ -91,8 +91,26 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
 
+    // Function to update widget visibility based on current route and sync setting
+    const updateWidgetVisibility = () => {
+      const isSyncEnabled = getSyncEnabled();
+      const isArticlePage = router.state.location.pathname.startsWith("/article/");
+      const shouldShowWidget = isSyncEnabled && !isArticlePage;
+
+      const widgetElement = document.getElementById("remotestorage-widget");
+      if (widgetElement) {
+        widgetElement.style.display = shouldShowWidget ? "block" : "none";
+      }
+    };
+
     // Check for cookie changes periodically
-    const interval = setInterval(checkSyncSetting, 1000);
+    const interval = setInterval(() => {
+      checkSyncSetting();
+      updateWidgetVisibility(); // Also update on route changes
+    }, 1000);
+
+    // Initial widget visibility update
+    setTimeout(updateWidgetVisibility, 100);
 
     // Cleanup function
     return () => {
@@ -105,7 +123,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
     };
-  }, []); // Remove dependencies to prevent infinite loops
+  }, [router.state.location.pathname]); // Add router dependency to update on route changes
 
   return (
     <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>

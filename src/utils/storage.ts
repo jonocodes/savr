@@ -12,18 +12,17 @@ import { environmentConfig } from "~/config/environment";
 //   }
 // }
 
-let store;
+let store: Promise<{ remoteStorage: RemoteStorage; client: BaseClient }> | null = null;
 
 function init() {
   if (!store) {
-    const setup = async () => {
+    store = (async () => {
       const remoteStorage = await initRemote();
 
       const client = remoteStorage.scope("/savr/");
 
       return { remoteStorage, client };
-    };
-    return setup();
+    })();
   }
   return store;
 }
@@ -98,15 +97,21 @@ function initRemote() {
 
       console.log("Matched files:", matches);
 
+      // Load all articles first, then batch insert them
+      const articles: Article[] = [];
       for (const path of matches) {
         console.log(path);
 
         const file = (await client.getFile(path)) as { data: string }; // Type assertion here
 
         const article: Article = JSON.parse(file.data);
+        articles.push(article);
+      }
 
-        // put => upsert
-        const ins = await db.articles.put(article);
+      // Batch insert all articles at once to minimize useLiveQuery triggers
+      if (articles.length > 0) {
+        await db.articles.bulkPut(articles);
+        console.log(`Bulk inserted ${articles.length} articles`);
       }
     });
 
@@ -287,29 +292,26 @@ async function deleteArticleStorage(articleSlug: string): Promise<{
     const store = await init();
     if (store && store.client) {
       try {
-        // Get all files for this specific article
-        const articleFiles = await glob(store.client, `saves/${articleSlug}/*`);
+        console.log(`🗂️ Starting recursive deletion of article directory: saves/${articleSlug}`);
+        const result = await recursiveDeleteDirectory(store.client, `saves/${articleSlug}`);
 
-        for (const filePath of articleFiles) {
-          try {
-            await store.client.remove(filePath);
-            deletedFiles.push(filePath);
-            console.log(`Deleted file: ${filePath}`);
-          } catch (error) {
-            errors.push(`Failed to delete ${filePath}: ${error}`);
-            console.warn(`Failed to delete file ${filePath}:`, error);
-          }
-        }
+        // Add the results to our tracking arrays
+        deletedFiles.push(...result.deletedFiles);
+        errors.push(...result.errors);
 
-        // Try to remove the article directory itself
-        try {
-          await store.client.remove(`saves/${articleSlug}/`);
-          console.log(`Deleted article directory: saves/${articleSlug}/`);
-        } catch (error) {
-          console.warn(`Failed to delete article directory saves/${articleSlug}/:`, error);
-        }
+        // // Show confirmation of what was deleted
+        // if (result.success) {
+        //   console.log(`✅ Successfully deleted article directory: saves/${articleSlug}`);
+        //   console.log(`   📁 Deleted ${result.deletedDirectories.length} directories`);
+        //   console.log(`   📄 Deleted ${result.deletedFiles.length} files`);
+        // } else {
+        //   console.warn(`⚠️ Partial deletion of article directory: saves/${articleSlug}`);
+        //   console.warn(`   📁 Deleted ${result.deletedDirectories.length} directories`);
+        //   console.warn(`   📄 Deleted ${result.deletedFiles.length} files`);
+        //   console.warn(`   ❌ ${result.errors.length} errors occurred`);
+        // }
       } catch (error) {
-        errors.push(`Failed to access RemoteStorage: ${error}`);
+        // errors.push(`Failed to access RemoteStorage: ${error}`);
         console.warn("Failed to delete from RemoteStorage:", error);
       }
     } else {
@@ -327,6 +329,77 @@ async function deleteArticleStorage(articleSlug: string): Promise<{
   };
 }
 
+async function recursiveDeleteDirectory(
+  client: BaseClient,
+  directoryPath: string
+): Promise<{
+  success: boolean;
+  deletedFiles: string[];
+  deletedDirectories: string[];
+  errors: string[];
+}> {
+  const deletedFiles: string[] = [];
+  const deletedDirectories: string[] = [];
+  const errors: string[] = [];
+
+  try {
+    console.log(`🔍 Scanning directory for deletion: ${directoryPath}`);
+    // Ensure the path ends with a slash for directory operations
+    const normalizedPath = directoryPath.endsWith("/") ? directoryPath : `${directoryPath}/`;
+
+    // Get the listing of the directory
+    const listing = await client.getListing(normalizedPath);
+
+    // Process all items in the directory
+    for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+      const fullPath = normalizedPath + name;
+
+      if (name.endsWith("/")) {
+        // This is a subdirectory - recursively delete it
+        const result = await recursiveDeleteDirectory(client, fullPath);
+        deletedFiles.push(...result.deletedFiles);
+        deletedDirectories.push(...result.deletedDirectories);
+        errors.push(...result.errors);
+      } else {
+        // This is a file - delete it
+        try {
+          await client.remove(fullPath).then(() => {
+            deletedFiles.push(fullPath);
+            console.log(`📄 Deleted file: ${fullPath}`);
+          });
+        } catch (error) {
+          const errorMsg = `Failed to delete file ${fullPath}: ${error}`;
+          errors.push(errorMsg);
+          console.warn(errorMsg);
+        }
+      }
+    }
+
+    // After deleting all contents, delete the directory itself
+    try {
+      await client.remove(normalizedPath).then(() => {
+        deletedDirectories.push(normalizedPath);
+        console.log(`🗂️ Deleted directory: ${normalizedPath}`);
+      });
+    } catch (error) {
+      const errorMsg = `Failed to delete directory ${normalizedPath}: ${error}`;
+      errors.push(errorMsg);
+      console.warn(errorMsg);
+    }
+  } catch (error) {
+    const errorMsg = `Failed to access directory ${directoryPath}: ${error}`;
+    errors.push(errorMsg);
+    console.error(errorMsg);
+  }
+
+  return {
+    success: errors.length === 0,
+    deletedFiles,
+    deletedDirectories,
+    errors,
+  };
+}
+
 async function deleteAllRemoteStorage(): Promise<{
   success: boolean;
   deletedFiles: string[];
@@ -340,27 +413,28 @@ async function deleteAllRemoteStorage(): Promise<{
     const store = await init();
     if (store && store.client) {
       try {
-        // Get all files in RemoteStorage
-        const allFiles = await recursiveList(store.client, "");
+        await recursiveDeleteDirectory(store.client, "");
+        // // Get all files in RemoteStorage
+        // const allFiles = await recursiveList(store.client, "");
 
-        for (const filePath of allFiles) {
-          try {
-            await store.client.remove(filePath);
-            deletedFiles.push(filePath);
-            console.log(`Deleted file: ${filePath}`);
-          } catch (error) {
-            errors.push(`Failed to delete ${filePath}: ${error}`);
-            console.warn(`Failed to delete file ${filePath}:`, error);
-          }
-        }
+        // for (const filePath of allFiles) {
+        //   try {
+        //     await store.client.remove(filePath);
+        //     deletedFiles.push(filePath);
+        //     console.log(`Deleted file: ${filePath}`);
+        //   } catch (error) {
+        //     errors.push(`Failed to delete ${filePath}: ${error}`);
+        //     console.warn(`Failed to delete file ${filePath}:`, error);
+        //   }
+        // }
 
-        // Try to remove all directories
-        try {
-          await store.client.remove("saves/");
-          console.log(`Deleted saves directory`);
-        } catch (error) {
-          console.warn(`Failed to delete saves directory:`, error);
-        }
+        // // Try to remove all directories
+        // try {
+        //   await store.client.remove("saves/");
+        //   console.log(`Deleted saves directory`);
+        // } catch (error) {
+        //   console.warn(`Failed to delete saves directory:`, error);
+        // }
       } catch (error) {
         errors.push(`Failed to access RemoteStorage: ${error}`);
         console.warn("Failed to delete from RemoteStorage:", error);
@@ -416,5 +490,6 @@ export {
   calculateArticleStorageSize,
   deleteArticleStorage,
   deleteAllRemoteStorage,
+  recursiveDeleteDirectory,
   formatBytes,
 };
