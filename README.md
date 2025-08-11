@@ -10,10 +10,27 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - Remove distractions like advertisements
 - Read content and images without an internet connection
 - No dependency on a service/company to do the scraping or storage
-- Authorization and cross device syncronization optional (using your Dropbox or Google Drive)
+- Authorization and cross device synchronization optional (using your Dropbox or Google Drive)
 - Open source, cross platform (mobile and desktop/web)
 - Use the free hosted version, or self host it
-- Non-propietary since it integrates with any browser and does not need specific extentions installed (see bookmarklet)
+- Non-proprietary since it integrates with any browser and does not need specific extensions installed (see bookmarklet)
+
+# Comparison
+
+| Feature                          | savr        | Pocket 2024      | Omnivore | Wallabag | Shiori | Pocket 2025 (after shutdown) |
+| -------------------------------- | ----------- | ---------------- | -------- | -------- | ------ | ---------------------------- |
+| Open Source                      | ✓           | ✗                | ✓        | ✓        | ✓      | source released              |
+| Requires minimal tech knowledge  | ✓           | ✓                | ✗        | ✗        | ✗      | ✗                            |
+| Own/Control Your Data            | ✓           | ✗                | ✓        | ✓        | ✓      |                              |
+| Offline content including images | ✓           | sometimes cached | ✗        | ✗        | ✗      |                              |
+| Tagging and search               | ✗           | ✓                | ✓        | ✓        | ✓      |                              |
+| Other Content Types              | in progress | ✗                | ✓        | ✓        | ✗      | ✗                            |
+| Offline mobile                   | ✓           | sometimes        | ✓        | ✓        | ✗      |                              |
+| Cross Platform (+mobile/browser) | ✓           | ✓                | ✓        | ✓        | ✓      |                              |
+| Cross Browser Extension          | ✓           | ✗ (chrome/FF)    | ✗        | ✗        | ✗      | ✗ (chrome/FF)                |
+| Does not require and account     | ✓           | ✓                | ✓        | ✓        | ✓      | ✓                            |
+
+- after shutdown
 
 # Progress
 
@@ -38,7 +55,7 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 
 # How to "install" it
 
-Savr is a PWA (progressive web app) which means it primarilly runs in a browser, but it can also be "installed" as an app on your phone. There it will work offline like your other mobile apps.
+Savr is a PWA (progressive web app) which means it primarily runs in a browser, but it can also be "installed" as an app on your phone. There it will work offline like your other mobile apps.
 
 https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps/Guides/Installing
 
@@ -101,24 +118,7 @@ Then visit https://localhost:3000
 
 All content is stored locally on your device. Savr has no server side storage. This makes it so we dont need to host any data, and so it can more simply be hosted by you if you want.
 
-This also make it such that there is no login or account creation to use Savr. If you decide to synchronize your data across devices you will need to bring a cloud service. But that authentication is brokered through your browser and does not go through Savr's servers. In the browser your are authenticating direcly to the cloud provider only.
-
-# Comparison
-
-TBD
-
-| Feature                           | savr        | Pocket 2024   | Omnivore | Wallabag | Shiori | Pocket 2025 (after shutdown) |
-| --------------------------------- | ----------- | ------------- | -------- | -------- | ------ | ---------------------------- |
-| Open Source                       | ✓           | ✗             | ✓        | ✓        | ✓      | source released              |
-| Requires Little Tech Knowledge    | ✓           | ✓             | ✗        | ✗        | ✗      | ✗                            |
-| Own/Control Your Data             | ✓           | ✗             | ✓        | ✓        | ✓      |                              |
-| Advanced Organization and Tagging | ✗           | ✗             |          |          |        |                              |
-| Other Content Types               | in progress | ✗             | ✓        | ✓        | ✗      | ✗                            |
-| Offline mobile                    | ✓           | sometimes     | ✓        | ✓        | ✗      |                              |
-| Cross Platform (+mobile/browser)  | ✓           | ✓             | ✓        | ✓        | ✓      |                              |
-| Cross Browser Extension           | ✓           | ✗ (chrome/FF) | ✗        | ✗        | ✗      | ✗ (chrome/FF)                |
-
-Requires creating an account
+This also make it such that there is no login or account creation to use Savr. If you decide to synchronize your data across devices you will need to bring a cloud service. But that authentication is brokered through your browser and does not go through Savr's servers. In the browser your are authenticating directly to the cloud provider only.
 
 # Bookmarklet
 

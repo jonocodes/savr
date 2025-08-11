@@ -87,6 +87,9 @@ export default function PreferencesScreen() {
   const { client: storageClient } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
 
+  const buildDate =
+    new Date(BUILD_TIMESTAMP).toDateString() + " " + new Date(BUILD_TIMESTAMP).toLocaleTimeString();
+
   React.useEffect(() => {
     const customValue = getCorsProxyFromCookie();
     const defaultValue = getDefaultCorsProxy();
@@ -359,7 +362,7 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    Enable syncronization
+                    Enable synchronization
                     <Tooltip title="Allows you to sync your articles across devices using a cloud service">
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
@@ -385,32 +388,7 @@ export default function PreferencesScreen() {
 
           {/* About Section */}
           <List>
-            <ListSubheader>About</ListSubheader>
-
-            <ListItem>
-              <ListItemIcon>
-                <InfoIcon />
-              </ListItemIcon>
-              <ListItemText primary="App Version" secondary={version} />
-            </ListItem>
-
-            <ListItem>
-              <ListItemIcon>
-                <CalendarTodayIcon />
-              </ListItemIcon>
-              <ListItemText
-                primary="Deployed Date"
-                secondary={new Date(BUILD_TIMESTAMP).toLocaleString("en-US", {
-                  year: "numeric",
-                  month: "2-digit",
-                  day: "2-digit",
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                  timeZoneName: "short",
-                })}
-              />
-            </ListItem>
+            <ListSubheader>Catalog Info</ListSubheader>
 
             <ListItem>
               <ListItemIcon>
@@ -453,10 +431,97 @@ export default function PreferencesScreen() {
                 }
               />
             </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <ArchiveIcon />
+              </ListItemIcon>
+              <ListItemText primary="Export catalog" secondary="Download all article metadata" />
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={async () => {
+                    try {
+                      const articles = await db.articles.toArray();
+                      const dataStr = JSON.stringify(articles, null, 2);
+                      const dataBlob = new Blob([dataStr], { type: "application/json" });
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.json`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                      enqueueSnackbar("JSON export completed!", { variant: "success" });
+                    } catch (error) {
+                      console.error("Export failed:", error);
+                      enqueueSnackbar("Export failed", { variant: "error" });
+                    }
+                  }}
+                >
+                  JSON
+                </Button>
+                <Button
+                  variant="outlined"
+                  size="small"
+                  onClick={async () => {
+                    try {
+                      const articles = await db.articles.toArray();
+                      const csvContent = [
+                        [
+                          "Title",
+                          "URL",
+                          "State",
+                          "Read Time (min)",
+                          "Publication",
+                          "Author",
+                          "Published Date",
+                          "Ingest Date",
+                          "Ingest Platform",
+                          "Ingest Source",
+                          "MIME Type",
+                          "Progress",
+                        ],
+                        ...articles.map((article) => [
+                          article.title || "",
+                          article.url || "",
+                          article.state || "",
+                          article.readTimeMinutes || "",
+                          article.publication || "",
+                          article.author || "",
+                          article.publishedDate || "",
+                          article.ingestDate || "",
+                          article.ingestPlatform || "",
+                          article.ingestSource || "",
+                          article.mimeType || "",
+                          article.progress || "",
+                        ]),
+                      ]
+                        .map((row) => row.map((field) => `"${field}"`).join(","))
+                        .join("\n");
+
+                      const dataBlob = new Blob([csvContent], { type: "text/csv" });
+                      const url = URL.createObjectURL(dataBlob);
+                      const link = document.createElement("a");
+                      link.href = url;
+                      link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.csv`;
+                      link.click();
+                      URL.revokeObjectURL(url);
+                      enqueueSnackbar("CSV export completed!", { variant: "success" });
+                    } catch (error) {
+                      console.error("Export failed:", error);
+                      enqueueSnackbar("Export failed", { variant: "error" });
+                    }
+                  }}
+                >
+                  CSV
+                </Button>
+              </Box>
+            </ListItem>
           </List>
 
           {/* Danger Zone Section */}
-          <List>
+          <List sx={{ mb: 10 }}>
             <ListSubheader sx={{ color: "error.main" }}>Danger Zone</ListSubheader>
 
             <ListItem>
@@ -472,6 +537,7 @@ export default function PreferencesScreen() {
                 color="error"
                 onClick={() => setDeleteDialogOpen(true)}
                 disabled={totalArticleCount === 0}
+                sx={{ mb: 2 }}
               >
                 Delete All
               </Button>
@@ -479,6 +545,18 @@ export default function PreferencesScreen() {
           </List>
         </Paper>
       </Container>
+
+      {/* Version Info */}
+      <Box sx={{ textAlign: "center", mt: 4, mb: 12 }}>
+        <Typography variant="body2" color="text.secondary">
+          Savr version {version} • deployed {buildDate}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+          <a href="https://github.com/jonocodes/savr" target="_blank">
+            source code
+          </a>
+        </Typography>
+      </Box>
 
       {/* Delete Confirmation Dialog */}
       <Dialog
