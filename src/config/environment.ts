@@ -34,8 +34,9 @@ export const environmentConfig: EnvironmentConfig = {
   defaultCorsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
   apiKeys: {
     googleDrive: getEnvVar(
-      "VITE_GOOGLE_DRIVE_API_KEY",
-      "298611806550-k3kc4obucu2ds6v9dlmvteqp6ve5dn6m.apps.googleusercontent.com"
+      "VITE_GOOGLE_DRIVE_API_KEY"
+      // NOTE: this is disabled for now since I have not been able to get google drive working
+      // "298611806550-k3kc4obucu2ds6v9dlmvteqp6ve5dn6m.apps.googleusercontent.com"
     ),
     dropbox: getEnvVar("VITE_DROPBOX_API_KEY", "c53glfgceos23cj"),
   },

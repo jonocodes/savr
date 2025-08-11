@@ -159,15 +159,14 @@ function ArticleItem({ article }: { article: Article }) {
         "&:hover": {
           backgroundColor: "action.hover",
         },
-        paddingLeft: 0,
-        paddingRight: 0,
+        paddingLeft: 1,
+        paddingRight: 1,
+        marginBottom: 0.5,
         alignItems: "flex-start",
       }}
       onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
     >
-      <ListItemAvatar
-        onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
-      >
+      <ListItemAvatar>
         <img
           src={thumbnailSrc}
           alt="Article"
@@ -178,9 +177,8 @@ function ArticleItem({ article }: { article: Article }) {
         sx={{
           marginLeft: 2,
         }}
-        onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
         primary={
-          <Typography variant="body1" sx={{ fontWeight: "bold", fontSize: "0.8rem" }}>
+          <Typography variant="body1" sx={{ fontWeight: "bold", fontSize: "1rem" }}>
             {article.title}
           </Typography>
         }

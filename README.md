@@ -17,20 +17,18 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 
 # Comparison
 
-| Feature                          | savr        | Pocket 2024      | Omnivore | Wallabag | Shiori | Pocket 2025 (after shutdown) |
-| -------------------------------- | ----------- | ---------------- | -------- | -------- | ------ | ---------------------------- |
-| Open Source                      | ✓           | ✗                | ✓        | ✓        | ✓      | source released              |
-| Requires minimal tech knowledge  | ✓           | ✓                | ✗        | ✗        | ✗      | ✗                            |
-| Own/Control Your Data            | ✓           | ✗                | ✓        | ✓        | ✓      |                              |
-| Offline content including images | ✓           | sometimes cached | ✗        | ✗        | ✗      |                              |
-| Tagging and search               | ✗           | ✓                | ✓        | ✓        | ✓      |                              |
-| Other Content Types              | in progress | ✗                | ✓        | ✓        | ✗      | ✗                            |
-| Offline mobile                   | ✓           | sometimes        | ✓        | ✓        | ✗      |                              |
-| Cross Platform (+mobile/browser) | ✓           | ✓                | ✓        | ✓        | ✓      |                              |
-| Cross Browser Extension          | ✓           | ✗ (chrome/FF)    | ✗        | ✗        | ✗      | ✗ (chrome/FF)                |
-| Does not require and account     | ✓           | ✓                | ✓        | ✓        | ✓      | ✓                            |
-
-- after shutdown
+| Feature                          | Savr        | Pocket 2024 (pre shutdown) | Omnivore | Wallabag | Shiori |
+| -------------------------------- | ----------- | -------------------------- | -------- | -------- | ------ |
+| Open Source                      | ☑️          | 🔴                         | ☑️       | ☑️       | ☑️     |
+| Requires minimal tech knowledge  | ☑️          | ☑️                         | 🔴       | 🔴       | 🔴     |
+| Own/Control Your Data            | ☑️          | 🔴                         | ☑️       | ☑️       | ☑️     |
+| Offline content including images | ☑️          | sometimes cached           | 🔴       | 🔴       | 🔴     |
+| Tagging and search               | 🔴          | ☑️                         | ☑️       | ☑️       | ☑️     |
+| Other Content Types              | in progress | 🔴                         | ☑️       | ☑️       | 🔴     |
+| Offline mobile                   | ☑️          | sometimes                  | ☑️       | ☑️       | 🔴     |
+| Cross Platform (+mobile/browser) | ☑️          | ☑️                         | ☑️       | ☑️       | ☑️     |
+| Cross Browser Extension          | ☑️          | 🔴 (chrome/FF)             | 🔴       | 🔴       | 🔴     |
+| Does not require and account     | ☑️          | ☑️                         | ☑️       | ☑️       | ☑️     |
 
 # Progress
 
@@ -51,6 +49,7 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - [ ] multiline url imports
 - [ ] additional document types (ie - markdown, plain text, pdf)
 - [ ] media types (solo images, audio, video)
+- [ ] content summarization
 - [ ] import/export catalog
 
 # How to "install" it
@@ -97,6 +96,8 @@ OK, I lied. You do need to use a CORS proxy server to help fetch new articles, b
 
 (TODO: add more about architecture and article saving flow diagram)
 
+[See this diagram](https://remotestorage.io/unhosted.html) showing how this type of architecture differs from traditional web apps.
+
 # Current state of development
 
 Basic features have been implemented, but I would consider this in a beta stage. While in the 0.x version number range, features will be stabilizing, along with the API contract and database schema.
@@ -110,6 +111,7 @@ Basic features have been implemented, but I would consider this in a beta stage.
 This is a front end react app. Run like so:
 
 > npm install
+>
 > npm run dev
 
 Then visit https://localhost:3000
@@ -131,12 +133,6 @@ This also make it such that there is no login or account creation to use Savr. I
 # Offline Use
 
 The Savr apps do not need an internet connection to read content, since it has all been downloaded. Additionally you don't even need the app to read the articles since the HTML archive is self contained.
-
-Just open ${DATA_DIR}/list.html in a web browser.
-
-<div align="center" width="100%">
-
-![offline](./screenshots/offline.png)
 
 </div>
 

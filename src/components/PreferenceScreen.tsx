@@ -600,6 +600,33 @@ export default function PreferencesScreen() {
             </ListItem>
           </List>
 
+          <List>
+            <ListSubheader>Savr</ListSubheader>
+
+            <ListItem>
+              {/* <ListItemIcon>
+                <DeleteIcon />
+              </ListItemIcon> */}
+              <ListItemText primary="Version" secondary={version} />
+            </ListItem>
+            <ListItem>
+              <ListItemText primary="Deployed" secondary={buildDate} />
+            </ListItem>
+            <ListItem>
+              <ListItemText primary="Mode" secondary={isInstalledPWA ? "PWA" : "Web app"} />
+            </ListItem>
+            <ListItem>
+              <ListItemText
+                primary="Source code"
+                secondary={
+                  <a href="https://github.com/jonocodes/savr" target="_blank">
+                    github.com/jonocodes/savr
+                  </a>
+                }
+              />
+            </ListItem>
+          </List>
+
           {/* Danger Zone Section */}
           <List sx={{ mb: 10 }}>
             <ListSubheader sx={{ color: "error.main" }}>Danger Zone</ListSubheader>
@@ -626,17 +653,6 @@ export default function PreferencesScreen() {
         </Paper>
       </Container>
 
-      {/* Version Info */}
-      <Box sx={{ textAlign: "center", mt: 4, mb: 12 }}>
-        <Typography variant="body2" color="text.secondary">
-          Savr version {version} • deployed {buildDate}
-        </Typography>
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          <a href="https://github.com/jonocodes/savr" target="_blank">
-            source code
-          </a>
-        </Typography>
-      </Box>
 
       {/* Delete Confirmation Dialog */}
       <Dialog

@@ -59,7 +59,7 @@ function initRemote() {
       //   modules: ["sync"],
     });
     remoteStorage.setApiKeys({
-      // googledrive: environmentConfig.apiKeys.googleDrive,
+      googledrive: environmentConfig.apiKeys.googleDrive,
       dropbox: environmentConfig.apiKeys.dropbox,
     });
     remoteStorage.access.claim("savr", "rw");
@@ -414,27 +414,6 @@ async function deleteAllRemoteStorage(): Promise<{
     if (store && store.client) {
       try {
         await recursiveDeleteDirectory(store.client, "");
-        // // Get all files in RemoteStorage
-        // const allFiles = await recursiveList(store.client, "");
-
-        // for (const filePath of allFiles) {
-        //   try {
-        //     await store.client.remove(filePath);
-        //     deletedFiles.push(filePath);
-        //     console.log(`Deleted file: ${filePath}`);
-        //   } catch (error) {
-        //     errors.push(`Failed to delete ${filePath}: ${error}`);
-        //     console.warn(`Failed to delete file ${filePath}:`, error);
-        //   }
-        // }
-
-        // // Try to remove all directories
-        // try {
-        //   await store.client.remove("saves/");
-        //   console.log(`Deleted saves directory`);
-        // } catch (error) {
-        //   console.warn(`Failed to delete saves directory:`, error);
-        // }
       } catch (error) {
         errors.push(`Failed to access RemoteStorage: ${error}`);
         console.warn("Failed to delete from RemoteStorage:", error);
