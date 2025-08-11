@@ -3,9 +3,22 @@ import React from "react";
 // Cookie-based theme management
 export type ThemeMode = "light" | "dark" | "system";
 
-const THEME_COOKIE_NAME = "savr-theme";
-const FONT_SIZE_COOKIE_NAME = "savr-font-size";
-const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
+export const THEME_COOKIE_NAME = "savr-theme";
+export const FONT_SIZE_COOKIE_NAME = "savr-font-size";
+export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
+export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
+export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
+export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
+
+// After external save action constants
+export const AFTER_EXTERNAL_SAVE_ACTIONS = {
+  SHOW_ARTICLE: "show-article",
+  SHOW_LIST: "show-list",
+  CLOSE_TAB: "close-tab",
+} as const;
+
+export type AfterExternalSaveAction =
+  (typeof AFTER_EXTERNAL_SAVE_ACTIONS)[keyof typeof AFTER_EXTERNAL_SAVE_ACTIONS];
 
 // Get system preference
 export const getSystemTheme = (): "light" | "dark" => {
@@ -160,4 +173,66 @@ export const toggleTheme = (): ThemeMode => {
 
   setThemeInCookie(newTheme);
   return newTheme;
+};
+
+// Get header hiding preference from cookie
+export const getHeaderHidingFromCookie = (): boolean => {
+  if (typeof document === "undefined") return true; // Default to enabled
+
+  const cookies = document.cookie.split(";");
+  const headerHidingCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${HEADER_HIDING_COOKIE_NAME}=`)
+  );
+
+  if (headerHidingCookie) {
+    const value = headerHidingCookie.split("=")[1];
+    return value === "true";
+  }
+
+  return true; // Default to enabled
+};
+
+// Set header hiding preference in cookie
+export const setHeaderHidingInCookie = (enabled: boolean): void => {
+  if (typeof document === "undefined") return;
+
+  // Set cookie to expire in 1 year
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${HEADER_HIDING_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get after external save preference from cookie
+export const getAfterExternalSaveFromCookie = (): AfterExternalSaveAction => {
+  if (typeof document === "undefined") return AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB; // Default to close tab
+
+  const cookies = document.cookie.split(";");
+  const afterExternalSaveCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${AFTER_EXTERNAL_SAVE_COOKIE_NAME}=`)
+  );
+
+  if (afterExternalSaveCookie) {
+    const value = afterExternalSaveCookie.split("=")[1];
+    if (
+      value === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE ||
+      value === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST ||
+      value === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
+    ) {
+      return value;
+    }
+  }
+
+  return AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB; // Default to close tab
+};
+
+// Set after external save preference in cookie
+export const setAfterExternalSaveInCookie = (value: AfterExternalSaveAction): void => {
+  if (typeof document === "undefined") return;
+
+  // Set cookie to expire in 1 year
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${AFTER_EXTERNAL_SAVE_COOKIE_NAME}=${value}; expires=${expires.toUTCString()}; path=/`;
 };

@@ -3,6 +3,7 @@ import RemoteStorage from "remotestoragejs";
 import { init } from "~/utils/storage";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { useRouter } from "@tanstack/react-router";
+import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 
 type RemoteStorageContextType = {
   remoteStorage: RemoteStorage | null;
@@ -27,7 +28,9 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   useEffect(() => {
     // Get sync setting from cookies
     const getSyncEnabled = () => {
-      const syncCookie = document.cookie.split("; ").find((row) => row.startsWith("syncEnabled="));
+      const syncCookie = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith(`${SYNC_ENABLED_COOKIE_NAME}=`));
       if (syncCookie) {
         const syncValue = syncCookie.split("=")[1];
         return syncValue === "true";

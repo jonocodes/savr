@@ -39,6 +39,7 @@ import {
   Storage as StorageIcon,
   Sync as SyncIcon,
   CalendarToday as CalendarTodayIcon,
+  TextFields as TextFieldsIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -48,6 +49,12 @@ import {
   toggleTheme,
   useSystemThemeListener,
   getEffectiveTheme,
+  getHeaderHidingFromCookie,
+  setHeaderHidingInCookie,
+  getAfterExternalSaveFromCookie,
+  setAfterExternalSaveInCookie,
+  AFTER_EXTERNAL_SAVE_ACTIONS,
+  AfterExternalSaveAction,
 } from "~/utils/cookies";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
@@ -56,6 +63,7 @@ import { useSnackbar } from "notistack";
 import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/utils/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
+import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 
 // Bookmarklet for development
 // const bookmarklet =
@@ -67,7 +75,11 @@ export default function PreferencesScreen() {
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
-  const [storageUsage, setStorageUsage] = React.useState<{
+  const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(true);
+  const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
+    AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
+  );
+  const [storageUsage, setStorageUsage] = useState<{
     size: number;
     files: number;
   } | null>(null);
@@ -103,17 +115,25 @@ export default function PreferencesScreen() {
     }
 
     // Load sync setting from cookies
-    const syncCookie = document.cookie.split("; ").find((row) => row.startsWith("syncEnabled="));
+    const syncCookie = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${SYNC_ENABLED_COOKIE_NAME}=`));
     if (syncCookie) {
       const syncValue = syncCookie.split("=")[1];
       setSyncEnabled(syncValue === "true");
     }
 
+    // Load header hiding setting from cookies
+    setHeaderHidingEnabled(getHeaderHidingFromCookie());
+
+    // Load after external save setting from cookies
+    setAfterExternalSave(getAfterExternalSaveFromCookie());
+
     const saveRoute = window.location.origin + "/";
     console.log("Absolute path to index for saving:", saveRoute);
 
     setBookmarklet(
-      `data:text/html,<html><body><script>var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?closeAfterSave=true&saveUrl='+url,'_blank');</script></body></html>`
+      `data:text/html,<html><body><script>var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?saveUrl='+url,'_blank');</script></body></html>`
     );
   }, []);
 
@@ -121,7 +141,7 @@ export default function PreferencesScreen() {
   React.useEffect(() => {
     if (bookmarkletRef.current) {
       const saveRoute = window.location.origin + "/";
-      const bookmarkletJS = `javascript:(function(){var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?closeAfterSave=true&saveUrl='+url,'_blank');})();`;
+      const bookmarkletJS = `javascript:(function(){var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?saveUrl='+url,'_blank');})();`;
       bookmarkletRef.current.href = bookmarkletJS;
     }
   }, []);
@@ -231,12 +251,24 @@ export default function PreferencesScreen() {
     const newValue = event.target.checked;
     setSyncEnabled(newValue);
     // Save to cookies
-    document.cookie = `syncEnabled=${newValue}; path=/; max-age=31536000`; // 1 year expiry
+    document.cookie = `${SYNC_ENABLED_COOKIE_NAME}=${newValue}; path=/; max-age=31536000`; // 1 year expiry
 
     // Only refresh when enabling sync to properly initialize the widget
     if (newValue) {
       window.location.reload();
     }
+  };
+
+  const handleHeaderHidingToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.checked;
+    setHeaderHidingEnabled(newValue);
+    setHeaderHidingInCookie(newValue);
+  };
+
+  const handleAfterExternalSaveChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = event.target.value as AfterExternalSaveAction;
+    setAfterExternalSave(newValue);
+    setAfterExternalSaveInCookie(newValue);
   };
 
   const getThemeIcon = () => {
@@ -332,12 +364,18 @@ export default function PreferencesScreen() {
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                     CORS Proxy
-                    <Tooltip title="Todo: Explain CORS">
+                    <Tooltip title="CORS (Cross-Origin Resource Sharing) is a security feature that prevents websites from making requests to different domains. We need it to save articles from external websites. Using your own proxy can be more reliable and faster than public ones.">
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
                   </Box>
                 }
-                secondary="Proxy server for cross-origin requests"
+                secondary={
+                  <Box>
+                    <Typography variant="body2" component="span">
+                      Proxy server for cross-origin requests
+                    </Typography>
+                  </Box>
+                }
               />
               <TextField
                 value={corsProxy}
@@ -353,6 +391,33 @@ export default function PreferencesScreen() {
                   },
                 }}
               />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <BookmarkAddIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="After external save"
+                secondary="What to do after saving an article from a bookmarklet"
+              />
+              <select
+                value={afterExternalSave}
+                onChange={handleAfterExternalSaveChange}
+                style={{
+                  padding: "8px",
+                  borderRadius: "4px",
+                  border: "1px solid #ccc",
+                  fontSize: "14px",
+                  minWidth: "150px",
+                }}
+              >
+                <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE}>
+                  Show article content
+                </option>
+                <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST}>Show article list</option>
+                <option value={AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB}>Close new tab</option>
+              </select>
             </ListItem>
 
             <ListItem>
@@ -382,6 +447,21 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Theme"
                 secondary={`${getThemeLabel()} (${getEffectiveTheme(currentTheme) === "dark" ? "Dark" : "Light"})`}
+              />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <TextFieldsIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Auto-hide header while reading"
+                secondary="Automatically hide the header when scrolling down in articles"
+              />
+              <Switch
+                edge="end"
+                checked={headerHidingEnabled}
+                onChange={handleHeaderHidingToggle}
               />
             </ListItem>
           </List>

@@ -26,7 +26,7 @@ import {
   Paper,
 } from "@mui/material";
 import {
-  Add as AddIcon,
+  AddCircle as AddIcon,
   MoreVert as MoreVertIcon,
   Archive as ArchiveIcon,
   Unarchive as UnarchiveIcon,
@@ -41,12 +41,14 @@ import { db } from "~/utils/db";
 import { ingestUrl } from "../../lib/src/ingestion";
 import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
-
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { shouldEnableSampleUrls } from "~/config/environment";
 import { generateInfoForCard } from "../../lib/src/lib";
+import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
+import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
+import { getFilePathContent, getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
 
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
@@ -59,6 +61,7 @@ const sampleArticleUrls = [
   "https://www.troyhunt.com/inside-the-3-billion-people-national-public-data-breach/",
   "https://medium.com/airbnb-engineering/rethinking-text-resizing-on-web-1047b12d2881",
   "https://leejo.github.io/2024/09/29/holding_out_for_the_heros_to_fuck_off/",
+  "https://www.cbc.ca/news/canada/nova-scotia/1985-toyota-tercel-high-mileage-1.7597168",
 ];
 
 function ArticleItem({ article }: { article: Article }) {
@@ -283,7 +286,7 @@ export default function ArticleListScreen() {
   }, []);
 
   const saveUrl = useCallback(
-    async (closeAfterSave: boolean = false) => {
+    async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
       // TODO: pass in headers/cookies for downloading
 
       // Wait until URL is not empty
@@ -327,12 +330,17 @@ export default function ArticleListScreen() {
           setIngestPercent(0);
           setUrl("");
 
-          console.log("closeAfterSave", closeAfterSave);
+          console.log("afterExternalSave", afterExternalSave);
 
-          // Close the tab if closeAfterSave is true. used by bookmarklet.
-          if (closeAfterSave) {
+          // Handle different after-save actions based on preference
+          if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
+            // Close the tab (used by bookmarklet)
             window.close();
+          } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
+            // Navigate to the article page
+            navigate({ to: `/article/${article.slug}` });
           }
+          // If "show-list", do nothing - just stay on the current page
         }, 1500);
       } catch (error) {
         console.error(error);
@@ -341,14 +349,22 @@ export default function ArticleListScreen() {
         setIngestPercent(0);
       }
     },
-    [client, url, setDialogVisible, setIngestStatus, setIngestPercent, setUrl, enqueueSnackbar]
+    [
+      client,
+      url,
+      setDialogVisible,
+      setIngestStatus,
+      setIngestPercent,
+      setUrl,
+      enqueueSnackbar,
+      navigate,
+    ]
   );
 
   // Handle saveUrl query parameter
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const saveUrlParam = urlParams.get("saveUrl");
-    const closeAfterSaveParam = urlParams.get("closeAfterSave");
 
     if (saveUrlParam && client) {
       // Decode the URL parameter
@@ -361,14 +377,13 @@ export default function ArticleListScreen() {
         // Remove the saveUrl parameter from the URL before submitting
         const currentUrlParams = new URLSearchParams(window.location.search);
         currentUrlParams.delete("saveUrl");
-        currentUrlParams.delete("closeAfterSave");
         const newSearch = currentUrlParams.toString();
         const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
         window.history.replaceState({}, "", newUrl);
 
-        // Pass the closeAfterSave parameter to saveUrl
-        const shouldCloseAfterSave = closeAfterSaveParam === "true";
-        saveUrl(shouldCloseAfterSave);
+        // Use the user's preference for after-save action
+        const afterExternalSave = getAfterExternalSaveFromCookie();
+        saveUrl(afterExternalSave);
       }, 100);
     }
   }, [client, saveUrl]); // Only run when client is available

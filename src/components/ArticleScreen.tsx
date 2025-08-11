@@ -44,6 +44,7 @@ import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
+import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { debug } from "console";
@@ -74,6 +75,7 @@ export default function ArticleScreen(props: Props) {
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
+  const [headerHidingEnabled, setHeaderHidingEnabled] = useState(true);
 
   const [html, setHtml] = useState("");
 
@@ -220,7 +222,18 @@ export default function ArticleScreen(props: Props) {
   const [hasSetInitialScroll, setHasSetInitialScroll] = useState(false);
 
   useEffect(() => {
+    // Load header hiding preference
+    setHeaderHidingEnabled(getHeaderHidingFromCookie());
+  }, []);
+
+  useEffect(() => {
     const handleScroll = () => {
+      // Only apply header hiding logic if the preference is enabled
+      // if (!headerHidingEnabled) {
+      //   setShowHeader(true);
+      //   return;
+      // }
+
       const currentScrollY = window.scrollY;
       if (currentScrollY < 0) return;
       if (currentScrollY < 50) {
@@ -228,7 +241,7 @@ export default function ArticleScreen(props: Props) {
         lastScrollY.current = currentScrollY;
         return;
       }
-      if (currentScrollY > lastScrollY.current) {
+      if (headerHidingEnabled && currentScrollY > lastScrollY.current) {
         // Scrolling down
         setShowHeader(false);
       } else if (currentScrollY < lastScrollY.current) {
@@ -323,23 +336,21 @@ export default function ArticleScreen(props: Props) {
     setup();
   }, [viewMode, slug, storage]);
 
-  // // TODO: reenable once I find out why this is jumpy for some articles
-  // // Set scroll position after content is loaded
-  // useEffect(() => {
-  //   if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {
-  //     // Wait a bit for the DOM to fully render
-  //     setTimeout(() => {
-  //       const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+  useEffect(() => {
+    if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {
+      // Wait a bit for the DOM to fully render
+      setTimeout(() => {
+        const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
 
-  //       if (documentHeight > 0) {
-  //         const scrollPosition = (article.progress / 100) * documentHeight;
-  //         console.log("setting scroll position to", scrollPosition);
-  //         window.scrollTo(0, scrollPosition);
-  //         setHasSetInitialScroll(true);
-  //       }
-  //     }, 100);
-  //   }
-  // }, [hasSetInitialScroll, article.progress, content]);
+        if (documentHeight > 0) {
+          const scrollPosition = (article.progress / 100) * documentHeight;
+          console.log("setting scroll position to", scrollPosition);
+          window.scrollTo(0, scrollPosition);
+          setHasSetInitialScroll(true);
+        }
+      }, 100);
+    }
+  }, [hasSetInitialScroll, article.progress, content]);
 
   return (
     <Box sx={{ minHeight: "100vh", backgroundColor: "background.default" }}>

@@ -39,7 +39,7 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - [x] thumbnail generation
 - [ ] pwa share action
 - [ ] info edit - so you can fix a missing title
-- [ ] remember scroll position
+- [x] remember scroll position
 - [ ] offline sync using remoteStorage.js
   - [x] 5apps
   - [x] dropbox
@@ -83,13 +83,13 @@ iOS does not allow for sharing to progressive web apps. So use one of the other 
 
 # Synchronization
 
-If you want to read and save articles on multiple devices you can authorize your cloud service provider (typically Dropbox or Google), to sync your articles. This is optional, and if you dont want to sync you dont need to create any account to use Savr.
+If you want to read and save articles on multiple devices you can authorize your cloud service provider (typically Dropbox or Google), to sync your articles. This is optional, and if you don't want to sync you don't need to create any account to use Savr.
 
-Note that you dont need to sync your articles to a cloud service for them to be available offline. They are automatically saved to your device either way.
+Note that you don't need to sync your articles to a cloud service for them to be available offline. They are automatically saved to your device either way.
 
 # How it works
 
-Savr is designed to work like a desktop app. It runs locally and minimizes the need for backend web services. This means that there is no Savr server that stores your info or content. It functions as a desktop app like your calculator or image editor in that you dont need to log in to use it. All content is on your device.
+Savr is designed to work like a desktop app. It runs locally and minimizes the need for backend web services. This means that there is no Savr server that stores your info or content. It functions as a desktop app like your calculator or image editor in that you don't need to log in to use it. All content is on your device.
 
 Savr runs entirely as a frontend app so if you want to self host you can use static hosting like github pages.
 
@@ -116,7 +116,7 @@ Then visit https://localhost:3000
 
 # Security
 
-All content is stored locally on your device. Savr has no server side storage. This makes it so we dont need to host any data, and so it can more simply be hosted by you if you want.
+All content is stored locally on your device. Savr has no server side storage. This makes it so we don't need to host any data, and so it can more simply be hosted by you if you want.
 
 This also make it such that there is no login or account creation to use Savr. If you decide to synchronize your data across devices you will need to bring a cloud service. But that authentication is brokered through your browser and does not go through Savr's servers. In the browser your are authenticating directly to the cloud provider only.
 
@@ -130,7 +130,7 @@ This also make it such that there is no login or account creation to use Savr. I
 
 # Offline Use
 
-The Savr apps do not need an internet connection to read content, since it has all been downloaded. Additionally you dont even need the app to read the articles since the HTML archive is self contained.
+The Savr apps do not need an internet connection to read content, since it has all been downloaded. Additionally you don't even need the app to read the articles since the HTML archive is self contained.
 
 Just open ${DATA_DIR}/list.html in a web browser.
 
@@ -148,7 +148,7 @@ Of course you wont be able to modify your collection when the app is not running
 
 TODO: refer to https://0data.app/, https://unhosted.org/ and https://lofi.so/ apps, as concepts.
 
-I consider myself a self-hosting enthusiast, who does not like to self-host :smile:. I love open source and open formats, but I dont think every single purpose app should require a custom backend for it.
+I consider myself a self-hosting enthusiast, who does not like to self-host :smile:. I love open source and open formats, but I don't think every single purpose app should require a custom backend for it.
 
 After using Pocket for 10+ years I decided it was time to take control of my own content collection. But why does Pocket need a special backend? Yes, it helps scrape the articles, but for the most part its just an API that handles authorization and storing content. Moving the scraping into the mobile app makes the backend no longer necessary.
 
@@ -175,6 +175,34 @@ There are some great projects like [Wallabag](https://wallabag.org/) and [Omnivo
 
 ## What is CORS
 
+CORS (Cross-Origin Resource Sharing) is a security feature implemented by web browsers that prevents websites from making requests to different domains. This is a security measure to protect users from malicious websites that might try to access data from other sites.
+
+**Why does Savr need it?**
+When you save an article, Savr needs to fetch the content from the original website. However, due to CORS restrictions, many websites tell thew browser they want content blocked if loaded from a different domain. This often prevents Savr from fetching content and images.
+
+**How does Savr solve this?**
+Savr uses a CORS proxy server that acts as a middleman. Instead of your browser directly requesting content from the original website, it requests it through the proxy server, which then fetches the content and sends it back to Savr.
+
+**Why bring your own proxy?**
+While Savr provides a default proxy, you can configure your own CORS proxy server for:
+
+- **Better reliability**: Public proxies can be unstable or go down
+- **Faster performance**: Your own proxy is typically faster than shared public ones
+- **More control**: You can configure it exactly how you need it
+- **Privacy**: Your requests aren't going through a third-party service
+
+You can learn more about CORS on [Wikipedia](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing).
+
 ## What is a PWA
 
+A PWA (Progressive Web App) is a web application that can be installed on your device like a native app. PWAs work offline, can send notifications, and provide an app-like experience while running in your browser. You can "install" them from your browser's menu, and they'll appear in your app launcher alongside other apps.
+
+Learn more about PWAs on [MDN Web Docs](https://developer.mozilla.org/en-US/docs/Web/Progressive_web_apps).
+
 ## What is a bookmarklet
+
+A bookmarklet is a small piece of JavaScript code stored as a bookmark in your browser. When you click on it, it runs the JavaScript code on the current page. In Savr's case, the bookmarklet extracts the current page's URL and opens Savr with that URL ready to be saved.
+
+Bookmarklets work across all browsers and don't require any extensions or special permissions. They're a simple, lightweight way to add functionality to any website.
+
+Learn more about bookmarklets on [Wikipedia](https://en.wikipedia.org/wiki/Bookmarklet).
