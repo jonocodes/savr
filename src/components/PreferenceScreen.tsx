@@ -14,8 +14,6 @@ import {
   IconButton,
   Paper,
   Container,
-  Divider,
-  Chip,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -64,10 +62,6 @@ import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/ut
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
-
-// Bookmarklet for development
-// const bookmarklet =
-//   "javascript:(function(){const app = 'http://localhost:8081'; var s = document.createElement('script'); s.src = app + '/bookmarklet-client.js'; document.body.appendChild(s); })();";
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
@@ -338,7 +332,7 @@ export default function PreferencesScreen() {
                 <Box sx={{ ml: 2 }}>
                   <a
                     ref={bookmarkletRef}
-                    draggable="true"
+                    // draggable="true"
                     style={{
                       color: "primary.main",
                       textDecoration: "none",
@@ -652,7 +646,6 @@ export default function PreferencesScreen() {
           </List>
         </Paper>
       </Container>
-
 
       {/* Delete Confirmation Dialog */}
       <Dialog

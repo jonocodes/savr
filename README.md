@@ -19,16 +19,16 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 
 | Feature                          | Savr        | Pocket 2024 (pre shutdown) | Omnivore | Wallabag | Shiori |
 | -------------------------------- | ----------- | -------------------------- | -------- | -------- | ------ |
-| Open Source                      | ☑️          | 🔴                         | ☑️       | ☑️       | ☑️     |
-| Requires minimal tech knowledge  | ☑️          | ☑️                         | 🔴       | 🔴       | 🔴     |
-| Own/Control Your Data            | ☑️          | 🔴                         | ☑️       | ☑️       | ☑️     |
-| Offline content including images | ☑️          | sometimes cached           | 🔴       | 🔴       | 🔴     |
-| Tagging and search               | 🔴          | ☑️                         | ☑️       | ☑️       | ☑️     |
-| Other Content Types              | in progress | 🔴                         | ☑️       | ☑️       | 🔴     |
-| Offline mobile                   | ☑️          | sometimes                  | ☑️       | ☑️       | 🔴     |
-| Cross Platform (+mobile/browser) | ☑️          | ☑️                         | ☑️       | ☑️       | ☑️     |
-| Cross Browser Extension          | ☑️          | 🔴 (chrome/FF)             | 🔴       | 🔴       | 🔴     |
-| Does not require and account     | ☑️          | ☑️                         | ☑️       | ☑️       | ☑️     |
+| Open Source                      | ✅          | ❌                         | ✅       | ✅       | ✅     |
+| Requires minimal tech knowledge  | ✅          | ✅                         | ❌       | ❌       | ❌     |
+| Own/Control Your Data            | ✅          | ❌                         | ✅       | ✅       | ✅     |
+| Offline content including images | ✅          | sometimes cached           | ❌       | ❌       | ❌     |
+| Tagging and search               | ❌          | ✅                         | ✅       | ✅       | ✅     |
+| Other Content Types              | in progress | ❌                         | ✅       | ✅       | ❌     |
+| Offline mobile                   | ✅          | sometimes                  | ✅       | ✅       | ❌     |
+| Cross Platform (+mobile/browser) | ✅          | ✅                         | ✅       | ✅       | ✅     |
+| Cross Browser Extension          | ✅          | ❌ (chrome/FF)             | ❌       | ❌       | ❌     |
+| Does not require and account     | ✅          | ✅                         | ✅       | ✅       | ✅     |
 
 # Progress
 
@@ -50,6 +50,7 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 - [ ] additional document types (ie - markdown, plain text, pdf)
 - [ ] media types (solo images, audio, video)
 - [ ] content summarization
+- [ ] content read aloud
 - [ ] import/export catalog
 
 # How to "install" it
