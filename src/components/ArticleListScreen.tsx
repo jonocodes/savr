@@ -35,6 +35,7 @@ import {
   Settings as SettingsIcon,
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
+  ArrowForward,
 } from "@mui/icons-material";
 // import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
@@ -48,7 +49,9 @@ import { shouldEnableSampleUrls } from "~/config/environment";
 import { generateInfoForCard } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
-import { getFilePathContent, getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
+
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import { keyframes } from "@mui/system";
 
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
@@ -145,10 +148,6 @@ function ArticleItem({ article }: { article: Article }) {
       enqueueSnackbar("Failed to delete article", { variant: "error" });
     }
     closeMenu();
-  };
-
-  const formatDate = (date: Date) => {
-    return date.toLocaleDateString();
   };
 
   return (
@@ -258,6 +257,19 @@ export default function ArticleListScreen() {
     }
   }, [articles]);
 
+  // Redirect to home page with welcome URL if no articles exist
+  useEffect(() => {
+    if (articles && articles.length === 0) {
+      navigate({
+        to: "/",
+        search: {
+          saveUrl: "https://github.com/jonocodes/savr/wiki/Welcome-to-Savr",
+          autoSubmit: "false",
+        },
+      });
+    }
+  }, [articles, navigate]);
+
   // Debug panel for mobile testing
   const [showDebug, setShowDebug] = useState(false);
   useEffect(() => {
@@ -360,9 +372,13 @@ export default function ArticleListScreen() {
   );
 
   // Handle saveUrl query parameter
+  // Supports autoSubmit parameter:
+  // - autoSubmit=true (default): Automatically submit the form after opening the dialog
+  // - autoSubmit=false: Open the dialog but don't auto-submit, let user review/edit first
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     const saveUrlParam = urlParams.get("saveUrl");
+    const autoSubmitParam = urlParams.get("autoSubmit");
 
     if (saveUrlParam && client) {
       // Decode the URL parameter
@@ -370,19 +386,37 @@ export default function ArticleListScreen() {
       setUrl(decodedUrl);
       setDialogVisible(true);
 
-      // Automatically submit the form after a short delay to ensure the dialog is open
-      setTimeout(() => {
-        // Remove the saveUrl parameter from the URL before submitting
-        const currentUrlParams = new URLSearchParams(window.location.search);
-        currentUrlParams.delete("saveUrl");
-        const newSearch = currentUrlParams.toString();
-        const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
-        window.history.replaceState({}, "", newUrl);
+      // Parse autoSubmit as boolean, default to true if not specified
+      // URL parameters are always strings, so we check for the string "false"
+      // Handle case where it might be double-quoted like '"false"'
+      const shouldAutoSubmit = autoSubmitParam !== "false" && autoSubmitParam !== '"false"';
 
-        // Use the user's preference for after-save action
-        const afterExternalSave = getAfterExternalSaveFromCookie();
-        saveUrl(afterExternalSave);
-      }, 100);
+      if (shouldAutoSubmit) {
+        // Automatically submit the form after a short delay to ensure the dialog is open
+        setTimeout(() => {
+          // Remove the saveUrl and autoSubmit parameters from the URL before submitting
+          const currentUrlParams = new URLSearchParams(window.location.search);
+          currentUrlParams.delete("saveUrl");
+          currentUrlParams.delete("autoSubmit");
+          const newSearch = currentUrlParams.toString();
+          const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+          window.history.replaceState({}, "", newUrl);
+
+          // Use the user's preference for after-save action
+          const afterExternalSave = getAfterExternalSaveFromCookie();
+          saveUrl(afterExternalSave);
+        }, 100);
+      } else {
+        // Just remove the parameters from the URL without auto-submitting
+        setTimeout(() => {
+          const currentUrlParams = new URLSearchParams(window.location.search);
+          currentUrlParams.delete("saveUrl");
+          currentUrlParams.delete("autoSubmit");
+          const newSearch = currentUrlParams.toString();
+          const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+          window.history.replaceState({}, "", newUrl);
+        }, 100);
+      }
     }
   }, [client, saveUrl]); // Only run when client is available
 
@@ -396,6 +430,12 @@ export default function ArticleListScreen() {
   }, [dialogVisible]);
 
   const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
+
+  const pulse = keyframes`
+    0% { transform: translateX(0) scale(1); opacity: 1; }
+    50% { transform: translateX(10px) scale(1.2); opacity: 0.7; }
+    100% { transform: translateX(0) scale(1); opacity: 1; }
+  `;
 
   return (
     <Box sx={{ flexGrow: 1, backgroundColor: "background.default" }}>
@@ -478,9 +518,9 @@ export default function ArticleListScreen() {
               textAlign: "center",
             }}
           >
-            <Typography variant="h4" gutterBottom>
+            {/* <Typography variant="h4" gutterBottom>
               Welcome to Savr
-            </Typography>
+            </Typography> */}
             <Typography variant="body1" color="text.secondary" gutterBottom>
               {filter === "unread"
                 ? "Start saving articles to see them here"
@@ -538,14 +578,40 @@ export default function ArticleListScreen() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
-          <Button
-            onClick={() => saveUrl()}
-            variant="contained"
-            disabled={ingestStatus !== null || !url.trim()}
-          >
-            Save
-          </Button>
+          {articles && articles.length > 0 && (
+            <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
+          )}
+          <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 2 }}>
+            {articles && articles.length === 0 && (
+              <Typography
+                variant="h6"
+                sx={{
+                  color: "primary.main",
+                  fontWeight: "bold",
+                }}
+              >
+                Click here
+              </Typography>
+            )}
+            {articles && articles.length === 0 && (
+              <ArrowForward
+                sx={{
+                  color: "primary.main",
+                  fontSize: 32,
+                  animation: `${pulse} 1.5s infinite`,
+                  // transform: "rotate(90deg)",
+                  marginRight: 2,
+                }}
+              />
+            )}
+            <Button
+              onClick={() => saveUrl()}
+              variant="contained"
+              disabled={ingestStatus !== null || !url.trim()}
+            >
+              Save
+            </Button>
+          </div>
         </DialogActions>
       </Dialog>
 

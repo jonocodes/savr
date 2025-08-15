@@ -492,7 +492,7 @@ export default function PreferencesScreen() {
               />
             </ListItem>
 
-            <ListItem>
+            <ListItem onClick={() => navigate({ to: "/diagnostics" })} sx={{ cursor: "pointer" }}>
               <ListItemIcon>
                 <StorageIcon />
               </ListItemIcon>

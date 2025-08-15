@@ -1,21 +1,40 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAfterExternalSaveFromCookie, AFTER_EXTERNAL_SAVE_ACTIONS } from "~/utils/cookies";
+import * as React from "react";
 
 export const Route = createFileRoute("/share-handler")({
   component: ShareHandler,
 });
 
 function ShareHandler() {
+  const navigate = useNavigate();
+
   // Get URL parameters from the share intent
   const urlParams = new URLSearchParams(window.location.search);
   const sharedUrl = urlParams.get("url");
   const sharedText = urlParams.get("text") || urlParams.get("content");
 
+  // Auto-redirect after 2 seconds using proper React navigation
+  React.useEffect(() => {
+    if (sharedUrl) {
+      const timer = setTimeout(() => {
+        navigate({ to: "/", search: { saveUrl: sharedUrl, autoSubmit: "true" } });
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    } else {
+      // If no URL, redirect to home
+      const timer = setTimeout(() => {
+        navigate({ to: "/" });
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [sharedUrl, navigate]);
+
   // Show a brief debug message before redirecting
   if (sharedUrl) {
     const afterExternalSave = getAfterExternalSaveFromCookie();
-
-    let redirectUrl = "/?saveUrl=" + encodeURIComponent(sharedUrl);
 
     return (
       <div
@@ -37,15 +56,6 @@ function ShareHandler() {
               : "Close tab"}
         </p>
         <p>Redirecting in 2 seconds...</p>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-            setTimeout(() => {
-              window.location.href = "${redirectUrl}";
-            }, 2000);
-          `,
-          }}
-        />
       </div>
     );
   }
@@ -61,15 +71,6 @@ function ShareHandler() {
     >
       <h3>No URL found</h3>
       <p>Redirecting to home...</p>
-      <script
-        dangerouslySetInnerHTML={{
-          __html: `
-          setTimeout(() => {
-            window.location.href = "/";
-          }, 2000);
-        `,
-        }}
-      />
     </div>
   );
 }

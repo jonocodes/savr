@@ -4,6 +4,12 @@ Savr is an app for saving online content to read later. It is [file-centric, off
 
 When reading an article in a browser, share it to Savr. Then open Savr later to read it. For the most part, Savr is a free, hosted or self hosted, progressive web app. You can also install it on your phone for offline use.
 
+Savr is:
+
+- ["0data", since it does not store your data](https://0data.app/). You do.
+- ["unhosted", since it is a static site](https://unhosted.org/) with no backend.
+- ["local first", since it works offline](https://lofi.so/).
+
 # Features
 
 - Save articles for reading later
@@ -143,15 +149,11 @@ Of course you wont be able to modify your collection when the app is not running
 
 ## Why another read-it-later app?
 
-TODO: refer to https://0data.app/, https://unhosted.org/ and https://lofi.so/ apps, as concepts.
-
 I consider myself a self-hosting enthusiast, who does not like to self-host :smile:. I love open source and open formats, but I don't think every single purpose app should require a custom backend for it.
 
-After using Pocket for 10+ years I decided it was time to take control of my own content collection. But why does Pocket need a special backend? Yes, it helps scrape the articles, but for the most part its just an API that handles authorization and storing content. Moving the scraping into the mobile app makes the backend no longer necessary.
+After using Pocket for 10+ years I decided it was time to take control of my own content collection. But why does Pocket need a special backend? Yes, it helps scrape the articles, but for the most part its just an API that handles authorization and storing arbitrary content. Moving the scraping into the client app makes the backend no longer necessary.
 
 Good examples of apps that work well with filesystems and open data formats are [Obsidian](https://obsidian.md/) (for notes) and [Keepass](https://keepass.info/) (for passwords). You can run them on mobile, or desktop. All the functionality is in the app and a server is not required.
-
-Of course you can bring in a sync service if you want, but its up to you how you want to store things. Syncing would happen outside the app, which adds flexibility. My preference is to use Syncthing which provides a decentralized solution to sync data across my devices/machines.
 
 Generally, **I would like more apps that exist in this space**. Like:
 calendar, contacts, [bookmark manager](https://github.com/sissbruecker/linkding), [inventory](https://inventree.org/), [physical document management](https://docs.paperless-ngx.com/), and yes - another todo app.
@@ -160,7 +162,7 @@ calendar, contacts, [bookmark manager](https://github.com/sissbruecker/linkding)
 
 There are some great projects like [Wallabag](https://wallabag.org/) and [Omnivore](https://github.com/omnivore-app/omnivore), but they require centralized hosting. Doing away with the server lets you not have to worry about:
 
-- security
+- storage
 - certificates
 - passwords
 - redundancy
@@ -168,7 +170,7 @@ There are some great projects like [Wallabag](https://wallabag.org/) and [Omnivo
 - firewalls
 - DNS
 - authorization
-- all the other things that come with system administration
+- many of the other things that come with system administration
 
 ## What is CORS
 

@@ -279,7 +279,7 @@ async function deleteArticleStorage(articleSlug: string): Promise<{
   const errors: string[] = [];
 
   try {
-    // Delete from IndexedDB
+    // Delete from IndexedDB database
     try {
       await db.articles.where("slug").equals(articleSlug).delete();
       console.log(`Deleted article ${articleSlug} from IndexedDB`);
