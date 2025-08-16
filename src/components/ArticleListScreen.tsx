@@ -249,10 +249,10 @@ export default function ArticleListScreen() {
   useEffect(() => {
     if (articles && !hasShownInitialLoad.current) {
       console.log(`Articles loaded: ${articles.length} total articles`);
-      enqueueSnackbar(`Loaded ${articles.length} articles`, {
-        variant: "info",
-        autoHideDuration: 2000,
-      });
+      // enqueueSnackbar(`Loaded ${articles.length} articles`, {
+      //   variant: "info",
+      //   autoHideDuration: 2000,
+      // });
       hasShownInitialLoad.current = true;
     }
   }, [articles]);

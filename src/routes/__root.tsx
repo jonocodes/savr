@@ -27,7 +27,7 @@ function UrlPatternMatcher() {
     const pathname = window.location.pathname;
 
     // Check if the pathname starts with /http or /https
-    if (pathname.startsWith("/http:") || pathname.startsWith("/https:")) {
+    if (pathname.startsWith("/http") || pathname.startsWith("/https")) {
       // Extract the URL part (remove the leading slash)
       const urlPart = pathname.substring(1);
       setUrl(urlPart);
@@ -39,70 +39,70 @@ function UrlPatternMatcher() {
     if (url) {
       const timer = setTimeout(() => {
         navigate({ to: "/", search: { saveUrl: url, autoSubmit: "true" } });
-      }, 0);
+      }, 3000);
 
       return () => clearTimeout(timer);
     }
   }, [url, navigate]);
 
   // If we found a URL pattern, show the URL capture page
-  // if (url) {
-  //   const redirectUrl = "/?saveUrl=" + encodeURIComponent(url);
+  if (url) {
+    const redirectUrl = "/?saveUrl=" + encodeURIComponent(url);
 
-  //   return (
-  //     <div style={{ minHeight: "100vh", backgroundColor: "background.default", padding: "2rem" }}>
-  //       <div style={{ maxWidth: "800px", margin: "0 auto" }}>
-  //         <h1>URL Captured</h1>
-  //         <h2>URL = {url}</h2>
-  //         <p>
-  //           This route captured the URL: <strong>{url}</strong>
-  //         </p>
-  //         <p>
-  //           <strong>Redirect URL:</strong> {redirectUrl}
-  //         </p>
-  //         <p>Click the link below to save this URL:</p>
-  //         <a
-  //           href={redirectUrl}
-  //           style={{
-  //             display: "inline-block",
-  //             padding: "12px 24px",
-  //             backgroundColor: "#1976d2",
-  //             color: "white",
-  //             textDecoration: "none",
-  //             borderRadius: "4px",
-  //             marginTop: "1rem",
-  //           }}
-  //         >
-  //           Save URL
-  //         </a>
-  //         <div
-  //           style={{
-  //             marginTop: "2rem",
-  //             padding: "1rem",
-  //             backgroundColor: "#f5f5f5",
-  //             borderRadius: "4px",
-  //           }}
-  //         >
-  //           <pre style={{ wordBreak: "break-all", whiteSpace: "pre-wrap" }}>
-  //             {JSON.stringify(
-  //               {
-  //                 url: url,
-  //                 pathname: window.location.pathname,
-  //                 fullUrl: window.location.href,
-  //                 redirectUrl: redirectUrl,
-  //               },
-  //               null,
-  //               2
-  //             )}
-  //           </pre>
-  //         </div>
-  //         <p style={{ marginTop: "2rem", textAlign: "center", color: "text.secondary" }}>
-  //           Redirecting to home page in 3 seconds...
-  //         </p>
-  //       </div>
-  //     </div>
-  //   );
-  // }
+    return (
+      <div style={{ minHeight: "100vh", backgroundColor: "background.default", padding: "2rem" }}>
+        <div style={{ maxWidth: "800px", margin: "0 auto" }}>
+          <h1>URL Captured</h1>
+          <h2>URL = {url}</h2>
+          <p>
+            This route captured the URL: <strong>{url}</strong>
+          </p>
+          <p>
+            <strong>Redirect URL:</strong> {redirectUrl}
+          </p>
+          <p>Click the link below to save this URL:</p>
+          <a
+            href={redirectUrl}
+            style={{
+              display: "inline-block",
+              padding: "12px 24px",
+              backgroundColor: "#1976d2",
+              color: "white",
+              textDecoration: "none",
+              borderRadius: "4px",
+              marginTop: "1rem",
+            }}
+          >
+            Save URL
+          </a>
+          <div
+            style={{
+              marginTop: "2rem",
+              padding: "1rem",
+              backgroundColor: "#f5f5f5",
+              borderRadius: "4px",
+            }}
+          >
+            <pre style={{ wordBreak: "break-all", whiteSpace: "pre-wrap" }}>
+              {JSON.stringify(
+                {
+                  url: url,
+                  pathname: window.location.pathname,
+                  fullUrl: window.location.href,
+                  redirectUrl: redirectUrl,
+                },
+                null,
+                2
+              )}
+            </pre>
+          </div>
+          <p style={{ marginTop: "2rem", textAlign: "center", color: "text.secondary" }}>
+            Redirecting to home page in 3 seconds...
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   // Otherwise, show the normal NotFound component
   return <NotFound />;

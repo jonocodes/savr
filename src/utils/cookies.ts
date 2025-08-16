@@ -177,7 +177,7 @@ export const toggleTheme = (): ThemeMode => {
 
 // Get header hiding preference from cookie
 export const getHeaderHidingFromCookie = (): boolean => {
-  if (typeof document === "undefined") return true; // Default to enabled
+  if (typeof document === "undefined") return false;
 
   const cookies = document.cookie.split(";");
   const headerHidingCookie = cookies.find((cookie) =>
@@ -189,7 +189,7 @@ export const getHeaderHidingFromCookie = (): boolean => {
     return value === "true";
   }
 
-  return true; // Default to enabled
+  return false;
 };
 
 // Set header hiding preference in cookie

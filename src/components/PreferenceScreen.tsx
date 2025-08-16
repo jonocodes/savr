@@ -69,7 +69,7 @@ export default function PreferencesScreen() {
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
-  const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(true);
+  const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
   );
@@ -450,7 +450,7 @@ export default function PreferencesScreen() {
               </ListItemIcon>
               <ListItemText
                 primary="Auto-hide header while reading"
-                secondary="Automatically hide the header when scrolling down in articles"
+                secondary="Automatically hide the header when scrolling down in articles (experimental)"
               />
               <Switch
                 edge="end"
