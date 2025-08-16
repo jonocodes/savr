@@ -12,12 +12,15 @@ function ShareHandler() {
   // Get URL parameters from the share intent
   const urlParams = new URLSearchParams(window.location.search);
 
-  alert("ShareHandler window.location.href: " + window.location.href);
-  alert("ShareHandler window.location.search: " + window.location.search);
-  alert("ShareHandler urlParams: " + JSON.stringify(urlParams));
+  // alert("ShareHandler window.location.href: " + window.location.href);
+  // alert("ShareHandler window.location.search: " + window.location.search);
+  // alert("ShareHandler urlParams: " + JSON.stringify(urlParams));
 
-  const sharedUrl = urlParams.get("url");
-  const sharedText = urlParams.get("text") || urlParams.get("content");
+  const sharedUrl = urlParams.get("url") || urlParams.get("content") || urlParams.get("text");
+
+  for (const [key, value] of urlParams.entries()) {
+    console.log(`param ${key}: ${value}`);
+  }
 
   // Auto-redirect after 2 seconds using proper React navigation
   React.useEffect(() => {
@@ -38,34 +41,9 @@ function ShareHandler() {
   }, [sharedUrl, navigate]);
 
   // Show a brief debug message before redirecting
-  if (sharedUrl) {
-    const afterExternalSave = getAfterExternalSaveFromCookie();
+  // if (sharedUrl) {
+  const afterExternalSave = getAfterExternalSaveFromCookie();
 
-    return (
-      <div
-        style={{
-          padding: "20px",
-          textAlign: "center",
-          fontFamily: "Arial, sans-serif",
-        }}
-      >
-        <h3>Processing shared URL...</h3>
-        <p>URL: {sharedUrl}</p>
-        <p>Current page: {window.location.href}</p>
-        <p>
-          After save action:{" "}
-          {afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE
-            ? "Show article content"
-            : afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
-              ? "Show article list"
-              : "Close tab"}
-        </p>
-        <p>Redirecting in 2 seconds...</p>
-      </div>
-    );
-  }
-
-  // If no URL, show message and redirect
   return (
     <div
       style={{
@@ -74,8 +52,35 @@ function ShareHandler() {
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <h3>No URL found</h3>
-      <p>Redirecting to home...</p>
+      <h3>Processing shared URL...</h3>
+      <p>URL: {sharedUrl}</p>
+      <p>Current page: {window.location.href}</p>
+      <p>window.location.search: {window.location.search}</p>
+      <p>urlParams: {JSON.stringify(urlParams)}</p>
+      <p>
+        After save action:{" "}
+        {afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE
+          ? "Show article content"
+          : afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
+            ? "Show article list"
+            : "Close tab"}
+      </p>
+      <p>Redirecting in 2 seconds...</p>
     </div>
   );
+  // }
+
+  // If no URL, show message and redirect
+  // return (
+  //   <div
+  //     style={{
+  //       padding: "20px",
+  //       textAlign: "center",
+  //       fontFamily: "Arial, sans-serif",
+  //     }}
+  //   >
+  //     <h3>No URL found</h3>
+  //     <p>Redirecting to home...</p>
+  //   </div>
+  // );
 }
