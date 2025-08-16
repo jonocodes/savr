@@ -12,6 +12,8 @@ function ShareHandler() {
   // Get URL parameters from the share intent
   const urlParams = new URLSearchParams(window.location.search);
 
+  alert("ShareHandler window.location.href: " + window.location.href);
+  alert("ShareHandler window.location.search: " + window.location.search);
   alert("ShareHandler urlParams: " + JSON.stringify(urlParams));
 
   const sharedUrl = urlParams.get("url");
