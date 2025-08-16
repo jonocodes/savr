@@ -77,10 +77,20 @@ export default defineConfig({
           action: "/share-handler",
           method: "GET",
           params: {
-            text: "content",
+            text: "text",
             url: "url",
+            title: "title",
           },
+          enctype: "application/x-www-form-urlencoded",
         },
+        // "share_target": {
+        //   "action": "/bookmark",
+        //   "method": "POST",
+        //   "enctype": "multipart/form-data",
+        //   "params": {
+        //     "url": "link"
+        //   }
+        // }
       },
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,webp}"],

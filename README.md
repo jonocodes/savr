@@ -192,6 +192,8 @@ While Savr provides a default proxy, you can configure your own CORS proxy serve
 
 You can learn more about CORS on [Wikipedia](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing).
 
+If you need to setup a simple free CORS proxy, [follow these instructions](https://gist.github.com/DankTechnologies/8dd399de6a588085eea26517048b7366).
+
 ## What is a PWA
 
 A PWA (Progressive Web App) is a web application that can be installed on your device like a native app. PWAs work offline, can send notifications, and provide an app-like experience while running in your browser. You can "install" them from your browser's menu, and they'll appear in your app launcher alongside other apps.
