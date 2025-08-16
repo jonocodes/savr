@@ -12,7 +12,7 @@
     "build": "VITE_BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ) vite build && tsc --noEmit",
     "build:dev": "VITE_APP_MODE=development VITE_BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ) vite build && tsc --noEmit",
     "build:prod": "VITE_APP_MODE=production VITE_BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ) vite build && tsc --noEmit",
-    "start:prod": "npx ws -d dist",
+    "start:prod": "npx vite preview --port 8000 --host",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build",
     "demo-server": "npx ws --cors.origin '*' -d ~/sync/more/savr_demo_sites/"

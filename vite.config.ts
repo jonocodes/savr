@@ -12,9 +12,22 @@ export default defineConfig({
       input: {
         main: "index.html",
       },
+      output: {
+        assetFileNames: (assetInfo) => {
+          if (assetInfo.name?.endsWith(".js")) {
+            return "js/[name]-[hash][extname]";
+          }
+          if (assetInfo.name?.endsWith(".css")) {
+            return "css/[name]-[hash][extname]";
+          }
+          return "assets/[name]-[hash][extname]";
+        },
+        chunkFileNames: "js/[name]-[hash].js",
+        entryFileNames: "js/[name]-[hash].js",
+      },
     },
   },
-  base: "",
+  base: "/", // its a bummer I have to use a non-relative base path, but I need to do this to support the url path param in production
   server: {
     host: "0.0.0.0",
     port: 3000,
