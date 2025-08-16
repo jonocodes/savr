@@ -128,6 +128,22 @@ function RootComponent() {
   // Listen for system theme changes
   useSystemThemeListener();
 
+  // Dynamic favicon based on environment
+  React.useEffect(() => {
+    const isDev = import.meta.env.DEV; // TODO: should probably use environmentConfig.isDevelopment instead
+    const favicon = document.querySelector('link[rel="icon"]') as HTMLLinkElement;
+
+    if (favicon) {
+      if (isDev) {
+        favicon.href = "/dev/favicon.ico";
+        favicon.type = "image/x-icon";
+      } else {
+        favicon.href = "/favicon.ico";
+        favicon.type = "image/x-icon";
+      }
+    }
+  }, []);
+
   const appTheme = React.useMemo(() => {
     const effectiveTheme = getEffectiveTheme(currentTheme);
     return createAppTheme(effectiveTheme);

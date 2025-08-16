@@ -79,6 +79,12 @@ The bookmarklet is the recommended way to save when using a desktop browser. Onc
 
 You should also be able to use the bookmarklet in your mobile web browser if you want.
 
+## In browser
+
+Append the savr url to the front of the url you want to save. For example:
+
+`savr.link/https://github.com/jonocodes/savr/wiki/Welcome-to-Savr`
+
 ## Android (share to)
 
 If you have "installed" the mobile app, you can send articles to it. Once you visit an article in a mobile browser you can use the browsers "share" button to send it to your installed Savr app.
@@ -117,11 +123,15 @@ Basic features have been implemented, but I would consider this in a beta stage.
 
 This is a front end react app. Run like so:
 
-> npm install
->
-> npm run dev
+> npm install && npm run dev
 
 Then visit https://localhost:3000
+
+If you want to test PWA/production then do
+
+> npm run build:prod && npm run start:prod
+
+Also note that if you host this on a static server, it should support SPA routing and you should serve this app from the root. This is needed to handle dealing with the single path parameter as a URL.
 
 # Security
 
