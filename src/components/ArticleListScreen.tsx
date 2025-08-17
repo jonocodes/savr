@@ -45,12 +45,11 @@ import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
-import { shouldEnableSampleUrls } from "~/config/environment";
+import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 
-import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import { keyframes } from "@mui/system";
 
 const sampleArticleUrls = [
@@ -457,7 +456,7 @@ export default function ArticleListScreen() {
           <IconButton
             onClick={() => {
               setDialogVisible(true);
-              if (shouldEnableSampleUrls()) {
+              if (isDebugMode()) {
                 setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
               }
             }}
@@ -533,7 +532,7 @@ export default function ArticleListScreen() {
                 type="submit"
                 onClick={() => {
                   setDialogVisible(true);
-                  if (shouldEnableSampleUrls()) {
+                  if (isDebugMode()) {
                     setUrl(sampleArticleUrls[Math.floor(Math.random() * sampleArticleUrls.length)]);
                   }
                 }}

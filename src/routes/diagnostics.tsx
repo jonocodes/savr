@@ -16,6 +16,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
+import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import React from "react";
 
 export const Route = createFileRoute("/diagnostics")({
@@ -333,6 +334,46 @@ function DiagnosticsPage() {
                     name: db.name,
                     version: db.version,
                     tables: Object.keys(db),
+                  },
+                },
+                null,
+                2
+              )}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Build-Time Environment Configuration
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              These values were baked into the build at build time (static hosting)
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {JSON.stringify(
+                {
+                  buildInfo: {
+                    timestamp: BUILD_TIMESTAMP,
+                    mode: import.meta.env.MODE,
+                    isDebug: environmentConfig.isDebugMode,
+                  },
+                  buildTimeEnvVars: {
+                    VITE_DEBUG: import.meta.env.VITE_DEBUG || "undefined",
+                    VITE_BUILD_TIMESTAMP: import.meta.env.VITE_BUILD_TIMESTAMP || "undefined",
+                    // VITE_GOOGLE_DRIVE_API_KEY: import.meta.env.VITE_GOOGLE_DRIVE_API_KEY
+                    //   ? "***SET***"
+                    //   : "***NOT SET***",
+                    // VITE_DROPBOX_API_KEY: import.meta.env.VITE_DROPBOX_API_KEY
+                    //   ? "***SET***"
+                    //   : "***NOT SET***",
+                  },
+                  runtimeEnvironment: {
+                    isDebugMode: environmentConfig.isDebugMode,
+                    defaultCorsProxy: environmentConfig.defaultCorsProxy,
+                    apiKeysConfigured: {
+                      googleDrive: !!environmentConfig.apiKeys.googleDrive,
+                      dropbox: !!environmentConfig.apiKeys.dropbox,
+                    },
                   },
                 },
                 null,

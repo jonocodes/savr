@@ -1,8 +1,6 @@
 // Environment configuration for different deployment modes
 export interface EnvironmentConfig {
-  isDevelopment: boolean;
-  isProduction: boolean;
-  enableSampleUrls: boolean;
+  isDebugMode: boolean;
   defaultCorsProxy: string;
   apiKeys: {
     googleDrive?: string;
@@ -28,9 +26,10 @@ const getEnvironmentMode = (): "development" | "production" => {
 
 // Create environment configuration
 export const environmentConfig: EnvironmentConfig = {
-  isDevelopment: getEnvironmentMode() === "development",
-  isProduction: getEnvironmentMode() === "production",
-  enableSampleUrls: getEnvironmentMode() === "development",
+  isDebugMode: (() => {
+    const debugValue = getEnvVar("VITE_DEBUG", "true") || "true";
+    return debugValue.toLowerCase() === "true" || debugValue === "1";
+  })(),
   defaultCorsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
   apiKeys: {
     googleDrive: getEnvVar(
@@ -45,7 +44,5 @@ export const environmentConfig: EnvironmentConfig = {
 export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
 
 // Helper functions
-export const isDevelopment = () => environmentConfig.isDevelopment;
-export const isProduction = () => environmentConfig.isProduction;
-export const shouldEnableSampleUrls = () => environmentConfig.enableSampleUrls;
+export const isDebugMode = () => environmentConfig.isDebugMode;
 export const getDefaultCorsProxy = () => environmentConfig.defaultCorsProxy;

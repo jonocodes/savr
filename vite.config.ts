@@ -6,7 +6,13 @@ import basicSsl from "@vitejs/plugin-basic-ssl";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
-  const isDev = mode === "development";
+  // Use DEBUG environment variable for feature flags
+  const isDebug = (() => {
+    const debugValue = process.env.VITE_DEBUG || "true";
+    return debugValue.toLowerCase() === "true" || debugValue === "1";
+  })();
+  const devTitle = "Savr DEV - Save Articles for Reading";
+  const prodTitle = "Savr - Save Articles for Reading";
 
   return {
     build: {
@@ -57,17 +63,19 @@ export default defineConfig(({ mode }) => {
           });
         },
       },
-      // Dynamic favicon plugin
+      // Dynamic favicon and title plugin
       {
-        name: "dynamic-favicon",
+        name: "dynamic-favicon-and-title",
         transformIndexHtml(html) {
           const devIcon = "/dev/favicon.ico"; // Development icon
           const prodIcon = "/favicon.ico"; // Production icon
 
-          return html.replace(
-            /<link rel="icon"[^>]*>/,
-            `<link rel="icon" type="image/svg+xml" href="${isDev ? devIcon : prodIcon}" />`
-          );
+          return html
+            .replace(
+              /<link rel="icon"[^>]*>/,
+              `<link rel="icon" type="image/svg+xml" href="${isDebug ? devIcon : prodIcon}" />`
+            )
+            .replace(/<title>.*?<\/title>/, `<title>${isDebug ? devTitle : prodTitle}</title>`);
         },
       },
       tsConfigPaths({
@@ -75,12 +83,12 @@ export default defineConfig(({ mode }) => {
       }),
       VitePWA({
         registerType: "autoUpdate",
-        includeAssets: isDev
+        includeAssets: isDebug
           ? ["dev/favicon.ico", "dev/apple-touch-icon.png", "dev/favicon.png", "dev/icon.png"]
           : ["favicon.ico", "apple-touch-icon.png", "favicon.png", "icon.png"],
         manifest: {
-          name: isDev ? "Savr DEV - Save Articles for Reading" : "Savr - Save Articles for Reading",
-          short_name: isDev ? "Savr DEV" : "Savr",
+          name: isDebug ? devTitle : prodTitle,
+          short_name: isDebug ? "Savr DEV" : "Savr",
           description: "Save and read articles offline with a clean, distraction-free interface",
           start_url: "/",
           display: "standalone",
@@ -90,7 +98,7 @@ export default defineConfig(({ mode }) => {
           scope: "/",
           lang: "en",
           categories: ["productivity", "utilities"],
-          icons: isDev
+          icons: isDebug
             ? [
                 {
                   src: "/dev/icon.png",
