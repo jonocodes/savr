@@ -141,6 +141,7 @@ async function buildDbFromFiles(client: BaseClient) {
       // If file.data is already an object, use it directly as the article
       if (typeof file.data === "object") {
         // for some reason this only happens with dropbox storage?
+        // https://github.com/remotestorage/remotestorage.js/issues/1343
         articles.push(file.data as Article);
       } else {
         const article: Article = JSON.parse(file.data);
