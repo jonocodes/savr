@@ -35,6 +35,13 @@ function DiagnosticsPage() {
     }>
   >([]);
   const [isScanningDangling, setIsScanningDangling] = React.useState(false);
+  const [orphanedArticles, setOrphanedArticles] = React.useState<
+    Array<{
+      article: any;
+      reason: string;
+    }>
+  >([]);
+  const [isScanningOrphaned, setIsScanningOrphaned] = React.useState(false);
 
   const { client: remoteStorageClient } = useRemoteStorage();
 
@@ -43,20 +50,37 @@ function DiagnosticsPage() {
     if (articles) {
       const calculateSizes = async () => {
         const sizes: Record<string, number> = {};
+        setStorageSizes(sizes); // Initialize with empty object
+
         for (const article of articles) {
           try {
             const sizeInfo = await calculateArticleStorageSize(article.slug);
-            sizes[article.slug] = sizeInfo.totalSize;
+            const newSize = sizeInfo.totalSize;
+            sizes[article.slug] = newSize;
+
+            // Update the state immediately for each completed calculation
+            setStorageSizes((prevSizes) => ({
+              ...prevSizes,
+              [article.slug]: newSize,
+            }));
+
+            console.log(`Calculated size for ${article.slug}:`, newSize);
           } catch (error) {
             console.error(`Failed to calculate size for ${article.slug}:`, error);
-            sizes[article.slug] = 0;
+            const errorSize = 0;
+            sizes[article.slug] = errorSize;
+
+            // Update state immediately even for errors
+            setStorageSizes((prevSizes) => ({
+              ...prevSizes,
+              [article.slug]: errorSize,
+            }));
           }
         }
-        setStorageSizes(sizes);
       };
       calculateSizes();
     }
-  }, [articles]);
+  }, [articles?.length]);
 
   // Scan for dangling remote storage items
   const scanDanglingItems = React.useCallback(async () => {
@@ -114,13 +138,108 @@ function DiagnosticsPage() {
     } finally {
       setIsScanningDangling(false);
     }
-  }, [remoteStorageClient, articles]);
+  }, [remoteStorageClient, articles?.length]);
+
+  // Scan for articles in database that don't have corresponding remote storage directories
+  const scanOrphanedArticles = React.useCallback(async () => {
+    if (!remoteStorageClient || !articles) {
+      console.log("scanOrphanedArticles: Missing requirements", {
+        hasClient: !!remoteStorageClient,
+        hasArticles: !!articles,
+        articlesLength: articles?.length,
+      });
+      return;
+    }
+
+    console.log("scanOrphanedArticles: Starting scan", {
+      articlesCount: articles.length,
+      clientAvailable: !!remoteStorageClient,
+    });
+
+    setIsScanningOrphaned(true);
+    try {
+      const orphaned: Array<{
+        article: any;
+        reason: string;
+      }> = [];
+
+      // Get all remote storage directories
+      const allDirectories: string[] = [];
+      const getListingRecursive = async (path: string = ""): Promise<void> => {
+        try {
+          console.log("scanOrphanedArticles: Getting listing for path:", path);
+          const listing = await remoteStorageClient.getListing(path);
+          console.log("scanOrphanedArticles: Got listing for", path, listing);
+
+          for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+            const fullPath = path + name;
+            if (name.endsWith("/")) {
+              allDirectories.push(fullPath);
+              console.log("scanOrphanedArticles: Added directory:", fullPath);
+              await getListingRecursive(fullPath);
+            }
+          }
+        } catch (error) {
+          console.error(`scanOrphanedArticles: Failed to get listing for ${path}:`, error);
+        }
+      };
+
+      await getListingRecursive();
+      console.log("scanOrphanedArticles: All directories found:", allDirectories);
+
+      // Check each article for missing remote storage directory
+      for (const article of articles) {
+        const expectedDir = `saves/${article.slug}/`;
+        const hasDirectory = allDirectories.includes(expectedDir);
+
+        console.log("scanOrphanedArticles: Checking article", {
+          slug: article.slug,
+          expectedDir,
+          hasDirectory,
+          allDirectories: allDirectories.filter((d) => d.startsWith("saves/")),
+        });
+
+        if (!hasDirectory) {
+          orphaned.push({
+            article,
+            reason: "Missing remote storage directory",
+          });
+          console.log("scanOrphanedArticles: Found orphaned article:", article.slug);
+        }
+      }
+
+      console.log("scanOrphanedArticles: Scan complete", {
+        totalArticles: articles.length,
+        totalDirectories: allDirectories.length,
+        orphanedCount: orphaned.length,
+        orphaned: orphaned.map((o) => o.article.slug),
+      });
+
+      setOrphanedArticles(orphaned);
+    } catch (error) {
+      console.error("scanOrphanedArticles: Failed to scan orphaned articles:", error);
+      setOrphanedArticles([]);
+    } finally {
+      setIsScanningOrphaned(false);
+    }
+  }, [remoteStorageClient, articles?.length]);
 
   React.useEffect(() => {
     if (remoteStorageClient && articles) {
+      console.log("Diagnostics useEffect: Starting scans", {
+        hasClient: !!remoteStorageClient,
+        articlesCount: articles.length,
+      });
       scanDanglingItems();
+      scanOrphanedArticles();
+    } else {
+      console.log("Diagnostics useEffect: Missing requirements", {
+        hasClient: !!remoteStorageClient,
+        hasArticles: !!articles,
+        articlesLength: articles?.length,
+      });
     }
-  }, [remoteStorageClient, articles, scanDanglingItems]);
+  }, [remoteStorageClient, articles?.length]);
 
   if (!articles) {
     return (
@@ -141,7 +260,7 @@ function DiagnosticsPage() {
 
   const totalStorageSize = Object.values(storageSizes).reduce((sum, size) => sum + size, 0);
   const averageStorageSize =
-    articles.length > 0 ? Math.round(totalStorageSize / articles.length) : 0;
+    articles!.length > 0 ? Math.round(totalStorageSize / articles!.length) : 0;
 
   const getTypeColor = (type: string) => {
     switch (type) {
@@ -303,6 +422,76 @@ function DiagnosticsPage() {
             </Box>
           )}
 
+          <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
+            Orphaned Database Articles ({orphanedArticles.length})
+            {isScanningOrphaned && (
+              <Chip label="Scanning..." size="small" color="info" sx={{ ml: 2 }} />
+            )}
+          </Typography>
+
+          {orphanedArticles.length > 0 ? (
+            <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>
+                      <strong>Title</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Slug</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>URL</strong>
+                    </TableCell>
+                    <TableCell>
+                      <strong>Reason</strong>
+                    </TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {orphanedArticles.map((item, index) => (
+                    <TableRow key={index}>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-word" }}>
+                          {item.article.title || "No title"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                          {item.article.slug}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-all" }}>
+                          {item.article.url || "No URL"}
+                        </Typography>
+                      </TableCell>
+                      <TableCell>
+                        <Chip label={item.reason} color="warning" size="small" />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          ) : (
+            <Box
+              sx={{
+                mt: 2,
+                p: 3,
+                backgroundColor: "grey.100",
+                borderRadius: 1,
+                textAlign: "center",
+              }}
+            >
+              <Typography variant="body1" color="text.secondary">
+                {isScanningOrphaned
+                  ? "Scanning database for orphaned articles..."
+                  : "No orphaned articles found in database."}
+              </Typography>
+            </Box>
+          )}
+
           {articles.length === 0 && (
             <Box
               sx={{
@@ -330,6 +519,7 @@ function DiagnosticsPage() {
                   totalStorageSize,
                   averageStorageSize,
                   danglingItemsCount: danglingItems.length,
+                  orphanedArticlesCount: orphanedArticles.length,
                   databaseInfo: {
                     name: db.name,
                     version: db.version,
@@ -375,6 +565,71 @@ function DiagnosticsPage() {
                       dropbox: !!environmentConfig.apiKeys.dropbox,
                     },
                   },
+                },
+                null,
+                2
+              )}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Page Information & Cookies
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Current page details and all stored cookies
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {JSON.stringify(
+                {
+                  pageInfo: {
+                    absoluteUrl: window.location.href,
+                    protocol: window.location.protocol,
+                    host: window.location.host,
+                    pathname: window.location.pathname,
+                    search: window.location.search,
+                    hash: window.location.hash,
+                    userAgent: navigator.userAgent,
+                    language: navigator.language,
+                    cookieEnabled: navigator.cookieEnabled,
+                    isPWA: (() => {
+                      return (
+                        window.matchMedia("(display-mode: standalone)").matches ||
+                        (window.navigator as any).standalone === true ||
+                        document.referrer.includes("android-app://")
+                      );
+                    })(),
+                  },
+                  cookies: (() => {
+                    const cookies: Record<string, string> = {};
+                    document.cookie.split(";").forEach((cookie) => {
+                      const [name, value] = cookie.trim().split("=");
+                      if (name && value) {
+                        cookies[name] = decodeURIComponent(value);
+                      }
+                    });
+                    return cookies;
+                  })(),
+                  localStorage: (() => {
+                    const items: Record<string, string> = {};
+                    for (let i = 0; i < localStorage.length; i++) {
+                      const key = localStorage.key(i);
+                      if (key) {
+                        items[key] = localStorage.getItem(key) || "";
+                      }
+                    }
+                    return items;
+                  })(),
+                  sessionStorage: (() => {
+                    const items: Record<string, string> = {};
+                    for (let i = 0; i < sessionStorage.length; i++) {
+                      const key = sessionStorage.key(i);
+                      if (key) {
+                        items[key] = sessionStorage.getItem(key) || "";
+                      }
+                    }
+                    return items;
+                  })(),
                 },
                 null,
                 2

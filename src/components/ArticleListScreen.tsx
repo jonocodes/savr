@@ -559,6 +559,7 @@ export default function ArticleListScreen() {
             fullWidth
             margin="normal"
             autoFocus
+            disabled={ingestStatus !== null}
             onKeyDown={(e) => {
               if (e.key === "Enter" && url.trim() && ingestStatus === null) {
                 e.preventDefault();

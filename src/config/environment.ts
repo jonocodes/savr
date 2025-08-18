@@ -18,12 +18,6 @@ const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
   return process.env[key] || defaultValue;
 };
 
-// Determine environment mode
-const getEnvironmentMode = (): "development" | "production" => {
-  const mode = getEnvVar("VITE_APP_MODE", "development");
-  return mode === "production" ? "production" : "development";
-};
-
 // Create environment configuration
 export const environmentConfig: EnvironmentConfig = {
   isDebugMode: (() => {

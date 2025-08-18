@@ -5,6 +5,7 @@ import { db } from "./db";
 import { Article } from "../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
+import { DefaultGlobalNotFound } from "@tanstack/react-router";
 
 // declare global {
 //   interface Window {
@@ -30,25 +31,84 @@ function init() {
 let remotePrms;
 
 async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
-  const listing = await client.getListing(path);
-
-  let files: string[] = [];
-  for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
-    // Type assertion here
-    if (name.endsWith("/")) {
-      // Recursively list subfolder
-      const subFiles = await recursiveList(client, path + name);
-      files = files.concat(subFiles);
-    } else {
-      files.push(path + name);
+  try {
+    // Defensive checks
+    if (!client) {
+      console.error("recursiveList: No client provided");
+      return [];
     }
+
+    if (typeof path !== "string") {
+      console.error("recursiveList: Invalid path type", { path, type: typeof path });
+      return [];
+    }
+
+    // Ensure path is properly formatted
+    const safePath = path || "";
+    // console.log("recursiveList: Getting listing for path:", safePath, "type:", typeof safePath);
+
+    const listing = await client.getListing(safePath);
+    // console.log("recursiveList: Got listing for", safePath, listing);
+
+    let files: string[] = [];
+    for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+      // console.log("recursiveList: Processing item", { name, isFolder, path: safePath });
+      // Type assertion here
+      if (name.endsWith("/")) {
+        // Recursively list subfolder
+        // console.log("recursiveList: Recursing into subfolder:", safePath + name);
+        const subFiles = await recursiveList(client, safePath + name);
+        // console.log("recursiveList: Got subfiles for", safePath + name, subFiles);
+        files = files.concat(subFiles);
+      } else {
+        // console.log("recursiveList: Adding file:", safePath + name);
+        files.push(safePath + name);
+      }
+    }
+    // console.log("recursiveList: Returning files for", safePath, files);
+    return files;
+  } catch (error) {
+    console.error("recursiveList: Failed to get listing for", path, error);
+    debugger;
+    return [];
   }
-  return files;
 }
 
 async function glob(client: BaseClient, pattern: string, basePath = ""): Promise<string[]> {
-  const allFiles = await recursiveList(client, basePath);
-  return allFiles.filter((filePath: string) => minimatch(filePath, pattern));
+  try {
+    // Defensive checks
+    if (!client) {
+      console.error("glob: No client provided");
+      return [];
+    }
+
+    if (typeof pattern !== "string") {
+      console.error("glob: Invalid pattern type", { pattern, type: typeof pattern });
+      return [];
+    }
+
+    if (typeof basePath !== "string") {
+      console.error("glob: Invalid basePath type", { basePath, type: typeof basePath });
+      return [];
+    }
+
+    // console.log("glob: Starting with pattern:", pattern, "basePath:", basePath);
+    const allFiles = await recursiveList(client, basePath);
+    // console.log("glob: Got all files:", allFiles);
+
+    const filteredFiles = allFiles.filter((filePath: string) => {
+      const matches = minimatch(filePath, pattern);
+      // console.log("glob: Checking file", filePath, "against pattern", pattern, "matches:", matches);
+      return matches;
+    });
+
+    // console.log("glob: Final filtered files:", filteredFiles);
+    return filteredFiles;
+  } catch (error) {
+    console.error("glob: Failed to process pattern", pattern, "basePath", basePath, error);
+    debugger;
+    return [];
+  }
 }
 
 function initRemote() {
@@ -102,16 +162,40 @@ function initRemote() {
       for (const path of matches) {
         console.log(path);
 
-        const file = (await client.getFile(path)) as { data: string }; // Type assertion here
+        try {
+          const file = (await client.getFile(path)) as { data: string };
+          console.log("data", file.data);
 
-        const article: Article = JSON.parse(file.data);
-        articles.push(article);
+          // If file.data is already an object, use it directly as the article
+          if (typeof file.data === "object") {
+            // for some reason this only happens with dropbox storage?
+            articles.push(file.data as Article);
+          } else {
+            const article: Article = JSON.parse(file.data);
+            articles.push(article);
+          }
+        } catch (error) {
+          console.error(`Error parsing article from ${path}:`, error);
+        }
       }
 
       // Batch insert all articles at once to minimize useLiveQuery triggers
       if (articles.length > 0) {
-        await db.articles.bulkPut(articles);
-        console.log(`Bulk inserted ${articles.length} articles`);
+        // await db.articles.bulkPut(articles);
+        // debugger;
+        // console.log(`Bulk inserted ${articles.length} articles`);
+
+        // Insert articles one at a time for now
+        for (const article of articles) {
+          try {
+            await db.articles.put(article);
+            console.log(`Inserted article: ${article.slug}`);
+          } catch (error) {
+            debugger;
+            console.error(`Failed to insert article ${article.slug}:`, error);
+          }
+        }
+        console.log(`Inserted ${articles.length} articles individually`);
       }
     });
 
@@ -241,11 +325,15 @@ async function calculateArticleStorageSize(articleSlug: string): Promise<{
   const files: { path: string; size: number }[] = [];
 
   try {
+    console.log("calculateArticleStorageSize: Starting for slug:", articleSlug);
     const store = await init();
     if (store && store.client) {
       try {
         // Get all files for this specific article
-        const articleFiles = await glob(store.client, `saves/${articleSlug}/*`);
+        const pattern = `saves/${articleSlug}/*`;
+        console.log("calculateArticleStorageSize: Using glob pattern:", pattern);
+        const articleFiles = await glob(store.client, pattern);
+        console.log("calculateArticleStorageSize: Got article files:", articleFiles);
 
         for (const filePath of articleFiles) {
           try {
@@ -254,17 +342,38 @@ async function calculateArticleStorageSize(articleSlug: string): Promise<{
               const fileSize = new Blob([file.data]).size;
               files.push({ path: filePath, size: fileSize });
               totalSize += fileSize;
+              console.log(
+                "calculateArticleStorageSize: Processed file",
+                filePath,
+                "size:",
+                fileSize
+              );
             }
           } catch (error) {
-            console.warn(`Failed to get file size for ${filePath}:`, error);
+            console.warn(
+              `calculateArticleStorageSize: Failed to get file size for ${filePath}:`,
+              error
+            );
           }
         }
+
+        console.log("calculateArticleStorageSize: Final result", {
+          slug: articleSlug,
+          totalSize,
+          fileCount: files.length,
+          files: files.map((f) => ({ path: f.path, size: f.size })),
+        });
       } catch (error) {
-        console.warn("Failed to calculate article storage usage:", error);
+        console.warn(
+          "calculateArticleStorageSize: Failed to calculate article storage usage:",
+          error
+        );
       }
+    } else {
+      console.warn("calculateArticleStorageSize: No store or client available");
     }
   } catch (error) {
-    console.error("Error calculating article storage size:", error);
+    console.error("calculateArticleStorageSize: Error calculating article storage size:", error);
   }
 
   return { totalSize, files };
