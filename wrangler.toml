@@ -4,3 +4,6 @@ compatibility_flags = ["nodejs_compat"]
 keep_vars = true
 name = "savr"
 pages_build_output_dir = "./dist"
+[vars]
+VITE_DEBUG = "asda"
+foo = "bar"
