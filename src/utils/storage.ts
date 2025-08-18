@@ -111,6 +111,71 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
   }
 }
 
+async function buildDbFromFiles(client: BaseClient) {
+  // const articles: Article[] = [];
+  // for (const path of files) {
+  //   const file = (await client.getFile(path)) as { data: string };
+  // }
+
+  // client.getListing("").then((listing) => console.log("listing", listing));
+
+  console.log("refreshing db");
+
+  // const files = await recursiveList(client, "");
+
+  // console.log("files", files);
+
+  const matches = await glob(client, "saves/*/article.json");
+
+  console.log("Matched files:", matches);
+
+  // Load all articles first, then batch insert them
+  const articles: Article[] = [];
+  for (const path of matches) {
+    console.log(path);
+
+    try {
+      const file = (await client.getFile(path)) as { data: string };
+      console.log("data", file.data);
+
+      // If file.data is already an object, use it directly as the article
+      if (typeof file.data === "object") {
+        // for some reason this only happens with dropbox storage?
+        articles.push(file.data as Article);
+      } else {
+        const article: Article = JSON.parse(file.data);
+        articles.push(article);
+      }
+    } catch (error) {
+      console.error(`Error parsing article from ${path}:`, error);
+    }
+  }
+
+  // Batch insert all articles at once to minimize useLiveQuery triggers
+  if (articles.length > 0) {
+    // await db.articles.bulkPut(articles);
+    // debugger;
+    // console.log(`Bulk inserted ${articles.length} articles`);
+
+    // Insert articles one at a time for now
+    for (const article of articles) {
+      try {
+        await db.articles.put(article);
+        console.log(`Inserted article: ${article.slug}`);
+      } catch (error) {
+        debugger;
+        console.error(`Failed to insert article ${article.slug}:`, error);
+      }
+    }
+    console.log(`Inserted ${articles.length} articles individually`);
+  } else {
+    console.log("no articles to insert. clearing db.");
+    await db.articles.clear();
+  }
+
+  console.log("refreshing db done");
+}
+
 function initRemote() {
   remotePrms = new Promise<RemoteStorage>((resolve) => {
     const remoteStorage = new RemoteStorage({
@@ -131,80 +196,22 @@ function initRemote() {
     remoteStorage.on("ready", function () {
       console.info("remoteStorage ready");
       resolve(remoteStorage);
-
-      // Initialize the extension connector when remote storage is ready
-      // if (typeof window !== "undefined") {
-      //   window.extensionConnector = extensionConnector;
-      //   console.log("SAVR PWA: ExtensionConnector initialized and available globally");
-      // }
-
-      //   remoteStorage.documents.subscribe(changeHandler);
     });
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`remoteStorage connected to “${userAddress}”`);
 
-      // client.getListing("").then((listing) => console.log("listing", listing));
-
-      console.log("creating db");
-
-      // const files = await recursiveList(client, "");
-
-      // console.log("files", files);
-
-      const matches = await glob(client, "saves/*/article.json");
-
-      console.log("Matched files:", matches);
-
-      // Load all articles first, then batch insert them
-      const articles: Article[] = [];
-      for (const path of matches) {
-        console.log(path);
-
-        try {
-          const file = (await client.getFile(path)) as { data: string };
-          console.log("data", file.data);
-
-          // If file.data is already an object, use it directly as the article
-          if (typeof file.data === "object") {
-            // for some reason this only happens with dropbox storage?
-            articles.push(file.data as Article);
-          } else {
-            const article: Article = JSON.parse(file.data);
-            articles.push(article);
-          }
-        } catch (error) {
-          console.error(`Error parsing article from ${path}:`, error);
-        }
-      }
-
-      // Batch insert all articles at once to minimize useLiveQuery triggers
-      if (articles.length > 0) {
-        // await db.articles.bulkPut(articles);
-        // debugger;
-        // console.log(`Bulk inserted ${articles.length} articles`);
-
-        // Insert articles one at a time for now
-        for (const article of articles) {
-          try {
-            await db.articles.put(article);
-            console.log(`Inserted article: ${article.slug}`);
-          } catch (error) {
-            debugger;
-            console.error(`Failed to insert article ${article.slug}:`, error);
-          }
-        }
-        console.log(`Inserted ${articles.length} articles individually`);
-      }
+      await buildDbFromFiles(client);
     });
 
     remoteStorage.on("not-connected", function () {
       console.info("remoteStorage not-connected (anonymous mode)");
     });
 
-    remoteStorage.on("disconnected", function () {
+    remoteStorage.on("disconnected", async function () {
       console.info("remoteStorage disconnected", arguments);
+      await buildDbFromFiles(client);
     });
 
     let lastNotificationTime = 0;
