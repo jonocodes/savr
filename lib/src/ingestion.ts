@@ -115,30 +115,38 @@ async function downloadAndResizeImages(
 
       // thumbnail
 
-      console.log("check thumb for localPath", localPath);
+      console.log("THUMB check thumb for localPath", localPath);
 
       const area = width * height;
 
-      console.log("area", area);
+      console.log("THUMB area", area, "current maxArea", maxArea, "width", width, "height", height);
 
       // Ignore small images
       if (area < 5000) {
-        console.log("too small");
+        console.log("THUMB too small, skipping");
       }
 
       // Prefer images with more pixels (likely higher quality)
       else if (area > maxArea) {
-        console.log("new maxArea", area);
+        console.log("  maxArea", area, "previous maxArea", maxArea, "selecting", localPath);
         maxArea = area;
         thumbnailPath = localPath;
         thumbnailBlob = blob;
+      } else {
+        console.log("THUMB not larger, keeping current thumbnail");
       }
     } catch (e) {
-      console.error("error downloading and saving image", e);
+      console.error("THUMB error downloading and saving image", e);
     }
   }
 
   // make the thumbnail
+
+  console.log("Final thumbnail selection:", {
+    thumbnailPath,
+    maxArea,
+    totalImages: imageData.length,
+  });
 
   if (thumbnailBlob !== null) {
     const [url, localPath, img] = imageData.find(
