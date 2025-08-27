@@ -7,9 +7,5 @@ export const Route = createFileRoute("/prefs")({
 
     return data;
   },
-  component: UsersComponent,
+  component: PreferencesScreen,
 });
-
-function UsersComponent() {
-  return <PreferencesScreen />;
-}

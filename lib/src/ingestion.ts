@@ -460,7 +460,7 @@ export async function ingestHtml(
 
   const rendered = ArticleTemplate({
     title: article.title,
-    byline: article.author || "unknown author", // TODO: remove this
+    byline: article.author || "",
     published: generateInfoForArticle(article),
     readTime: `${article.readTimeMinutes} minute read`,
     content: content,

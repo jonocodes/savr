@@ -229,10 +229,10 @@ export default function ArticleScreen(props: Props) {
   useEffect(() => {
     const handleScroll = () => {
       // Only apply header hiding logic if the preference is enabled
-      // if (!headerHidingEnabled) {
-      //   setShowHeader(true);
-      //   return;
-      // }
+      if (!headerHidingEnabled) {
+        setShowHeader(true);
+        return;
+      }
 
       const currentScrollY = window.scrollY;
       if (currentScrollY < 0) return;
@@ -241,7 +241,7 @@ export default function ArticleScreen(props: Props) {
         lastScrollY.current = currentScrollY;
         return;
       }
-      if (headerHidingEnabled && currentScrollY > lastScrollY.current) {
+      if (currentScrollY > lastScrollY.current) {
         // Scrolling down
         setShowHeader(false);
       } else if (currentScrollY < lastScrollY.current) {
@@ -286,7 +286,7 @@ export default function ArticleScreen(props: Props) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [storage, article]);
+  }, [storage, article, headerHidingEnabled]);
 
   useEffect(() => {
     const setup = async () => {
@@ -353,17 +353,33 @@ export default function ArticleScreen(props: Props) {
   }, [hasSetInitialScroll, article.progress, content]);
 
   return (
-    <Box sx={{ minHeight: "100vh", backgroundColor: "background.default" }}>
+    <Box
+      sx={{
+        minHeight: "100vh",
+        backgroundColor: "background.default",
+        position: "relative",
+        width: "100%",
+        maxWidth: "100vw",
+        overflowX: "hidden",
+      }}
+    >
       <AppBar
-        position="sticky"
+        position={headerHidingEnabled ? "sticky" : "fixed"}
         sx={{
           top: 0,
           zIndex: 1200,
-          transition: "transform 0.3s cubic-bezier(0.4,0,0.2,1)",
-          transform: showHeader ? "translateY(0)" : "translateY(-110%)",
+          transition: headerHidingEnabled ? "transform 0.3s cubic-bezier(0.4,0,0.2,1)" : "none",
+          transform: headerHidingEnabled
+            ? showHeader
+              ? "translateY(0)"
+              : "translateY(-110%)"
+            : "translateY(0)",
+          width: "100%",
+          maxWidth: "100vw",
+          overflow: "hidden",
         }}
       >
-        <Toolbar>
+        <Toolbar sx={{ minWidth: 0, overflow: "hidden" }}>
           <IconButton
             edge="start"
             color="inherit"
@@ -423,13 +439,44 @@ export default function ArticleScreen(props: Props) {
             <MoreVertIcon />
           </IconButton>
 
-          <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
+          <Menu
+            anchorEl={anchorEl}
+            open={Boolean(anchorEl)}
+            onClose={closeMenu}
+            anchorOrigin={{
+              vertical: "bottom",
+              horizontal: "right",
+            }}
+            transformOrigin={{
+              vertical: "top",
+              horizontal: "right",
+            }}
+            slotProps={{
+              paper: {
+                sx: {
+                  zIndex: 1300,
+                  mt: 1,
+                  minWidth: 180,
+                  maxWidth: 220,
+                  py: 1,
+                  boxShadow: 3,
+                  borderRadius: 1,
+                },
+              },
+            }}
+            sx={{
+              zIndex: 1300,
+            }}
+            disableScrollLock={true}
+            disablePortal={false}
+          >
             {viewMode === "cleaned" && (
               <MenuItem
                 onClick={() => {
                   setViewMode("original");
                   closeMenu();
                 }}
+                sx={{ py: 1 }}
               >
                 <ListItemIcon>
                   <CodeIcon fontSize="small" />
@@ -444,6 +491,7 @@ export default function ArticleScreen(props: Props) {
                   setViewMode("cleaned");
                   closeMenu();
                 }}
+                sx={{ py: 1 }}
               >
                 <ListItemIcon>
                   <TextFieldsIcon fontSize="small" />
@@ -452,7 +500,7 @@ export default function ArticleScreen(props: Props) {
               </MenuItem>
             )}
 
-            <MenuItem onClick={handleVisitOriginal}>
+            <MenuItem onClick={handleVisitOriginal} sx={{ py: 1 }}>
               <ListItemIcon>
                 <OpenInNewIcon fontSize="small" />
               </ListItemIcon>
@@ -466,14 +514,14 @@ export default function ArticleScreen(props: Props) {
               <ListItemText>Info</ListItemText>
             </MenuItem> */}
 
-            <MenuItem onClick={handleShare}>
+            <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
                 <ShareIcon fontSize="small" />
               </ListItemIcon>
               <ListItemText>Share</ListItemText>
             </MenuItem>
 
-            <MenuItem onClick={handleDelete}>
+            <MenuItem onClick={handleDelete} sx={{ py: 1 }}>
               <ListItemIcon>
                 <DeleteIcon fontSize="small" />
               </ListItemIcon>
@@ -483,7 +531,9 @@ export default function ArticleScreen(props: Props) {
         </Toolbar>
       </AppBar>
 
-      <ArticleComponent html={html} fontSize={fontSize} />
+      <Box sx={{ mt: headerHidingEnabled ? 0 : "64px" }}>
+        <ArticleComponent html={html} fontSize={fontSize} />
+      </Box>
 
       {/* Info Bottom Drawer */}
       <Drawer

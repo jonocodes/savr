@@ -53,8 +53,8 @@ const ArticleTemplate = (props: ArticleTemplateProps) => {
             <div id="savr-published">${props.published}</div>
             <div id="savr-readTime">${props.readTime}</div>
             <hr />
-            <div id="savr-content">${props.content}</div>
         </div>
+        <div id="savr-content">${props.content}</div>
     </div>
     `;
 
