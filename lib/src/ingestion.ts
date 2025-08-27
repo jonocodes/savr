@@ -362,11 +362,11 @@ export function readabilityToArticle(
   contentType: string,
   url: string | null
 ): [Article, string] {
-  var options = {};
+  // var options = {};
 
-  if (url !== null) {
-    options = { url, contentType };
-  }
+  // if (url !== null) {
+  //   options = { url, contentType };
+  // }
 
   const parser = new DOMParser();
   const document = parser.parseFromString(html, "text/html");

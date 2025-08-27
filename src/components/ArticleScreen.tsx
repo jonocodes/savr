@@ -290,6 +290,8 @@ export default function ArticleScreen(props: Props) {
 
   useEffect(() => {
     const setup = async () => {
+      setHtml("querying database ...");
+
       db.articles.get(slug).then((article) => {
         if (!article) {
           console.error("Article not found");
@@ -299,6 +301,7 @@ export default function ArticleScreen(props: Props) {
       });
 
       try {
+        setHtml("loading content ...");
         if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug))
@@ -323,6 +326,7 @@ export default function ArticleScreen(props: Props) {
 
         // Calculate storage size for this article
         try {
+          setHtml("calculating size...");
           const sizeInfo = await calculateArticleStorageSize(slug);
           setStorageSize(sizeInfo);
         } catch (error) {
