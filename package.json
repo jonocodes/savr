@@ -17,7 +17,12 @@
     "build-storybook": "storybook build",
     "demo-server": "npx ws --cors.origin '*' -d ~/sync/more/savr_demo_sites/",
     "test": "jest",
-    "test:watch": "jest --watch"
+    "test:watch": "jest --watch",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:report": "playwright show-report"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -41,7 +46,7 @@
     "filenamify-url": "^3.1.0",
     "http-proxy": "^1.18.1",
     "js-md5": "^0.8.3",
-    "mime": "^4.0.4",
+    "mime": "^3.0.0",
     "minimatch": "^10.0.3",
     "mozilla-readability-cli": "^0.2.4",
     "mustache": "^4.2.0",
@@ -60,11 +65,13 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@playwright/test": "^1.55.0",
     "@storybook/addon-docs": "^9.0.16",
     "@storybook/addon-links": "^9.0.16",
     "@storybook/react-vite": "^9.0.16",
     "@storybook/testing-library": "^0.2.2",
     "@types/jest": "^30.0.0",
+    "@types/mime": "^3.0.4",
     "@types/node": "^22.5.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
