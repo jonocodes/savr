@@ -9,14 +9,12 @@ test.describe("Add Article Functionality", () => {
     await page.waitForLoadState("networkidle");
   });
 
-  test("should open add article dialog when FAB is clicked", async ({ page }) => {
-    // Find and click the add article FAB
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await expect(addFab).toBeVisible();
+  test("should open add article dialog when Add Article button is clicked", async ({ page }) => {
+    // Find and click the Add Article button
+    const addButton = page.locator('button:has-text("Add Article")');
+    await expect(addButton).toBeVisible();
 
-    await addFab.click();
+    await addButton.click();
 
     // Wait for dialog to appear
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
@@ -31,18 +29,16 @@ test.describe("Add Article Functionality", () => {
 
   test("should have URL input field in add article dialog", async ({ page }) => {
     // Open the add article dialog
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await addFab.click();
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
 
     // Wait for dialog
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
     await expect(dialog.first()).toBeVisible({ timeout: 5000 });
 
-    // Look for URL input field
+    // Look for URL input field - Material-UI TextField with label "URL"
     const urlInput = page.locator(
-      'input[type="url"], input[placeholder*="url"], input[name*="url"], textarea[placeholder*="url"]'
+      'input[aria-label="URL"], input[placeholder="URL"], .MuiTextField-root input'
     );
     await expect(urlInput.first()).toBeVisible();
 
@@ -50,42 +46,34 @@ test.describe("Add Article Functionality", () => {
     await expect(urlInput.first()).toBeEnabled();
   });
 
-  test("should have submit button in add article dialog", async ({ page }) => {
+  test("should have save button in add article dialog", async ({ page }) => {
     // Open the add article dialog
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await addFab.click();
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
 
     // Wait for dialog
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
     await expect(dialog.first()).toBeVisible({ timeout: 5000 });
 
-    // Look for submit button
-    const submitButton = page.locator(
-      'button[type="submit"], button:has-text("Add"), button:has-text("Save"), button:has-text("Submit")'
-    );
-    await expect(submitButton.first()).toBeVisible();
+    // Look for save button within the dialog
+    const saveButton = dialog.locator('button:has-text("Save")');
+    await expect(saveButton.first()).toBeVisible();
 
     // Check that it's enabled
-    await expect(submitButton.first()).toBeEnabled();
+    await expect(saveButton.first()).toBeEnabled();
   });
 
   test("should close dialog when cancel is clicked", async ({ page }) => {
     // Open the add article dialog
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await addFab.click();
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
 
     // Wait for dialog
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
     await expect(dialog.first()).toBeVisible({ timeout: 5000 });
 
     // Look for cancel button
-    const cancelButton = page.locator(
-      'button:has-text("Cancel"), button:has-text("Close"), button[aria-label*="close"]'
-    );
+    const cancelButton = page.locator('button:has-text("Cancel")');
 
     if ((await cancelButton.count()) > 0) {
       await cancelButton.first().click();
@@ -97,10 +85,8 @@ test.describe("Add Article Functionality", () => {
 
   test("should close dialog when clicking outside", async ({ page }) => {
     // Open the add article dialog
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await addFab.click();
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
 
     // Wait for dialog
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
@@ -115,10 +101,8 @@ test.describe("Add Article Functionality", () => {
 
   test("should validate URL input", async ({ page }) => {
     // Open the add article dialog
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await addFab.click();
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
 
     // Wait for dialog
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
@@ -126,23 +110,17 @@ test.describe("Add Article Functionality", () => {
 
     // Find URL input
     const urlInput = page
-      .locator(
-        'input[type="url"], input[placeholder*="url"], input[name*="url"], textarea[placeholder*="url"]'
-      )
+      .locator('input[aria-label="URL"], input[placeholder="URL"], .MuiTextField-root input')
       .first();
 
     // Try to submit with invalid URL
-    const submitButton = page
-      .locator(
-        'button[type="submit"], button:has-text("Add"), button:has-text("Save"), button:has-text("Submit")'
-      )
-      .first();
+    const saveButton = dialog.locator('button:has-text("Save")').first();
 
     // Enter invalid URL
     await urlInput.fill("not-a-valid-url");
 
     // Try to submit
-    await submitButton.click();
+    await saveButton.click();
 
     // Should show validation error or prevent submission
     // Look for error message or check that dialog is still open
@@ -151,10 +129,8 @@ test.describe("Add Article Functionality", () => {
 
   test("should accept valid URL format", async ({ page }) => {
     // Open the add article dialog
-    const addFab = page
-      .locator('.MuiFab-root, button[aria-label*="add"], button:has(.MuiSvgIcon-root)')
-      .first();
-    await addFab.click();
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
 
     // Wait for dialog
     const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
@@ -162,9 +138,7 @@ test.describe("Add Article Functionality", () => {
 
     // Find URL input
     const urlInput = page
-      .locator(
-        'input[type="url"], input[placeholder*="url"], input[name*="url"], textarea[placeholder*="url"]'
-      )
+      .locator('input[aria-label="URL"], input[placeholder="URL"], .MuiTextField-root input')
       .first();
 
     // Enter valid URL
@@ -172,5 +146,49 @@ test.describe("Add Article Functionality", () => {
 
     // Check that the input accepts the value
     await expect(urlInput).toHaveValue("https://example.com/article");
+  });
+
+  test("should ingest CBC article and display correct title", async ({ page }) => {
+    // Open the add article dialog
+    const addButton = page.locator('button:has-text("Add Article")');
+    await addButton.click();
+
+    // Wait for dialog
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    // Find URL input and save button within the dialog
+    const urlInput = page
+      .locator('input[aria-label="URL"], input[placeholder="URL"], .MuiTextField-root input')
+      .first();
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+
+    // Enter the CBC article URL
+    await urlInput.fill(
+      "https://www.cbc.ca/news/canada/nova-scotia/1985-toyota-tercel-high-mileage-1.7597168"
+    );
+
+    // Submit the form
+    await saveButton.click();
+
+    // Wait for dialog to close (indicating submission started)
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for the article to appear in the list
+    // Look for the article title in the list
+    const articleTitle = page.locator(
+      'text="This car has more than 1.2 million km on it — and it\'s still going strong"'
+    );
+    await expect(articleTitle).toBeVisible({ timeout: 60000 }); // 60 second timeout for ingestion
+
+    // Click on the article to view it
+    await articleTitle.click();
+
+    // Wait for the article page to load
+    await page.waitForLoadState("networkidle");
+
+    // Verify the article title is displayed on the article page
+    const articlePageTitle = page.locator("h1, h2, .article-title, .title");
+    await expect(articlePageTitle).toContainText("This car has more than 1.2 million km on it");
   });
 });

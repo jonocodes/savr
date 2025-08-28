@@ -49,6 +49,7 @@ import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
+import { shouldShowWelcome } from "../config/environment";
 
 import { keyframes } from "@mui/system";
 
@@ -258,7 +259,7 @@ export default function ArticleListScreen() {
 
   // Redirect to home page with welcome URL if no articles exist
   useEffect(() => {
-    if (articles && articles.length === 0) {
+    if (articles && articles.length === 0 && shouldShowWelcome()) {
       navigate({
         to: "/",
         search: {
