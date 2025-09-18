@@ -6,9 +6,9 @@ When reading an article in a browser, share it to Savr. Then open Savr later to 
 
 Savr is:
 
-- ["0data", since it does not store your data](https://0data.app/). You do.
-- ["unhosted", since it is a static site](https://unhosted.org/) with no backend.
-- ["local first", since it works offline](https://lofi.so/).
+- [0data](https://0data.app/) since it does not store your data. You do.
+- [unhosted](https://unhosted.org/) since it is a static site with no backend.
+- [local first](https://lofi.so/) since it works offline.
 
 # Features
 
@@ -46,7 +46,7 @@ Here are most of the planned features.
 - [x] mobile share action
 - [ ] info edit - so you can fix a missing title
 - [x] remember scroll position
-- [-] offline sync using remoteStorage.js
+- [x] offline sync using remoteStorage.js (experimental)
   - [x] 5apps
   - [x] dropbox
   - [ ] google drive
