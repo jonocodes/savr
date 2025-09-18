@@ -49,6 +49,7 @@ import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
+import { shouldShowWelcome } from "../config/environment";
 
 import { keyframes } from "@mui/system";
 
@@ -258,7 +259,7 @@ export default function ArticleListScreen() {
 
   // Redirect to home page with welcome URL if no articles exist
   useEffect(() => {
-    if (articles && articles.length === 0) {
+    if (articles && articles.length === 0 && shouldShowWelcome()) {
       navigate({
         to: "/",
         search: {
@@ -269,11 +270,9 @@ export default function ArticleListScreen() {
     }
   }, [articles, navigate]);
 
-  // Debug panel for mobile testing
-  const [showDebug, setShowDebug] = useState(false);
   useEffect(() => {
     const handleTripleTap = () => {
-      setShowDebug((prev) => !prev);
+      navigate({ to: "/diagnostics" });
     };
 
     let tapCount = 0;
@@ -328,9 +327,9 @@ export default function ArticleListScreen() {
         // Force a database refresh by triggering a re-query
         await db.articles.toArray();
 
-        enqueueSnackbar(`Article saved successfully! Slug: ${article.slug}`, {
-          variant: "success",
-        });
+        // enqueueSnackbar(`Article saved successfully! Slug: ${article.slug}`, {
+        //   variant: "success",
+        // });
 
         // wait a bit before closing the dialog
         setTimeout(() => {
@@ -631,56 +630,6 @@ export default function ArticleListScreen() {
         >
           <AddIcon />
         </Fab> */}
-
-      {/* Debug Panel */}
-      {showDebug && (
-        <Box
-          sx={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.8)",
-            zIndex: 9999,
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-          }}
-          onClick={() => setShowDebug(false)}
-        >
-          <Paper
-            sx={{
-              p: 2,
-              maxWidth: "90%",
-              maxHeight: "80%",
-              overflow: "auto",
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <Typography variant="h6" gutterBottom>
-              Debug Info
-            </Typography>
-            <Typography variant="body2" component="pre" sx={{ fontSize: "12px" }}>
-              {JSON.stringify(
-                {
-                  currentUrl: window.location.href,
-                  urlParams: Object.fromEntries(new URLSearchParams(window.location.search)),
-                  isPWA: window.matchMedia("(display-mode: standalone)").matches,
-                  userAgent: navigator.userAgent,
-                  articlesCount: articles?.length || 0,
-                  clientAvailable: !!client,
-                },
-                null,
-                2
-              )}
-            </Typography>
-            <Button onClick={() => setShowDebug(false)} sx={{ mt: 2 }} variant="contained">
-              Close
-            </Button>
-          </Paper>
-        </Box>
-      )}
     </Box>
   );
 }

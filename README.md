@@ -2,13 +2,13 @@
 
 Savr is an app for saving online content to read later. It is [file-centric, offline first, future proof](#offline-use), and [favors decentralization](#how-to-use-it). Read about the design and motivation in the [FAQ](#faq).
 
-When reading an article in a browser, share it to Savr. Then open Savr later to read it. For the most part, Savr is a free, hosted or self hosted, progressive web app. You can also install it on your phone for offline use.
+When reading an article in a browser, share it to Savr. Then open Savr later to read it. Savr is a free, hosted or self hosted, progressive web app that works on and off-line. You can also install it on your phone.
 
 Savr is:
 
-- ["0data", since it does not store your data](https://0data.app/). You do.
-- ["unhosted", since it is a static site](https://unhosted.org/) with no backend.
-- ["local first", since it works offline](https://lofi.so/).
+- [0data](https://0data.app/) since it does not store your data. You do.
+- [unhosted](https://unhosted.org/) since it is a static site with no backend.
+- [local first](https://lofi.so/) since it works offline.
 
 # Features
 
@@ -34,17 +34,19 @@ Savr is:
 | Offline mobile                   | ✅          | sometimes                  | ✅       | ✅       | ❌     |
 | Cross Platform (+mobile/browser) | ✅          | ✅                         | ✅       | ✅       | ✅     |
 | Cross Browser Extension          | ✅          | ❌ (chrome/FF)             | ❌       | ❌       | ❌     |
-| Does not require and account     | ✅          | ✅                         | ✅       | ✅       | ✅     |
+| Does not require an account      | ✅          | ✅                         | ✅       | ✅       | ✅     |
 
 # Progress
+
+Here are most of the planned features.
 
 - [x] offline content and image sync
 - [x] browser bookmarklet
 - [x] thumbnail generation
-- [ ] pwa share action
+- [x] mobile share action
 - [ ] info edit - so you can fix a missing title
 - [x] remember scroll position
-- [ ] offline sync using remoteStorage.js
+- [x] offline sync using remoteStorage.js (experimental)
   - [x] 5apps
   - [x] dropbox
   - [ ] google drive
@@ -53,8 +55,8 @@ Savr is:
   - [ ] discover uncommon tags (ie - srcset and background images)
   - [ ] allow for deferred image loading at view time
 - [ ] multiline url imports
-- [ ] additional document types (ie - markdown, plain text, pdf)
-- [ ] media types (solo images, audio, video)
+- [ ] additional document types (ie - raw html, markdown, plain text, pdf)
+- [ ] media types (images, audio, video)
 - [ ] content summarization
 - [ ] content read aloud
 - [ ] import/export catalog
@@ -75,23 +77,32 @@ When on the main screen you can always click the '+' button and enter a URL.
 
 The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save.
 
-(show screen shot of bookmarklet link)
-
-You should also be able to use the bookmarklet in your mobile web browser if you want.
-
 ## In browser
 
 Append the savr url to the front of the url you want to save. For example:
 
 `savr.link/https://github.com/jonocodes/savr/wiki/Welcome-to-Savr`
 
-## Android (share to)
+If you are having trouble with the above path, there are several others that may work better. For example:
 
-If you have "installed" the mobile app, you can send articles to it. Once you visit an article in a mobile browser you can use the browsers "share" button to send it to your installed Savr app.
+`https://savr.link/?saveUrl=https://github.com/jonocodes/savr/wiki/Welcome-to-Savr`
+
+Note: The full url, including protocol (https://), is currently required for the article you want to save.
+
+## Android
+
+If you have ["installed" the PWA](#how-to-install-it), you can send articles to it. Once you visit an article in a mobile browser you can use the browsers "share" button to send it to your installed Savr app.
 
 ## iOS
 
-iOS does not allow for sharing to progressive web apps. So use one of the other methods mentioned above.
+iOS does not allow bookmarklets or sharing to PWAs. However here is a workaround that gets you most of the way there using an iOS shortcut. Click to install this:
+https://www.icloud.com/shortcuts/a19ac55c9d7742338d38dd3a17b19dee
+
+Now you should be able to send any URL from an app to your web browser. Note this will specifically send the URL to the browser instance of Savr, not the PWA.
+
+This should not be a problem though. You can log into Savr in the browser and the PWA, and [sync them to a cloud provider](#synchronization). That way when you sent to web, the PWA will get the same article.
+
+If you want to create your own shortcut (particularly if you are hosting Savr yourself), here is how I built it: TBD
 
 # Synchronization
 

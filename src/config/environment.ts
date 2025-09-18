@@ -2,6 +2,7 @@
 export interface EnvironmentConfig {
   isDebugMode: boolean;
   defaultCorsProxy: string;
+  showWelcome: boolean;
   apiKeys: {
     googleDrive?: string;
     dropbox?: string;
@@ -25,6 +26,10 @@ export const environmentConfig: EnvironmentConfig = {
     return debugValue.toLowerCase() === "true" || debugValue === "1";
   })(),
   defaultCorsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
+  showWelcome: (() => {
+    const welcomeValue = getEnvVar("VITE_SHOW_WELCOME", "false") || "false";
+    return welcomeValue.toLowerCase() === "true" || welcomeValue === "1";
+  })(),
   apiKeys: {
     googleDrive: getEnvVar(
       "VITE_GOOGLE_DRIVE_API_KEY"
@@ -40,3 +45,4 @@ export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(
 // Helper functions
 export const isDebugMode = () => environmentConfig.isDebugMode;
 export const getDefaultCorsProxy = () => environmentConfig.defaultCorsProxy;
+export const shouldShowWelcome = () => environmentConfig.showWelcome;

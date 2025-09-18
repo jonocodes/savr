@@ -9,7 +9,7 @@ export const DB_FILE_NAME = "db.json";
 // TODO: maybe dont need this mapping since the subtype is the extension
 export const mimeToExt: Record<string, string> = {
   "text/html": "html",
-  "image/jpeg": "jpg",
+  "image/jpeg": "jpg", // TODO: add 'jpeg ?
   "image/png": "png",
   "image/webp": "webp",
   "application/pdf": "pdf",
@@ -18,11 +18,7 @@ export const mimeToExt: Record<string, string> = {
   // application/epub+zip
 };
 
-// type ImageData = [string, string, HTMLImageElement]; // url, path, image
-
-// export const defaultData: Articles = { articles: [] };
-
-function extractDomain(url: string): string | null {
+export function extractDomain(url: string): string | null {
   try {
     const parsedUrl = new URL(url);
     let domain = parsedUrl.hostname;

@@ -3,7 +3,7 @@
     max-width: 725px;
     line-height: 1.5;
     /* font-size: 25px; */
-    margin: 2.5em auto;
+    margin: 0em auto;
     width: 100%;
 
     font-family: Helvetica, Arial, sans-serif;
@@ -85,8 +85,12 @@ img {
 }
 
 hr {
-    margin-top: 30px;
+    margin-top: 10px;
     margin-bottom: 30px;
+}
+
+#savr-metadata {
+    text-align: center;
 }
 
 #savr-byline {

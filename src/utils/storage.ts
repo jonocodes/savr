@@ -129,7 +129,6 @@ async function buildDbFromFiles(client: BaseClient) {
 
   console.log("Matched files:", matches);
 
-  // Load all articles first, then batch insert them
   const articles: Article[] = [];
   for (const path of matches) {
     console.log(path);
