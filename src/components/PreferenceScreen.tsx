@@ -345,7 +345,7 @@ export default function PreferencesScreen() {
                       display: "inline-block",
                     }}
                   >
-                    savr save
+                    savr save 🟣
                   </a>
                 </Box>
               </ListItem>
