@@ -38,6 +38,7 @@ import {
   Sync as SyncIcon,
   CalendarToday as CalendarTodayIcon,
   TextFields as TextFieldsIcon,
+  DragHandle as DragHandleIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -421,7 +422,7 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    Enable synchronization
+                    Enable synchronization (experimental)
                     <Tooltip title="Allows you to sync your articles across devices using a cloud service">
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
@@ -446,11 +447,11 @@ export default function PreferencesScreen() {
 
             <ListItem>
               <ListItemIcon>
-                <TextFieldsIcon />
+                <DragHandleIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Auto-hide header while reading"
-                secondary="Automatically hide the header when scrolling down in articles (experimental)"
+                primary="Auto-hide header while reading (experimental)"
+                secondary="Automatically hide the header when scrolling down in articles"
               />
               <Switch
                 edge="end"
