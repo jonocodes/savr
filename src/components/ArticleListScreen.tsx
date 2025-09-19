@@ -7,7 +7,6 @@ import {
   ListItemText,
   ListItemAvatar,
   IconButton,
-  Fab,
   Dialog,
   DialogTitle,
   DialogContent,
@@ -37,7 +36,6 @@ import {
   Archive as ArchiveIcon2,
   ArrowForward,
 } from "@mui/icons-material";
-// import extensionConnector from "~/utils/extensionConnector";
 import { db } from "~/utils/db";
 import { ingestUrl } from "../../lib/src/ingestion";
 import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";

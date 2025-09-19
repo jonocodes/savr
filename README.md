@@ -2,13 +2,15 @@
 
 Savr is an app for saving online content to read later. It is [file-centric, offline first, future proof](#offline-use), and [favors decentralization](#how-to-use-it). Read about the design and motivation in the [FAQ](#faq).
 
-When reading an article in a browser, share it to Savr. Then open Savr later to read it. Savr is a free, hosted or self hosted, progressive web app that works on and off-line. You can also install it on your phone.
+When reading an article in a browser, share it to Savr. Then open Savr later to read it. Savr is a free, hosted or self hosted, progressive web app that works on-line, off-line, and on your phone.
 
 Savr is:
 
 - [0data](https://0data.app/) since it does not store your data. You do.
 - [unhosted](https://unhosted.org/) since it is a static site with no backend.
 - [local first](https://lofi.so/) since it works offline.
+
+![screenshot](./public/screenshots/screenshots.png)
 
 # Features
 
@@ -96,13 +98,19 @@ If you have ["installed" the PWA](#how-to-install-it), you can send articles to 
 ## iOS
 
 iOS does not allow bookmarklets or sharing to PWAs. However here is a workaround that gets you most of the way there using an iOS shortcut. Click to install this:
-https://www.icloud.com/shortcuts/a19ac55c9d7742338d38dd3a17b19dee
+https://www.icloud.com/shortcuts/84aaf265120b4fe69268b57b95bc4d14
 
 Now you should be able to send any URL from an app to your web browser. Note this will specifically send the URL to the browser instance of Savr, not the PWA.
 
 This should not be a problem though. You can log into Savr in the browser and the PWA, and [sync them to a cloud provider](#synchronization). That way when you sent to web, the PWA will get the same article.
 
-If you want to create your own shortcut (particularly if you are hosting Savr yourself), here is how I built it: TBD
+If you want to create your own shortcut (particularly if you are hosting Savr yourself), here is how I built it.
+
+<div align="center" width="100%">
+
+![iOS-shortcut](./public/screenshots/ios_shortcut.png)
+
+</div>
 
 # Synchronization
 
@@ -122,13 +130,9 @@ OK, I lied. You do need to use a CORS proxy server to help fetch new articles, b
 
 [See this diagram](https://remotestorage.io/unhosted.html) showing how this type of architecture differs from traditional web apps.
 
-# Current state of development
+# Current state of the project
 
 Basic features have been implemented, but I would consider this in a beta stage. While in the 0.x version number range, features will be stabilizing, along with the API contract and database schema.
-
-# Mobile
-
-![screenshot](./screenshots/screenshots.png)
 
 # Development
 
@@ -149,14 +153,6 @@ Also note that if you host this on a static server, it should support SPA routin
 All content is stored locally on your device. Savr has no server side storage. This makes it so we don't need to host any data, and so it can more simply be hosted by you if you want.
 
 This also make it such that there is no login or account creation to use Savr. If you decide to synchronize your data across devices you will need to bring a cloud service. But that authentication is brokered through your browser and does not go through Savr's servers. In the browser your are authenticating directly to the cloud provider only.
-
-# Bookmarklet
-
-<div align="center" width="100%">
-
-![bookmarklet](./screenshots/bookmarklet.png)
-
-</div>
 
 # Offline Use
 
