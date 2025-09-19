@@ -137,6 +137,14 @@ export default defineConfig(({ mode }) => {
             },
             enctype: "application/x-www-form-urlencoded",
           },
+          screenshots: [
+            {
+              src: "/screenshots/screenshots.png",
+              sizes: "1683x1078",
+              type: "image/png",
+              platform: "wide",
+            },
+          ],
         },
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,webp}"],
