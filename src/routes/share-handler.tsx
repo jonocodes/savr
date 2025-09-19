@@ -1,6 +1,7 @@
 import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
 import { getAfterExternalSaveFromCookie, AFTER_EXTERNAL_SAVE_ACTIONS } from "~/utils/cookies";
 import * as React from "react";
+import { isDebugMode } from "~/config/environment";
 
 export const Route = createFileRoute("/share-handler")({
   component: ShareHandler,
@@ -24,20 +25,37 @@ function ShareHandler() {
 
   // Auto-redirect after 2 seconds using proper React navigation
   React.useEffect(() => {
-    if (sharedUrl) {
-      const timer = setTimeout(() => {
-        navigate({ to: "/", search: { saveUrl: sharedUrl, autoSubmit: "true" } });
-      }, 2000);
+    let delay = 0;
+    let navParams = {};
 
-      return () => clearTimeout(timer);
-    } else {
-      // If no URL, redirect to home
-      const timer = setTimeout(() => {
-        navigate({ to: "/" });
-      }, 2000);
-
-      return () => clearTimeout(timer);
+    if (isDebugMode()) {
+      delay = 2000;
     }
+
+    if (sharedUrl) {
+      navParams = { search: { saveUrl: sharedUrl, autoSubmit: "true" } };
+    }
+
+    const timer = setTimeout(() => {
+      navigate({ to: "/", ...navParams });
+    }, delay);
+
+    return () => clearTimeout(timer);
+
+    // if (sharedUrl) {
+    //   const timer = setTimeout(() => {
+    //     navigate({ to: "/", ...navParams });
+    //   }, delay);
+
+    //   return () => clearTimeout(timer);
+    // } else {
+    //   // If no URL, redirect to home
+    //   const timer = setTimeout(() => {
+    //     navigate({ to: "/", ...navParams });
+    //   }, delay);
+
+    //   return () => clearTimeout(timer);
+    // }
   }, [sharedUrl, navigate]);
 
   // Show a brief debug message before redirecting
