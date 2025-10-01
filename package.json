@@ -7,6 +7,7 @@
   "author": "Jono",
   "license": "GPL-3.0",
   "scripts": {
+    "generate-routes": "tsr generate",
     "dev": "VITE_DEBUG=true vite dev",
     "dev:prod": "VITE_APP_MODE=production vite dev",
     "dev:welcome": "VITE_DEBUG=true VITE_SHOW_WELCOME=true vite dev",
@@ -72,6 +73,7 @@
     "@storybook/addon-links": "^9.0.16",
     "@storybook/react-vite": "^9.0.16",
     "@storybook/testing-library": "^0.2.2",
+    "@tanstack/router-cli": "^1.132.27",
     "@types/jest": "^30.0.0",
     "@types/mime": "^3.0.4",
     "@types/node": "^22.5.4",

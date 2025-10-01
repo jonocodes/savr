@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTML Data Collector</title>
+    <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>HTML Data Collector</h1>
+            <button id="collectBtn" class="collect-btn">Collect HTML Data</button>
+        </header>
+        
+        <div class="content">
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-label">Page Title:</span>
+                    <span id="pageTitle" class="stat-value">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">URL:</span>
+                    <span id="pageUrl" class="stat-value">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">HTML Size:</span>
+                    <span id="htmlSize" class="stat-value">-</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Elements Count:</span>
+                    <span id="elementsCount" class="stat-value">-</span>
+                </div>
+            </div>
+            
+            <div class="html-content">
+                <div class="html-header">
+                    <h3>Page HTML Content</h3>
+                    <div class="controls">
+                        <button id="saveToSavrBtn" class="control-btn savr-btn">Save to Savr</button>
+                        <button id="copyBtn" class="control-btn">Copy HTML</button>
+                        <button id="downloadBtn" class="control-btn">Download</button>
+                        <button id="clearBtn" class="control-btn">Clear</button>
+                    </div>
+                </div>
+                <div class="html-container">
+                    <pre id="htmlOutput" class="html-output">Click "Collect HTML Data" to start...
+
+This extension will collect the complete HTML structure of the current webpage and display it here in a scrollable format.
+
+Features:
+• Complete HTML source code
+• Page statistics and metadata
+• Copy to clipboard functionality
+• Download as HTML file
+• Scrollable content area</pre>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="popup.js"></script>
+</body>
+</html>

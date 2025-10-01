@@ -16,6 +16,7 @@ export const Route = createRootRoute({
   errorComponent: DefaultCatchBoundary,
   notFoundComponent: () => <UrlPatternMatcher />,
   component: RootComponent,
+  ssr: false,
 });
 
 function UrlPatternMatcher() {
