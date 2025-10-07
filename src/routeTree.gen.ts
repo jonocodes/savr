@@ -13,6 +13,7 @@ import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as ShareHandlerRouteImport } from './routes/share-handler'
 import { Route as PrefsRouteImport } from './routes/prefs'
 import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
+import { Route as CorstestRouteImport } from './routes/corstest'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ArticleSlugRouteImport } from './routes/article.$slug'
 
@@ -36,6 +37,11 @@ const DiagnosticsRoute = DiagnosticsRouteImport.update({
   path: '/diagnostics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const CorstestRoute = CorstestRouteImport.update({
+  id: '/corstest',
+  path: '/corstest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -49,6 +55,7 @@ const ArticleSlugRoute = ArticleSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/corstest': typeof CorstestRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/prefs': typeof PrefsRoute
   '/share-handler': typeof ShareHandlerRoute
@@ -57,6 +64,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/corstest': typeof CorstestRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/prefs': typeof PrefsRoute
   '/share-handler': typeof ShareHandlerRoute
@@ -66,6 +74,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/corstest': typeof CorstestRoute
   '/diagnostics': typeof DiagnosticsRoute
   '/prefs': typeof PrefsRoute
   '/share-handler': typeof ShareHandlerRoute
@@ -76,6 +85,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/corstest'
     | '/diagnostics'
     | '/prefs'
     | '/share-handler'
@@ -84,6 +94,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/corstest'
     | '/diagnostics'
     | '/prefs'
     | '/share-handler'
@@ -92,6 +103,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/corstest'
     | '/diagnostics'
     | '/prefs'
     | '/share-handler'
@@ -101,6 +113,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CorstestRoute: typeof CorstestRoute
   DiagnosticsRoute: typeof DiagnosticsRoute
   PrefsRoute: typeof PrefsRoute
   ShareHandlerRoute: typeof ShareHandlerRoute
@@ -138,6 +151,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DiagnosticsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/corstest': {
+      id: '/corstest'
+      path: '/corstest'
+      fullPath: '/corstest'
+      preLoaderRoute: typeof CorstestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -157,6 +177,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CorstestRoute: CorstestRoute,
   DiagnosticsRoute: DiagnosticsRoute,
   PrefsRoute: PrefsRoute,
   ShareHandlerRoute: ShareHandlerRoute,

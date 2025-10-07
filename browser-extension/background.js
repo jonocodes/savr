@@ -22,9 +22,9 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log('Background received message:', request);
     
     switch (request.action) {
-        case 'collectHtmlData':
-            handleCollectHtmlData(request, sender, sendResponse);
-            return true; // Keep the message channel open for async response
+        // case 'collectHtmlData':
+        //     handleCollectHtmlData(request, sender, sendResponse);
+        //     return true; // Keep the message channel open for async response
             
         case 'getSettings':
             handleGetSettings(sendResponse);
@@ -40,37 +40,37 @@ browser.runtime.onMessage.addListener((request, sender, sendResponse) => {
     }
 });
 
-// Handle HTML data collection
-async function handleCollectHtmlData(request, sender, sendResponse) {
-    try {
-        if (!sender.tab) {
-            throw new Error('No tab context available');
-        }
+// // Handle HTML data collection
+// async function handleCollectHtmlData(request, sender, sendResponse) {
+//     try {
+//         if (!sender.tab) {
+//             throw new Error('No tab context available');
+//         }
 
-        // Execute content script to collect data
-        const results = await browser.tabs.executeScript(sender.tab.id, {
-            file: 'content.js'
-        });
+//         // Execute content script to collect data
+//         const results = await browser.tabs.executeScript(sender.tab.id, {
+//             file: 'content.js'
+//         });
 
-        if (results && results[0]) {
-            const data = results[0];
+//         if (results && results[0]) {
+//             const data = results[0];
             
-            // Store the data
-            await browser.storage.local.set({ 
-                lastCollectedData: data,
-                lastCollectedTime: Date.now()
-            });
+//             // Store the data
+//             await browser.storage.local.set({ 
+//                 lastCollectedData: data,
+//                 lastCollectedTime: Date.now()
+//             });
             
-            sendResponse({ success: true, data: data });
-        } else {
-            throw new Error('Failed to collect HTML data');
-        }
+//             sendResponse({ success: true, data: data });
+//         } else {
+//             throw new Error('Failed to collect HTML data');
+//         }
 
-    } catch (error) {
-        console.error('Error in handleCollectHtmlData:', error);
-        sendResponse({ success: false, error: error.message });
-    }
-}
+//     } catch (error) {
+//         console.error('Error in handleCollectHtmlData:', error);
+//         sendResponse({ success: false, error: error.message });
+//     }
+// }
 
 // Handle getting settings
 async function handleGetSettings(sendResponse) {

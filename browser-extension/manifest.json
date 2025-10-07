@@ -1,50 +1,28 @@
 {
     "manifest_version": 2,
-    "name": "HTML Data Collector",
+    "name": "Savr Extension",
     "version": "1.0",
-    "description": "Collects HTML data from the current page and displays it in a scrollable popup",
+    "description": "Send messages to Savr submit page",
     "permissions": [
         "activeTab",
         "storage",
-        "tabs"
-    ],
-    "host_permissions": [
+        "tabs",
+        "webNavigation",
         "https://localhost:3000/*"
     ],
     "browser_action": {
         "default_popup": "popup.html",
-        "default_title": "HTML Data Collector"
+        "default_title": "Savr Extension"
     },
     "content_scripts": [
-        {
-            "matches": [
-                "<all_urls>"
-            ],
-            "js": [
-                "content.js"
-            ],
-            "run_at": "document_end"
-        },
         {
             "matches": [
                 "https://localhost:3000/submit*"
             ],
             "js": [
-                "savr-content.js"
+                "content.js"
             ],
             "run_at": "document_end"
         }
-    ],
-    "background": {
-        "scripts": [
-            "background.js"
-        ],
-        "persistent": false
-    },
-    "icons": {
-        "16": "icons/icon.svg",
-        "32": "icons/icon.svg",
-        "48": "icons/icon.svg",
-        "128": "icons/icon.svg"
-    }
+    ]
 }

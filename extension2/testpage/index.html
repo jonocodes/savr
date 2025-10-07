@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+  <head><meta charset="utf-8"><title>Page Messenger Demo</title></head>
+  <body>
+    <h1>Page Messenger Demo</h1>
+    <pre id="log"></pre>
+
+    <script>
+      const log = (msg) => {
+        const el = document.getElementById("log");
+        el.textContent += msg + "\n";
+      };
+
+      // Receive messages from the extension (relayed by the content script)
+      window.addEventListener("message", (event) => {
+        if (event.source !== window) return;
+        if (event.origin !== window.origin) return;
+
+        const data = event.data;
+        if (!data || data._extNS !== "page-messenger") return;
+
+        if (data.type === "EXT_TO_PAGE") {
+          log("Got from EXT: " + JSON.stringify(data.payload));
+          // Reply to the extension:
+          window.postMessage(
+            {
+              _extNS: "page-messenger",
+              type: "PAGE_TO_EXT",
+              payload: { receivedAt: new Date().toISOString() }
+            },
+            window.origin
+          );
+        }
+      });
+
+      log("[index.html] Page loaded");
+    </script>
+  </body>
+</html>

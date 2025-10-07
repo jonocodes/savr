@@ -1,0 +1,30 @@
+{
+    "manifest_version": 3,
+    "name": "Page Messenger (Chrome)",
+    "version": "1.0.0",
+    "description": "Send messages from an extension to a web page and back.",
+    "permissions": [
+        "activeTab",
+        "storage",
+        "tabs"
+    ],
+    "host_permissions": [
+        "http://127.0.0.1:8001/*"
+    ],
+    "action": {
+        "default_title": "Send test message"
+    },
+    "background": {
+        "service_worker": "background.js"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "http://127.0.0.1:8001/testpage/index.html"
+            ],
+            "js": [
+                "content-script.js"
+            ]
+        }
+    ]
+}

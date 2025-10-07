@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   Box,
   List,
@@ -75,9 +75,31 @@ export default function SubmitScreen() {
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  const { remoteStorage, client, widget } = useRemoteStorage();
+  // Add message listener for browser extension
+  useEffect(() => {
+    console.log("Setting up message listener in SubmitScreen");
+    // Handshake: notify extension/content script that page is ready
+    window.postMessage({ type: "READY_FOR_EXTENSION" }, "*");
+    const handleMessage = (event: MessageEvent) => {
+      console.log("SubmitScreen received message:", event.data);
+      if (event.data && event.data.type === "FROM_EXTENSION") {
+        console.log("Valid extension message received:", event.data.message);
+        alert(event.data.message);
+      }
+    };
 
+    window.addEventListener("message", handleMessage);
+
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
   const navigate = useNavigate();
+  const router = useRouter();
+  debugger;
+  console.log("Current route:", router.basepath);
+  const { remoteStorage, client, widget } = useRemoteStorage();
+  // const router = useRouter();
+  // console.log("Current route:", router.location.pathname);
+  // const navigate = useNavigate();
 
   const handleBack = () => {
     navigate({ to: "/" });
