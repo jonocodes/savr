@@ -94,7 +94,6 @@ export default function SubmitScreen() {
   }, []);
   const navigate = useNavigate();
   const router = useRouter();
-  debugger;
   console.log("Current route:", router.basepath);
   const { remoteStorage, client, widget } = useRemoteStorage();
   // const router = useRouter();
@@ -164,8 +163,10 @@ export default function SubmitScreen() {
           } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
             // Navigate to the article page
             navigate({ to: `/article/${article.slug}` });
+          } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) {
+            // Navigate to the article list page
+            navigate({ to: "/" });
           }
-          // If "show-list", do nothing - just stay on the current page
         }, 1500);
       } catch (error) {
         console.error(error);
@@ -203,7 +204,7 @@ export default function SubmitScreen() {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Advanced content submission
+            Save raw content
           </Typography>
         </Toolbar>
       </AppBar>
@@ -221,9 +222,9 @@ export default function SubmitScreen() {
           margin="normal"
           autoFocus
           disabled={ingestStatus !== null}
-          // defaultValue={
-          //   "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum"
-          // }
+          defaultValue={
+            "<title>Ipsum</title><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>"
+          }
         />
         <Button
           onClick={() => saveHtml()}

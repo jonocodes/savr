@@ -136,19 +136,21 @@ export default function PreferencesScreen() {
   React.useEffect(() => {
     if (bookmarkletRef.current) {
       const origin = window.location.origin;
-      const saveRoute = origin + "/";
+
+      // const bookmarkletJS = `javascript:(function(){var url=encodeURIComponent(window.location.href);window.open('${origin}/?saveUrl='+url,'_blank');})();`;
+
       const storePageScript = `
-    const savrWindow = window.open('${saveRoute}?bookmarklet=' + encodeURIComponent(window.location.href),'_blank');
-    const interval = setInterval(() => {
-      if (savrWindow.closed) {
-        clearInterval(interval);
-        alert("Article saved successfully!");
-        return;
-      }
-      const htmlString = document.documentElement.outerHTML;
-      savrWindow.postMessage({ action: "savr-html", url: window.location.href, html: htmlString }, '${origin}');
-    }, 100);
-`
+        const savrWindow = window.open('${origin}/?bookmarklet=' + encodeURIComponent(window.location.href),'_blank');
+        const interval = setInterval(() => {
+          if (savrWindow.closed) {
+            clearInterval(interval);
+            alert("Article saved successfully!");
+            return;
+          }
+          const htmlString = document.documentElement.outerHTML;
+          savrWindow.postMessage({ action: "savr-html", url: window.location.href, html: htmlString }, '${origin}');
+        }, 100);
+      `;
 
       const bookmarkletJS = `javascript:(function(){${storePageScript}})();`;
       bookmarkletRef.current.href = bookmarkletJS;

@@ -36,7 +36,7 @@ Savr is:
 | Offline mobile                   | ✅          | sometimes                  | ✅       | ✅       | ❌     |
 | Cross Platform (+mobile/browser) | ✅          | ✅                         | ✅       | ✅       | ✅     |
 | Cross Browser Extension          | ✅          | ❌ (chrome/FF)             | ❌       | ❌       | ❌     |
-| Does not require an account      | ✅          | ✅                         | ✅       | ✅       | ✅     |
+| Does not require an account      | ✅          | ❌                         | ❌       | ❌       | ❌     |
 
 # Progress
 
