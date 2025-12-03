@@ -5,6 +5,7 @@ import {
   getArticleFromDB,
   deleteArticleFromStorage,
   deleteArticleFromDB,
+  disconnectFromRemoteStorage,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -128,6 +129,75 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Article content displayed with expected text");
 
     console.log("\n🎉 Test completed successfully!\n");
+  });
+
+  test("should persist article after disconnect and reconnect", async ({ page }) => {
+    // 1. Ingest an article first
+    console.log("1️⃣  Ingesting article...");
+    const addButton = page.locator('button:has-text("Add Article")');
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = "http://127.0.0.1:8080/input/death-by-a-thousand-cuts/";
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+    console.log("✅ Dialog closed");
+
+    // Wait for article to appear
+    const articleTitle = page.getByText(/Death/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Article ingested and visible");
+
+    // 2. Disconnect from RemoteStorage
+    console.log("2️⃣  Disconnecting from RemoteStorage...");
+    await disconnectFromRemoteStorage(page);
+    console.log("✅ Disconnected from RemoteStorage");
+
+    // 3. Verify article list is empty (or shows disconnected state)
+    console.log("3️⃣  Verifying articles disappeared from list...");
+    await expect(articleTitle).not.toBeVisible({ timeout: 5000 });
+    console.log("✅ Articles no longer visible after disconnect");
+
+    // 4. Reconnect to RemoteStorage
+    console.log("4️⃣  Reconnecting to RemoteStorage...");
+    const token = testEnv.RS_TOKEN;
+    await connectToRemoteStorage(page, "testuser@127.0.0.1:8004", token);
+    await waitForRemoteStorageSync(page);
+    console.log("✅ Reconnected to RemoteStorage");
+
+    // Debug: Check if article is in IndexedDB after reconnect
+    const articleAfterReconnect = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    console.log("🔍 DEBUG: Article in IndexedDB after reconnect?", articleAfterReconnect ? "YES" : "NO");
+
+    // 5. Navigate back to home to trigger article list refresh
+    console.log("5️⃣  Navigating to home page to refresh list...");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    console.log("✅ Navigated back to home");
+
+    // 6. Verify article reappears in list
+    console.log("6️⃣  Verifying article reappeared in list...");
+    await expect(articleTitle).toBeVisible({ timeout: 10000 });
+    console.log("✅ Article reappeared after reconnect");
+
+    // 7. Verify article is still in IndexedDB
+    console.log("7️⃣  Verifying article in IndexedDB...");
+    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    expect(article).toBeTruthy();
+    expect(article?.slug).toBe("death-by-a-thousand-cuts");
+    console.log("✅ Article verified in IndexedDB:", article?.title);
+
+    console.log("\n🎉 Disconnect/reconnect test completed successfully!\n");
   });
 
   test.afterEach(async ({ page }) => {
