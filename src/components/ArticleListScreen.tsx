@@ -399,6 +399,8 @@ export default function ArticleListScreen() {
         enqueueSnackbar("Error requesting article", { variant: "error" });
         setIngestStatus(null);
         setIngestPercent(0);
+        setDialogVisible(false);
+        setUrl("");
       }
     },
     [

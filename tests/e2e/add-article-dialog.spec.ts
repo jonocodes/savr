@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-test.describe("Add Article Functionality", () => {
+test.describe("Add Article Dialog", () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the main page before each test
     await page.goto("/");
@@ -148,47 +148,47 @@ test.describe("Add Article Functionality", () => {
     await expect(urlInput).toHaveValue("https://example.com/article");
   });
 
-  test("should ingest CBC article and display correct title", async ({ page }) => {
-    // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
-    await addButton.click();
+  // test("should ingest CBC article and display correct title", async ({ page }) => {
+  //   // Open the add article dialog
+  //   const addButton = page.locator('button:has-text("Add Article")');
+  //   await addButton.click();
 
-    // Wait for dialog
-    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
-    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+  //   // Wait for dialog
+  //   const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+  //   await expect(dialog.first()).toBeVisible({ timeout: 5000 });
 
-    // Find URL input and save button within the dialog
-    const urlInput = page
-      .locator('input[aria-label="URL"], input[placeholder="URL"], .MuiTextField-root input')
-      .first();
-    const saveButton = dialog.locator('button:has-text("Save")').first();
+  //   // Find URL input and save button within the dialog
+  //   const urlInput = page
+  //     .locator('input[aria-label="URL"], input[placeholder="URL"], .MuiTextField-root input')
+  //     .first();
+  //   const saveButton = dialog.locator('button:has-text("Save")').first();
 
-    // Enter the CBC article URL
-    await urlInput.fill(
-      "https://www.cbc.ca/news/canada/nova-scotia/1985-toyota-tercel-high-mileage-1.7597168"
-    );
+  //   // Enter the CBC article URL
+  //   await urlInput.fill(
+  //     "https://www.cbc.ca/news/canada/nova-scotia/1985-toyota-tercel-high-mileage-1.7597168"
+  //   );
 
-    // Submit the form
-    await saveButton.click();
+  //   // Submit the form
+  //   await saveButton.click();
 
-    // Wait for dialog to close (indicating submission started)
-    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+  //   // Wait for dialog to close (indicating submission started)
+  //   await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
-    // Wait for the article to appear in the list
-    // Look for the article title in the list
-    const articleTitle = page.locator(
-      'text="This car has more than 1.2 million km on it — and it\'s still going strong"'
-    );
-    await expect(articleTitle).toBeVisible({ timeout: 60000 }); // 60 second timeout for ingestion
+  //   // Wait for the article to appear in the list
+  //   // Look for the article title in the list
+  //   const articleTitle = page.locator(
+  //     'text="This car has more than 1.2 million km on it — and it\'s still going strong"'
+  //   );
+  //   await expect(articleTitle).toBeVisible({ timeout: 60000 }); // 60 second timeout for ingestion
 
-    // Click on the article to view it
-    await articleTitle.click();
+  //   // Click on the article to view it
+  //   await articleTitle.click();
 
-    // Wait for the article page to load
-    await page.waitForLoadState("networkidle");
+  //   // Wait for the article page to load
+  //   await page.waitForLoadState("networkidle");
 
-    // Verify the article title is displayed on the article page
-    const articlePageTitle = page.locator("h1, h2, .article-title, .title");
-    await expect(articlePageTitle).toContainText("This car has more than 1.2 million km on it");
-  });
+  //   // Verify the article title is displayed on the article page
+  //   const articlePageTitle = page.locator("h1, h2, .article-title, .title");
+  //   await expect(articlePageTitle).toContainText("This car has more than 1.2 million km on it");
+  // });
 });

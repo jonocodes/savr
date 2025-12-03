@@ -47,6 +47,12 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       setRemoteStorage(store);
       setClient(client);
 
+      // Add test hook (debug mode only) to allow programmatic access in tests
+      if (typeof window !== "undefined" && import.meta.env.VITE_DEBUG) {
+        (window as any).remoteStorage = store;
+        (window as any).remoteStorageClient = client;
+      }
+
       if (typeof window !== "undefined") {
         // Check if widget already exists
         const existingWidget = document.getElementById("remotestorage-widget");
