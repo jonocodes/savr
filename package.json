@@ -55,6 +55,7 @@
     "mozilla-readability-cli": "^0.2.4",
     "mustache": "^4.2.0",
     "notistack": "^3.0.2",
+    "playwright": "^1.54.1",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "remotestorage-widget": "^1.7.0",
@@ -69,7 +70,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@playwright/test": "^1.55.0",
+    "@playwright/test": "^1.54.1",
     "@storybook/addon-docs": "^9.0.16",
     "@storybook/addon-links": "^9.0.16",
     "@storybook/react-vite": "^9.0.16",
