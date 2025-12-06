@@ -112,67 +112,69 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
 }
 
 async function buildDbFromFiles(client: BaseClient) {
-  // const articles: Article[] = [];
-  // for (const path of files) {
-  //   const file = (await client.getFile(path)) as { data: string };
-  // }
+  console.log("🔄 Refreshing database from remote storage files");
 
-  // client.getListing("").then((listing) => console.log("listing", listing));
-
-  console.log("refreshing db");
-
-  // const files = await recursiveList(client, "");
-
-  // console.log("files", files);
+  // Check cache status by looking at root listing
+  try {
+    const rootListing = await client.getListing("");
+    console.log("📂 Root listing:", rootListing);
+  } catch (error) {
+    console.warn("⚠️ Failed to get root listing - cache may not be ready:", error);
+  }
 
   const matches = await glob(client, "saves/*/article.json");
 
-  console.log("Matched files:", matches);
+  console.log(`📄 Matched ${matches.length} article files:`, matches);
+
+  if (matches.length === 0) {
+    console.warn("⚠️ No article.json files found. This could mean:");
+    console.warn("  1. Remote storage is empty");
+    console.warn("  2. Cache is not ready yet (sync still in progress)");
+    console.warn("  3. Files exist but glob pattern didn't match");
+  }
 
   const articles: Article[] = [];
   for (const path of matches) {
-    console.log(path);
+    console.log(`📖 Processing: ${path}`);
 
     try {
       const file = (await client.getFile(path)) as { data: string };
-      console.log("data", file.data);
 
       // If file.data is already an object, use it directly as the article
       if (typeof file.data === "object") {
         // for some reason this only happens with dropbox storage?
         articles.push(file.data as Article);
+        console.log(`  ✓ Loaded article (object format): ${(file.data as Article).slug}`);
       } else {
         const article: Article = JSON.parse(file.data);
         articles.push(article);
+        console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
       }
     } catch (error) {
-      console.error(`Error parsing article from ${path}:`, error);
+      console.error(`  ✗ Error parsing article from ${path}:`, error);
     }
   }
 
-  // Batch insert all articles at once to minimize useLiveQuery triggers
+  // Insert articles into IndexedDB
   if (articles.length > 0) {
-    // await db.articles.bulkPut(articles);
-    // debugger;
-    // console.log(`Bulk inserted ${articles.length} articles`);
+    console.log(`💾 Inserting ${articles.length} articles into IndexedDB...`);
 
-    // Insert articles one at a time for now
+    // Insert articles one at a time to ensure proper change detection
     for (const article of articles) {
       try {
         await db.articles.put(article);
-        console.log(`Inserted article: ${article.slug}`);
+        console.log(`  ✓ Inserted: ${article.slug}`);
       } catch (error) {
-        debugger;
-        console.error(`Failed to insert article ${article.slug}:`, error);
+        console.error(`  ✗ Failed to insert article ${article.slug}:`, error);
       }
     }
-    console.log(`Inserted ${articles.length} articles individually`);
+    console.log(`✅ Successfully inserted ${articles.length} articles`);
   } else {
-    console.log("no articles to insert. clearing db.");
+    console.warn("⚠️ No articles to insert - clearing database");
     await db.articles.clear();
   }
 
-  console.log("refreshing db done");
+  console.log("🏁 Database refresh complete");
 }
 
 function initRemote() {
@@ -199,9 +201,21 @@ function initRemote() {
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
-      console.info(`remoteStorage connected to “${userAddress}”`);
+      console.info(`remoteStorage connected to "${userAddress}"`);
+      // Don't rebuild here - wait for sync-done to ensure cache is populated
+    });
 
+    // This event fires after the initial sync completes and files are cached locally
+    remoteStorage.on("sync-done", async () => {
+      console.info("RemoteStorage sync-done - rebuilding database from synced files");
       await buildDbFromFiles(client);
+    });
+
+    // Also listen for when ongoing sync cycles complete
+    remoteStorage.on("sync-req-done", async () => {
+      console.info("RemoteStorage sync-req-done - sync cycle completed");
+      // Note: We rely on the "change" event handler below to trigger rebuilds
+      // for individual file changes, so we don't rebuild here to avoid duplicates
     });
 
     remoteStorage.on("not-connected", function () {
@@ -248,6 +262,30 @@ function initRemote() {
 
     remoteStorage.on("network-online", () => {
       console.debug(`remoteStorage back online.`);
+    });
+
+    // Listen for change events from RemoteStorage sync
+    // This handles when files are added/modified/deleted on the server by other clients
+    let rebuildTimeout: NodeJS.Timeout | null = null;
+    client.on("change", async (event: any) => {
+      console.log("RemoteStorage change event:", event);
+
+      // If a file in the saves/ directory changed, rebuild the database
+      if (event.path && event.path.startsWith("saves/")) {
+        console.log("Article changed on server, scheduling database rebuild...");
+
+        // Debounce rebuilds - wait 500ms after the last change before rebuilding
+        // This prevents rebuilding multiple times when many files change at once
+        if (rebuildTimeout) {
+          clearTimeout(rebuildTimeout);
+        }
+
+        rebuildTimeout = setTimeout(async () => {
+          console.log("Rebuilding database after remote changes...");
+          await buildDbFromFiles(client);
+          rebuildTimeout = null;
+        }, 500);
+      }
     });
   });
 

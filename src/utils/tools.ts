@@ -111,28 +111,28 @@ export async function imageToDataUrl(blob: Blob): Promise<string> {
   return dataUrl;
 }
 
-export function extractImageUrls(html: string, baseUrl: string): string[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
+// export function extractImageUrls(html: string, baseUrl: string): string[] {
+//   if (typeof window === "undefined") {
+//     return [];
+//   }
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(html, "text/html");
-  return (
-    Array.from(doc.querySelectorAll("img"))
-      .map((img) => img.getAttribute("src") || "")
-      // Skip empty and data URLs
-      .filter((src) => src && !src.startsWith("data:"))
-      .map((src) => {
-        try {
-          return new URL(src, baseUrl).href;
-        } catch {
-          return "";
-        }
-      })
-      .filter((u) => u)
-  );
-}
+//   const parser = new DOMParser();
+//   const doc = parser.parseFromString(html, "text/html");
+//   return (
+//     Array.from(doc.querySelectorAll("img"))
+//       .map((img) => img.getAttribute("src") || "")
+//       // Skip empty and data URLs
+//       .filter((src) => src && !src.startsWith("data:"))
+//       .map((src) => {
+//         try {
+//           return new URL(src, baseUrl).href;
+//         } catch {
+//           return "";
+//         }
+//       })
+//       .filter((u) => u)
+//   );
+// }
 
 export async function loadThumbnail(slug: string): Promise<string> {
   try {

@@ -37,7 +37,7 @@ import {
   ArrowForward,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
-import { ingestUrl,ingestHtml } from "../../lib/src/ingestion";
+import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
 import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -314,20 +314,25 @@ export default function ArticleListScreen() {
         ingesting = true;
         setIngestStatus("Ingesting...");
         setIngestPercent(10);
-        const article = await ingestHtml(client, event.data.html, "text/html", event.data.url, (percent: number | null, message: string | null) => {
-          if (percent !== null) {
-            setIngestStatus(message);
-            setIngestPercent(percent);
+        const { article } = await ingestHtml(
+          client,
+          event.data.html,
+          "text/html",
+          event.data.url,
+          (percent: number | null, message: string | null) => {
+            if (percent !== null) {
+              setIngestStatus(message);
+              setIngestPercent(percent);
+            }
           }
-        });
+        );
+
         await db.articles.put(article);
-        // Force a database refresh by triggering a re-query
-        await db.articles.toArray();
 
         setTimeout(() => {
           setDialogVisible(false);
           setIngestStatus(null);
-          setIngestPercent(0);
+          setIngestPercent(100);
           setUrl("");
           window.close();
         }, 1500);
