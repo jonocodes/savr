@@ -271,8 +271,13 @@ function initRemote() {
       console.log("RemoteStorage change event:", event);
 
       // If a file in the saves/ directory changed, rebuild the database
-      if (event.path && event.path.startsWith("saves/")) {
-        console.log("Article changed on server, scheduling database rebuild...");
+      // Check for both relative (saves/) and absolute (/savr/saves/) paths
+      const path = event.path || event.relativePath || "";
+      const isArticleChange =
+        path.startsWith("saves/") || path.startsWith("/savr/saves/") || path.includes("/saves/");
+
+      if (isArticleChange) {
+        console.log(`Article changed on server (path: ${path}), scheduling database rebuild...`);
 
         // Debounce rebuilds - wait 500ms after the last change before rebuilding
         // This prevents rebuilding multiple times when many files change at once
