@@ -18,11 +18,9 @@ export const setCorsProxyValue = (value: string | null): void => {
 };
 
 // delete the article from the db and the file system
+// deleteArticleStorage already handles deleting from both IndexedDB and RemoteStorage
 export async function removeArticle(storeClient: BaseClient, slug: string): Promise<void> {
   await deleteArticleStorage(slug);
-
-  // remove the article from the db
-  await db.articles.delete(slug);
 }
 
 export async function updateArticleMetadata(

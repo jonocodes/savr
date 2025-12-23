@@ -8,7 +8,7 @@
         "storage",
         "tabs",
         "webNavigation",
-        "https://localhost:3000/*"
+        "http://localhost:3000/*"
     ],
     "browser_action": {
         "default_popup": "popup.html",
@@ -17,7 +17,7 @@
     "content_scripts": [
         {
             "matches": [
-                "https://localhost:3000/submit*"
+                "http://localhost:3000/submit*"
             ],
             "js": [
                 "content.js"

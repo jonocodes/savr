@@ -44,7 +44,7 @@ export default function DiagnosticsScreen() {
 
   const { client: remoteStorageClient } = useRemoteStorage();
 
-  // Scan for dangling remote storage items (only check saves/ directory)
+  // Scan for dangling remote storage items (directories without corresponding database entries)
   const scanDanglingItems = React.useCallback(async () => {
     if (!remoteStorageClient || !articles) return;
 
@@ -53,6 +53,9 @@ export default function DiagnosticsScreen() {
     try {
       // Only list the saves/ directory - no need for recursive scanning
       const listing = await remoteStorageClient.getListing("saves/");
+
+      // Build a set of article slugs from the database for quick lookup
+      const articleSlugs = new Set(articles.map((article) => article.slug));
 
       const dangling: Array<{
         path: string;
@@ -63,15 +66,20 @@ export default function DiagnosticsScreen() {
       for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
         if (name.endsWith("/")) {
           // This is a directory in saves/
-          const dirPath = `saves/${name}`;
-          dangling.push({
-            path: dirPath,
-            type: "directory",
-            details: {
-              message: "Article directory found in remote storage",
-              slug: name.slice(0, -1), // Remove trailing slash
-            },
-          });
+          const slug = name.slice(0, -1); // Remove trailing slash
+
+          // Only include if there's no corresponding article in the database
+          if (!articleSlugs.has(slug)) {
+            const dirPath = `saves/${name}`;
+            dangling.push({
+              path: dirPath,
+              type: "directory",
+              details: {
+                message: "Directory in remote storage without corresponding database entry",
+                slug: slug,
+              },
+            });
+          }
         }
       }
 
@@ -81,7 +89,7 @@ export default function DiagnosticsScreen() {
     } finally {
       setIsScanningDangling(false);
     }
-  }, [remoteStorageClient, articles?.length]);
+  }, [remoteStorageClient, articles]);
 
   // Scan for articles in database that don't have corresponding remote storage directories
   const scanOrphanedArticles = React.useCallback(async () => {
@@ -370,52 +378,7 @@ export default function DiagnosticsScreen() {
           </Box>
 
           <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
-            Articles ({articles.length})
-          </Typography>
-
-          <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>
-                    <strong>Title</strong>
-                  </TableCell>
-                  <TableCell>
-                    <strong>State</strong>
-                  </TableCell>
-                  <TableCell>
-                    <strong>Ingest Date</strong>
-                  </TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {articles.map((article) => (
-                  <TableRow key={article.slug}>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-word" }}>
-                        {article.title || "No title"}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
-                        {article.state}
-                      </Typography>
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="body2">
-                        {article.ingestDate
-                          ? new Date(article.ingestDate).toLocaleString()
-                          : "Unknown"}
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-
-          <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
-            Remote Storage Directories ({danglingItems.length})
+            Dangling Remote Storage Directories ({danglingItems.length})
             {isScanningDangling && (
               <Chip label="Scanning..." size="small" color="info" sx={{ ml: 2 }} />
             )}
@@ -460,10 +423,55 @@ export default function DiagnosticsScreen() {
               <Typography variant="body1" color="text.secondary">
                 {isScanningDangling
                   ? "Scanning remote storage for directories..."
-                  : "No directories found in remote storage."}
+                  : "No dangling directories found in remote storage."}
               </Typography>
             </Box>
           )}
+
+          <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
+            Articles ({articles.length})
+          </Typography>
+
+          <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableCell>
+                    <strong>Title</strong>
+                  </TableCell>
+                  <TableCell>
+                    <strong>State</strong>
+                  </TableCell>
+                  <TableCell>
+                    <strong>Ingest Date</strong>
+                  </TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {articles.map((article) => (
+                  <TableRow key={article.slug}>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-word" }}>
+                        {article.title || "No title"}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontFamily: "monospace" }}>
+                        {article.state}
+                      </Typography>
+                    </TableCell>
+                    <TableCell>
+                      <Typography variant="body2">
+                        {article.ingestDate
+                          ? new Date(article.ingestDate).toLocaleString()
+                          : "Unknown"}
+                      </Typography>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
 
           <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
             Orphaned Database Articles ({orphanedArticles.length})

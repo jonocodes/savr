@@ -84,6 +84,7 @@
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.4.20",
+    "baseline-browser-mapping": "^2.9.11",
     "jest": "^30.1.1",
     "local-web-server": "^5.4.0",
     "postcss": "^8.5.1",

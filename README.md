@@ -140,7 +140,7 @@ This is a front end react app. Run like so:
 
 > npm install && npm run dev
 
-Then visit https://localhost:3000
+Then visit http://localhost:3000
 
 If you want to test PWA/production then do
 

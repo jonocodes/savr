@@ -111,7 +111,31 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
   }
 }
 
-async function buildDbFromFiles(client: BaseClient) {
+// Process a single article.json file and insert it into IndexedDB immediately
+async function processArticleFile(client: BaseClient, filePath: string): Promise<void> {
+  try {
+    console.log(`📖 Processing article file: ${filePath}`);
+    const file = (await client.getFile(filePath)) as { data: string };
+
+    let article: Article;
+    if (typeof file.data === "object") {
+      // for some reason this only happens with dropbox storage?
+      article = file.data as Article;
+      console.log(`  ✓ Loaded article (object format): ${article.slug}`);
+    } else {
+      article = JSON.parse(file.data);
+      console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
+    }
+
+    // Insert immediately into IndexedDB
+    await db.articles.put(article);
+    console.log(`  ✅ Inserted: ${article.slug}`);
+  } catch (error) {
+    console.error(`  ✗ Error processing article file ${filePath}:`, error);
+  }
+}
+
+async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) {
   console.log("🔄 Refreshing database from remote storage files");
 
   // Check cache status by looking at root listing
@@ -131,47 +155,20 @@ async function buildDbFromFiles(client: BaseClient) {
     console.warn("  1. Remote storage is empty");
     console.warn("  2. Cache is not ready yet (sync still in progress)");
     console.warn("  3. Files exist but glob pattern didn't match");
+    return;
   }
 
-  const articles: Article[] = [];
+  // Process and insert articles incrementally as they're found
+  console.log(`💾 Processing ${matches.length} articles incrementally...`);
   for (const path of matches) {
-    console.log(`📖 Processing: ${path}`);
-
-    try {
-      const file = (await client.getFile(path)) as { data: string };
-
-      // If file.data is already an object, use it directly as the article
-      if (typeof file.data === "object") {
-        // for some reason this only happens with dropbox storage?
-        articles.push(file.data as Article);
-        console.log(`  ✓ Loaded article (object format): ${(file.data as Article).slug}`);
-      } else {
-        const article: Article = JSON.parse(file.data);
-        articles.push(article);
-        console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
-      }
-    } catch (error) {
-      console.error(`  ✗ Error parsing article from ${path}:`, error);
+    // Skip if already processed (when called from change handler)
+    if (processedSet && processedSet.has(path)) {
+      continue;
     }
-  }
-
-  // Insert articles into IndexedDB
-  if (articles.length > 0) {
-    console.log(`💾 Inserting ${articles.length} articles into IndexedDB...`);
-
-    // Insert articles one at a time to ensure proper change detection
-    for (const article of articles) {
-      try {
-        await db.articles.put(article);
-        console.log(`  ✓ Inserted: ${article.slug}`);
-      } catch (error) {
-        console.error(`  ✗ Failed to insert article ${article.slug}:`, error);
-      }
+    await processArticleFile(client, path);
+    if (processedSet) {
+      processedSet.add(path);
     }
-    console.log(`✅ Successfully inserted ${articles.length} articles`);
-  } else {
-    console.warn("⚠️ No articles to insert - clearing database");
-    await db.articles.clear();
   }
 
   console.log("🏁 Database refresh complete");
@@ -206,9 +203,11 @@ function initRemote() {
     });
 
     // This event fires after the initial sync completes and files are cached locally
+    // We still run buildDbFromFiles here to catch any files that might have been missed
+    // by the incremental change handler, but most articles should already be loaded
     remoteStorage.on("sync-done", async () => {
-      console.info("RemoteStorage sync-done - rebuilding database from synced files");
-      await buildDbFromFiles(client);
+      console.info("RemoteStorage sync-done - checking for any missed files");
+      await buildDbFromFiles(client, processedArticles);
     });
 
     // Also listen for when ongoing sync cycles complete
@@ -223,8 +222,13 @@ function initRemote() {
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected", arguments);
-      await buildDbFromFiles(client);
+      console.info("remoteStorage disconnected - clearing local articles");
+      try {
+        await db.articles.clear();
+        console.info("✅ Cleared all articles from local database");
+      } catch (error) {
+        console.error("❌ Failed to clear articles from local database:", error);
+      }
     });
 
     let lastNotificationTime = 0;
@@ -264,32 +268,60 @@ function initRemote() {
       console.debug(`remoteStorage back online.`);
     });
 
+    // Track which articles we've already processed to avoid duplicates
+    // This is shared between the change handler and sync-done handler
+    const processedArticles = new Set<string>();
+
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
-    let rebuildTimeout: NodeJS.Timeout | null = null;
+    // Process articles incrementally as they're synced
     client.on("change", async (event: any) => {
       console.log("RemoteStorage change event:", event);
 
-      // If a file in the saves/ directory changed, rebuild the database
       // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const path = event.path || event.relativePath || "";
+      const isArticleFile = path.endsWith("/article.json");
       const isArticleChange =
-        path.startsWith("saves/") || path.startsWith("/savr/saves/") || path.includes("/saves/");
+        (path.startsWith("saves/") ||
+          path.startsWith("/savr/saves/") ||
+          path.includes("/saves/")) &&
+        isArticleFile;
 
       if (isArticleChange) {
-        console.log(`Article changed on server (path: ${path}), scheduling database rebuild...`);
+        // Normalize path to relative format for tracking
+        const normalizedPath = path.startsWith("/savr/") ? path.slice(6) : path;
 
-        // Debounce rebuilds - wait 500ms after the last change before rebuilding
-        // This prevents rebuilding multiple times when many files change at once
-        if (rebuildTimeout) {
-          clearTimeout(rebuildTimeout);
+        // Skip if we've already processed this file
+        if (processedArticles.has(normalizedPath)) {
+          console.log(`Skipping already processed article: ${normalizedPath}`);
+          return;
         }
 
-        rebuildTimeout = setTimeout(async () => {
-          console.log("Rebuilding database after remote changes...");
-          await buildDbFromFiles(client);
-          rebuildTimeout = null;
-        }, 500);
+        // Only process if this is a new file (newValue exists, oldValue doesn't)
+        // or if it's an update (both exist)
+        if (event.newValue !== undefined) {
+          console.log(`📥 New/updated article detected: ${normalizedPath}`);
+          processedArticles.add(normalizedPath);
+
+          // Process immediately - no debouncing for individual files
+          await processArticleFile(client, normalizedPath);
+        } else if (event.oldValue !== undefined && event.newValue === undefined) {
+          // File was deleted
+          console.log(`🗑️ Article deleted: ${normalizedPath}`);
+          processedArticles.delete(normalizedPath);
+
+          // Extract slug from path and delete from IndexedDB
+          const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
+          if (slugMatch) {
+            const slug = slugMatch[1];
+            try {
+              await db.articles.delete(slug);
+              console.log(`  ✅ Deleted article from IndexedDB: ${slug}`);
+            } catch (error) {
+              console.error(`  ✗ Failed to delete article ${slug}:`, error);
+            }
+          }
+        }
       }
     });
   });

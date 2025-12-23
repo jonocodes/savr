@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function() {
         try {
             // Create new tab with submit page
             const tab = await browser.tabs.create({
-                url: 'https://localhost:3000/submit'
+                url: 'http://localhost:3000/submit'
             });
             
             console.log('Created tab:', tab.id);

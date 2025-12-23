@@ -9,7 +9,7 @@
   //   https://js.do/blog/bookmarklets/
 
   console.log("[bookmarklet] Starting...");
-  const savrApp = "https://localhost:3000";
+  const savrApp = "http://localhost:3000";
 
   console.log("[bookmarklet] Opening PWA window...");
   var savrWindow = window.open(savrApp, "_blank");

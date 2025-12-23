@@ -37,7 +37,7 @@ describe("lib.ts", () => {
 
     it("should handle URLs without www prefix", () => {
       expect(extractDomain("https://github.com/user/repo")).toBe("github.com");
-      expect(extractDomain("http://localhost:3000")).toBe("localhost");
+      expect(extractDomain("http://localhost:3002")).toBe("localhost");
     });
 
     it("should return null for invalid URLs", () => {

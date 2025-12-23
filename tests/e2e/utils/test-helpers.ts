@@ -132,7 +132,7 @@ export const TestData = {
     "https://example.com/article",
     "https://www.google.com",
     "https://github.com/username/repo",
-    "http://localhost:3000/test",
+    "http://localhost:3002/test",
   ],
   INVALID_URLS: [
     "not-a-url",
