@@ -199,7 +199,8 @@ function initRemote() {
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`remoteStorage connected to "${userAddress}"`);
-      // Don't rebuild here - wait for sync-done to ensure cache is populated
+      // Sync is automatically triggered on connection, but we can ensure it happens
+      // The sync-done event will fire when sync completes
     });
 
     // This event fires after the initial sync completes and files are cached locally
@@ -207,6 +208,28 @@ function initRemote() {
     // by the incremental change handler, but most articles should already be loaded
     remoteStorage.on("sync-done", async () => {
       console.info("RemoteStorage sync-done - checking for any missed files");
+      // Wait a bit longer to ensure cache is fully populated and change events have fired
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Check if sync is actually complete by verifying cache status
+      let retries = 0;
+      const maxRetries = 5;
+      while (retries < maxRetries) {
+        try {
+          const listing = await client.getListing("saves/");
+          if (listing !== undefined) {
+            // Cache appears ready, proceed with buildDbFromFiles
+            break;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
+        }
+        retries++;
+        if (retries < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+
       await buildDbFromFiles(client, processedArticles);
     });
 
@@ -225,6 +248,7 @@ function initRemote() {
       console.info("remoteStorage disconnected - clearing local articles");
       try {
         await db.articles.clear();
+        processedArticles.clear(); // Clear processed articles tracking
         console.info("✅ Cleared all articles from local database");
       } catch (error) {
         console.error("❌ Failed to clear articles from local database:", error);

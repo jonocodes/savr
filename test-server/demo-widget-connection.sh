@@ -17,7 +17,7 @@ if lsof -i:8004 > /dev/null 2>&1; then
 fi
 
 echo "Starting RemoteStorage server..."
-flox activate -- node armadietto.cjs > /tmp/storage-server.log 2>&1 &
+node armadietto.cjs > /tmp/storage-server.log 2>&1 &
 SERVER_PID=$!
 
 # Wait for server to start

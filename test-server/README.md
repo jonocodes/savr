@@ -13,6 +13,7 @@ Then connect your app's widget to: `testuser@127.0.0.1:8004` (password: `testpas
 ## Getting Started
 
 **New to this?** Start here:
+
 - 📖 [../docs/WIDGET-QUICKSTART.md](../docs/WIDGET-QUICKSTART.md) - Visual step-by-step guide (60 seconds)
 
 ## Files in this Directory
@@ -30,26 +31,30 @@ Then connect your app's widget to: `testuser@127.0.0.1:8004` (password: `testpas
 ## Usage
 
 ### Start Server
+
 ```bash
 # Interactive (recommended)
 ./demo-widget-connection.sh
 
 # Manual
-flox activate -- node armadietto.cjs
+node armadietto.cjs
 ```
 
 ### Connect Widget
+
 1. Click RemoteStorage widget in your app (bottom-right)
 2. Enter: `testuser@127.0.0.1:8004`
 3. Password: `testpass`
 4. Approve authorization
 
 ### Run Tests
+
 ```bash
 ./test-storage.sh <TOKEN>
 ```
 
 ### Stop Server
+
 ```bash
 lsof -ti:8004 | xargs kill -9
 ```
@@ -70,33 +75,38 @@ lsof -ti:8004 | xargs kill -9
 ## Common Tasks
 
 ### Connect App to Test Server
+
 See [../docs/WIDGET-QUICKSTART.md](../docs/WIDGET-QUICKSTART.md)
 
 ### Run Automated Tests
+
 ```bash
 # Get token from server output, then:
 ./test-storage.sh <TOKEN>
 ```
 
 ### Understand OAuth Flow
+
 See [../docs/README-connect-widget.md](../docs/README-connect-widget.md#manual-oauth-flow-for-testing)
 
 ### Configure Server
+
 Edit [armadietto.cjs](armadietto.cjs) to change port, user credentials, or storage path.
 
 See [../docs/README-storage-server.md](../docs/README-storage-server.md#configuration) for details.
 
 ### Troubleshoot Connection
+
 See [../docs/WIDGET-QUICKSTART.md](../docs/WIDGET-QUICKSTART.md#troubleshooting)
 
 ## What's What?
 
-| File | Purpose |
-|------|---------|
-| [armadietto.cjs](armadietto.cjs) | Server code |
-| [demo-widget-connection.sh](demo-widget-connection.sh) | Demo script |
-| [test-storage.sh](test-storage.sh) | Test suite |
-| [../docs/WIDGET-QUICKSTART.md](../docs/WIDGET-QUICKSTART.md) | 60-second visual guide |
+| File                                                                 | Purpose                      |
+| -------------------------------------------------------------------- | ---------------------------- |
+| [armadietto.cjs](armadietto.cjs)                                     | Server code                  |
+| [demo-widget-connection.sh](demo-widget-connection.sh)               | Demo script                  |
+| [test-storage.sh](test-storage.sh)                                   | Test suite                   |
+| [../docs/WIDGET-QUICKSTART.md](../docs/WIDGET-QUICKSTART.md)         | 60-second visual guide       |
 | [../docs/README-connect-widget.md](../docs/README-connect-widget.md) | Technical OAuth flow details |
 | [../docs/README-storage-server.md](../docs/README-storage-server.md) | Server API and configuration |
 
@@ -148,6 +158,7 @@ Your app stores data at `/savr/saves/`:
 ```
 
 Inspect directly:
+
 ```bash
 ls -la /tmp/restore/te/testuser/storage/savr/saves/
 cat /tmp/restore/te/testuser/storage/savr/saves/*/article.json
@@ -169,12 +180,15 @@ tail -f /tmp/storage-server.log
 ## Advanced Usage
 
 ### Multiple Users
+
 Edit [armadietto.cjs](armadietto.cjs) to create additional test users. See [../docs/README-connect-widget.md](../docs/README-connect-widget.md#advanced-using-different-user-addresses).
 
 ### Integration with CI/CD
+
 See [../docs/README-connect-widget.md](../docs/README-connect-widget.md#integration-with-automated-tests) for examples.
 
 ### Custom Configuration
+
 - Change port: Edit `http: { port: 8004 }` in [armadietto.cjs](armadietto.cjs)
 - Change storage path: Edit `path: "/tmp/restore"`
 - Add users: Add more `store.createUser()` calls

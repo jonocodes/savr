@@ -7,7 +7,7 @@ Your app uses the RemoteStorage widget which allows users to connect to any Remo
 ### 1. Start the test server
 ```bash
 cd test-server
-flox activate -- node armadietto.cjs
+node armadietto.cjs
 ```
 
 Note the token that's printed - you'll use it later for API testing.
@@ -68,7 +68,7 @@ If you want to manually test the OAuth flow:
 
 ### 1. Start the server
 ```bash
-flox activate -- node armadietto.cjs
+node armadietto.cjs
 ```
 
 ### 2. Build the OAuth URL

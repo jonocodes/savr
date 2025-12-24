@@ -13,7 +13,7 @@ if [ -z "$TOKEN" ]; then
   echo "Error: No token provided"
   echo "Usage: $0 <token>"
   echo ""
-  echo "Start the server first with: flox activate -- node armadietto.cjs"
+  echo "Start the server first with: node armadietto.cjs"
   echo "Then use the token printed in the output"
   exit 1
 fi

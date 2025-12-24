@@ -21,7 +21,7 @@ This script will:
 
 ```bash
 cd test-server
-flox activate -- node armadietto.cjs
+node armadietto.cjs
 ```
 
 This will:
@@ -180,7 +180,7 @@ For use in CI/CD or automated test scripts:
 
 ```bash
 # Start server in background
-flox activate -- node armadietto.cjs > /tmp/storage-server.log 2>&1 &
+node armadietto.cjs > /tmp/storage-server.log 2>&1 &
 SERVER_PID=$!
 
 # Extract token from log

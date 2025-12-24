@@ -65,6 +65,7 @@ import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 import { ingestHtml } from "lib/src/ingestion";
+import type { Article } from "lib/src/models";
 
 export default function SubmitScreen() {
   const { enqueueSnackbar } = useSnackbar();
@@ -118,7 +119,7 @@ export default function SubmitScreen() {
 
       setIngestStatus("Ingesting...");
       try {
-        const article = await ingestHtml(
+        const result = await ingestHtml(
           client,
           // corsProxy,
           html,
@@ -132,6 +133,7 @@ export default function SubmitScreen() {
           }
         );
 
+        const article: Article = result.article;
         console.log("About to save article to IndexedDB:", article);
         await db.articles.put(article);
         console.log("Article saved to IndexedDB successfully");

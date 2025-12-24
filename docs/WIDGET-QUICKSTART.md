@@ -202,7 +202,7 @@ Make sure you're using `testpass` (not the API token).
 cd test-server && ./demo-widget-connection.sh
 
 # Start server manually
-cd test-server && flox activate -- node armadietto.cjs
+cd test-server && node armadietto.cjs
 
 # Run automated tests
 cd test-server && ./test-storage.sh <TOKEN>

@@ -177,7 +177,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Debug: Check if article is in IndexedDB after reconnect
     const articleAfterReconnect = await getArticleFromDB(page, "death-by-a-thousand-cuts");
-    console.log("🔍 DEBUG: Article in IndexedDB after reconnect?", articleAfterReconnect ? "YES" : "NO");
+    console.log(
+      "🔍 DEBUG: Article in IndexedDB after reconnect?",
+      articleAfterReconnect ? "YES" : "NO"
+    );
 
     // 5. Navigate back to home to trigger article list refresh
     console.log("5️⃣  Navigating to home page to refresh list...");
@@ -187,6 +190,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 6. Verify article reappears in list
     console.log("6️⃣  Verifying article reappeared in list...");
+    // Wait longer for sync-done to complete and articles to be reloaded
     await expect(articleTitle).toBeVisible({ timeout: 10000 });
     console.log("✅ Article reappeared after reconnect");
 

@@ -16,8 +16,8 @@ export default defineConfig({
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
   /* Global setup and teardown for test servers */
-  globalSetup: './tests/e2e/global-setup.ts',
-  globalTeardown: './tests/e2e/global-teardown.ts',
+  globalSetup: "./tests/e2e/global-setup.ts",
+  globalTeardown: "./tests/e2e/global-teardown.ts",
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
@@ -80,7 +80,7 @@ export default defineConfig({
     stdout: "pipe",
     stderr: "pipe",
     env: {
-      VITE_CORS_PROXY: '',  // Disable CORS proxy for tests to allow direct localhost fetches
+      VITE_CORS_PROXY: "", // Disable CORS proxy for tests to allow direct localhost fetches
     },
   },
 });
