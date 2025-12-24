@@ -1,0 +1,28 @@
+{
+    "manifest_version": 2,
+    "name": "Savr Extension",
+    "version": "1.0",
+    "description": "Send messages to Savr submit page",
+    "permissions": [
+        "activeTab",
+        "storage",
+        "tabs",
+        "webNavigation",
+        "http://localhost:3000/*"
+    ],
+    "browser_action": {
+        "default_popup": "popup.html",
+        "default_title": "Savr Extension"
+    },
+    "content_scripts": [
+        {
+            "matches": [
+                "http://localhost:3000/submit*"
+            ],
+            "js": [
+                "content.js"
+            ],
+            "run_at": "document_end"
+        }
+    ]
+}

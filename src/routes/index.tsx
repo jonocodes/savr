@@ -3,4 +3,5 @@ import ArticleListScreen from "~/components/ArticleListScreen";
 
 export const Route = createFileRoute("/")({
   component: ArticleListScreen,
+  ssr: false,
 });

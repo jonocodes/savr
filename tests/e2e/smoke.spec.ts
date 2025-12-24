@@ -24,7 +24,6 @@ test.describe("Smoke Test", () => {
 
     // Check for basic HTML structure
     await expect(page.locator("html")).toBeVisible();
-    await expect(page.locator("head")).toBeVisible();
     await expect(page.locator("body")).toBeVisible();
 
     // Check that the page has some content

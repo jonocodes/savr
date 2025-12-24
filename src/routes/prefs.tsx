@@ -8,4 +8,5 @@ export const Route = createFileRoute("/prefs")({
     return data;
   },
   component: PreferencesScreen,
+  ssr: false,
 });

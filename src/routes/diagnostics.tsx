@@ -4,6 +4,7 @@ import DiagnosticsScreen from "~/components/DiagnosticsScreen";
 
 export const Route = createFileRoute("/diagnostics")({
   component: DiagnosticsPage,
+  ssr: false,
 });
 
 function DiagnosticsPage() {

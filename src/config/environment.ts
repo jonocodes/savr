@@ -13,10 +13,12 @@ export interface EnvironmentConfig {
 const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
   if (typeof window !== "undefined") {
     // Client-side: check for Vite env vars
-    return import.meta.env[key] || defaultValue;
+    // Use 'in' operator to check if key exists, allowing empty string values
+    return key in import.meta.env ? import.meta.env[key] : defaultValue;
   }
   // Server-side: check for Node.js env vars
-  return process.env[key] || defaultValue;
+  // Use 'in' operator to check if key exists, allowing empty string values
+  return key in process.env ? process.env[key] : defaultValue;
 };
 
 // Create environment configuration
@@ -25,7 +27,7 @@ export const environmentConfig: EnvironmentConfig = {
     const debugValue = getEnvVar("VITE_DEBUG", "true") || "true";
     return debugValue.toLowerCase() === "true" || debugValue === "1";
   })(),
-  defaultCorsProxy: "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
+  defaultCorsProxy: getEnvVar("VITE_CORS_PROXY", "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=") || "",
   showWelcome: (() => {
     const welcomeValue = getEnvVar("VITE_SHOW_WELCOME", "false") || "false";
     return welcomeValue.toLowerCase() === "true" || welcomeValue === "1";

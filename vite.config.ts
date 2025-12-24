@@ -1,8 +1,6 @@
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import viteReact from "@vitejs/plugin-react";
-
-import basicSsl from "@vitejs/plugin-basic-ssl";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(({ mode }) => {
@@ -51,7 +49,6 @@ export default defineConfig(({ mode }) => {
       __DEV__: true,
     },
     plugins: [
-      basicSsl(),
       {
         name: "serve-index",
         configureServer(server) {

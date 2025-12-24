@@ -9,12 +9,19 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as SubmitRouteImport } from './routes/submit'
 import { Route as ShareHandlerRouteImport } from './routes/share-handler'
 import { Route as PrefsRouteImport } from './routes/prefs'
+import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
+import { Route as CorstestRouteImport } from './routes/corstest'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ArticleSlugRouteImport } from './routes/article.$slug'
-import { Route as DiagnosticsRouteImport } from './routes/diagnostics'
 
+const SubmitRoute = SubmitRouteImport.update({
+  id: '/submit',
+  path: '/submit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ShareHandlerRoute = ShareHandlerRouteImport.update({
   id: '/share-handler',
   path: '/share-handler',
@@ -23,6 +30,16 @@ const ShareHandlerRoute = ShareHandlerRouteImport.update({
 const PrefsRoute = PrefsRouteImport.update({
   id: '/prefs',
   path: '/prefs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DiagnosticsRoute = DiagnosticsRouteImport.update({
+  id: '/diagnostics',
+  path: '/diagnostics',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CorstestRoute = CorstestRouteImport.update({
+  id: '/corstest',
+  path: '/corstest',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IndexRoute = IndexRouteImport.update({
@@ -35,52 +52,84 @@ const ArticleSlugRoute = ArticleSlugRouteImport.update({
   path: '/article/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DiagnosticsRoute = DiagnosticsRouteImport.update({
-  id: '/diagnostics',
-  path: '/diagnostics',
-  getParentRoute: () => rootRouteImport,
-} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/corstest': typeof CorstestRoute
+  '/diagnostics': typeof DiagnosticsRoute
   '/prefs': typeof PrefsRoute
   '/share-handler': typeof ShareHandlerRoute
+  '/submit': typeof SubmitRoute
   '/article/$slug': typeof ArticleSlugRoute
-  '/diagnostics': typeof DiagnosticsRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/corstest': typeof CorstestRoute
+  '/diagnostics': typeof DiagnosticsRoute
   '/prefs': typeof PrefsRoute
   '/share-handler': typeof ShareHandlerRoute
+  '/submit': typeof SubmitRoute
   '/article/$slug': typeof ArticleSlugRoute
-  '/diagnostics': typeof DiagnosticsRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/corstest': typeof CorstestRoute
+  '/diagnostics': typeof DiagnosticsRoute
   '/prefs': typeof PrefsRoute
   '/share-handler': typeof ShareHandlerRoute
+  '/submit': typeof SubmitRoute
   '/article/$slug': typeof ArticleSlugRoute
-  '/diagnostics': typeof DiagnosticsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/prefs' | '/share-handler' | '/article/$slug' | '/diagnostics'
+  fullPaths:
+    | '/'
+    | '/corstest'
+    | '/diagnostics'
+    | '/prefs'
+    | '/share-handler'
+    | '/submit'
+    | '/article/$slug'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/prefs' | '/share-handler' | '/article/$slug' | '/diagnostics'
-  id: '__root__' | '/' | '/prefs' | '/share-handler' | '/article/$slug' | '/diagnostics'
+  to:
+    | '/'
+    | '/corstest'
+    | '/diagnostics'
+    | '/prefs'
+    | '/share-handler'
+    | '/submit'
+    | '/article/$slug'
+  id:
+    | '__root__'
+    | '/'
+    | '/corstest'
+    | '/diagnostics'
+    | '/prefs'
+    | '/share-handler'
+    | '/submit'
+    | '/article/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CorstestRoute: typeof CorstestRoute
+  DiagnosticsRoute: typeof DiagnosticsRoute
   PrefsRoute: typeof PrefsRoute
   ShareHandlerRoute: typeof ShareHandlerRoute
+  SubmitRoute: typeof SubmitRoute
   ArticleSlugRoute: typeof ArticleSlugRoute
-  DiagnosticsRoute: typeof DiagnosticsRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/submit': {
+      id: '/submit'
+      path: '/submit'
+      fullPath: '/submit'
+      preLoaderRoute: typeof SubmitRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/share-handler': {
       id: '/share-handler'
       path: '/share-handler'
@@ -93,6 +142,20 @@ declare module '@tanstack/react-router' {
       path: '/prefs'
       fullPath: '/prefs'
       preLoaderRoute: typeof PrefsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/diagnostics': {
+      id: '/diagnostics'
+      path: '/diagnostics'
+      fullPath: '/diagnostics'
+      preLoaderRoute: typeof DiagnosticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/corstest': {
+      id: '/corstest'
+      path: '/corstest'
+      fullPath: '/corstest'
+      preLoaderRoute: typeof CorstestRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/': {
@@ -109,22 +172,17 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ArticleSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/diagnostics': {
-      id: '/diagnostics'
-      path: '/diagnostics'
-      fullPath: '/diagnostics'
-      preLoaderRoute: typeof DiagnosticsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CorstestRoute: CorstestRoute,
+  DiagnosticsRoute: DiagnosticsRoute,
   PrefsRoute: PrefsRoute,
   ShareHandlerRoute: ShareHandlerRoute,
+  SubmitRoute: SubmitRoute,
   ArticleSlugRoute: ArticleSlugRoute,
-  DiagnosticsRoute: DiagnosticsRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

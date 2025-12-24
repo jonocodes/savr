@@ -330,14 +330,15 @@ export default function ArticleScreen(props: Props) {
             });
         }
 
-        // Calculate storage size for this article
-        try {
-          displayDebugMessage("calculating size...");
-          const sizeInfo = await calculateArticleStorageSize(slug);
-          setStorageSize(sizeInfo);
-        } catch (error) {
-          console.error("Failed to calculate storage size:", error);
-        }
+        // Calculate storage size asynchronously without blocking HTML display
+        // This runs in parallel and doesn't affect the article rendering
+        calculateArticleStorageSize(slug)
+          .then((sizeInfo) => {
+            setStorageSize(sizeInfo);
+          })
+          .catch((error) => {
+            console.error("Failed to calculate storage size:", error);
+          });
       } catch (e) {
         console.error(e);
       }

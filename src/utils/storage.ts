@@ -111,69 +111,67 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
   }
 }
 
-async function buildDbFromFiles(client: BaseClient) {
-  // const articles: Article[] = [];
-  // for (const path of files) {
-  //   const file = (await client.getFile(path)) as { data: string };
-  // }
+// Process a single article.json file and insert it into IndexedDB immediately
+async function processArticleFile(client: BaseClient, filePath: string): Promise<void> {
+  try {
+    console.log(`📖 Processing article file: ${filePath}`);
+    const file = (await client.getFile(filePath)) as { data: string };
 
-  // client.getListing("").then((listing) => console.log("listing", listing));
+    let article: Article;
+    if (typeof file.data === "object") {
+      // for some reason this only happens with dropbox storage?
+      article = file.data as Article;
+      console.log(`  ✓ Loaded article (object format): ${article.slug}`);
+    } else {
+      article = JSON.parse(file.data);
+      console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
+    }
 
-  console.log("refreshing db");
+    // Insert immediately into IndexedDB
+    await db.articles.put(article);
+    console.log(`  ✅ Inserted: ${article.slug}`);
+  } catch (error) {
+    console.error(`  ✗ Error processing article file ${filePath}:`, error);
+  }
+}
 
-  // const files = await recursiveList(client, "");
+async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) {
+  console.log("🔄 Refreshing database from remote storage files");
 
-  // console.log("files", files);
+  // Check cache status by looking at root listing
+  try {
+    const rootListing = await client.getListing("");
+    console.log("📂 Root listing:", rootListing);
+  } catch (error) {
+    console.warn("⚠️ Failed to get root listing - cache may not be ready:", error);
+  }
 
   const matches = await glob(client, "saves/*/article.json");
 
-  console.log("Matched files:", matches);
+  console.log(`📄 Matched ${matches.length} article files:`, matches);
 
-  const articles: Article[] = [];
+  if (matches.length === 0) {
+    console.warn("⚠️ No article.json files found. This could mean:");
+    console.warn("  1. Remote storage is empty");
+    console.warn("  2. Cache is not ready yet (sync still in progress)");
+    console.warn("  3. Files exist but glob pattern didn't match");
+    return;
+  }
+
+  // Process and insert articles incrementally as they're found
+  console.log(`💾 Processing ${matches.length} articles incrementally...`);
   for (const path of matches) {
-    console.log(path);
-
-    try {
-      const file = (await client.getFile(path)) as { data: string };
-      console.log("data", file.data);
-
-      // If file.data is already an object, use it directly as the article
-      if (typeof file.data === "object") {
-        // for some reason this only happens with dropbox storage?
-        // https://github.com/remotestorage/remotestorage.js/issues/1343
-        articles.push(file.data as Article);
-      } else {
-        const article: Article = JSON.parse(file.data);
-        articles.push(article);
-      }
-    } catch (error) {
-      console.error(`Error parsing article from ${path}:`, error);
+    // Skip if already processed (when called from change handler)
+    if (processedSet && processedSet.has(path)) {
+      continue;
+    }
+    await processArticleFile(client, path);
+    if (processedSet) {
+      processedSet.add(path);
     }
   }
 
-  // Batch insert all articles at once to minimize useLiveQuery triggers
-  if (articles.length > 0) {
-    // await db.articles.bulkPut(articles);
-    // debugger;
-    // console.log(`Bulk inserted ${articles.length} articles`);
-
-    // Insert articles one at a time for now
-    for (const article of articles) {
-      try {
-        await db.articles.put(article);
-        console.log(`Inserted article: ${article.slug}`);
-      } catch (error) {
-        debugger;
-        console.error(`Failed to insert article ${article.slug}:`, error);
-      }
-    }
-    console.log(`Inserted ${articles.length} articles individually`);
-  } else {
-    console.log("no articles to insert. clearing db.");
-    await db.articles.clear();
-  }
-
-  console.log("refreshing db done");
+  console.log("🏁 Database refresh complete");
 }
 
 function initRemote() {
@@ -200,9 +198,46 @@ function initRemote() {
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
-      console.info(`remoteStorage connected to “${userAddress}”`);
+      console.info(`remoteStorage connected to "${userAddress}"`);
+      // Sync is automatically triggered on connection, but we can ensure it happens
+      // The sync-done event will fire when sync completes
+    });
 
-      await buildDbFromFiles(client);
+    // This event fires after the initial sync completes and files are cached locally
+    // We still run buildDbFromFiles here to catch any files that might have been missed
+    // by the incremental change handler, but most articles should already be loaded
+    remoteStorage.on("sync-done", async () => {
+      console.info("RemoteStorage sync-done - checking for any missed files");
+      // Wait a bit longer to ensure cache is fully populated and change events have fired
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // Check if sync is actually complete by verifying cache status
+      let retries = 0;
+      const maxRetries = 5;
+      while (retries < maxRetries) {
+        try {
+          const listing = await client.getListing("saves/");
+          if (listing !== undefined) {
+            // Cache appears ready, proceed with buildDbFromFiles
+            break;
+          }
+        } catch (error) {
+          console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
+        }
+        retries++;
+        if (retries < maxRetries) {
+          await new Promise((resolve) => setTimeout(resolve, 500));
+        }
+      }
+
+      await buildDbFromFiles(client, processedArticles);
+    });
+
+    // Also listen for when ongoing sync cycles complete
+    remoteStorage.on("sync-req-done", async () => {
+      console.info("RemoteStorage sync-req-done - sync cycle completed");
+      // Note: We rely on the "change" event handler below to trigger rebuilds
+      // for individual file changes, so we don't rebuild here to avoid duplicates
     });
 
     remoteStorage.on("not-connected", function () {
@@ -210,8 +245,14 @@ function initRemote() {
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected", arguments);
-      await buildDbFromFiles(client);
+      console.info("remoteStorage disconnected - clearing local articles");
+      try {
+        await db.articles.clear();
+        processedArticles.clear(); // Clear processed articles tracking
+        console.info("✅ Cleared all articles from local database");
+      } catch (error) {
+        console.error("❌ Failed to clear articles from local database:", error);
+      }
     });
 
     let lastNotificationTime = 0;
@@ -249,6 +290,63 @@ function initRemote() {
 
     remoteStorage.on("network-online", () => {
       console.debug(`remoteStorage back online.`);
+    });
+
+    // Track which articles we've already processed to avoid duplicates
+    // This is shared between the change handler and sync-done handler
+    const processedArticles = new Set<string>();
+
+    // Listen for change events from RemoteStorage sync
+    // This handles when files are added/modified/deleted on the server by other clients
+    // Process articles incrementally as they're synced
+    client.on("change", async (event: any) => {
+      console.log("RemoteStorage change event:", event);
+
+      // Check for both relative (saves/) and absolute (/savr/saves/) paths
+      const path = event.path || event.relativePath || "";
+      const isArticleFile = path.endsWith("/article.json");
+      const isArticleChange =
+        (path.startsWith("saves/") ||
+          path.startsWith("/savr/saves/") ||
+          path.includes("/saves/")) &&
+        isArticleFile;
+
+      if (isArticleChange) {
+        // Normalize path to relative format for tracking
+        const normalizedPath = path.startsWith("/savr/") ? path.slice(6) : path;
+
+        // Skip if we've already processed this file
+        if (processedArticles.has(normalizedPath)) {
+          console.log(`Skipping already processed article: ${normalizedPath}`);
+          return;
+        }
+
+        // Only process if this is a new file (newValue exists, oldValue doesn't)
+        // or if it's an update (both exist)
+        if (event.newValue !== undefined) {
+          console.log(`📥 New/updated article detected: ${normalizedPath}`);
+          processedArticles.add(normalizedPath);
+
+          // Process immediately - no debouncing for individual files
+          await processArticleFile(client, normalizedPath);
+        } else if (event.oldValue !== undefined && event.newValue === undefined) {
+          // File was deleted
+          console.log(`🗑️ Article deleted: ${normalizedPath}`);
+          processedArticles.delete(normalizedPath);
+
+          // Extract slug from path and delete from IndexedDB
+          const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
+          if (slugMatch) {
+            const slug = slugMatch[1];
+            try {
+              await db.articles.delete(slug);
+              console.log(`  ✅ Deleted article from IndexedDB: ${slug}`);
+            } catch (error) {
+              console.error(`  ✗ Failed to delete article ${slug}:`, error);
+            }
+          }
+        }
+      }
     });
   });
 

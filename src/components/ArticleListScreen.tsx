@@ -37,7 +37,7 @@ import {
   ArrowForward,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
-import { ingestUrl } from "../../lib/src/ingestion";
+import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
 import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -232,6 +232,16 @@ export default function ArticleListScreen() {
     return db.articles.orderBy("ingestDate").reverse().toArray();
   });
 
+  // Count unread articles for the button label
+  const unreadCount = useLiveQuery(() => {
+    return db.articles.where("state").equals("unread").count();
+  });
+
+  // Count archived articles for the button label
+  const archivedCount = useLiveQuery(() => {
+    return db.articles.where("state").equals("archived").count();
+  });
+
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
@@ -290,6 +300,57 @@ export default function ArticleListScreen() {
     document.addEventListener("click", handleTap);
     return () => document.removeEventListener("click", handleTap);
   }, []);
+
+  useEffect(() => {
+    const bookmarklet = new URLSearchParams(window.location.search).get("bookmarklet");
+
+    if (!bookmarklet) {
+      return;
+    }
+
+    const decodedUrl = decodeURIComponent(bookmarklet);
+    setUrl(decodedUrl);
+    setDialogVisible(true);
+    setIngestStatus("Waiting for page to load...");
+    setIngestPercent(0);
+
+    let ingesting = false;
+
+    const handler = async (event: MessageEvent) => {
+      if (event.data.action === "savr-html") {
+        if (ingesting) {
+          return;
+        }
+        ingesting = true;
+        setIngestStatus("Ingesting...");
+        setIngestPercent(10);
+        const { article } = await ingestHtml(
+          client,
+          event.data.html,
+          "text/html",
+          event.data.url,
+          (percent: number | null, message: string | null) => {
+            if (percent !== null) {
+              setIngestStatus(message);
+              setIngestPercent(percent);
+            }
+          }
+        );
+
+        await db.articles.put(article);
+
+        setTimeout(() => {
+          setDialogVisible(false);
+          setIngestStatus(null);
+          setIngestPercent(100);
+          setUrl("");
+          window.close();
+        }, 1500);
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [client]);
 
   const saveUrl = useCallback(
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
@@ -353,6 +414,8 @@ export default function ArticleListScreen() {
         enqueueSnackbar("Error requesting article", { variant: "error" });
         setIngestStatus(null);
         setIngestPercent(0);
+        setDialogVisible(false);
+        setUrl("");
       }
     },
     [
@@ -475,11 +538,11 @@ export default function ArticleListScreen() {
           >
             <ToggleButton value="unread">
               <ArticleIcon sx={{ mr: 1 }} />
-              Saves
+              Saves{unreadCount !== undefined ? ` (${unreadCount})` : ""}
             </ToggleButton>
             <ToggleButton value="archived">
               <ArchiveIcon2 sx={{ mr: 1 }} />
-              Archive
+              Archive{archivedCount !== undefined ? ` (${archivedCount})` : ""}
             </ToggleButton>
           </ToggleButtonGroup>
         </Box>

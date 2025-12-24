@@ -87,7 +87,3 @@ VITE_DEBUG=true
 - All environment variables must be prefixed with `VITE_` to be accessible in the client-side code
 - Environment variables are read at build time, so changes require a restart of the development server
 - The welcome functionality is disabled by default to prevent unwanted redirects
-
-
-
-

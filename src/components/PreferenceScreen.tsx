@@ -135,8 +135,24 @@ export default function PreferencesScreen() {
   // Set the javascript: URL directly on the DOM element
   React.useEffect(() => {
     if (bookmarkletRef.current) {
-      const saveRoute = window.location.origin + "/";
-      const bookmarkletJS = `javascript:(function(){var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?saveUrl='+url,'_blank');})();`;
+      const origin = window.location.origin;
+
+      // const bookmarkletJS = `javascript:(function(){var url=encodeURIComponent(window.location.href);window.open('${origin}/?saveUrl='+url,'_blank');})();`;
+
+      const storePageScript = `
+        const savrWindow = window.open('${origin}/?bookmarklet=' + encodeURIComponent(window.location.href),'_blank');
+        const interval = setInterval(() => {
+          if (savrWindow.closed) {
+            clearInterval(interval);
+            alert("Article saved successfully!");
+            return;
+          }
+          const htmlString = document.documentElement.outerHTML;
+          savrWindow.postMessage({ action: "savr-html", url: window.location.href, html: htmlString }, '${origin}');
+        }, 100);
+      `;
+
+      const bookmarkletJS = `javascript:(function(){${storePageScript}})();`;
       bookmarkletRef.current.href = bookmarkletJS;
     }
   }, []);

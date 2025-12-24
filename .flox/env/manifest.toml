@@ -17,6 +17,28 @@ version = 1
 [install]
 nodejs = { pkg-path = "nodejs" }
 imagemagick.pkg-path = "imagemagick"
+playwright.pkg-path = "playwright"
+playwright.version = "1.54.1"
+#playwright.pkg-path = "playwright"
+#playwright-driver.pkg-path = "playwright-driver"
+#cairo.pkg-path = "cairo"
+#pango.pkg-path = "pango"
+# nspr.pkg-path = "nspr"
+# nss.pkg-path = "nss"
+# dbus.pkg-path = "dbus"
+# cups.pkg-path = "cups"
+# libgbm.pkg-path = "libgbm"
+# libgbm.systems = ["x86_64-linux", "aarch64-linux"]
+# libxrandr.pkg-path = "libxrandr"
+# libxdamage.pkg-path = "libxdamage"
+# libxfixes.pkg-path = "libxfixes"
+# udev.pkg-path = "udev"
+# udev.systems = ["x86_64-linux", "aarch64-linux"]
+# atk.pkg-path = "atk"
+# libxcomposite.pkg-path = "libxcomposite"
+# libxkbcommon.pkg-path = "libxkbcommon"
+# alsa-lib.pkg-path = "alsa-lib"
+# alsa-lib.systems = ["aarch64-linux", "x86_64-linux"]
 
 
 ## Environment Variables ---------------------------------------------
@@ -24,6 +46,11 @@ imagemagick.pkg-path = "imagemagick"
 ##      as well as [hook], [profile] scripts and [services] below.
 ## -------------------------------------------------------------------
 [vars]
+JONO_FLOX="yes!"
+PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS="true"
+
+#PLAYWRIGHT_BROWSERS_PATH=$(nix build --print-out-paths nixpkgs#playwright.browsers)
+
 # INTRO_MESSAGE = "It's gettin' Flox in here"
 
 
@@ -45,6 +72,10 @@ on-activate = """
 ## ... sourced by _your shell_ when you run 'flox activate'.
 ## -------------------------------------------------------------------
 [profile]
+common = '''
+
+'''
+
 # common = '''
 #   gum style \
 #   --foreground 212 --border-foreground 212 --border double \
@@ -54,7 +85,9 @@ on-activate = """
 ## Shell specific profiles go here:
 # bash = ...
 # zsh  = ...
-# fish = ...
+fish = '''
+set -x PLAYWRIGHT_BROWSERS_PATH $(nix build --print-out-paths nixpkgs#playwright.browsers)
+'''
 
 
 ## Services ----------------------------------------------------------

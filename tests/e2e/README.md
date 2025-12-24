@@ -86,7 +86,7 @@ Add these scripts to your `package.json`:
 
 The tests are configured in `playwright.config.ts` at the project root. Key settings:
 
-- **Base URL**: `http://localhost:5173` (Vite dev server)
+- **Base URL**: `http://localhost:3002` (Vite dev server)
 - **Web Server**: Automatically starts `npm run dev` before tests
 - **Browsers**: Tests run in Chromium, Firefox, and WebKit
 - **Screenshots**: Taken on test failure

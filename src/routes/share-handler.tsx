@@ -5,6 +5,7 @@ import { isDebugMode } from "~/config/environment";
 
 export const Route = createFileRoute("/share-handler")({
   component: ShareHandler,
+  ssr: false,
 });
 
 function ShareHandler() {

@@ -7,11 +7,13 @@ A modern article reader built with TanStack Router and Material-UI.
 This application supports different configurations for development and production environments:
 
 ### Development Mode (Default)
+
 - Sample article URLs are enabled for testing
 - CORS proxy is enabled for development
 - Debug logging is enabled
 
 ### Production Mode
+
 - Sample article URLs are disabled
 - CORS proxy is disabled
 - Optimized for production deployment
@@ -94,7 +96,7 @@ git clone git@github.com:TanStack/form.git
 ```sh
 cd tanstack.com
 pnpm i
-# The app will run on https://localhost:3000 by default
+# The app will run on http://localhost:3000 by default
 pnpm dev
 ```
 

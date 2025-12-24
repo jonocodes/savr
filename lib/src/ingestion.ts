@@ -30,6 +30,32 @@ function getBaseDirectory(articleUrl: string): string {
   return path.endsWith("/") ? articleUrl : uri.resolve(articleUrl, ".");
 }
 
+// Parse srcset attribute and return the largest image URL
+export function getLargestImageFromSrcset(srcset: string): string | null {
+  if (!srcset || srcset.trim() === '') {
+    return null;
+  }
+
+  // Parse srcset format: "url1 1x, url2 2x" or "url1 100w, url2 200w"
+  const candidates = srcset.split(',').map(candidate => {
+    const parts = candidate.trim().split(/\s+/);
+    const url = parts[0];
+    const descriptor = parts[1] || '1x';
+
+    // Extract numeric value from descriptor (e.g., "2x" -> 2, "100w" -> 100)
+    const numericValue = parseFloat(descriptor);
+
+    return { url, descriptor, numericValue };
+  });
+
+  // Find the candidate with the largest numeric value
+  const largest = candidates.reduce((max, current) => {
+    return current.numericValue > max.numericValue ? current : max;
+  }, candidates[0]);
+
+  return largest?.url || null;
+}
+
 async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
   const imgElements = doc.querySelectorAll("img");
   const imgData: ImageData[] = [];
@@ -42,6 +68,20 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
 
   imgElements.forEach((img) => {
     let imgUrl = img.src;
+
+    // Check if srcset exists and extract the largest image
+    const srcset = img.getAttribute('srcset');
+    if (srcset) {
+      const largestFromSrcset = getLargestImageFromSrcset(srcset);
+      if (largestFromSrcset) {
+        imgUrl = largestFromSrcset;
+        console.log("Using largest image from srcset:", imgUrl);
+        // Remove srcset attribute since we're replacing it with a single src
+        img.removeAttribute('srcset');
+        // Also remove sizes attribute if present, as it's only used with srcset
+        img.removeAttribute('sizes');
+      }
+    }
 
     // If the imgUrl is a relative URL or starts with '/', prepend the baseDirectory
     if (baseDirectory !== null && !imgUrl.match(/^[a-zA-Z]+:\/\//)) {
@@ -67,8 +107,8 @@ async function downloadAndResizeImages(
   imageData: ImageData[],
   article: Article,
   sendMessage: (percent: number | null, message: string | null) => void
-): Promise<void> {
-  let imageCount = 0;
+): Promise<number> {
+  let successfulDownloads = 0;
   let percent = 25;
   const endPercent = 93;
 
@@ -79,7 +119,7 @@ async function downloadAndResizeImages(
   let maxArea = 0;
 
   for (const [url, localPath] of imageData) {
-    sendMessage(percent, `downloading image ${imageCount + 1} of ${imageData.length}`);
+    sendMessage(percent, `downloading image ${successfulDownloads + 1} of ${imageData.length}`);
 
     const ext = url.split(".").pop();
 
@@ -93,7 +133,7 @@ async function downloadAndResizeImages(
 
       percent = percent + step;
 
-      sendMessage(percent, `resizing image ${imageCount + 1} of ${imageData.length}`);
+      sendMessage(percent, `resizing image ${successfulDownloads + 1} of ${imageData.length}`);
 
       const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
 
@@ -105,11 +145,10 @@ async function downloadAndResizeImages(
       const imgElement = imageData.find(([imgUrl]) => imgUrl === url)![2];
       imgElement.dataset.localPath = relativePath;
       imgElement.dataset.origSrc = url;
-      // imgElement.dataset.path = outputFilePath;
-      // imgElement.src = relativePath;
+
       imgElement.src = dataUrl;
 
-      imageCount += 1;
+      successfulDownloads += 1;
 
       percent = percent + step;
 
@@ -179,13 +218,15 @@ async function downloadAndResizeImages(
 
     console.log("outputFilePath", outputFilePath);
   }
+
+  return successfulDownloads;
 }
 
 async function processHtmlAndImages(
   article: Article,
   htmlText: string,
   sendMessage: (percent: number | null, message: string | null) => void
-): Promise<string> {
+): Promise<{ html: string; successfulDownloads: number; totalImages: number }> {
   const parser = new DOMParser();
   const document = parser.parseFromString(htmlText, "text/html");
   // console.log(doc.querySelector('title').textContent);
@@ -202,13 +243,17 @@ async function processHtmlAndImages(
 
   sendMessage(25, "downloading images");
 
-  await downloadAndResizeImages(imageData, article, sendMessage);
+  const successfulDownloads = await downloadAndResizeImages(imageData, article, sendMessage);
 
   sendMessage(95, "creating thumbnail");
 
   // const artObj = createArticleObject(article);
 
-  return document.documentElement.outerHTML;
+  return {
+    html: document.documentElement.outerHTML,
+    successfulDownloads,
+    totalImages: imageData.length,
+  };
 }
 
 function stringToSlug(str: string): string {
@@ -321,41 +366,41 @@ export async function convertToWebP(blob: Blob): Promise<Blob> {
   });
 }
 
-function guessContentType(input: string): string {
-  // Trim input to remove leading/trailing whitespace
-  const trimmedInput = input.trim();
+// function guessContentType(input: string): string {
+//   // Trim input to remove leading/trailing whitespace
+//   const trimmedInput = input.trim();
 
-  // Simplified HTML check: match any tag or <!DOCTYPE html>
-  const htmlTagRegex = /^(<!DOCTYPE html>|<\s*[a-zA-Z][^>]*>.*<\/\s*[a-zA-Z][^>]*>)$/s;
-  if (htmlTagRegex.test(trimmedInput)) {
-    return "text/html";
-  }
+//   // Simplified HTML check: match any tag or <!DOCTYPE html>
+//   const htmlTagRegex = /^(<!DOCTYPE html>|<\s*[a-zA-Z][^>]*>.*<\/\s*[a-zA-Z][^>]*>)$/s;
+//   if (htmlTagRegex.test(trimmedInput)) {
+//     return "text/html";
+//   }
 
-  // Markdown check: only look for headings
-  const markdownHeadingRegex = /^#{1,6}\s+/m; // Match lines starting with 1-6 # symbols
-  if (markdownHeadingRegex.test(trimmedInput)) {
-    return "text/markdown";
-  }
+//   // Markdown check: only look for headings
+//   const markdownHeadingRegex = /^#{1,6}\s+/m; // Match lines starting with 1-6 # symbols
+//   if (markdownHeadingRegex.test(trimmedInput)) {
+//     return "text/markdown";
+//   }
 
-  // TODO: this does not work well. try htmlparser2 and markdown-it/showdown parsing test
+//   // TODO: this does not work well. try htmlparser2 and markdown-it/showdown parsing test
 
-  // // Check for HTML
-  // if (/<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(trimmedInput)) {
-  //   return 'text/html';
-  // }
+//   // // Check for HTML
+//   // if (/<([a-zA-Z][a-zA-Z0-9]*)\b[^>]*>(.*?)<\/\1>/.test(trimmedInput)) {
+//   //   return 'text/html';
+//   // }
 
-  // // Check for Markdown
-  // if (
-  //   /^(#{1,6}\s|[*_~]{1,3}.*[*_~]{1,3}|!\[.*\]\(.*\)|\[.*\]\(.*\))/.test(
-  //     trimmedInput
-  //   )
-  // ) {
-  //   return 'text/markdown';
-  // }
+//   // // Check for Markdown
+//   // if (
+//   //   /^(#{1,6}\s|[*_~]{1,3}.*[*_~]{1,3}|!\[.*\]\(.*\)|\[.*\]\(.*\))/.test(
+//   //     trimmedInput
+//   //   )
+//   // ) {
+//   //   return 'text/markdown';
+//   // }
 
-  // Default to plain text
-  return "text/plain";
-}
+//   // Default to plain text
+//   return "text/plain";
+// }
 
 export function readabilityToArticle(
   html: string,
@@ -443,40 +488,52 @@ export async function ingestHtml(
   contentType: string,
   url: string | null,
   sendMessage: (percent: number | null, message: string | null) => void
-): Promise<Article> {
+): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
+  const logMessages: string[] = [];
+
+  // Wrapper to collect log messages while still calling the original sendMessage
+  const sendMessageWithLog = (percent: number | null, message: string | null) => {
+    if (message) {
+      logMessages.push(message);
+    }
+    sendMessage(percent, message);
+  };
+
   let [article, content] = readabilityToArticle(html, contentType, url);
 
-  const fetchLog = getFileFetchLog(article.slug);
-
-  // TODO: log each image. their original and final dimensions. and their final byte size
-
-  // TODO: figure out if there is a way to append these lines one by one
-  await storageClient?.storeFile(
-    "text/plain",
-    fetchLog,
-    `readability finished for ${article.slug}`
-  );
+  sendMessageWithLog(null, `readability finished for ${article.slug}`);
 
   // TODO: sanitize out the js before saving raw
   storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
 
-  sendMessage(20, "collecting images");
+  sendMessageWithLog(20, "collecting images");
 
   console.log("content", content);
 
-  content = await processHtmlAndImages(article, content, sendMessage);
+  const { html: processedHtml, successfulDownloads, totalImages } = await processHtmlAndImages(
+    article,
+    content,
+    sendMessageWithLog
+  );
+
+  sendMessageWithLog(null, `${successfulDownloads} of ${totalImages} images downloaded for offline use`);
 
   const rendered = ArticleTemplate({
     title: article.title,
     byline: article.author || "",
     published: generateInfoForArticle(article),
     readTime: `${article.readTimeMinutes} minute read`,
-    content: content,
+    content: processedHtml,
   });
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
 
-  return article;
+  // Write the fetch log at the end with all collected messages
+  const fetchLogPath = getFileFetchLog(article.slug);
+  const fetchLogContent = logMessages.join('\n');
+  await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  return { article, successfulDownloads, totalImages };
 }
 
 function generateRandomString() {
@@ -515,6 +572,8 @@ export async function ingestUrl(
   sendMessage(15, "scraping content");
 
   var article: Article | null = null;
+  var successfulDownloads = 0;
+  var totalImages = 0;
 
   console.log(`contentTypeHeader = ${contentTypeHeader}`);
 
@@ -527,13 +586,16 @@ export async function ingestUrl(
     }
 
     if (mimeType === "text/html") {
-      article = await ingestHtml(
+      const result = await ingestHtml(
         storageClient,
         await response.text(),
         contentTypeHeader,
         url,
         sendMessage
       );
+      article = result.article;
+      successfulDownloads = result.successfulDownloads;
+      totalImages = result.totalImages;
 
       // } else if (mimeType.subtype === 'pdf') {
 
@@ -571,11 +633,11 @@ export async function ingestUrl(
     JSON.stringify(article, null, 2)
   );
 
-  // client.declareType("my-custom-type", {});
+  const imageMessage = totalImages > 0 ? `. ${successfulDownloads} of ${totalImages} images downloaded for offline use` : "";
 
   sendMessage(
     100,
-    `Finished saving: ${article.title.substring(0, 65)}${article.title.length > 65 ? "..." : ""}`
+    `Finished saving: ${article.title.substring(0, 65)}${article.title.length > 65 ? "..." : ""}${imageMessage}`
   );
 
   return article;
