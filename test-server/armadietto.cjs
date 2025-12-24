@@ -11,7 +11,7 @@ async function setupTestServer() {
     await store.createUser({
       username: "testuser",
       password: "testpass",
-      email: "test@example.com"
+      email: "test@example.com",
     });
     console.log("✓ Test user created: testuser / testpass");
   } catch (error) {
@@ -26,16 +26,19 @@ async function setupTestServer() {
 
   // Generate an OAuth token for automated testing
   // Scope format: path:permissions (e.g., "/:rw" for root read/write)
+  // Note: Port 3002 matches the Playwright webServer config
   const token = await store.authorize(
-    "http://localhost:3000",  // client_id
+    "http://localhost:3002", // client_id - must match the app's origin
     "testuser",
-    { "/": ["r", "w"] }  // root path with read/write permissions
+    { "/": ["r", "w"] } // root path with read/write permissions
   );
 
   const server = new Armadietto({
     store: store,
-    http: { host: "127.0.0.1", port: 8004 },
+    http: { host: "localhost", port: 8004 },
     allow: { signup: false },
+    // Enable CORS for cross-origin requests from the app
+    https: false,
   });
 
   await server.boot();
@@ -43,20 +46,20 @@ async function setupTestServer() {
   console.log("\n" + "=".repeat(60));
   console.log("RemoteStorage Test Server Running");
   console.log("=".repeat(60));
-  console.log("Server URL: http://127.0.0.1:8004");
+  console.log("Server URL: http://localhost:8004");
   console.log("Username:   testuser");
   console.log("Token:      " + token);
   console.log("\nTest commands:");
   console.log("\n# Write a file:");
   console.log(`curl -X PUT -H 'Authorization: Bearer ${token}' \\`);
-  console.log(`  http://127.0.0.1:8004/storage/testuser/test.txt \\`);
+  console.log(`  http://localhost:8004/storage/testuser/test.txt \\`);
   console.log(`  -d 'hello world'`);
   console.log("\n# Read a file:");
   console.log(`curl -H 'Authorization: Bearer ${token}' \\`);
-  console.log(`  http://127.0.0.1:8004/storage/testuser/test.txt`);
+  console.log(`  http://localhost:8004/storage/testuser/test.txt`);
   console.log("\n# List directory:");
   console.log(`curl -H 'Authorization: Bearer ${token}' \\`);
-  console.log(`  http://127.0.0.1:8004/storage/testuser/`);
+  console.log(`  http://localhost:8004/storage/testuser/`);
   console.log("=".repeat(60) + "\n");
 }
 

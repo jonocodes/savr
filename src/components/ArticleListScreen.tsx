@@ -185,10 +185,15 @@ function ArticleItem({ article }: { article: Article }) {
           </Typography>
         }
       />
-      <IconButton onClick={openMenu}>
+      <IconButton onClick={openMenu} data-testid="article-menu-button">
         <MoreVertIcon />
       </IconButton>
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={closeMenu}
+        data-testid="article-menu"
+      >
         {article.state === "archived" ? (
           <MenuItem onClick={handleUnarchive}>
             <ListItemIcon>
@@ -210,7 +215,7 @@ function ArticleItem({ article }: { article: Article }) {
           </ListItemIcon>
           Share
         </MenuItem>
-        <MenuItem onClick={handleDelete}>
+        <MenuItem onClick={handleDelete} data-testid="article-menu-delete">
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>

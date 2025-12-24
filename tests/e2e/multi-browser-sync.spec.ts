@@ -44,7 +44,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
 
       const token = testEnv.RS_TOKEN;
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page1, "testuser@127.0.0.1:8004", token);
+      await connectToRemoteStorage(page1, "testuser@localhost:8004", token);
       await waitForRemoteStorageSync(page1);
       console.log("✅ Browser 1: RemoteStorage connected and synced");
 
@@ -55,7 +55,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       console.log("✅ Browser 2: App loaded");
 
       console.log("🔗 Browser 2: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page2, "testuser@127.0.0.1:8004", token);
+      await connectToRemoteStorage(page2, "testuser@localhost:8004", token);
       await waitForRemoteStorageSync(page2);
       console.log("✅ Browser 2: RemoteStorage connected and synced");
 
@@ -71,7 +71,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       const urlInput1 = page1
         .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
         .first();
-      const testUrl = "http://127.0.0.1:8080/input/death-by-a-thousand-cuts/";
+      const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
       await urlInput1.fill(testUrl);
 
       const saveButton1 = dialog1.locator('button:has-text("Save")').first();
@@ -181,7 +181,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
 
       const token = testEnv.RS_TOKEN;
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page1, "testuser@127.0.0.1:8004", token);
+      await connectToRemoteStorage(page1, "testuser@localhost:8004", token);
       await waitForRemoteStorageSync(page1);
       console.log("✅ Browser 1: RemoteStorage connected and synced");
 
@@ -192,7 +192,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       console.log("✅ Browser 2: App loaded");
 
       console.log("🔗 Browser 2: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page2, "testuser@127.0.0.1:8004", token);
+      await connectToRemoteStorage(page2, "testuser@localhost:8004", token);
       await waitForRemoteStorageSync(page2);
       console.log("✅ Browser 2: RemoteStorage connected and synced");
 
@@ -208,7 +208,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       const urlInput1 = page1
         .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
         .first();
-      const testUrl = "http://127.0.0.1:8080/input/death-by-a-thousand-cuts/";
+      const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
       await urlInput1.fill(testUrl);
 
       const saveButton1 = dialog1.locator('button:has-text("Save")').first();

@@ -9,95 +9,68 @@ export async function connectToRemoteStorage(
   userAddress: string,
   token: string
 ): Promise<void> {
+  // Wait for RemoteStorage to be initialized by RemoteStorageProvider
+  await page.waitForFunction(() => !!(window as any).remoteStorage, { timeout: 10000 });
+
   await page.evaluate(
     async ({ userAddress, token }) => {
-      // Wait for RemoteStorage to be initialized
-      let attempts = 0;
-      while (!(window as any).remoteStorage && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        attempts++;
-      }
-
-      if (!(window as any).remoteStorage) {
-        throw new Error("RemoteStorage not initialized after 5 seconds");
-      }
-
       const rs = (window as any).remoteStorage;
 
-      // Give RemoteStorage a moment to fully initialize
-      // The ready event should have already fired, but we'll wait a bit just in case
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!rs) {
+        throw new Error("RemoteStorage not initialized");
+      }
 
-      // Connect with token (bypasses OAuth flow)
+      // Check if already connected to the same user address
+      if (rs.remote && rs.remote.connected && rs.remote.userAddress === userAddress) {
+        return;
+      }
+
+      // Extract the storage URL from userAddress (format: testuser@localhost:8004)
+      const [username, hostPort] = userAddress.split("@");
+      const storageRoot = `http://${hostPort}/storage/${username}`;
+      const properties = {
+        userAddress: userAddress,
+        href: storageRoot,
+        storageApi: "draft-dejong-remotestorage-22",
+        token: token,
+        properties: {
+          "http://remotestorage.io/spec/version": "draft-dejong-remotestorage-22",
+          "http://tools.ietf.org/html/rfc6749#section-4.2": `http://${hostPort}/oauth/${username}`,
+        },
+      };
+
+      // Directly configure the remote storage (bypass webfinger discovery)
       return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error("Connection timeout after 15 seconds")),
-          15000
-        );
+        const timeout = setTimeout(() => {
+          reject(new Error(`Connection timeout after 15 seconds to ${userAddress}`));
+        }, 15000);
 
         const cleanup = () => {
           clearTimeout(timeout);
-          rs.off("connected", onConnected);
-          rs.off("error", onError);
+          rs.removeEventListener("connected", onConnected);
+          rs.removeEventListener("error", onError);
         };
 
         const onConnected = () => {
           cleanup();
-          console.log("RemoteStorage connected successfully");
           resolve();
         };
 
         const onError = (err: any) => {
-          // Log the error for debugging
-          console.error("RemoteStorage connection error:", err);
-
-          // If it's a DiscoveryError, it might be transient - wait a bit and retry once
-          if (
-            err?.name === "DiscoveryError" ||
-            err?.constructor?.name === "DiscoveryError" ||
-            String(err).includes("DiscoveryError")
-          ) {
-            console.log("DiscoveryError detected, waiting 1 second before retry...");
-            cleanup();
-
-            setTimeout(() => {
-              // Retry connection once
-              const retryTimeout = setTimeout(
-                () => reject(new Error("Connection retry failed after DiscoveryError")),
-                10000
-              );
-
-              const onRetryConnected = () => {
-                clearTimeout(retryTimeout);
-                rs.off("connected", onRetryConnected);
-                rs.off("error", onRetryError);
-                console.log("RemoteStorage connected successfully on retry");
-                resolve();
-              };
-
-              const onRetryError = (retryErr: any) => {
-                clearTimeout(retryTimeout);
-                rs.off("connected", onRetryConnected);
-                rs.off("error", onRetryError);
-                reject(retryErr);
-              };
-
-              rs.on("connected", onRetryConnected);
-              rs.on("error", onRetryError);
-
-              rs.connect(userAddress, token);
-            }, 1000);
-          } else {
-            cleanup();
-            reject(err);
-          }
+          cleanup();
+          reject(err);
         };
 
         rs.on("connected", onConnected);
         rs.on("error", onError);
 
-        // Use the Armadietto-generated token to connect directly
-        rs.connect(userAddress, token);
+        // Configure the remote storage directly (bypasses webfinger discovery)
+        try {
+          rs.remote.configure(properties);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
       });
     },
     { userAddress, token }

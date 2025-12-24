@@ -112,10 +112,30 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
 }
 
 // Process a single article.json file and insert it into IndexedDB immediately
-async function processArticleFile(client: BaseClient, filePath: string): Promise<void> {
+async function processArticleFile(
+  client: BaseClient,
+  filePath: string,
+  retryCount = 0
+): Promise<void> {
+  const maxRetries = 5;
+  const retryDelay = 500; // ms
+
   try {
-    console.log(`📖 Processing article file: ${filePath}`);
+    console.log(
+      `📖 Processing article file: ${filePath}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ""}`
+    );
     const file = (await client.getFile(filePath)) as { data: string };
+
+    if (!file || !file.data) {
+      // File might not be cached yet, retry if we haven't exceeded max retries
+      if (retryCount < maxRetries) {
+        console.log(`  ⏳ File not cached yet, retrying in ${retryDelay}ms...`);
+        await new Promise((resolve) => setTimeout(resolve, retryDelay));
+        return processArticleFile(client, filePath, retryCount + 1);
+      }
+      console.error(`  ✗ File is empty or invalid after ${maxRetries} retries: ${filePath}`);
+      throw new Error(`File is empty or invalid after ${maxRetries} retries: ${filePath}`);
+    }
 
     let article: Article;
     if (typeof file.data === "object") {
@@ -127,11 +147,32 @@ async function processArticleFile(client: BaseClient, filePath: string): Promise
       console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
     }
 
+    if (!article || !article.slug) {
+      console.error(`  ✗ Invalid article data: missing slug in ${filePath}`);
+      throw new Error(`Invalid article data: missing slug in ${filePath}`);
+    }
+
     // Insert immediately into IndexedDB
     await db.articles.put(article);
     console.log(`  ✅ Inserted: ${article.slug}`);
+
+    // Verify the article was actually saved
+    const savedArticle = await db.articles.get(article.slug);
+    if (!savedArticle) {
+      console.error(`  ✗ Article was not saved to database: ${article.slug}`);
+    }
   } catch (error) {
+    // If it's a parsing error and we haven't retried, try again (file might be partially cached)
+    if (retryCount < maxRetries && error instanceof SyntaxError) {
+      console.log(
+        `  ⏳ JSON parse error, file might be partially cached, retrying in ${retryDelay}ms...`
+      );
+      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+      return processArticleFile(client, filePath, retryCount + 1);
+    }
     console.error(`  ✗ Error processing article file ${filePath}:`, error);
+    // Re-throw to allow callers to handle the error
+    throw error;
   }
 }
 
@@ -230,7 +271,23 @@ function initRemote() {
         }
       }
 
+      // Get current article count before processing
+      const articlesBefore = await db.articles.count();
+      console.log(`📊 Articles in database before buildDbFromFiles: ${articlesBefore}`);
+
       await buildDbFromFiles(client, processedArticles);
+
+      // Get article count after processing
+      const articlesAfter = await db.articles.count();
+      console.log(`📊 Articles in database after buildDbFromFiles: ${articlesAfter}`);
+
+      // Force a database query to ensure useLiveQuery detects the changes
+      // This helps trigger React re-renders if useLiveQuery didn't detect the changes
+      if (articlesAfter > articlesBefore) {
+        console.log(`✅ Added ${articlesAfter - articlesBefore} new articles - triggering refresh`);
+        // Force a query to ensure the database transaction is complete
+        await db.articles.toArray();
+      }
     });
 
     // Also listen for when ongoing sync cycles complete
@@ -327,8 +384,19 @@ function initRemote() {
           console.log(`📥 New/updated article detected: ${normalizedPath}`);
           processedArticles.add(normalizedPath);
 
-          // Process immediately - no debouncing for individual files
-          await processArticleFile(client, normalizedPath);
+          try {
+            // Process immediately - no debouncing for individual files
+            await processArticleFile(client, normalizedPath);
+            // Force a query to ensure useLiveQuery detects the change
+            await db.articles.toArray();
+          } catch (error) {
+            console.error(
+              `  ✗ Failed to process article from change event: ${normalizedPath}`,
+              error
+            );
+            // Remove from processed set so it can be retried by buildDbFromFiles
+            processedArticles.delete(normalizedPath);
+          }
         } else if (event.oldValue !== undefined && event.newValue === undefined) {
           // File was deleted
           console.log(`🗑️ Article deleted: ${normalizedPath}`);
@@ -341,6 +409,8 @@ function initRemote() {
             try {
               await db.articles.delete(slug);
               console.log(`  ✅ Deleted article from IndexedDB: ${slug}`);
+              // Force a query to ensure useLiveQuery detects the change
+              await db.articles.toArray();
             } catch (error) {
               console.error(`  ✗ Failed to delete article ${slug}:`, error);
             }
