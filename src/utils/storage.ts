@@ -302,14 +302,17 @@ function initRemote() {
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected - clearing local articles");
-      try {
-        await db.articles.clear();
-        processedArticles.clear(); // Clear processed articles tracking
-        console.info("✅ Cleared all articles from local database");
-      } catch (error) {
-        console.error("❌ Failed to clear articles from local database:", error);
-      }
+      console.info("remoteStorage disconnected");
+
+      // NOTE: We DON'T clear local articles on disconnect because:
+      // 1. Users may want to keep reading cached articles while disconnected
+      // 2. Clearing the database triggers RemoteStorage sync which can delete
+      //    articles from the server before disconnect completes
+      // 3. Articles will be cleared/refreshed on next connection anyway
+
+      // Just clear the processed articles tracking
+      processedArticles.clear();
+      console.info("✅ Cleared processed articles tracking");
     });
 
     let lastNotificationTime = 0;

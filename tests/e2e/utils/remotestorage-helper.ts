@@ -294,3 +294,88 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
     });
   }, slug);
 }
+
+/**
+ * Clear all articles from RemoteStorage and IndexedDB
+ * Useful for cleaning up test state between tests
+ */
+export async function clearAllArticles(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.remote || !rs.remote.connected) {
+      console.log("RemoteStorage not connected, skipping cleanup");
+      return;
+    }
+
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      console.log("RemoteStorage client not found, skipping cleanup");
+      return;
+    }
+
+    try {
+      // Get all article directories
+      const listing = await client.getListing("saves/");
+
+      if (listing && typeof listing === "object") {
+        const slugs = Object.keys(listing);
+        console.log(`Clearing ${slugs.length} articles from RemoteStorage`);
+
+        // Delete each article directory
+        for (const slug of slugs) {
+          try {
+            await client.remove(`saves/${slug}/article.json`);
+            await client.remove(`saves/${slug}/`);
+            console.log(`Deleted article: ${slug}`);
+          } catch (err) {
+            console.warn(`Failed to delete article ${slug}:`, err);
+          }
+        }
+
+        // Wait for deletion sync to complete
+        if (slugs.length > 0) {
+          console.log("Waiting for deletion sync to complete...");
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+    } catch (error) {
+      console.warn("Error clearing RemoteStorage:", error);
+    }
+
+    // Clear IndexedDB
+    try {
+      const dbName = "savrDb";
+      const request = indexedDB.open(dbName);
+
+      await new Promise<void>((resolve, reject) => {
+        request.onsuccess = () => {
+          const db = request.result;
+
+          try {
+            const transaction = db.transaction(["articles"], "readwrite");
+            const store = transaction.objectStore("articles");
+            const clearRequest = store.clear();
+
+            clearRequest.onsuccess = () => {
+              console.log("Cleared all articles from IndexedDB");
+              db.close();
+              resolve();
+            };
+
+            clearRequest.onerror = () => {
+              db.close();
+              reject(clearRequest.error);
+            };
+          } catch (error) {
+            db.close();
+            reject(error);
+          }
+        };
+
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.warn("Error clearing IndexedDB:", error);
+    }
+  });
+}
