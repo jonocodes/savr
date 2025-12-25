@@ -25,7 +25,7 @@ export async function connectToRemoteStorage(
         return;
       }
 
-      // Extract the storage URL from userAddress (format: testuser@localhost:8004)
+      // Extract the storage URL from userAddress (format: testuser@localhost:8006)
       const [username, hostPort] = userAddress.split("@");
       const storageRoot = `http://${hostPort}/storage/${username}`;
       const properties = {

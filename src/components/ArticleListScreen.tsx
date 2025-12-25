@@ -542,11 +542,11 @@ export default function ArticleListScreen() {
             size="small"
           >
             <ToggleButton value="unread">
-              <ArticleIcon sx={{ mr: 1 }} />
+              <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
               Saves{unreadCount !== undefined ? ` (${unreadCount})` : ""}
             </ToggleButton>
             <ToggleButton value="archived">
-              <ArchiveIcon2 sx={{ mr: 1 }} />
+              <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
               Archive{archivedCount !== undefined ? ` (${archivedCount})` : ""}
             </ToggleButton>
           </ToggleButtonGroup>

@@ -197,9 +197,11 @@ export default function PreferencesScreen() {
       }
 
       setDeleteDialogOpen(false);
+
       enqueueSnackbar("All articles deleted successfully!", { variant: "success" });
     } catch (error) {
       console.error("Error deleting all articles:", error);
+      enqueueSnackbar("Failed to delete articles", { variant: "error" });
     }
   };
 
@@ -670,6 +672,7 @@ export default function PreferencesScreen() {
         onClose={() => setDeleteDialogOpen(false)}
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
+        data-testid="delete-all-articles-dialog"
       >
         <DialogTitle id="delete-dialog-title">Delete All Articles</DialogTitle>
         <DialogContent>
@@ -680,7 +683,12 @@ export default function PreferencesScreen() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteAllArticles} color="error" variant="contained">
+          <Button
+            onClick={handleDeleteAllArticles}
+            color="error"
+            variant="contained"
+            data-testid="confirm-delete-all-button"
+          >
             Delete All Articles
           </Button>
         </DialogActions>

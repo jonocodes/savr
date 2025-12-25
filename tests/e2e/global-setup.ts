@@ -43,6 +43,10 @@ export default async function globalSetup(config: FullConfig) {
   armadettoProcess = spawn("node", ["armadietto.cjs"], {
     cwd: path.join(process.cwd(), "test-server"),
     stdio: "pipe",
+    env: {
+      ...process.env,
+      NODE_ENV: "test", // Signals to armadietto.cjs to use port 8006
+    },
   });
 
   // Capture token from stdout
@@ -84,8 +88,8 @@ export default async function globalSetup(config: FullConfig) {
 
   console.log("Waiting for Armadietto to respond...");
   try {
-    await waitForServer("http://localhost:8004/", 10000);
-    console.log("✅ Armadietto server ready on port 8004\n");
+    await waitForServer("http://localhost:8006/", 10000);
+    console.log("✅ Armadietto server ready on port 8006\n");
   } catch (err) {
     throw new Error(
       `Armadietto server failed to respond: ${err}. ` +

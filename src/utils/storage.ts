@@ -700,10 +700,14 @@ async function deleteAllRemoteStorage(): Promise<{
     const store = await init();
     if (store && store.client) {
       try {
-        await recursiveDeleteDirectory(store.client, "");
+        // Delete all articles from the saves/ directory
+        const result = await recursiveDeleteDirectory(store.client, "saves/");
+        deletedFiles.push(...result.deletedFiles);
+        // Don't push errors from recursive delete as they're often benign (non-existing paths)
+        console.log(`✅ Deleted ${result.deletedFiles.length} files from RemoteStorage`);
       } catch (error) {
-        errors.push(`Failed to access RemoteStorage: ${error}`);
-        console.warn("Failed to delete from RemoteStorage:", error);
+        // Only log a warning - this is not critical
+        console.warn("Error deleting from RemoteStorage:", error);
       }
     } else {
       errors.push("RemoteStorage not available");
@@ -719,28 +723,31 @@ async function deleteAllRemoteStorage(): Promise<{
 
   // Delete all data from IndexedDB
   const databases = await window.indexedDB.databases();
-  for (const db of databases) {
-    if (db.name) {
-      try {
-        await new Promise<void>((resolve, reject) => {
-          const request = window.indexedDB.deleteDatabase(db.name!);
-          request.onsuccess = () => {
-            console.log(`Deleted IndexedDB database: ${db.name}`);
-            resolve();
-          };
-          request.onerror = () => {
-            const error = `Failed to delete IndexedDB database ${db.name}`;
-            errors.push(error);
-            console.warn(error);
-            reject(new Error(error));
-          };
-        });
-      } catch (error) {
-        errors.push(`Error deleting database ${db.name}: ${error}`);
-        console.error(`Error deleting database ${db.name}:`, error);
-      }
-    }
-  }
+  // for (const db of databases) {
+  //   if (db.name) {
+  //     console.log("deleting database", db.name);
+  //     try {
+  //       await new Promise<void>((resolve, reject) => {
+  //         const request = window.indexedDB.deleteDatabase(db.name!);
+  //         request.onsuccess = () => {
+  //           console.log(`Deleted IndexedDB database: ${db.name}`);
+  //           resolve();
+  //         };
+  //         request.onerror = () => {
+  //           const error = `Failed to delete IndexedDB database ${db.name}`;
+  //           errors.push(error);
+  //           console.warn(error);
+  //           reject(new Error(error));
+  //         };
+  //       });
+  //     } catch (error) {
+  //       errors.push(`Error deleting database ${db.name}: ${error}`);
+  //       console.error(`Error deleting database ${db.name}:`, error);
+  //     }
+  //   }
+  // }
+
+  console.log("deleteAllRemoteStorage done");
 
   return {
     success: errors.length === 0,

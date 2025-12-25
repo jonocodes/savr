@@ -49,7 +49,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Connect to RemoteStorage programmatically
     const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, "testuser@localhost:8004", token);
+    await connectToRemoteStorage(page, "testuser@localhost:8006", token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -171,36 +171,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
-    // Check that article exists on RemoteStorage server before disconnect
-    const articlesBeforeDisconnect = await page.evaluate(async () => {
-      const client = (window as any).remoteStorageClient;
-      if (!client) return "NO CLIENT";
-      try {
-        const listing = await client.getListing("saves/");
-        return listing ? Object.keys(listing) : [];
-      } catch (e) {
-        return `ERROR: ${e}`;
-      }
-    });
-    console.log("🔍 DEBUG: Articles on server BEFORE disconnect:", articlesBeforeDisconnect);
-
     // 2. Disconnect from RemoteStorage
     console.log("2️⃣  Disconnecting from RemoteStorage...");
     await disconnectFromRemoteStorage(page);
     console.log("✅ Disconnected from RemoteStorage");
-
-    // Check if articles are still on server after disconnect
-    const articlesAfterDisconnect = await page.evaluate(async () => {
-      const client = (window as any).remoteStorageClient;
-      if (!client) return "NO CLIENT (disconnected)";
-      try {
-        const listing = await client.getListing("saves/");
-        return listing ? Object.keys(listing) : [];
-      } catch (e) {
-        return `ERROR: ${e}`;
-      }
-    });
-    console.log("🔍 DEBUG: Articles on server AFTER disconnect:", articlesAfterDisconnect);
 
     // 3. Verify articles are still visible (they're cached locally in IndexedDB)
     console.log("3️⃣  Verifying articles still visible after disconnect (cached locally)...");
@@ -210,30 +184,9 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
     const token = testEnv.RS_TOKEN;
-
-    // Check what's on the RemoteStorage server BEFORE reconnecting
-    const articlesOnServer = await page.evaluate(async () => {
-      const client = (window as any).remoteStorageClient;
-      if (!client) return "NO CLIENT";
-      try {
-        const listing = await client.getListing("saves/");
-        return listing ? Object.keys(listing) : [];
-      } catch (e) {
-        return `ERROR: ${e}`;
-      }
-    });
-    console.log("🔍 DEBUG: Articles on RemoteStorage server:", articlesOnServer);
-
-    await connectToRemoteStorage(page, "testuser@localhost:8004", token);
+    await connectToRemoteStorage(page, "testuser@localhost:8006", token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");
-
-    // Debug: Check if article is in IndexedDB after reconnect
-    const articleAfterReconnect = await getArticleFromDB(page, "death-by-a-thousand-cuts");
-    console.log(
-      "🔍 DEBUG: Article in IndexedDB after reconnect?",
-      articleAfterReconnect ? "YES" : "NO"
-    );
 
     // 5. Navigate back to home to trigger article list refresh
     console.log("5️⃣  Navigating to home page to refresh list...");
@@ -254,6 +207,115 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Article verified in IndexedDB:", article?.title);
 
     console.log("\n🎉 Disconnect/reconnect test completed successfully!\n");
+  });
+
+  // TODO: This test currently fails because RemoteStorage.js clears cached file data on disconnect
+  // See https://github.com/remotestorage/remotestorage.js/issues/1170
+
+  test("should allow reading articles after disconnecting from RemoteStorage provider", async ({
+    page,
+  }) => {
+    // 1. Ingest an article while connected
+    console.log("1️⃣  Ingesting article while connected to RemoteStorage...");
+
+    // Ensure we're on the home page and UI is ready
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const addButton = page.locator('button:has-text("Add Article")');
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for article to appear
+    const articleTitle = page.getByText(/Death/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Article ingested and visible");
+
+    // 2. Disconnect from RemoteStorage provider (like logging out)
+    console.log("2️⃣  Disconnecting from RemoteStorage provider...");
+
+    // Debug: Check what databases exist and their contents
+    const dbsBeforeDisconnect = await page.evaluate(async () => {
+      const dbs = await indexedDB.databases();
+      return dbs.map((db) => db.name);
+    });
+    console.log("🔍 DEBUG: IndexedDB databases before disconnect:", dbsBeforeDisconnect);
+
+    await disconnectFromRemoteStorage(page);
+    console.log("✅ Disconnected from RemoteStorage provider");
+
+    // Debug: Check databases after disconnect
+    const dbsAfterDisconnect = await page.evaluate(async () => {
+      const dbs = await indexedDB.databases();
+      return dbs.map((db) => db.name);
+    });
+    console.log("🔍 DEBUG: IndexedDB databases after disconnect:", dbsAfterDisconnect);
+
+    // 3. Verify article is still visible in the list (from savrDb)
+    console.log("3️⃣  Verifying article still visible in list after disconnecting from provider...");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    await expect(articleTitle).toBeVisible({ timeout: 5000 });
+    console.log("✅ Article still visible in list");
+
+    // 4. Click on the article to read it
+    console.log("4️⃣  Opening article to read while disconnected from provider...");
+    await articleTitle.click();
+    await page.waitForLoadState("networkidle");
+    console.log("✅ Navigated to article page");
+
+    // 5. Verify article page loads with content
+    console.log("5️⃣  Verifying article content is readable after disconnect...");
+
+    // Check if RemoteStorage cache still has the file
+    const cacheCheck = await page.evaluate(async () => {
+      const client = (window as any).remoteStorageClient;
+      if (!client) return { error: "client is null" };
+      try {
+        const file = await client.getFile("saves/death-by-a-thousand-cuts/index.html");
+        return {
+          hasFile: !!file,
+          hasData: !!file?.data,
+          dataLength: file?.data?.length || 0,
+          dataType: typeof file?.data,
+        };
+      } catch (e) {
+        return { error: String(e) };
+      }
+    });
+    console.log("🔍 DEBUG: RemoteStorage cache check:", cacheCheck);
+
+    const articleContent = page.locator("article, .article-content, main").first();
+    await expect(articleContent).toBeVisible({ timeout: 5000 });
+
+    // Verify the article has actual content text
+    const contentText = await articleContent.textContent();
+    expect(contentText).toBeTruthy();
+    expect(contentText!.length).toBeGreaterThan(100); // Should have substantial content
+    console.log("✅ Article content is readable while disconnected");
+
+    // 6. Verify article is still in IndexedDB
+    console.log("6️⃣  Verifying article is in IndexedDB...");
+    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    expect(article).toBeTruthy();
+    expect(article?.slug).toBe("death-by-a-thousand-cuts");
+    console.log("✅ Article verified in IndexedDB");
+
+    console.log("\n🎉 Reading after disconnect test completed successfully!\n");
   });
 
   test("should delete article from listing page", async ({ page }) => {
@@ -387,6 +449,104 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Article deleted from IndexedDB");
 
     console.log("\n🎉 Article deletion from article page completed!\n");
+  });
+
+  test("should delete all articles from preferences page", async ({ page }) => {
+    // 1. Ingest an article first
+    console.log("1️⃣  Ingesting article...");
+    const addButton = page.locator('button:has-text("Add Article")');
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for article to appear
+    const articleTitle = page.getByText(/Death/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Article ingested and visible");
+
+    // 2. Navigate to preferences/settings page
+    console.log("2️⃣  Navigating to preferences page...");
+    const settingsButton = page.locator(
+      'button[aria-label="Settings"], button:has-text("Settings")'
+    );
+    await settingsButton.click();
+    await page.waitForURL(/\/prefs/);
+    console.log("✅ Navigated to preferences page");
+
+    // 3. Click "Delete All Articles" button
+    console.log("3️⃣  Clicking Delete All Articles...");
+    const deleteAllButton = page.locator('button:has-text("Delete All")');
+    await expect(deleteAllButton).toBeVisible({ timeout: 5000 });
+    await deleteAllButton.click();
+    console.log("✅ Delete All button clicked");
+
+    // 4. Verify dialog text and confirm deletion
+    console.log("4️⃣  Verifying dialog text and confirming deletion...");
+    const deleteDialog = page.getByTestId("delete-all-articles-dialog");
+    await expect(deleteDialog).toBeVisible({ timeout: 5000 });
+
+    // Check the dialog text mentions 1 article
+    const dialogText = deleteDialog.getByText(/Are you sure you want to delete.*1.*article/i);
+    await expect(dialogText).toBeVisible({ timeout: 5000 });
+    console.log("✅ Dialog shows correct article count");
+
+    const confirmButton = page.getByTestId("confirm-delete-all-button");
+    await confirmButton.click();
+    console.log("✅ Deletion confirmed");
+
+    // 5. Verify dialog closes
+    console.log("5️⃣  Verifying dialog closed...");
+    await expect(deleteDialog).not.toBeVisible({ timeout: 5000 });
+    console.log("✅ Dialog closed");
+
+    // 6. Navigate back to home and verify no articles in listing
+    console.log("6️⃣  Navigating back to home...");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+    console.log("✅ Navigated to home");
+
+    // 7. Verify no articles visible
+    console.log("7️⃣  Verifying no articles in listing...");
+    await expect(articleTitle).not.toBeVisible({ timeout: 5000 });
+    const emptyMessage = page.getByText(/Start saving articles/i);
+    await expect(emptyMessage).toBeVisible({ timeout: 5000 });
+    console.log("✅ No articles visible in listing");
+
+    // 8. Verify articles deleted from IndexedDB
+    console.log("8️⃣  Verifying IndexedDB is empty...");
+    const articleCount = await page.evaluate(async () => {
+      const dbName = "savrDb";
+      const request = indexedDB.open(dbName);
+      return new Promise<number>((resolve) => {
+        request.onsuccess = () => {
+          const db = request.result;
+          const transaction = db.transaction(["articles"], "readonly");
+          const store = transaction.objectStore("articles");
+          const countRequest = store.count();
+          countRequest.onsuccess = () => {
+            db.close();
+            resolve(countRequest.result);
+          };
+        };
+      });
+    });
+    expect(articleCount).toBe(0);
+    console.log("✅ IndexedDB is empty");
+
+    console.log("\n🎉 Delete all articles test completed!\n");
   });
 
   test.afterEach(async ({ page }) => {

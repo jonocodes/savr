@@ -8,7 +8,7 @@ A complete local RemoteStorage server setup for development and testing your app
 ./demo-widget-connection.sh
 ```
 
-Then connect your app's widget to: `testuser@127.0.0.1:8004` (password: `testpass`)
+Then connect your app's widget to: `testuser@localhost:8004` (password: `testpass`)
 
 ## Getting Started
 
@@ -43,7 +43,7 @@ node armadietto.cjs
 ### Connect Widget
 
 1. Click RemoteStorage widget in your app (bottom-right)
-2. Enter: `testuser@127.0.0.1:8004`
+2. Enter: `testuser@localhost:8004`
 3. Password: `testpass`
 4. Approve authorization
 
@@ -63,14 +63,16 @@ lsof -ti:8004 | xargs kill -9
 
 - **Username**: `testuser`
 - **Password**: `testpass`
-- **Address**: `testuser@127.0.0.1:8004`
+- **Address**: `testuser@localhost:8004`
 
 ## Server Configuration
 
-- **Host**: `127.0.0.1`
-- **Port**: `8004`
+- **Host**: `localhost`
+- **Port**: `8004` (manual testing) / `8006` (automated testing)
 - **Storage**: `/tmp/restore`
 - **Scope**: Full access to `/` path
+
+> **Note**: The server automatically detects testing mode via `NODE_ENV=test` and switches to port 8006 for automated tests while using port 8004 for manual development.
 
 ## Common Tasks
 
@@ -119,22 +121,22 @@ TOKEN="<token-from-server-output>"
 
 # Write a file
 curl -X PUT -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/test.txt \
+  http://localhost:8004/storage/testuser/test.txt \
   -d 'hello world'
 
 # Read a file
 curl -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/test.txt
+  http://localhost:8004/storage/testuser/test.txt
 
 # List directory
 curl -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/
+  http://localhost:8004/storage/testuser/
 
 # Create article for your app
 curl -X PUT \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/test-123/article.json \
+  http://localhost:8004/storage/testuser/savr/saves/test-123/article.json \
   -d '{
     "id": "test-123",
     "url": "https://example.com/test",

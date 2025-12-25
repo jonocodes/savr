@@ -35,7 +35,7 @@ testpass
 
 The widget will:
 
-1. Perform WebFinger discovery at `http://127.0.0.1:8004/.well-known/webfinger?resource=acct:testuser@127.0.0.1:8004`
+1. Perform WebFinger discovery at `http://localhost:8004/.well-known/webfinger?resource=acct:testuser@localhost:8004`
 2. Get the storage API endpoint
 3. Show an OAuth authorization page
 4. After you approve, redirect back with an access token
@@ -61,9 +61,9 @@ The widget ([RemoteStorageProvider.tsx](src/components/RemoteStorageProvider.tsx
 
 When you connect via the widget:
 
-1. **User enters address**: `testuser@127.0.0.1:8004`
+1. **User enters address**: `testuser@localhost:8004`
 2. **WebFinger discovery**: Widget queries `/.well-known/webfinger`
-3. **OAuth redirect**: Browser opens `http://127.0.0.1:8004/oauth/testuser?client_id=...&scope=savr:rw`
+3. **OAuth redirect**: Browser opens `http://localhost:8004/oauth/testuser?client_id=...&scope=savr:rw`
 4. **User login**: Enter password `testpass` and approve
 5. **Token grant**: Server generates token and redirects back
 6. **Connected**: Widget stores token and app can access storage
@@ -83,7 +83,7 @@ node armadietto.cjs
 Open in your browser:
 
 ```
-http://127.0.0.1:8004/oauth/testuser?client_id=http://localhost:8000&redirect_uri=http://localhost:8000&response_type=token&scope=savr:rw&state=test123
+http://localhost:8004/oauth/testuser?client_id=http://localhost:8000&redirect_uri=http://localhost:8000&response_type=token&scope=savr:rw&state=test123
 ```
 
 ### 3. Login
@@ -114,7 +114,7 @@ TOKEN="cDikVtDo8g2akTq1xjDjIbWg4xs="
 curl -X PUT \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/test-123/article.json \
+  http://localhost:8004/storage/testuser/savr/saves/test-123/article.json \
   -d '{
     "id": "test-123",
     "url": "https://example.com/test",
@@ -125,11 +125,11 @@ curl -X PUT \
 
 # Read it back
 curl -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/test-123/article.json
+  http://localhost:8004/storage/testuser/savr/saves/test-123/article.json
 
 # List all articles
 curl -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/
+  http://localhost:8004/storage/testuser/savr/saves/
 ```
 
 ## Differences Between Tokens
@@ -156,8 +156,8 @@ For widget testing, you'll use OAuth tokens (option 2). For automated testing, u
 
 **Check:**
 
-1. Server is running on `127.0.0.1:8004`
-2. You entered `testuser@127.0.0.1:8004` (not just `testuser`)
+1. Server is running on `localhost:8004`
+2. You entered `testuser@localhost:8004` (not just `testuser`)
 3. Password is `testpass`
 4. CORS is enabled (Armadietto enables this by default)
 
@@ -176,7 +176,7 @@ Make sure you're using `testpass` not the OAuth token.
 **Check:**
 
 1. Widget shows "Connected" status (green)
-2. Browser console shows `remoteStorage connected to "testuser@127.0.0.1:8004"`
+2. Browser console shows `remoteStorage connected to "testuser@localhost:8004"`
 3. Sync is enabled in preferences
 4. Check storage directly:
    ```bash
@@ -195,9 +195,9 @@ Check [PreferenceScreen.tsx](src/components/PreferenceScreen.tsx) - sync must be
 
 To test sync between multiple browser tabs:
 
-1. Connect in Tab 1: `testuser@127.0.0.1:8004`
+1. Connect in Tab 1: `testuser@localhost:8004`
 2. Save an article in Tab 1
-3. Connect in Tab 2: `testuser@127.0.0.1:8004`
+3. Connect in Tab 2: `testuser@localhost:8004`
 4. Article should appear in Tab 2
 
 Note: RemoteStorage doesn't have real-time sync - tabs poll for changes.
@@ -225,8 +225,8 @@ for (const username of ["testuser", "alice", "bob"]) {
 
 Then connect with:
 
-- `alice@127.0.0.1:8004`
-- `bob@127.0.0.1:8004`
+- `alice@localhost:8004`
+- `bob@localhost:8004`
 
 Each user has isolated storage.
 

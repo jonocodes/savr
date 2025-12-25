@@ -21,6 +21,7 @@
     "demo-server": "npx ws --cors.origin '*' -d ~/sync/more/savr_demo_sites/",
     "demo-server2": "npx http-server ~/sync/more/savr_demo_sites/ -p 8080 --cors",
     "demo-server3": "npx http-server test_data/ -p 8080 --cors",
+    "remotestorage-server": "node test-server/armadietto.cjs",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "node scripts/run-e2e.js",
