@@ -44,7 +44,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
-import { generateInfoForCard } from "../../lib/src/lib";
+import { generateInfoForCard, getFilePathContent } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -69,6 +69,7 @@ function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
+  const [contentExists, setContentExists] = useState<boolean>(true);
 
   const storage = useRemoteStorage();
 
@@ -89,6 +90,23 @@ function ArticleItem({ article }: { article: Article }) {
 
     loadThumbnailData();
   }, []);
+
+  useEffect(() => {
+    const checkContentExists = async () => {
+      if (!storage.client) return;
+
+      try {
+        const contentPath = getFilePathContent(article.slug);
+        const file = (await storage.client.getFile(contentPath)) as { data: string } | null;
+        setContentExists(!!(file && file.data));
+      } catch (error) {
+        console.warn(`Failed to check content for ${article.slug}:`, error);
+        setContentExists(false);
+      }
+    };
+
+    checkContentExists();
+  }, [article.slug, storage.client]);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation(); // Prevent the ListItem click from firing
@@ -181,7 +199,7 @@ function ArticleItem({ article }: { article: Article }) {
         }
         secondary={
           <Typography variant="caption" color="text.secondary">
-            {generateInfoForCard(article)}
+            {contentExists ? generateInfoForCard(article) : "(content missing)"}
           </Typography>
         }
       />
@@ -582,9 +600,6 @@ export default function ArticleListScreen() {
               textAlign: "center",
             }}
           >
-            {/* <Typography variant="h4" gutterBottom>
-              Welcome to Savr
-            </Typography> */}
             <Typography variant="body1" color="text.secondary" gutterBottom>
               {filter === "unread"
                 ? "Start saving articles to see them here"
