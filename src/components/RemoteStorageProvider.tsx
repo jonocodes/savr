@@ -82,7 +82,9 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
         setTimeout(() => {
           const widgetElement = document.getElementById("remotestorage-widget");
           if (widgetElement) {
-            widgetElement.style.display = isSyncEnabled ? "block" : "none";
+            const isArticlePage = window.location.pathname.startsWith("/article/");
+            const shouldShow = isSyncEnabled && !isArticlePage;
+            widgetElement.style.display = shouldShow ? "block" : "none";
           }
         }, 100);
       }
@@ -106,13 +108,31 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Update widget visibility based on route
   useEffect(() => {
-    const widgetElement = document.getElementById("remotestorage-widget");
-    if (widgetElement) {
-      const isArticlePage = router.state.location.pathname.startsWith("/article/");
+    const updateVisibility = () => {
+      const widgetElement = document.getElementById("remotestorage-widget");
+      if (!widgetElement) return;
+
+      const isArticlePage = window.location.pathname.startsWith("/article/");
       const shouldShowWidget = syncEnabled && !isArticlePage;
       widgetElement.style.display = shouldShowWidget ? "block" : "none";
-    }
-  }, [router.state.location.pathname, syncEnabled]);
+    };
+
+    // Update immediately
+    updateVisibility();
+
+    // Poll for pathname changes to detect route changes
+    let lastPathname = window.location.pathname;
+    const intervalId = setInterval(() => {
+      if (window.location.pathname !== lastPathname) {
+        lastPathname = window.location.pathname;
+        updateVisibility();
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [syncEnabled]);
 
   return (
     <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>
@@ -123,10 +143,6 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
           bottom: "10px",
           right: "10px",
           zIndex: 1000,
-          display:
-            syncEnabled && !router.state.location.pathname.startsWith("/article/")
-              ? "block"
-              : "none",
         }}
       />
       {children}
