@@ -78,6 +78,111 @@ export async function connectToRemoteStorage(
 }
 
 /**
+ * Trigger a manual sync in RemoteStorage
+ * This forces RemoteStorage to check the server for changes
+ */
+export async function triggerRemoteStorageSync(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.sync) {
+      throw new Error("RemoteStorage or sync not available");
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve(); // Resolve anyway to avoid hanging tests
+      }, 10000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        rs.removeEventListener("sync-done", onSyncDone);
+        rs.removeEventListener("sync-req-done", onSyncReqDone);
+      };
+
+      const onSyncDone = () => {
+        console.log("Manual sync completed (sync-done)");
+        cleanup();
+        resolve();
+      };
+
+      const onSyncReqDone = () => {
+        console.log("Manual sync completed (sync-req-done)");
+        cleanup();
+        resolve();
+      };
+
+      rs.on("sync-done", onSyncDone);
+      rs.on("sync-req-done", onSyncReqDone);
+
+      // Trigger manual sync
+      console.log("Triggering manual RemoteStorage sync...");
+      rs.sync.sync();
+    });
+  });
+}
+
+/**
+ * Wait for RemoteStorage to finish pushing outgoing changes to the server
+ * This explicitly triggers a sync and waits for sync-done event
+ * This is useful after delete/update operations to ensure changes are pushed to server
+ * before another browser context tries to pull them
+ */
+export async function waitForOutgoingSync(page: Page, timeoutMs = 15000): Promise<void> {
+  await page.evaluate(async (timeoutMs) => {
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.sync) {
+      console.log("RemoteStorage not available, skipping outgoing sync wait");
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      let resolved = false;
+
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          console.log(`⏰ Outgoing sync timeout after ${timeoutMs}ms`);
+          resolve();
+        }
+      }, timeoutMs);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        rs.removeEventListener("sync-done", onSyncDone);
+      };
+
+      const onSyncDone = () => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          console.log(`✅ Outgoing sync completed (sync-done event received)`);
+          // Add buffer to ensure server has fully processed
+          setTimeout(() => resolve(), 1500);
+        }
+      };
+
+      // Listen for sync completion
+      rs.on("sync-done", onSyncDone);
+
+      // Trigger a sync to push outgoing changes
+      console.log("🔄 Triggering sync to push outgoing deletions/updates...");
+      try {
+        rs.sync.sync();
+      } catch (error) {
+        console.warn("Error triggering sync:", error);
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve();
+        }
+      }
+    });
+  }, timeoutMs);
+}
+
+/**
  * Wait for RemoteStorage sync to complete
  * This ensures all pending sync operations have finished AND articles have been processed
  *
@@ -202,19 +307,37 @@ export async function getArticleFromDB(page: Page, slug: string): Promise<any> {
 /**
  * Delete article from RemoteStorage
  * Used for test cleanup
+ * Will throw if RemoteStorage is not available, but gracefully handles if article doesn't exist
  */
 export async function deleteArticleFromStorage(page: Page, slug: string): Promise<void> {
   await page.evaluate(async (slug) => {
     const client = (window as any).remoteStorageClient;
-    if (!client) throw new Error("RemoteStorage client not available");
+    if (!client) {
+      throw new Error(
+        "RemoteStorage client not available - cannot cleanup. Did the test disconnect?"
+      );
+    }
 
     try {
+      // Check if article exists first
+      const listing = await client.getListing(`saves/${slug}/`);
+      if (!listing || Object.keys(listing).length === 0) {
+        console.log(`Article ${slug} not found in RemoteStorage (already deleted)`);
+        return;
+      }
+
       // Delete article directory
       await client.remove(`saves/${slug}/`);
       console.log(`Deleted article ${slug} from RemoteStorage`);
-    } catch (error) {
-      console.warn(`Failed to delete article ${slug}:`, error);
-      // Don't throw - cleanup failures shouldn't fail tests
+    } catch (error: any) {
+      // Gracefully handle "not found" errors (article was already deleted)
+      if (error?.message?.includes("404") || error?.message?.includes("not found")) {
+        console.log(`Article ${slug} not found in RemoteStorage (already deleted)`);
+        return;
+      }
+      // Throw for other errors
+      console.error(`Failed to delete article ${slug}:`, error);
+      throw error;
     }
   }, slug);
 }

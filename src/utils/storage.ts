@@ -375,32 +375,9 @@ function initRemote() {
         // Normalize path to relative format for tracking
         const normalizedPath = path.startsWith("/savr/") ? path.slice(6) : path;
 
-        // Skip if we've already processed this file
-        if (processedArticles.has(normalizedPath)) {
-          console.log(`Skipping already processed article: ${normalizedPath}`);
-          return;
-        }
-
-        // Only process if this is a new file (newValue exists, oldValue doesn't)
-        // or if it's an update (both exist)
-        if (event.newValue !== undefined) {
-          console.log(`📥 New/updated article detected: ${normalizedPath}`);
-          processedArticles.add(normalizedPath);
-
-          try {
-            // Process immediately - no debouncing for individual files
-            await processArticleFile(client, normalizedPath);
-            // Force a query to ensure useLiveQuery detects the change
-            await db.articles.toArray();
-          } catch (error) {
-            console.error(
-              `  ✗ Failed to process article from change event: ${normalizedPath}`,
-              error
-            );
-            // Remove from processed set so it can be retried by buildDbFromFiles
-            processedArticles.delete(normalizedPath);
-          }
-        } else if (event.oldValue !== undefined && event.newValue === undefined) {
+        // Check if this is a deletion event (oldValue exists, newValue doesn't)
+        // IMPORTANT: Check deletions BEFORE the processedArticles check
+        if (event.oldValue !== undefined && event.newValue === undefined) {
           // File was deleted
           console.log(`🗑️ Article deleted: ${normalizedPath}`);
           processedArticles.delete(normalizedPath);
@@ -416,6 +393,39 @@ function initRemote() {
               await db.articles.toArray();
             } catch (error) {
               console.error(`  ✗ Failed to delete article ${slug}:`, error);
+            }
+          }
+        } else if (event.newValue !== undefined) {
+          // This is a new file or update
+          const isUpdate = event.oldValue !== undefined;
+
+          // Skip if we've already processed this file AND it's not an update
+          // Updates must always be processed to sync state changes (like archive/unarchive)
+          if (processedArticles.has(normalizedPath) && !isUpdate) {
+            console.log(`Skipping already processed article: ${normalizedPath}`);
+            return;
+          }
+
+          if (isUpdate) {
+            console.log(`🔄 Article update detected: ${normalizedPath}`);
+          } else {
+            console.log(`📥 New article detected: ${normalizedPath}`);
+            processedArticles.add(normalizedPath);
+          }
+
+          try {
+            // Process immediately - no debouncing for individual files
+            await processArticleFile(client, normalizedPath);
+            // Force a query to ensure useLiveQuery detects the change
+            await db.articles.toArray();
+          } catch (error) {
+            console.error(
+              `  ✗ Failed to process article from change event: ${normalizedPath}`,
+              error
+            );
+            // Remove from processed set so it can be retried by buildDbFromFiles (only for new files)
+            if (!isUpdate) {
+              processedArticles.delete(normalizedPath);
             }
           }
         }

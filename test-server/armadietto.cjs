@@ -16,11 +16,13 @@ async function setupTestServer() {
   const appPort = process.env.APP_PORT || (isAutomatedTest ? 3002 : 3000);
   const storagePort = process.env.STORAGE_PORT || (isAutomatedTest ? 8006 : 8004);
 
+  const storagePath = `/tmp/restore${storagePort}`;
+
   const mode = isAutomatedTest ? "AUTOMATED TEST" : "MANUAL";
   console.log(`\n🔧 Starting in ${mode} mode`);
   console.log(`   App port: ${appPort}, Storage port: ${storagePort}\n`);
 
-  const store = new Armadietto.FileTree({ path: "/tmp/restore" });
+  const store = new Armadietto.FileTree({ path: storagePath });
 
   // Create test user programmatically
   let userExists = false;
@@ -65,6 +67,7 @@ async function setupTestServer() {
   console.log("=".repeat(60));
   console.log(`Server URL: http://localhost:${storagePort}`);
   console.log(`App URL:    http://localhost:${appPort}`);
+  console.log(`Storage path: ${storagePath}`);
   console.log("Username:   testuser");
   console.log("Token:      " + token);
   console.log("\nTest commands:");

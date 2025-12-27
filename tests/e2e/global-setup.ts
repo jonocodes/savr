@@ -46,6 +46,7 @@ export default async function globalSetup(config: FullConfig) {
     env: {
       ...process.env,
       NODE_ENV: "test", // Signals to armadietto.cjs to use port 8006
+      STORAGE_PORT: "8006", // Explicitly set storage port
     },
   });
 
