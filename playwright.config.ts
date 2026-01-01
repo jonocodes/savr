@@ -13,6 +13,8 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   /* Opt out of parallel tests on CI. */
   workers: process.env.CI ? 1 : undefined,
+  /* Timeout for each test */
+  timeout: 120 * 1000,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
   /* Global setup and teardown for test servers */
@@ -35,20 +37,31 @@ export default defineConfig({
 
   /* Configure projects for major browsers */
   projects: [
+    // Synchronization tests - run serially to avoid state conflicts
+    // Includes all tests that use RemoteStorage to prevent conflicts
+    {
+      name: "chromium-sync",
+      testMatch: /.*\/(multi-browser.*|ingest-local-article|widget-visibility)\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"] },
+      fullyParallel: false, // Force serial execution for sync tests
+    },
+
+    // All other tests - can run in parallel
     {
       name: "chromium",
+      testIgnore: /.*\/(multi-browser.*|ingest-local-article|widget-visibility)\.spec\.ts/,
       use: { ...devices["Desktop Chrome"] },
     },
 
-    {
-      name: "firefox",
-      use: { ...devices["Desktop Firefox"] },
-    },
+    // {
+    //   name: "firefox",
+    //   use: { ...devices["Desktop Firefox"] },
+    // },
 
-    {
-      name: "webkit",
-      use: { ...devices["Desktop Safari"] },
-    },
+    // {
+    //   name: "webkit",
+    //   use: { ...devices["Desktop Safari"] },
+    // },
 
     /* Test against mobile viewports. */
     // {

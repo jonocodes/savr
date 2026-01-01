@@ -4,6 +4,12 @@ import {
   waitForRemoteStorageSync,
   triggerRemoteStorageSync,
   getArticleFromDB,
+  clearAllArticles,
+  verifyCleanState,
+  waitForArticleState,
+  waitForArticleOnServer,
+  waitForArticleStateOnServer,
+  waitForOutgoingSync,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -25,6 +31,45 @@ try {
 }
 
 test.describe("Multi-Browser Archive Sync", () => {
+  // Clean up before each test to prevent state leakage
+  test.beforeEach(async ({ browser }) => {
+    console.log("\n🧹 Pre-test cleanup: ensuring clean state...");
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    try {
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+
+      // Clear browser storage
+      await page.evaluate(() => {
+        indexedDB.deleteDatabase("savrDb");
+        localStorage.clear();
+        sessionStorage.clear();
+      });
+
+      await page.reload();
+      await page.waitForLoadState("networkidle");
+
+      // Connect and clear all articles
+      const token = testEnv.RS_TOKEN;
+      await connectToRemoteStorage(page, "testuser@localhost:8006", token);
+      await waitForRemoteStorageSync(page);
+      await clearAllArticles(page);
+
+      // Verify clean state
+      const verification = await verifyCleanState(page);
+      if (!verification.isClean) {
+        throw new Error(
+          `Failed to achieve clean state: ${verification.indexedDBCount} articles in DB, ${verification.remoteStorageCount} in RS`
+        );
+      }
+      console.log("✅ Pre-test cleanup completed - state is clean\n");
+    } finally {
+      await context.close();
+    }
+  });
+
   test("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
@@ -138,20 +183,49 @@ test.describe("Multi-Browser Archive Sync", () => {
       expect(article1After?.state).toBe("archived");
       console.log("✅ Browser 1: Article state confirmed as 'archived' in IndexedDB");
 
-      // Wait for archive state to sync to server
-      console.log("\n8️⃣  Browser 2: Syncing to pull archive state from Browser 1...");
-      await page1.waitForTimeout(2000);
+      // Wait for archive state to sync to server from Browser 1
+      console.log("\n8️⃣  Browser 1: Waiting for archive state to sync to server...");
+      await waitForOutgoingSync(page1);
 
-      // Trigger sync in Browser 2
+      // Verify server has the archived article with correct state
+      console.log("9️⃣  Verifying server has the archived state...");
+      await waitForArticleStateOnServer(page1, "death-by-a-thousand-cuts", "archived", 20000);
+
+      // Trigger sync in Browser 2 to pull the archive state
+      console.log("🔟 Browser 2: Syncing to pull archive state from Browser 1...");
+
+      // Add console listener to capture RemoteStorage logs in Browser 2
+      page2.on("console", (msg) => {
+        const text = msg.text();
+        const type = msg.type();
+        // Capture all relevant logs
+        if (
+          text.includes("change event") ||
+          text.includes("Article") ||
+          text.includes("update") ||
+          text.includes("Processing") ||
+          text.includes("Loaded article") ||
+          type === "error" ||
+          type === "warning"
+        ) {
+          console.log(`[Browser 2 ${type.toUpperCase()}] ${text}`);
+        }
+      });
+
       await triggerRemoteStorageSync(page2);
+
+      // Give Browser 2 a moment to process the change event
       await page2.waitForTimeout(2000);
+
+      // Wait for Browser 2 to process the archive state change
+      await waitForArticleState(page2, "death-by-a-thousand-cuts", "archived", 15000);
 
       // Article should disappear from Saves tab in Browser 2
       await expect(articleTitle2).not.toBeVisible({ timeout: 10000 });
       console.log("✅ Browser 2: Article disappeared from Saves tab after sync");
 
       // Verify article state in Browser 2's IndexedDB
-      console.log("9️⃣  Browser 2: Verifying article state in IndexedDB...");
+      console.log("1️⃣1️⃣  Browser 2: Verifying article state in IndexedDB...");
       const article2After = await getArticleFromDB(page2, "death-by-a-thousand-cuts");
       expect(article2After).toBeTruthy();
       expect(article2After?.state).toBe("archived");
@@ -182,6 +256,29 @@ test.describe("Multi-Browser Archive Sync", () => {
         console.warn("⚠️  Context 2 cleanup:", error);
       }
       console.log("✅ Cleanup completed");
+    }
+  });
+
+  // Clean up after each test as well
+  test.afterEach(async ({ browser }) => {
+    console.log("\n🧹 Post-test cleanup: cleaning up any remaining state...");
+    const context = await browser.newContext();
+    const page = await context.newPage();
+
+    try {
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+
+      const token = testEnv.RS_TOKEN;
+      await connectToRemoteStorage(page, "testuser@localhost:8006", token);
+      await waitForRemoteStorageSync(page);
+      await clearAllArticles(page);
+
+      console.log("✅ Post-test cleanup completed\n");
+    } catch (error) {
+      console.warn("⚠️  Post-test cleanup failed:", error);
+    } finally {
+      await context.close();
     }
   });
 });

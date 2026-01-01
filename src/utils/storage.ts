@@ -115,16 +115,22 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
 async function processArticleFile(
   client: BaseClient,
   filePath: string,
-  retryCount = 0
+  retryCount = 0,
+  forceRefresh = false
 ): Promise<void> {
   const maxRetries = 5;
   const retryDelay = 500; // ms
 
   try {
     console.log(
-      `📖 Processing article file: ${filePath}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ""}`
+      `📖 Processing article file: ${filePath}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ""}${forceRefresh ? " (force refresh)" : ""}`
     );
-    const file = (await client.getFile(filePath)) as { data: string };
+
+    // For updates, use getObject with maxAge: 0 to force fresh fetch from server
+    // This ensures we get the latest article state, not cached data
+    const file = forceRefresh
+      ? ({ data: await client.getObject(filePath, 0) } as { data: any })
+      : ((await client.getFile(filePath)) as { data: string });
 
     if (!file || !file.data) {
       // File might not be cached yet, retry if we haven't exceeded max retries
@@ -408,6 +414,9 @@ function initRemote() {
 
           if (isUpdate) {
             console.log(`🔄 Article update detected: ${normalizedPath}`);
+            // Remove from processed set so buildDbFromFiles will re-process it
+            // This ensures updates are always picked up even if this handler doesn't complete
+            processedArticles.delete(normalizedPath);
           } else {
             console.log(`📥 New article detected: ${normalizedPath}`);
             processedArticles.add(normalizedPath);
@@ -415,7 +424,12 @@ function initRemote() {
 
           try {
             // Process immediately - no debouncing for individual files
-            await processArticleFile(client, normalizedPath);
+            // For updates, force refresh from server to get latest state
+            await processArticleFile(client, normalizedPath, 0, isUpdate);
+            // Re-add to processed set after successful processing
+            if (isUpdate) {
+              processedArticles.add(normalizedPath);
+            }
             // Force a query to ensure useLiveQuery detects the change
             await db.articles.toArray();
           } catch (error) {

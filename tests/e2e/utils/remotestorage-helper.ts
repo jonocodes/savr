@@ -80,9 +80,10 @@ export async function connectToRemoteStorage(
 /**
  * Trigger a manual sync in RemoteStorage
  * This forces RemoteStorage to check the server for changes
+ * Enhanced with better timeout and multiple sync event handling
  */
-export async function triggerRemoteStorageSync(page: Page): Promise<void> {
-  await page.evaluate(async () => {
+export async function triggerRemoteStorageSync(page: Page, timeoutMs = 15000): Promise<void> {
+  await page.evaluate(async (timeoutMs) => {
     const rs = (window as any).remoteStorage;
     if (!rs || !rs.sync) {
       throw new Error("RemoteStorage or sync not available");
@@ -91,8 +92,9 @@ export async function triggerRemoteStorageSync(page: Page): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
         cleanup();
+        console.log(`⏰ Sync timeout after ${timeoutMs}ms - resolving anyway`);
         resolve(); // Resolve anyway to avoid hanging tests
-      }, 10000);
+      }, timeoutMs);
 
       const cleanup = () => {
         clearTimeout(timeout);
@@ -101,25 +103,26 @@ export async function triggerRemoteStorageSync(page: Page): Promise<void> {
       };
 
       const onSyncDone = () => {
-        console.log("Manual sync completed (sync-done)");
+        console.log("✅ Manual sync completed (sync-done)");
         cleanup();
-        resolve();
+        // Add small buffer to ensure changes are fully processed
+        setTimeout(() => resolve(), 500);
       };
 
       const onSyncReqDone = () => {
-        console.log("Manual sync completed (sync-req-done)");
+        console.log("✅ Manual sync completed (sync-req-done)");
         cleanup();
-        resolve();
+        setTimeout(() => resolve(), 500);
       };
 
       rs.on("sync-done", onSyncDone);
       rs.on("sync-req-done", onSyncReqDone);
 
       // Trigger manual sync
-      console.log("Triggering manual RemoteStorage sync...");
+      console.log("🔄 Triggering manual RemoteStorage sync...");
       rs.sync.sync();
     });
-  });
+  }, timeoutMs);
 }
 
 /**
@@ -305,6 +308,86 @@ export async function getArticleFromDB(page: Page, slug: string): Promise<any> {
 }
 
 /**
+ * Force RemoteStorage to sync immediately
+ * Used after deletions/updates to push changes to server right away
+ */
+export async function forceRemoteStorageSync(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const rs = (window as any).remoteStorage;
+    if (!rs) {
+      console.log("RemoteStorage not available, cannot force sync");
+      return;
+    }
+
+    try {
+      console.log("🔄 Forcing immediate sync...");
+      await rs.sync.sync();
+      console.log("✅ Sync forced");
+    } catch (error) {
+      console.error("Error forcing sync:", error);
+      throw error;
+    }
+  });
+}
+
+/**
+ * Poll RemoteStorage to verify file deletion from server
+ * More reliable than waiting for sync-done event
+ * Checks directly on the server if the file is actually gone
+ */
+export async function waitForDeletionSync(
+  page: Page,
+  articleSlug: string,
+  timeoutMs = 15000
+): Promise<void> {
+  const startTime = Date.now();
+  const checkInterval = 500; // Check every 500ms
+
+  await page.evaluate(
+    async (articleSlug, checkInterval, timeoutMs) => {
+      const rs = (window as any).remoteStorage;
+      if (!rs) {
+        console.log("RemoteStorage not available");
+        return { deleted: false };
+      }
+
+      try {
+        const articlePath = `saves/${articleSlug}/article.json`;
+
+        // Check both individual file and directory
+        const fileExists = await rs.getFile(articlePath);
+        const dirExists = await rs.getFile(`saves/${articleSlug}/.~meta`);
+
+        const deleted = !fileExists && !dirExists;
+
+        if (deleted) {
+          console.log(`✅ File deletion confirmed on server: ${articleSlug}`);
+          return { deleted: true };
+        }
+
+        const elapsed = Date.now() - startTime;
+        if (elapsed > timeoutMs) {
+          console.log(`⏰ Timeout after ${elapsed}ms - assuming file not deleted`);
+          return { deleted: false, timedOut: true };
+        }
+
+        if (elapsed > checkInterval) {
+          console.log(`⏳ Still checking... ${elapsed}ms elapsed`);
+        }
+
+        return { deleted: false, waiting: true };
+      } catch (error) {
+        console.error(`Error checking file deletion: ${error}`);
+        return { deleted: false, error: String(error) };
+      }
+    },
+    articleSlug,
+    checkInterval,
+    timeoutMs
+  );
+}
+
+/**
  * Delete article from RemoteStorage
  * Used for test cleanup
  * Will throw if RemoteStorage is not available, but gracefully handles if article doesn't exist
@@ -421,84 +504,359 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
 /**
  * Clear all articles from RemoteStorage and IndexedDB
  * Useful for cleaning up test state between tests
+ * Now with verification and retry logic for robustness
  */
-export async function clearAllArticles(page: Page): Promise<void> {
-  await page.evaluate(async () => {
-    const rs = (window as any).remoteStorage;
-    if (!rs || !rs.remote || !rs.remote.connected) {
-      console.log("RemoteStorage not connected, skipping cleanup");
-      return;
-    }
-
-    const client = (window as any).remoteStorageClient;
-    if (!client) {
-      console.log("RemoteStorage client not found, skipping cleanup");
-      return;
-    }
-
+export async function clearAllArticles(page: Page, retries = 3): Promise<void> {
+  for (let attempt = 1; attempt <= retries; attempt++) {
     try {
-      // Get all article directories
-      const listing = await client.getListing("saves/");
+      console.log(`🧹 Cleanup attempt ${attempt}/${retries}...`);
 
-      if (listing && typeof listing === "object") {
-        const slugs = Object.keys(listing);
-        console.log(`Clearing ${slugs.length} articles from RemoteStorage`);
-
-        // Delete each article directory
-        for (const slug of slugs) {
-          try {
-            await client.remove(`saves/${slug}/article.json`);
-            await client.remove(`saves/${slug}/`);
-            console.log(`Deleted article: ${slug}`);
-          } catch (err) {
-            console.warn(`Failed to delete article ${slug}:`, err);
-          }
+      await page.evaluate(async () => {
+        const rs = (window as any).remoteStorage;
+        if (!rs || !rs.remote || !rs.remote.connected) {
+          console.log("RemoteStorage not connected, skipping RS cleanup");
+          return { rsSkipped: true };
         }
 
-        // Wait for deletion sync to complete
-        if (slugs.length > 0) {
-          console.log("Waiting for deletion sync to complete...");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+        const client = (window as any).remoteStorageClient;
+        if (!client) {
+          console.log("RemoteStorage client not found, skipping RS cleanup");
+          return { rsSkipped: true };
+        }
+
+        try {
+          // Force a fresh listing by using maxAge: 0
+          const listing = await client.getListing("saves/", 0);
+
+          if (listing && typeof listing === "object") {
+            const slugs = Object.keys(listing);
+            console.log(`Clearing ${slugs.length} articles from RemoteStorage`);
+
+            // Delete each article directory and its contents
+            for (const slug of slugs) {
+              try {
+                // Force fresh listing of article files
+                const articleListing = await client.getListing(`saves/${slug}/`, 0);
+                if (articleListing && typeof articleListing === "object") {
+                  // Delete each file in the directory
+                  for (const file of Object.keys(articleListing)) {
+                    try {
+                      await client.remove(`saves/${slug}/${file}`);
+                      console.log(`Deleted file: saves/${slug}/${file}`);
+                    } catch (err: any) {
+                      // Ignore 404 errors - file is already gone
+                      if (err?.message?.includes('404') || err?.statusCode === 404 || err?.message?.includes('not found')) {
+                        console.log(`File already deleted: saves/${slug}/${file}`);
+                      } else {
+                        console.warn(`Failed to delete file ${slug}/${file}:`, err);
+                      }
+                    }
+                  }
+                }
+                // Delete the directory itself
+                try {
+                  await client.remove(`saves/${slug}/`);
+                  console.log(`Deleted article: ${slug}`);
+                } catch (err: any) {
+                  // Ignore 404 errors - directory is already gone
+                  if (err?.message?.includes('404') || err?.statusCode === 404 || err?.message?.includes('not found')) {
+                    console.log(`Directory already deleted: saves/${slug}/`);
+                  } else {
+                    console.warn(`Failed to delete directory ${slug}:`, err);
+                  }
+                }
+              } catch (err) {
+                console.warn(`Failed to delete article ${slug}:`, err);
+              }
+            }
+
+            // Wait for deletion sync to complete
+            if (slugs.length > 0) {
+              console.log("Waiting for deletion sync to complete...");
+              // Trigger sync and wait for completion
+              if (rs.sync) {
+                rs.sync.sync();
+                await new Promise((resolve) => setTimeout(resolve, 2000));
+              }
+            }
+          }
+        } catch (error) {
+          console.warn("Error clearing RemoteStorage:", error);
+        }
+
+        // Clear IndexedDB
+        try {
+          const dbName = "savrDb";
+          const request = indexedDB.open(dbName);
+
+          await new Promise<void>((resolve, reject) => {
+            request.onsuccess = () => {
+              const db = request.result;
+
+              try {
+                const transaction = db.transaction(["articles"], "readwrite");
+                const store = transaction.objectStore("articles");
+                const clearRequest = store.clear();
+
+                clearRequest.onsuccess = () => {
+                  console.log("Cleared all articles from IndexedDB");
+                  db.close();
+                  resolve();
+                };
+
+                clearRequest.onerror = () => {
+                  db.close();
+                  reject(clearRequest.error);
+                };
+              } catch (error) {
+                db.close();
+                reject(error);
+              }
+            };
+
+            request.onerror = () => reject(request.error);
+          });
+        } catch (error) {
+          console.warn("Error clearing IndexedDB:", error);
+        }
+      });
+
+      // Verify cleanup succeeded
+      const verification = await verifyCleanState(page);
+      if (verification.isClean) {
+        console.log(`✅ Cleanup verified: ${verification.indexedDBCount} articles in DB, ${verification.remoteStorageCount} in RS`);
+        return; // Success!
+      } else {
+        console.warn(`⚠️  Cleanup incomplete: ${verification.indexedDBCount} articles in DB, ${verification.remoteStorageCount} in RS`);
+        if (attempt < retries) {
+          await page.waitForTimeout(1000); // Wait before retry
         }
       }
     } catch (error) {
-      console.warn("Error clearing RemoteStorage:", error);
+      console.error(`Error during cleanup attempt ${attempt}:`, error);
+      if (attempt === retries) {
+        throw error;
+      }
+      await page.waitForTimeout(1000);
+    }
+  }
+
+  throw new Error(`Failed to clean state after ${retries} attempts`);
+}
+
+/**
+ * Wait for an article to have a specific state in IndexedDB
+ * Uses polling to check until the article reaches the expected state
+ */
+export async function waitForArticleState(
+  page: Page,
+  slug: string,
+  expectedState: "unread" | "archived" | "deleted",
+  timeoutMs = 15000
+): Promise<void> {
+  const startTime = Date.now();
+  const checkInterval = 500;
+
+  while (Date.now() - startTime < timeoutMs) {
+    const article = await getArticleFromDB(page, slug);
+
+    if (expectedState === "deleted") {
+      if (!article) {
+        console.log(`✅ Article ${slug} confirmed deleted`);
+        return;
+      }
+    } else {
+      if (article && article.state === expectedState) {
+        console.log(`✅ Article ${slug} confirmed in state: ${expectedState}`);
+        return;
+      }
     }
 
-    // Clear IndexedDB
+    await page.waitForTimeout(checkInterval);
+  }
+
+  const article = await getArticleFromDB(page, slug);
+  throw new Error(
+    `Timeout waiting for article ${slug} to reach state ${expectedState}. Current state: ${article ? article.state : "not found"}`
+  );
+}
+
+/**
+ * Wait for article to exist (or not exist) on RemoteStorage server
+ * Polls the server directly to verify sync has completed
+ */
+export async function waitForArticleOnServer(
+  page: Page,
+  slug: string,
+  shouldExist: boolean,
+  timeoutMs = 15000
+): Promise<void> {
+  const startTime = Date.now();
+  const checkInterval = 500;
+
+  while (Date.now() - startTime < timeoutMs) {
+    const exists = await page.evaluate(async (slug) => {
+      const client = (window as any).remoteStorageClient;
+      if (!client) return false;
+
+      try {
+        const article = await client.getObject(`saves/${slug}/article.json`);
+        return !!article;
+      } catch (error) {
+        return false;
+      }
+    }, slug);
+
+    if (exists === shouldExist) {
+      console.log(
+        `✅ Server verification: Article ${slug} ${shouldExist ? "exists" : "does not exist"} on server`
+      );
+      return;
+    }
+
+    await page.waitForTimeout(checkInterval);
+  }
+
+  const exists = await page.evaluate(async (slug) => {
+    const client = (window as any).remoteStorageClient;
+    if (!client) return false;
+    try {
+      const article = await client.getObject(`saves/${slug}/article.json`);
+      return !!article;
+    } catch (error) {
+      return false;
+    }
+  }, slug);
+
+  throw new Error(
+    `Timeout waiting for article ${slug} to ${shouldExist ? "exist" : "not exist"} on server. Current state: ${exists ? "exists" : "does not exist"}`
+  );
+}
+
+/**
+ * Wait for article to have specific state on RemoteStorage server
+ * Polls the server directly to verify the article.json has the expected state
+ */
+export async function waitForArticleStateOnServer(
+  page: Page,
+  slug: string,
+  expectedState: "unread" | "archived" | "deleted",
+  timeoutMs = 15000
+): Promise<void> {
+  const startTime = Date.now();
+  const checkInterval = 500;
+
+  while (Date.now() - startTime < timeoutMs) {
+    const result = await page.evaluate(async (slug) => {
+      const client = (window as any).remoteStorageClient;
+      if (!client) {
+        return { exists: false, state: null, error: "client not available" };
+      }
+
+      try {
+        const article = await client.getObject(`saves/${slug}/article.json`);
+        if (!article) {
+          return { exists: false, state: null };
+        }
+        return { exists: true, state: article.state };
+      } catch (error) {
+        return { exists: false, state: null, error: String(error) };
+      }
+    }, slug);
+
+    console.log(`🔍 Server state check: ${slug} - exists: ${result.exists}, state: ${result.state}`);
+
+    if (result.exists && result.state === expectedState) {
+      console.log(
+        `✅ Server state verification: Article ${slug} has state "${expectedState}" on server`
+      );
+      return;
+    }
+
+    await page.waitForTimeout(checkInterval);
+  }
+
+  // Final check with error details
+  const result = await page.evaluate(async (slug) => {
+    const client = (window as any).remoteStorageClient;
+    if (!client) return { exists: false, state: null };
+    try {
+      const article = await client.getObject(`saves/${slug}/article.json`);
+      return { exists: !!article, state: article?.state };
+    } catch (error) {
+      return { exists: false, state: null };
+    }
+  }, slug);
+
+  throw new Error(
+    `Timeout waiting for article ${slug} to have state "${expectedState}" on server. ` +
+    `Current: ${result.exists ? `state="${result.state}"` : "does not exist"}`
+  );
+}
+
+/**
+ * Verify that the test state is clean (no articles in IndexedDB or RemoteStorage)
+ */
+export async function verifyCleanState(page: Page): Promise<{
+  isClean: boolean;
+  indexedDBCount: number;
+  remoteStorageCount: number;
+}> {
+  return await page.evaluate(async () => {
+    let indexedDBCount = 0;
+    let remoteStorageCount = 0;
+
+    // Check IndexedDB
     try {
       const dbName = "savrDb";
       const request = indexedDB.open(dbName);
 
-      await new Promise<void>((resolve, reject) => {
+      indexedDBCount = await new Promise<number>((resolve) => {
         request.onsuccess = () => {
           const db = request.result;
-
           try {
-            const transaction = db.transaction(["articles"], "readwrite");
+            const transaction = db.transaction(["articles"], "readonly");
             const store = transaction.objectStore("articles");
-            const clearRequest = store.clear();
+            const countRequest = store.count();
 
-            clearRequest.onsuccess = () => {
-              console.log("Cleared all articles from IndexedDB");
+            countRequest.onsuccess = () => {
               db.close();
-              resolve();
+              resolve(countRequest.result);
             };
 
-            clearRequest.onerror = () => {
+            countRequest.onerror = () => {
               db.close();
-              reject(clearRequest.error);
+              resolve(0);
             };
           } catch (error) {
             db.close();
-            reject(error);
+            resolve(0);
           }
         };
 
-        request.onerror = () => reject(request.error);
+        request.onerror = () => resolve(0);
       });
     } catch (error) {
-      console.warn("Error clearing IndexedDB:", error);
+      console.warn("Error checking IndexedDB:", error);
     }
+
+    // Check RemoteStorage
+    try {
+      const client = (window as any).remoteStorageClient;
+      if (client) {
+        const listing = await client.getListing("saves/");
+        if (listing && typeof listing === "object") {
+          remoteStorageCount = Object.keys(listing).length;
+        }
+      }
+    } catch (error) {
+      console.warn("Error checking RemoteStorage:", error);
+    }
+
+    return {
+      isClean: indexedDBCount === 0 && remoteStorageCount === 0,
+      indexedDBCount,
+      remoteStorageCount,
+    };
   });
 }

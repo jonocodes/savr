@@ -552,9 +552,23 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
   test.afterEach(async ({ page }) => {
     // Clean up: delete test article from RemoteStorage and IndexedDB
+    // Only if RemoteStorage is connected (e.g., not for content server verification test)
     console.log("🧹 Cleaning up test article...");
-    await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
-    await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
-    console.log("✅ Cleanup completed\n");
+
+    // Check if RemoteStorage client is available before attempting cleanup
+    const isRemoteStorageConnected = await page.evaluate(async () => {
+      return !!(window as any).remoteStorageClient;
+    });
+
+    if (isRemoteStorageConnected) {
+      await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
+      await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
+      console.log("✅ Cleanup completed\n");
+    } else {
+      console.log("⏭️  Skipping RemoteStorage cleanup (not connected)\n");
+      // Still clean up IndexedDB even if RemoteStorage isn't connected
+      await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
+      console.log("✅ IndexedDB cleanup completed\n");
+    }
   });
 });
