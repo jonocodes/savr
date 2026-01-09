@@ -283,6 +283,55 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
+              Network Connection Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Connection type and network status (WiFi vs Cellular)
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {JSON.stringify(
+                (() => {
+                  const connection =
+                    (navigator as any).connection ||
+                    (navigator as any).mozConnection ||
+                    (navigator as any).webkitConnection;
+
+                  if (!connection) {
+                    return {
+                      supported: false,
+                      message: "Network Information API not supported in this browser",
+                      onLine: navigator.onLine,
+                    };
+                  }
+
+                  return {
+                    supported: true,
+                    onLine: navigator.onLine,
+                    type: connection.type || "unknown",
+                    effectiveType: connection.effectiveType || "unknown",
+                    downlinkMbps: connection.downlink || "unknown",
+                    rttMs: connection.rtt || "unknown",
+                    saveData: connection.saveData || false,
+                    connectionDescription:
+                      connection.type === "wifi"
+                        ? "WiFi"
+                        : connection.type === "cellular"
+                          ? "Cellular/Mobile Data"
+                          : connection.type === "ethernet"
+                            ? "Ethernet"
+                            : connection.type === "none"
+                              ? "No connection"
+                              : connection.type || "Unknown",
+                  };
+                })(),
+                null,
+                2
+              )}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
               Build-Time Environment Configuration
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
