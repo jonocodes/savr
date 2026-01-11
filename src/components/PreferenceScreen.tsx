@@ -58,6 +58,7 @@ import {
   getWiFiOnlySyncFromCookie,
   setWiFiOnlySyncInCookie,
 } from "~/utils/cookies";
+import { isPWAMode } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -87,13 +88,7 @@ export default function PreferencesScreen() {
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA
-  const isInstalledPWA = React.useMemo(() => {
-    return (
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes("android-app://")
-    );
-  }, []);
+  const isInstalledPWA = isPWAMode();
 
   const { client: storageClient } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();

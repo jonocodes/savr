@@ -2,6 +2,10 @@
 
 This guide explains how to test the WiFi-only sync feature in regular web mode (not PWA) by temporarily modifying the code.
 
+## ⚠️ Important: Refresh After Code Changes
+
+**After modifying any code, you MUST refresh the browser page** for the changes to take effect. The functions are called when components mount, so changes won't be picked up until a refresh.
+
 ## Setup for Manual Testing
 
 ### Step 1: Force PWA Mode Detection
@@ -161,6 +165,53 @@ Open DevTools Console to see these logs:
 - `🔄 Sync active` - When sync is running
 - `📴 Sync paused: WiFi-only mode enabled and not on WiFi` - When sync is paused
 - `Network change detected, checking sync status...` - When network changes (Option A only)
+
+## Troubleshooting
+
+### Indicator Not Showing Up?
+
+Check these common issues:
+
+1. **Did you refresh the page?** Code changes don't take effect until you refresh.
+
+2. **Is sync enabled?**
+   - Go to Settings (gear icon)
+   - Check if "Enable synchronization" is ON
+   - The indicator only shows when sync is enabled
+
+3. **Check the console logs:**
+   - Open DevTools Console (F12)
+   - Look for these messages:
+     - `🔄 Sync active` - Means sync is running (should see green icon)
+     - `📴 Sync paused: WiFi-only mode enabled and not on WiFi` - Means sync is paused (should see orange icon)
+   - If you don't see these logs, the sync control isn't running
+
+4. **Verify isPWAMode() is returning true:**
+   - In console, run: `window.location.reload()` after modifying the code
+   - The WiFi-only toggle should appear in Settings if PWA mode is detected
+
+5. **Check network type detection:**
+   - In console, verify: `window.__testNetworkType` is set to either `'wifi'` or `'cellular'`
+   - If undefined, the override isn't being read
+
+6. **Are you on the article list page?**
+   - The indicator only shows on the main article list (`/`)
+   - It's hidden on article detail pages (`/article/...`)
+
+### Quick Debug Checklist
+
+Run these in the browser console to verify everything:
+
+```javascript
+// 1. Check if test override is set
+console.log('Network override:', window.__testNetworkType);
+
+// 2. Verify sync is enabled (should see sync-enabled cookie)
+console.log('Cookies:', document.cookie);
+
+// 3. Look for the indicator element
+console.log('Indicator element:', document.querySelector('[style*="position: fixed"][style*="left: 16px"]'));
+```
 
 ## Cleanup: Revert Changes
 
