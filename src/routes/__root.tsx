@@ -6,6 +6,7 @@ import { NotFound } from "~/components/NotFound";
 
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
+import { SyncStatusProvider } from "~/components/SyncStatusProvider";
 import { PWARegister } from "~/components/PWARegister";
 
 import { SnackbarProvider } from "notistack";
@@ -137,14 +138,16 @@ function RootComponent() {
   return (
     <SnackbarProvider maxSnack={3}>
       <RemoteStorageProvider>
-        <ThemeProvider theme={appTheme}>
-          <CssBaseline enableColorScheme />
-          <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
-            <Outlet />
-            <TanStackRouterDevtools position="bottom-left" />
-            <PWARegister />
-          </div>
-        </ThemeProvider>
+        <SyncStatusProvider>
+          <ThemeProvider theme={appTheme}>
+            <CssBaseline enableColorScheme />
+            <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
+              <Outlet />
+              <TanStackRouterDevtools position="bottom-left" />
+              <PWARegister />
+            </div>
+          </ThemeProvider>
+        </SyncStatusProvider>
       </RemoteStorageProvider>
     </SnackbarProvider>
   );
