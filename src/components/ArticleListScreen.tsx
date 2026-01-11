@@ -35,11 +35,14 @@ import {
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
   ArrowForward,
+  CloudQueue as CloudQueueIcon,
+  CloudOff as CloudOffIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
 import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
+import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
@@ -272,6 +275,7 @@ export default function ArticleListScreen() {
 
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
+  const { status: syncStatus, isPWA } = useSyncStatus();
 
   // Track if we've shown the initial load message
   const hasShownInitialLoad = useRef(false);
@@ -711,6 +715,54 @@ export default function ArticleListScreen() {
         >
           <AddIcon />
         </Fab> */}
+
+      {/* Sync Status Indicator - Only show in PWA mode and when sync is not disabled */}
+      {isPWA && syncStatus !== "disabled" && (
+        <Tooltip
+          title={
+            syncStatus === "active"
+              ? "Sync active"
+              : syncStatus === "paused"
+              ? "Sync paused (WiFi only - currently on cellular)"
+              : ""
+          }
+        >
+          <Box
+            sx={{
+              position: "fixed",
+              bottom: 16,
+              left: 16,
+              zIndex: 1000,
+              backgroundColor: "background.paper",
+              borderRadius: "50%",
+              width: 56,
+              height: 56,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              boxShadow: 3,
+              border: "2px solid",
+              borderColor: syncStatus === "active" ? "success.main" : "warning.main",
+            }}
+          >
+            {syncStatus === "active" ? (
+              <CloudQueueIcon
+                sx={{
+                  color: "success.main",
+                  fontSize: 32,
+                }}
+              />
+            ) : (
+              <CloudOffIcon
+                sx={{
+                  color: "warning.main",
+                  fontSize: 32,
+                }}
+              />
+            )}
+          </Box>
+        </Tooltip>
+      )}
     </Box>
   );
 }
