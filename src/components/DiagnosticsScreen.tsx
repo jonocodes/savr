@@ -428,7 +428,9 @@ export default function DiagnosticsScreen() {
               Sync Indicator Preview
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              The 3 possible indicator states (current state is highlighted)
+              {isNetworkSupported && syncStatus !== "disabled"
+                ? "The 3 possible indicator states (current state is highlighted)"
+                : "Indicator not visible (Network API not supported or sync disabled)"}
             </Typography>
             <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
               {/* Active state */}
@@ -442,15 +444,18 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: syncStatus === "active" ? 6 : 1,
+                    boxShadow: isNetworkSupported && syncStatus === "active" ? 6 : 1,
                     border: "2px solid",
                     borderColor: "success.main",
-                    opacity: syncStatus === "active" ? 1 : 0.4,
+                    opacity: isNetworkSupported && syncStatus === "active" ? 1 : 0.4,
                   }}
                 >
                   <CloudQueueIcon sx={{ color: "success.main", fontSize: 32 }} />
                 </Box>
-                <Typography variant="caption" sx={{ fontWeight: syncStatus === "active" ? "bold" : "normal" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: isNetworkSupported && syncStatus === "active" ? "bold" : "normal" }}
+                >
                   Active
                 </Typography>
               </Box>
@@ -466,15 +471,18 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: syncStatus === "paused" ? 6 : 1,
+                    boxShadow: isNetworkSupported && syncStatus === "paused" ? 6 : 1,
                     border: "2px solid",
                     borderColor: "warning.main",
-                    opacity: syncStatus === "paused" ? 1 : 0.4,
+                    opacity: isNetworkSupported && syncStatus === "paused" ? 1 : 0.4,
                   }}
                 >
                   <CloudOffIcon sx={{ color: "warning.main", fontSize: 32 }} />
                 </Box>
-                <Typography variant="caption" sx={{ fontWeight: syncStatus === "paused" ? "bold" : "normal" }}>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: isNetworkSupported && syncStatus === "paused" ? "bold" : "normal" }}
+                >
                   Paused
                 </Typography>
               </Box>
@@ -490,16 +498,19 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: syncStatus === "disabled" ? 6 : 1,
+                    boxShadow: !isNetworkSupported || syncStatus === "disabled" ? 6 : 1,
                     border: "2px solid",
                     borderColor: "grey.500",
-                    opacity: syncStatus === "disabled" ? 1 : 0.4,
+                    opacity: !isNetworkSupported || syncStatus === "disabled" ? 1 : 0.4,
                   }}
                 >
                   <CloudIcon sx={{ color: "grey.500", fontSize: 32 }} />
                 </Box>
-                <Typography variant="caption" sx={{ fontWeight: syncStatus === "disabled" ? "bold" : "normal" }}>
-                  Disabled
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: !isNetworkSupported || syncStatus === "disabled" ? "bold" : "normal" }}
+                >
+                  {!isNetworkSupported ? "Not Supported" : "Disabled"}
                 </Typography>
               </Box>
             </Box>
