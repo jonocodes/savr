@@ -11,15 +11,23 @@ import {
   TableRow,
   Chip,
 } from "@mui/material";
+import {
+  CloudQueue as CloudQueueIcon,
+  CloudOff as CloudOffIcon,
+  Cloud as CloudIcon,
+} from "@mui/icons-material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
+import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
+import { isPWAMode, isNetworkInfoSupported, isOnWiFi } from "~/utils/network";
 import React from "react";
 
 export default function DiagnosticsScreen() {
   // Get all articles from the database
   const articles = useLiveQuery(() => db.articles.toArray());
+  const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -279,6 +287,233 @@ export default function DiagnosticsScreen() {
                 2
               )}
             </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Network Connection Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Connection type and network status (WiFi vs Cellular)
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {JSON.stringify(
+                (() => {
+                  const connection =
+                    (navigator as any).connection ||
+                    (navigator as any).mozConnection ||
+                    (navigator as any).webkitConnection;
+
+                  if (!connection) {
+                    return {
+                      supported: false,
+                      message: "Network Information API not supported in this browser",
+                      onLine: navigator.onLine,
+                    };
+                  }
+
+                  return {
+                    supported: true,
+                    onLine: navigator.onLine,
+                    type: connection.type || "unknown",
+                    effectiveType: connection.effectiveType || "unknown",
+                    downlinkMbps: connection.downlink || "unknown",
+                    rttMs: connection.rtt || "unknown",
+                    saveData: connection.saveData || false,
+                    connectionDescription:
+                      connection.type === "wifi"
+                        ? "WiFi"
+                        : connection.type === "cellular"
+                          ? "Cellular/Mobile Data"
+                          : connection.type === "ethernet"
+                            ? "Ethernet"
+                            : connection.type === "none"
+                              ? "No connection"
+                              : connection.type || "Unknown",
+                  };
+                })(),
+                null,
+                2
+              )}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Current Status
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Current sync and network status used by the indicator
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      syncStatus === "active"
+                        ? "success.main"
+                        : syncStatus === "paused"
+                          ? "warning.main"
+                          : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  syncStatus: <strong>{syncStatus}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isPWAMode() ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  isPwa: <strong>{isPWAMode() ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isWiFi ? "success.main" : "warning.main",
+                  }}
+                />
+                <Typography variant="body2">
+                  isWifi: <strong>{isWiFi ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isNetworkSupported ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  isNetworkSupported: <strong>{isNetworkSupported ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      isNetworkSupported && syncStatus !== "disabled" ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  indicatorVisible:{" "}
+                  <strong>
+                    {isNetworkSupported && syncStatus !== "disabled" ? "true" : "false"}
+                  </strong>
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Sync Indicator Preview
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {isNetworkSupported && syncStatus !== "disabled"
+                ? "The 3 possible indicator states (current state is highlighted)"
+                : "Indicator not visible (Network API not supported or sync disabled)"}
+            </Typography>
+            <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
+              {/* Active state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    backgroundColor: "background.paper",
+                    borderRadius: "50%",
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: isNetworkSupported && syncStatus === "active" ? 6 : 1,
+                    border: "2px solid",
+                    borderColor: "success.main",
+                    opacity: isNetworkSupported && syncStatus === "active" ? 1 : 0.4,
+                  }}
+                >
+                  <CloudQueueIcon sx={{ color: "success.main", fontSize: 32 }} />
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: isNetworkSupported && syncStatus === "active" ? "bold" : "normal" }}
+                >
+                  Active
+                </Typography>
+              </Box>
+
+              {/* Paused state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    backgroundColor: "background.paper",
+                    borderRadius: "50%",
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: isNetworkSupported && syncStatus === "paused" ? 6 : 1,
+                    border: "2px solid",
+                    borderColor: "warning.main",
+                    opacity: isNetworkSupported && syncStatus === "paused" ? 1 : 0.4,
+                  }}
+                >
+                  <CloudOffIcon sx={{ color: "warning.main", fontSize: 32 }} />
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: isNetworkSupported && syncStatus === "paused" ? "bold" : "normal" }}
+                >
+                  Paused
+                </Typography>
+              </Box>
+
+              {/* Disabled state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    backgroundColor: "background.paper",
+                    borderRadius: "50%",
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: !isNetworkSupported || syncStatus === "disabled" ? 6 : 1,
+                    border: "2px solid",
+                    borderColor: "grey.500",
+                    opacity: !isNetworkSupported || syncStatus === "disabled" ? 1 : 0.4,
+                  }}
+                >
+                  <CloudIcon sx={{ color: "grey.500", fontSize: 32 }} />
+                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{ fontWeight: !isNetworkSupported || syncStatus === "disabled" ? "bold" : "normal" }}
+                >
+                  {!isNetworkSupported ? "Not Supported" : "Disabled"}
+                </Typography>
+              </Box>
+            </Box>
           </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
