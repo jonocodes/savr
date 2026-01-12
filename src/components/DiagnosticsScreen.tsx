@@ -345,19 +345,82 @@ export default function DiagnosticsScreen() {
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               Current sync and network status used by the indicator
             </Typography>
-            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
-              {JSON.stringify(
-                {
-                  syncStatus: syncStatus,
-                  isPwa: isPWAMode(),
-                  isWifi: isWiFi,
-                  isNetworkSupported: isNetworkSupported,
-                  indicatorVisible: isNetworkSupported && syncStatus !== "disabled",
-                },
-                null,
-                2
-              )}
-            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      syncStatus === "active"
+                        ? "success.main"
+                        : syncStatus === "paused"
+                          ? "warning.main"
+                          : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  syncStatus: <strong>{syncStatus}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isPWAMode() ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  isPwa: <strong>{isPWAMode() ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isWiFi ? "success.main" : "warning.main",
+                  }}
+                />
+                <Typography variant="body2">
+                  isWifi: <strong>{isWiFi ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isNetworkSupported ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  isNetworkSupported: <strong>{isNetworkSupported ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      isNetworkSupported && syncStatus !== "disabled" ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  indicatorVisible:{" "}
+                  <strong>
+                    {isNetworkSupported && syncStatus !== "disabled" ? "true" : "false"}
+                  </strong>
+                </Typography>
+              </Box>
+            </Box>
           </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
