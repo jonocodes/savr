@@ -83,9 +83,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
         setTimeout(() => {
           const widgetElement = document.getElementById("remotestorage-widget");
           if (widgetElement) {
-            const isArticlePage = window.location.pathname.startsWith("/article/");
-            const shouldShow = isSyncEnabled && !isArticlePage;
-            widgetElement.style.display = shouldShow ? "block" : "none";
+            widgetElement.style.display = isSyncEnabled ? "block" : "none";
           }
         }, 100);
       }
