@@ -14,12 +14,15 @@ import {
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
+import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
+import { isPWAMode, isNetworkInfoSupported, isOnWiFi } from "~/utils/network";
 import React from "react";
 
 export default function DiagnosticsScreen() {
   // Get all articles from the database
   const articles = useLiveQuery(() => db.articles.toArray());
+  const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -274,6 +277,77 @@ export default function DiagnosticsScreen() {
                     }
                     return items;
                   })(),
+                },
+                null,
+                2
+              )}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Network Connection Information
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Connection type and network status (WiFi vs Cellular)
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {JSON.stringify(
+                (() => {
+                  const connection =
+                    (navigator as any).connection ||
+                    (navigator as any).mozConnection ||
+                    (navigator as any).webkitConnection;
+
+                  if (!connection) {
+                    return {
+                      supported: false,
+                      message: "Network Information API not supported in this browser",
+                      onLine: navigator.onLine,
+                    };
+                  }
+
+                  return {
+                    supported: true,
+                    onLine: navigator.onLine,
+                    type: connection.type || "unknown",
+                    effectiveType: connection.effectiveType || "unknown",
+                    downlinkMbps: connection.downlink || "unknown",
+                    rttMs: connection.rtt || "unknown",
+                    saveData: connection.saveData || false,
+                    connectionDescription:
+                      connection.type === "wifi"
+                        ? "WiFi"
+                        : connection.type === "cellular"
+                          ? "Cellular/Mobile Data"
+                          : connection.type === "ethernet"
+                            ? "Ethernet"
+                            : connection.type === "none"
+                              ? "No connection"
+                              : connection.type || "Unknown",
+                  };
+                })(),
+                null,
+                2
+              )}
+            </Typography>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Current Status
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Current sync and network status used by the indicator
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {JSON.stringify(
+                {
+                  syncStatus: syncStatus,
+                  isPwa: isPWAMode(),
+                  isWifi: isWiFi,
+                  isNetworkSupported: isNetworkSupported,
+                  indicatorVisible: isNetworkSupported && syncStatus !== "disabled",
                 },
                 null,
                 2
