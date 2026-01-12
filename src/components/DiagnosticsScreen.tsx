@@ -14,7 +14,7 @@ import {
 import {
   CloudQueue as CloudQueueIcon,
   CloudOff as CloudOffIcon,
-  Circle as CircleIcon,
+  Cloud as CloudIcon,
 } from "@mui/icons-material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
@@ -418,6 +418,88 @@ export default function DiagnosticsScreen() {
                   <strong>
                     {isNetworkSupported && syncStatus !== "disabled" ? "true" : "false"}
                   </strong>
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Sync Indicator Preview
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              The 3 possible indicator states (current state is highlighted)
+            </Typography>
+            <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
+              {/* Active state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    backgroundColor: "background.paper",
+                    borderRadius: "50%",
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: syncStatus === "active" ? 6 : 1,
+                    border: "2px solid",
+                    borderColor: "success.main",
+                    opacity: syncStatus === "active" ? 1 : 0.4,
+                  }}
+                >
+                  <CloudQueueIcon sx={{ color: "success.main", fontSize: 32 }} />
+                </Box>
+                <Typography variant="caption" sx={{ fontWeight: syncStatus === "active" ? "bold" : "normal" }}>
+                  Active
+                </Typography>
+              </Box>
+
+              {/* Paused state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    backgroundColor: "background.paper",
+                    borderRadius: "50%",
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: syncStatus === "paused" ? 6 : 1,
+                    border: "2px solid",
+                    borderColor: "warning.main",
+                    opacity: syncStatus === "paused" ? 1 : 0.4,
+                  }}
+                >
+                  <CloudOffIcon sx={{ color: "warning.main", fontSize: 32 }} />
+                </Box>
+                <Typography variant="caption" sx={{ fontWeight: syncStatus === "paused" ? "bold" : "normal" }}>
+                  Paused
+                </Typography>
+              </Box>
+
+              {/* Disabled state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    backgroundColor: "background.paper",
+                    borderRadius: "50%",
+                    width: 56,
+                    height: 56,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    boxShadow: syncStatus === "disabled" ? 6 : 1,
+                    border: "2px solid",
+                    borderColor: "grey.500",
+                    opacity: syncStatus === "disabled" ? 1 : 0.4,
+                  }}
+                >
+                  <CloudIcon sx={{ color: "grey.500", fontSize: 32 }} />
+                </Box>
+                <Typography variant="caption" sx={{ fontWeight: syncStatus === "disabled" ? "bold" : "normal" }}>
+                  Disabled
                 </Typography>
               </Box>
             </Box>
