@@ -9,6 +9,7 @@ export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
 export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
+export const WIFI_ONLY_SYNC_COOKIE_NAME = "savr-wifi-only-sync";
 
 // After external save action constants
 export const AFTER_EXTERNAL_SAVE_ACTIONS = {
@@ -235,4 +236,32 @@ export const setAfterExternalSaveInCookie = (value: AfterExternalSaveAction): vo
   expires.setFullYear(expires.getFullYear() + 1);
 
   document.cookie = `${AFTER_EXTERNAL_SAVE_COOKIE_NAME}=${value}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get WiFi-only sync preference from cookie
+export const getWiFiOnlySyncFromCookie = (): boolean => {
+  if (typeof document === "undefined") return false;
+
+  const cookies = document.cookie.split(";");
+  const wifiOnlySyncCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${WIFI_ONLY_SYNC_COOKIE_NAME}=`)
+  );
+
+  if (wifiOnlySyncCookie) {
+    const value = wifiOnlySyncCookie.split("=")[1];
+    return value === "true";
+  }
+
+  return false; // Default to false (sync on all networks)
+};
+
+// Set WiFi-only sync preference in cookie
+export const setWiFiOnlySyncInCookie = (enabled: boolean): void => {
+  if (typeof document === "undefined") return;
+
+  // Set cookie to expire in 1 year
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${WIFI_ONLY_SYNC_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
 };

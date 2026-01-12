@@ -39,6 +39,7 @@ import {
   CalendarToday as CalendarTodayIcon,
   TextFields as TextFieldsIcon,
   DragHandle as DragHandleIcon,
+  Wifi as WifiIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -54,7 +55,10 @@ import {
   setAfterExternalSaveInCookie,
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
+  getWiFiOnlySyncFromCookie,
+  setWiFiOnlySyncInCookie,
 } from "~/utils/cookies";
+import { isPWAMode } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -70,6 +74,7 @@ export default function PreferencesScreen() {
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
+  const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false);
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
@@ -83,13 +88,7 @@ export default function PreferencesScreen() {
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA
-  const isInstalledPWA = React.useMemo(() => {
-    return (
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes("android-app://")
-    );
-  }, []);
+  const isInstalledPWA = isPWAMode();
 
   const { client: storageClient } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
@@ -117,6 +116,9 @@ export default function PreferencesScreen() {
       const syncValue = syncCookie.split("=")[1];
       setSyncEnabled(syncValue === "true");
     }
+
+    // Load WiFi-only sync setting from cookies
+    setWifiOnlySync(getWiFiOnlySyncFromCookie());
 
     // Load header hiding setting from cookies
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
@@ -270,6 +272,12 @@ export default function PreferencesScreen() {
     if (newValue) {
       window.location.reload();
     }
+  };
+
+  const handleWiFiOnlySyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.checked;
+    setWifiOnlySync(newValue);
+    setWiFiOnlySyncInCookie(newValue);
   };
 
   const handleHeaderHidingToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -449,6 +457,26 @@ export default function PreferencesScreen() {
               />
               <Switch edge="end" checked={syncEnabled} onChange={handleSyncToggle} />
             </ListItem>
+
+            {syncEnabled && isInstalledPWA && (
+              <ListItem>
+                <ListItemIcon>
+                  <WifiIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      Sync only over WiFi
+                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. This setting only works in installed PWA mode.">
+                        <HelpIcon fontSize="small" color="action" />
+                      </Tooltip>
+                    </Box>
+                  }
+                  secondary="Pause sync when on cellular data"
+                />
+                <Switch edge="end" checked={wifiOnlySync} onChange={handleWiFiOnlySyncToggle} />
+              </ListItem>
+            )}
           </List>
 
           {/* Reading Section */}
