@@ -191,12 +191,23 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
     }
   }
 
-  // Sort by ingestDate descending (newest first)
-  articlesWithDates.sort((a, b) => b.ingestDateMs - a.ingestDateMs);
-  console.log(`📊 Sorted ${articlesWithDates.length} articles by ingestDate (newest first)`);
+  // Sort by archive status first (non-archived first), then by ingestDate descending (newest first)
+  articlesWithDates.sort((a, b) => {
+    // Prioritize non-archived articles
+    const aIsArchived = a.article.state === "archived" ? 1 : 0;
+    const bIsArchived = b.article.state === "archived" ? 1 : 0;
 
-  // Process and insert articles in sorted order (newest first)
-  console.log(`💾 Processing ${articlesWithDates.length} articles (newest first)...`);
+    if (aIsArchived !== bIsArchived) {
+      return aIsArchived - bIsArchived; // Non-archived (0) comes before archived (1)
+    }
+
+    // Within same archive status, sort by newest first
+    return b.ingestDateMs - a.ingestDateMs;
+  });
+  console.log(`📊 Sorted ${articlesWithDates.length} articles (non-archived first, then by newest)`);
+
+  // Process and insert articles in sorted order (non-archived first, then newest)
+  console.log(`💾 Processing ${articlesWithDates.length} articles (non-archived first, then newest)...`);
   for (const { path, article } of articlesWithDates) {
     try {
       console.log(`📖 Processing article: ${article.slug} (${new Date(article.ingestDate).toISOString()})`);
