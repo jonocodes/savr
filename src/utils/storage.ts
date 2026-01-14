@@ -24,6 +24,7 @@ let currentSyncProgress: SyncProgress = {
   processedArticles: 0,
   phase: "idle",
 };
+let hasEverCompletedSync = false;
 
 export function subscribeSyncProgress(listener: SyncProgressListener): () => void {
   syncProgressListeners.push(listener);
@@ -189,6 +190,7 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
     console.warn("  2. Cache is not ready yet (sync still in progress)");
     console.warn("  3. Files exist but glob pattern didn't match");
     // Mark sync as complete since there are no articles
+    hasEverCompletedSync = true;
     notifySyncProgress({
       isSyncing: false,
       phase: "idle",
@@ -204,6 +206,7 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
   if (articlesToProcess.length === 0) {
     console.log("✓ All articles already processed, skipping");
     // Mark sync as complete since there's nothing to process
+    hasEverCompletedSync = true;
     notifySyncProgress({
       isSyncing: false,
       phase: "idle",
@@ -218,6 +221,7 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
     isSyncing: true,
     totalArticles: articlesToProcess.length,
     processedArticles: 0,
+    phase: hasEverCompletedSync ? "ongoing" : "initial",
   });
 
   // Fetch articles with their ingestDate for sorting
@@ -284,6 +288,7 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
   console.log("🏁 Database refresh complete");
 
   // Mark sync as complete
+  hasEverCompletedSync = true;
   notifySyncProgress({
     isSyncing: false,
     phase: "idle",
@@ -320,11 +325,8 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
       isSyncing = true;
-      // Notify UI that sync is starting
-      notifySyncProgress({
-        phase: hasCompletedInitialSync ? "ongoing" : "initial",
-        isSyncing: true,
-      });
+      // Don't notify UI yet - wait until buildDbFromFiles() to see if there are actually articles to sync
+      // This prevents showing "0/0" when there's nothing to sync
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
