@@ -229,8 +229,13 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
   const articlesWithDates: Array<{ path: string; article: Article; ingestDateMs: number }> = [];
 
   for (const path of articlesToProcess) {
+    const startTime = Date.now();
     try {
+      console.log(`  ⏳ Fetching ${path}...`);
       const file = (await client.getFile(path)) as { data: string };
+      const fetchTime = Date.now() - startTime;
+      console.log(`  ✓ Fetched ${path} in ${fetchTime}ms`);
+
       let article: Article;
       if (typeof file.data === "object") {
         article = file.data as Article;
@@ -245,7 +250,8 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
         ingestDateMs,
       });
     } catch (error) {
-      console.error(`  ✗ Error fetching article file ${path} for sorting:`, error);
+      const fetchTime = Date.now() - startTime;
+      console.error(`  ✗ Error fetching article file ${path} after ${fetchTime}ms:`, error);
     }
   }
 
