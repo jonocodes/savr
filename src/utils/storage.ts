@@ -232,14 +232,19 @@ function initRemote() {
 
     remoteStorage.caching.enable("/savr/");
 
+    // Track sync state to prevent clearing database during active sync
+    let isSyncing = false;
+    let hasCompletedInitialSync = false;
+
     remoteStorage.on("ready", function () {
-      console.info("remoteStorage ready");
+      console.info("🔵 remoteStorage ready");
       resolve(remoteStorage);
     });
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
-      console.info(`remoteStorage connected to "${userAddress}"`);
+      console.info(`🟢 remoteStorage connected to "${userAddress}"`);
+      isSyncing = true;
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
@@ -288,6 +293,10 @@ function initRemote() {
         // Force a query to ensure the database transaction is complete
         await db.articles.toArray();
       }
+
+      isSyncing = false;
+      hasCompletedInitialSync = true;
+      console.info("✅ Initial sync complete - database ready");
     });
 
     // Also listen for when ongoing sync cycles complete
@@ -298,21 +307,29 @@ function initRemote() {
     });
 
     remoteStorage.on("not-connected", function () {
-      console.info("remoteStorage not-connected (anonymous mode)");
+      console.info("⚪ remoteStorage not-connected (anonymous mode)");
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected");
+      const articleCount = await db.articles.count();
+      console.warn(`🔴 remoteStorage disconnected - ${articleCount} articles in local database`);
+      console.warn(`   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`);
 
-      // NOTE: We DON'T clear local articles on disconnect because:
-      // 1. Users may want to keep reading cached articles while disconnected
-      // 2. Clearing the database triggers RemoteStorage sync which can delete
-      //    articles from the server before disconnect completes
-      // 3. Articles will be cleared/refreshed on next connection anyway
-
-      // Just clear the processed articles tracking
-      processedArticles.clear();
-      console.info("✅ Cleared processed articles tracking");
+      // IMPORTANT: Only clear database if this is a deliberate user disconnect
+      // Do NOT clear during sync operations or reconnect cycles
+      if (!isSyncing && hasCompletedInitialSync) {
+        console.info("   → User-initiated disconnect detected, clearing local articles");
+        try {
+          await db.articles.clear();
+          processedArticles.clear(); // Clear processed articles tracking
+          hasCompletedInitialSync = false;
+          console.info("   ✅ Cleared all articles from local database");
+        } catch (error) {
+          console.error("   ❌ Failed to clear articles from local database:", error);
+        }
+      } else {
+        console.info("   → Preserving local database during sync/reconnect cycle");
+      }
     });
 
     let lastNotificationTime = 0;

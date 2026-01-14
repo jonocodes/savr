@@ -95,7 +95,9 @@ test.describe("RemoteStorage Widget Visibility", () => {
     await expect(widgetContainer).toBeHidden();
   });
 
-  test("widget should become visible when navigating from article page to list", async ({ page }) => {
+  test("widget should become visible when navigating from article page to list", async ({
+    page,
+  }) => {
     // First add a test article
     await page.goto("/");
     await page.waitForLoadState("networkidle");
