@@ -7,6 +7,39 @@ import { Article } from "../../lib/src/models";
 import { environmentConfig } from "~/config/environment";
 import { DefaultGlobalNotFound } from "@tanstack/react-router";
 
+// Sync progress tracking
+export interface SyncProgress {
+  isSyncing: boolean;
+  totalArticles: number;
+  processedArticles: number;
+  phase: "initial" | "ongoing" | "idle";
+}
+
+type SyncProgressListener = (progress: SyncProgress) => void;
+
+let syncProgressListeners: SyncProgressListener[] = [];
+let currentSyncProgress: SyncProgress = {
+  isSyncing: false,
+  totalArticles: 0,
+  processedArticles: 0,
+  phase: "idle",
+};
+
+export function subscribeSyncProgress(listener: SyncProgressListener): () => void {
+  syncProgressListeners.push(listener);
+  // Immediately notify with current state
+  listener(currentSyncProgress);
+  // Return unsubscribe function
+  return () => {
+    syncProgressListeners = syncProgressListeners.filter((l) => l !== listener);
+  };
+}
+
+function notifySyncProgress(progress: Partial<SyncProgress>) {
+  currentSyncProgress = { ...currentSyncProgress, ...progress };
+  syncProgressListeners.forEach((listener) => listener(currentSyncProgress));
+}
+
 // declare global {
 //   interface Window {
 //     extensionConnector: typeof extensionConnector;
@@ -166,6 +199,13 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
     return;
   }
 
+  // Notify that sync is starting
+  notifySyncProgress({
+    isSyncing: true,
+    totalArticles: articlesToProcess.length,
+    processedArticles: 0,
+  });
+
   // Fetch articles with their ingestDate for sorting
   console.log(`📥 Fetching ${articlesToProcess.length} articles for sorting...`);
   const articlesWithDates: Array<{ path: string; article: Article; ingestDateMs: number }> = [];
@@ -208,6 +248,7 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
 
   // Process and insert articles in sorted order (non-archived first, then newest)
   console.log(`💾 Processing ${articlesWithDates.length} articles (non-archived first, then newest)...`);
+  let processedCount = 0;
   for (const { path, article } of articlesWithDates) {
     try {
       console.log(`📖 Processing article: ${article.slug} (${new Date(article.ingestDate).toISOString()})`);
@@ -216,12 +257,23 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
       if (processedSet) {
         processedSet.add(path);
       }
+      processedCount++;
+      // Update progress
+      notifySyncProgress({
+        processedArticles: processedCount,
+      });
     } catch (error) {
       console.error(`  ✗ Error inserting article ${article.slug}:`, error);
     }
   }
 
   console.log("🏁 Database refresh complete");
+
+  // Mark sync as complete
+  notifySyncProgress({
+    isSyncing: false,
+    phase: "idle",
+  });
 }
 
 function initRemote() {
@@ -254,6 +306,11 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
       isSyncing = true;
+      // Notify UI that sync is starting
+      notifySyncProgress({
+        phase: hasCompletedInitialSync ? "ongoing" : "initial",
+        isSyncing: true,
+      });
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });

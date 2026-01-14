@@ -19,6 +19,7 @@ import {
   ListItemIcon,
   Tooltip,
   LinearProgress,
+  CircularProgress,
   ToggleButtonGroup,
   ToggleButton,
   Container,
@@ -51,6 +52,7 @@ import { generateInfoForCard } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
+import { useSyncProgress } from "~/hooks/useSyncProgress";
 
 import { keyframes } from "@mui/system";
 
@@ -253,6 +255,7 @@ export default function ArticleListScreen() {
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
   const { status: syncStatus, isNetworkSupported } = useSyncStatus();
+  const syncProgress = useSyncProgress();
 
   // Track if we've shown the initial load message
   const hasShownInitialLoad = useRef(false);
@@ -557,6 +560,43 @@ export default function ArticleListScreen() {
           </IconButton>
         </Tooltip>
       </Paper>
+
+      {/* Sync Progress Indicator */}
+      {syncProgress.isSyncing && (
+        <Paper
+          elevation={2}
+          sx={{
+            p: 1.5,
+            display: "flex",
+            flexDirection: "column",
+            gap: 1,
+            backgroundColor: "info.light",
+            color: "info.contrastText",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <CircularProgress size={20} sx={{ color: "info.contrastText" }} />
+            <Typography variant="body2">
+              {syncProgress.phase === "initial" ? "Initial sync: " : "Syncing: "}
+              {syncProgress.processedArticles} / {syncProgress.totalArticles} articles
+            </Typography>
+          </Box>
+          <LinearProgress
+            variant="determinate"
+            value={
+              syncProgress.totalArticles > 0
+                ? (syncProgress.processedArticles / syncProgress.totalArticles) * 100
+                : 0
+            }
+            sx={{
+              backgroundColor: "rgba(255, 255, 255, 0.3)",
+              "& .MuiLinearProgress-bar": {
+                backgroundColor: "info.contrastText",
+              },
+            }}
+          />
+        </Paper>
+      )}
 
       {/* Content */}
       <Container
