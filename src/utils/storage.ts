@@ -301,9 +301,14 @@ function initRemote() {
 
     // Also listen for when ongoing sync cycles complete
     remoteStorage.on("sync-req-done", async () => {
-      console.info("RemoteStorage sync-req-done - sync cycle completed");
-      // Note: We rely on the "change" event handler below to trigger rebuilds
-      // for individual file changes, so we don't rebuild here to avoid duplicates
+      console.info("🔄 RemoteStorage sync-req-done - sync cycle completed");
+      // Mark sync as complete if we were syncing (for ongoing syncs after initial)
+      if (isSyncing && hasCompletedInitialSync) {
+        isSyncing = false;
+        console.info("   ✅ Ongoing sync complete");
+      }
+      // Note: We rely on the "change" event handler to process individual file changes
+      // incrementally, so we don't rebuild the entire database here
     });
 
     remoteStorage.on("not-connected", function () {
@@ -332,41 +337,33 @@ function initRemote() {
       }
     });
 
-    let lastNotificationTime = 0;
-    let lastSyncErrTime = 0;
-    const INITIAL_NOTIFICATION_TIMEOUT = 60_000;
-    let notificationTimeout = INITIAL_NOTIFICATION_TIMEOUT;
-    const TEN_MINUTES = 10 * 60 * 1000;
-
     remoteStorage.on("error", function (err) {
-      console.error(`unforeseen remoteStorage error:`, err);
-
-      //   if ('Unauthorized' === err?.name) { return; }
-      //   if ("SyncError" === err?.name) {
-      //     const timeDiff = Date.now() - lastNotificationTime + 8000;
-      //     if (timeDiff > notificationTimeout) {
-      //       transientMsg(extractUserMessage(err), 'warning');
-      //       lastNotificationTime = Date.now();
-
-      //       if (Date.now() - lastSyncErrTime > TEN_MINUTES) {
-      //         notificationTimeout = INITIAL_NOTIFICATION_TIMEOUT;
-      //       } else {
-      //         notificationTimeout = Math.min(notificationTimeout * 2, TEN_MINUTES);
-      //       }
-      //     }
-      //     lastSyncErrTime = Date.now();
-      //   } else {
-      //     console.error(`unforeseen remoteStorage error:`, err);
-      //     transientMsg(extractUserMessage(err));
-      //   }
+      console.error(`🚨 remoteStorage error:`, err);
+      // Reset sync flag on error to prevent stuck state
+      if (isSyncing) {
+        console.warn("   → Resetting sync flag due to error");
+        isSyncing = false;
+      }
     });
 
     remoteStorage.on("network-offline", () => {
-      console.debug(`remoteStorage offline now.`);
+      console.info(`📴 remoteStorage network offline`);
     });
 
     remoteStorage.on("network-online", () => {
-      console.debug(`remoteStorage back online.`);
+      console.info(`📶 remoteStorage network online - sync will resume`);
+      // Sync automatically restarts when network comes back
+      if (hasCompletedInitialSync) {
+        isSyncing = true;
+      }
+    });
+
+    remoteStorage.on("wire-busy", () => {
+      console.debug(`⚡ remoteStorage wire-busy - network activity started`);
+    });
+
+    remoteStorage.on("wire-done", () => {
+      console.debug(`⚡ remoteStorage wire-done - network activity finished`);
     });
 
     // Track which articles we've already processed to avoid duplicates
@@ -377,11 +374,20 @@ function initRemote() {
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
     client.on("change", async (event: any) => {
-      console.log("RemoteStorage change event:", event);
-
-      // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
+
+      // Only log article-related changes to reduce noise
+      if (isArticleFile) {
+        console.log("🔄 RemoteStorage change event:", {
+          path,
+          origin: event.origin,
+          hasOldValue: event.oldValue !== undefined,
+          hasNewValue: event.newValue !== undefined
+        });
+      }
+
+      // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const isArticleChange =
         (path.startsWith("saves/") ||
           path.startsWith("/savr/saves/") ||
@@ -396,7 +402,7 @@ function initRemote() {
         // IMPORTANT: Check deletions BEFORE the processedArticles check
         if (event.oldValue !== undefined && event.newValue === undefined) {
           // File was deleted
-          console.log(`🗑️ Article deleted: ${normalizedPath}`);
+          console.log(`   🗑️  Article deleted: ${normalizedPath}`);
           processedArticles.delete(normalizedPath);
 
           // Extract slug from path and delete from IndexedDB
@@ -405,11 +411,9 @@ function initRemote() {
             const slug = slugMatch[1];
             try {
               await db.articles.delete(slug);
-              console.log(`  ✅ Deleted article from IndexedDB: ${slug}`);
-              // Force a query to ensure useLiveQuery detects the change
-              await db.articles.toArray();
+              console.log(`      ✅ Removed from IndexedDB: ${slug}`);
             } catch (error) {
-              console.error(`  ✗ Failed to delete article ${slug}:`, error);
+              console.error(`      ❌ Failed to delete article ${slug}:`, error);
             }
           }
         } else if (event.newValue !== undefined) {
@@ -419,28 +423,25 @@ function initRemote() {
           // Skip if we've already processed this file AND it's not an update
           // Updates must always be processed to sync state changes (like archive/unarchive)
           if (processedArticles.has(normalizedPath) && !isUpdate) {
-            console.log(`Skipping already processed article: ${normalizedPath}`);
+            console.log(`   ⏭️  Already processed: ${normalizedPath}`);
             return;
           }
 
           if (isUpdate) {
-            console.log(`🔄 Article update detected: ${normalizedPath}`);
+            console.log(`   🔄 Processing article update: ${normalizedPath}`);
           } else {
-            console.log(`📥 New article detected: ${normalizedPath}`);
+            console.log(`   📥 Processing new article: ${normalizedPath}`);
             processedArticles.add(normalizedPath);
           }
 
+          // Process immediately - no debouncing for individual files
           try {
-            // Process immediately - no debouncing for individual files
             await processArticleFile(client, normalizedPath);
             // Force a query to ensure useLiveQuery detects the change
             await db.articles.toArray();
           } catch (error) {
-            console.error(
-              `  ✗ Failed to process article from change event: ${normalizedPath}`,
-              error
-            );
-            // Remove from processed set so it can be retried by buildDbFromFiles (only for new files)
+            console.error(`   ❌ Failed to process article file:`, error);
+            // Remove from processed set so it can be retried (only for new files)
             if (!isUpdate) {
               processedArticles.delete(normalizedPath);
             }
