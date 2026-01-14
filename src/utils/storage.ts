@@ -441,6 +441,9 @@ function initRemote() {
     // This is shared between the change handler and sync-done handler
     const processedArticles = new Set<string>();
 
+    // Track if we've fetched the total article count for progress reporting
+    let hasSetTotalArticles = false;
+
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
@@ -469,6 +472,26 @@ function initRemote() {
         // Normalize path to relative format for tracking
         const normalizedPath = path.startsWith("/savr/") ? path.slice(6) : path;
 
+        // On first article change, get total count and update progress
+        if (!hasSetTotalArticles && isSyncing) {
+          hasSetTotalArticles = true;
+          try {
+            const listing = await client.getListing("saves/");
+            if (listing) {
+              const totalArticles = Object.keys(listing).filter(
+                (key) => listing[key] === true
+              ).length;
+              console.log(`   📊 Total articles to sync: ${totalArticles}`);
+              notifySyncProgress({
+                totalArticles,
+                processedArticles: processedArticles.size,
+              });
+            }
+          } catch (error) {
+            console.warn("   ⚠️ Failed to get article count:", error);
+          }
+        }
+
         // Skip if we've already processed this file
         if (processedArticles.has(normalizedPath)) {
           console.log(`   ⏭️  Already processed: ${normalizedPath}`);
@@ -484,6 +507,12 @@ function initRemote() {
           // Process immediately - no debouncing for individual files
           try {
             await processArticleFile(client, normalizedPath);
+            // Update progress after processing each article
+            if (isSyncing) {
+              notifySyncProgress({
+                processedArticles: processedArticles.size,
+              });
+            }
           } catch (error) {
             console.error(`   ❌ Failed to process article file:`, error);
             // Remove from processed set so it can be retried
