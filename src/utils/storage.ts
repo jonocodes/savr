@@ -476,7 +476,7 @@ function initRemote() {
         if (!hasSetTotalArticles && isSyncing) {
           hasSetTotalArticles = true;
           try {
-            const listing = await client.getListing("saves/");
+            const listing = await client.getListing("saves/") as Record<string, any>;
             if (listing) {
               const totalArticles = Object.keys(listing).filter(
                 (key) => listing[key] === true
