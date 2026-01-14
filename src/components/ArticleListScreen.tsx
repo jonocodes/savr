@@ -577,16 +577,24 @@ export default function ArticleListScreen() {
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <CircularProgress size={20} sx={{ color: "info.contrastText" }} />
             <Typography variant="body2">
-              {syncProgress.phase === "initial" ? "Initial sync: " : "Syncing: "}
-              {syncProgress.processedArticles} / {syncProgress.totalArticles} articles
+              {syncProgress.totalArticles === 0 ? (
+                // During RemoteStorage sync phase (downloading to cache)
+                syncProgress.phase === "initial" ? "Preparing to sync..." : "Syncing..."
+              ) : (
+                // During article processing phase (we know the count)
+                <>
+                  {syncProgress.phase === "initial" ? "Initial sync: " : "Syncing: "}
+                  {syncProgress.processedArticles} / {syncProgress.totalArticles} articles
+                </>
+              )}
             </Typography>
           </Box>
           <LinearProgress
-            variant="determinate"
+            variant={syncProgress.totalArticles > 0 ? "determinate" : "indeterminate"}
             value={
               syncProgress.totalArticles > 0
                 ? (syncProgress.processedArticles / syncProgress.totalArticles) * 100
-                : 0
+                : undefined
             }
             sx={{
               backgroundColor: "rgba(255, 255, 255, 0.3)",

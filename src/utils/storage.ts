@@ -325,8 +325,14 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
       isSyncing = true;
-      // Don't notify UI yet - wait until buildDbFromFiles() to see if there are actually articles to sync
-      // This prevents showing "0/0" when there's nothing to sync
+      // Notify UI that RemoteStorage sync is starting (downloading files to cache)
+      // We don't know article count yet, so show as "preparing"
+      notifySyncProgress({
+        isSyncing: true,
+        phase: hasCompletedInitialSync ? "ongoing" : "initial",
+        totalArticles: 0, // Don't know yet
+        processedArticles: 0,
+      });
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
