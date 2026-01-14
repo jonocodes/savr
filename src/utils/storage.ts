@@ -325,14 +325,20 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
       isSyncing = true;
+
+      // Check if we already have articles in IndexedDB to determine if this is truly initial
+      const existingArticleCount = await db.articles.count();
+      const isInitialSync = existingArticleCount === 0;
+
       // Notify UI that RemoteStorage sync is starting (downloading files to cache)
       // We don't know article count yet, so show as "preparing"
       notifySyncProgress({
         isSyncing: true,
-        phase: hasCompletedInitialSync ? "ongoing" : "initial",
+        phase: isInitialSync ? "initial" : "ongoing",
         totalArticles: 0, // Don't know yet
         processedArticles: 0,
       });
+      console.info(`   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`);
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
