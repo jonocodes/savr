@@ -10,24 +10,35 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Button,
+  Alert,
 } from "@mui/material";
 import {
   CloudQueue as CloudQueueIcon,
   CloudOff as CloudOffIcon,
   Cloud as CloudIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
+import { useSyncProgress } from "~/hooks/useSyncProgress";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import { isPWAMode, isNetworkInfoSupported, isOnWiFi } from "~/utils/network";
 import React from "react";
+
+interface RemoteStorageEvent {
+  timestamp: string;
+  event: string;
+  data?: any;
+}
 
 export default function DiagnosticsScreen() {
   // Get all articles from the database
   const articles = useLiveQuery(() => db.articles.toArray());
   const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
+  const syncProgress = useSyncProgress();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -49,8 +60,18 @@ export default function DiagnosticsScreen() {
     oldestIngestDate: string | null;
     newestIngestDate: string | null;
   } | null>(null);
+  const [remoteStorageEvents, setRemoteStorageEvents] = React.useState<RemoteStorageEvent[]>([]);
+  const [remoteStorageState, setRemoteStorageState] = React.useState<{
+    connected: boolean;
+    userAddress: string | null;
+    backend: string | null;
+  }>({
+    connected: false,
+    userAddress: null,
+    backend: null,
+  });
 
-  const { client: remoteStorageClient } = useRemoteStorage();
+  const { client: remoteStorageClient, remoteStorage, widget } = useRemoteStorage();
 
   // Scan for dangling remote storage items (directories without corresponding database entries)
   const scanDanglingItems = React.useCallback(async () => {
@@ -199,6 +220,128 @@ export default function DiagnosticsScreen() {
     }
   }, [articles?.length]);
 
+  // Set up RemoteStorage event listeners
+  React.useEffect(() => {
+    if (!remoteStorage) return;
+
+    const addEvent = (event: string, data?: any) => {
+      setRemoteStorageEvents((prev) => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          event,
+          data,
+        },
+        ...prev.slice(0, 49), // Keep last 50 events
+      ]);
+    };
+
+    const handleReady = () => {
+      addEvent("ready");
+    };
+
+    const handleConnected = () => {
+      addEvent("connected", {
+        userAddress: remoteStorage.remote?.userAddress,
+        backend: (remoteStorage.remote as any)?.backend,
+      });
+      setRemoteStorageState({
+        connected: true,
+        userAddress: remoteStorage.remote?.userAddress || null,
+        backend: (remoteStorage.remote as any)?.backend || null,
+      });
+    };
+
+    const handleDisconnected = () => {
+      addEvent("disconnected");
+      setRemoteStorageState({
+        connected: false,
+        userAddress: null,
+        backend: null,
+      });
+    };
+
+    const handleNotConnected = () => {
+      addEvent("not-connected");
+    };
+
+    const handleSyncDone = () => {
+      addEvent("sync-done");
+    };
+
+    const handleSyncReqDone = () => {
+      addEvent("sync-req-done");
+    };
+
+    const handleNetworkOnline = () => {
+      addEvent("network-online");
+    };
+
+    const handleNetworkOffline = () => {
+      addEvent("network-offline");
+    };
+
+    const handleWireError = (error: any) => {
+      addEvent("wire-error", { error: error?.message || String(error) });
+    };
+
+    const handleWireBusy = (req: any) => {
+      addEvent("wire-busy", { path: req?.path });
+    };
+
+    const handleWireDone = (req: any) => {
+      addEvent("wire-done", { path: req?.path });
+    };
+
+    // Register all event listeners
+    remoteStorage.on("ready", handleReady);
+    remoteStorage.on("connected", handleConnected);
+    remoteStorage.on("disconnected", handleDisconnected);
+    remoteStorage.on("not-connected", handleNotConnected);
+    remoteStorage.on("sync-done", handleSyncDone);
+    remoteStorage.on("sync-req-done", handleSyncReqDone);
+    remoteStorage.on("network-online", handleNetworkOnline);
+    remoteStorage.on("network-offline", handleNetworkOffline);
+    remoteStorage.on("error", handleWireError);
+    remoteStorage.on("wire-busy", handleWireBusy);
+    remoteStorage.on("wire-done", handleWireDone);
+
+    // Initialize state if already connected
+    if (remoteStorage.remote?.connected) {
+      setRemoteStorageState({
+        connected: true,
+        userAddress: remoteStorage.remote.userAddress || null,
+        backend: (remoteStorage.remote as any).backend || null,
+      });
+    }
+
+    // Cleanup
+    return () => {
+      remoteStorage.removeEventListener("ready", handleReady);
+      remoteStorage.removeEventListener("connected", handleConnected);
+      remoteStorage.removeEventListener("disconnected", handleDisconnected);
+      remoteStorage.removeEventListener("not-connected", handleNotConnected);
+      remoteStorage.removeEventListener("sync-done", handleSyncDone);
+      remoteStorage.removeEventListener("sync-req-done", handleSyncReqDone);
+      remoteStorage.removeEventListener("network-online", handleNetworkOnline);
+      remoteStorage.removeEventListener("network-offline", handleNetworkOffline);
+      remoteStorage.removeEventListener("error", handleWireError);
+      remoteStorage.removeEventListener("wire-busy", handleWireBusy);
+      remoteStorage.removeEventListener("wire-done", handleWireDone);
+    };
+  }, [remoteStorage]);
+
+  // Show RemoteStorage widget on diagnostics page
+  React.useEffect(() => {
+    if (widget) {
+      widget.attach();
+    }
+    return () => {
+      if (widget) {
+        widget.attach(); // Keep it attached even when leaving page
+      }
+    };
+  }, [widget]);
+
   if (!articles) {
     return (
       <Box sx={{ minHeight: "100vh", backgroundColor: "background.default", pt: 4 }}>
@@ -223,6 +366,118 @@ export default function DiagnosticsScreen() {
           <Typography variant="h4" component="h1" gutterBottom>
             Diagnostics
           </Typography>
+
+          {/* RemoteStorage Status Section */}
+          <Box sx={{ mt: 2, mb: 4 }}>
+            <Typography variant="h6" component="h2" gutterBottom>
+              RemoteStorage Status
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Connection Status */}
+              <Alert
+                severity={remoteStorageState.connected ? "success" : "warning"}
+                sx={{ display: "flex", alignItems: "center" }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                    {remoteStorageState.connected ? "Connected" : "Not Connected"}
+                  </Typography>
+                  {remoteStorageState.connected && (
+                    <>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        User: {remoteStorageState.userAddress || "Unknown"}
+                      </Typography>
+                      <Typography variant="body2">
+                        Backend: {remoteStorageState.backend || "Unknown"}
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+              </Alert>
+
+              {/* Sync Progress */}
+              {syncProgress.isSyncing && (
+                <Alert severity="info">
+                  <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                    Sync in Progress
+                  </Typography>
+                  <Typography variant="body2">
+                    Phase: {syncProgress.phase}
+                  </Typography>
+                  <Typography variant="body2">
+                    Progress: {syncProgress.processedArticles} / {syncProgress.totalArticles}{" "}
+                    {syncProgress.totalArticles === 0 ? "(preparing...)" : "articles"}
+                  </Typography>
+                </Alert>
+              )}
+
+              {/* Recent Events */}
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                    RemoteStorage Events (Last 50)
+                  </Typography>
+                  <Button
+                    size="small"
+                    startIcon={<RefreshIcon />}
+                    onClick={() => setRemoteStorageEvents([])}
+                  >
+                    Clear
+                  </Button>
+                </Box>
+                <Box
+                  sx={{
+                    maxHeight: 300,
+                    overflowY: "auto",
+                    backgroundColor: "grey.50",
+                    borderRadius: 1,
+                    p: 1,
+                  }}
+                >
+                  {remoteStorageEvents.length > 0 ? (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: "bold", width: "100px" }}>Time</TableCell>
+                          <TableCell sx={{ fontWeight: "bold", width: "150px" }}>Event</TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>Data</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {remoteStorageEvents.map((event, index) => (
+                          <TableRow key={index}>
+                            <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                              {event.timestamp}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={event.event}
+                                size="small"
+                                color={
+                                  event.event === "connected" || event.event === "sync-done"
+                                    ? "success"
+                                    : event.event.includes("error") || event.event === "disconnected"
+                                      ? "error"
+                                      : "default"
+                                }
+                              />
+                            </TableCell>
+                            <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                              {event.data ? JSON.stringify(event.data) : "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", py: 2 }}>
+                      No events yet. Events will appear here as RemoteStorage operations occur.
+                    </Typography>
+                  )}
+                </Box>
+              </Paper>
+            </Box>
+          </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
