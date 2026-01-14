@@ -158,16 +158,55 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
     return;
   }
 
-  // Process and insert articles incrementally as they're found
-  console.log(`💾 Processing ${matches.length} articles incrementally...`);
-  for (const path of matches) {
-    // Skip if already processed (when called from change handler)
-    if (processedSet && processedSet.has(path)) {
-      continue;
+  // Filter out already processed articles
+  const articlesToProcess = matches.filter(path => !processedSet || !processedSet.has(path));
+
+  if (articlesToProcess.length === 0) {
+    console.log("✓ All articles already processed, skipping");
+    return;
+  }
+
+  // Fetch articles with their ingestDate for sorting
+  console.log(`📥 Fetching ${articlesToProcess.length} articles for sorting...`);
+  const articlesWithDates: Array<{ path: string; article: Article; ingestDateMs: number }> = [];
+
+  for (const path of articlesToProcess) {
+    try {
+      const file = (await client.getFile(path)) as { data: string };
+      let article: Article;
+      if (typeof file.data === "object") {
+        article = file.data as Article;
+      } else {
+        article = JSON.parse(file.data);
+      }
+      // Convert ingestDate string to milliseconds timestamp for sorting
+      const ingestDateMs = article.ingestDate ? new Date(article.ingestDate).getTime() : 0;
+      articlesWithDates.push({
+        path,
+        article,
+        ingestDateMs,
+      });
+    } catch (error) {
+      console.error(`  ✗ Error fetching article file ${path} for sorting:`, error);
     }
-    await processArticleFile(client, path);
-    if (processedSet) {
-      processedSet.add(path);
+  }
+
+  // Sort by ingestDate descending (newest first)
+  articlesWithDates.sort((a, b) => b.ingestDateMs - a.ingestDateMs);
+  console.log(`📊 Sorted ${articlesWithDates.length} articles by ingestDate (newest first)`);
+
+  // Process and insert articles in sorted order (newest first)
+  console.log(`💾 Processing ${articlesWithDates.length} articles (newest first)...`);
+  for (const { path, article } of articlesWithDates) {
+    try {
+      console.log(`📖 Processing article: ${article.slug} (${new Date(article.ingestDate).toISOString()})`);
+      await db.articles.put(article);
+      console.log(`  ✅ Inserted: ${article.slug}`);
+      if (processedSet) {
+        processedSet.add(path);
+      }
+    } catch (error) {
+      console.error(`  ✗ Error inserting article ${article.slug}:`, error);
     }
   }
 
