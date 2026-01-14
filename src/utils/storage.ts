@@ -191,14 +191,19 @@ function initRemote() {
 
     remoteStorage.caching.enable("/savr/");
 
+    // Track sync state to prevent clearing database during active sync
+    let isSyncing = false;
+    let hasCompletedInitialSync = false;
+
     remoteStorage.on("ready", function () {
-      console.info("remoteStorage ready");
+      console.info("🔵 remoteStorage ready");
       resolve(remoteStorage);
     });
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
-      console.info(`remoteStorage connected to "${userAddress}"`);
+      console.info(`🟢 remoteStorage connected to "${userAddress}"`);
+      isSyncing = true;
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
@@ -231,65 +236,76 @@ function initRemote() {
       }
 
       await buildDbFromFiles(client, processedArticles);
+      isSyncing = false;
+      hasCompletedInitialSync = true;
+      console.info("✅ Initial sync complete - database ready");
     });
 
     // Also listen for when ongoing sync cycles complete
     remoteStorage.on("sync-req-done", async () => {
-      console.info("RemoteStorage sync-req-done - sync cycle completed");
-      // Note: We rely on the "change" event handler below to trigger rebuilds
-      // for individual file changes, so we don't rebuild here to avoid duplicates
+      console.info("🔄 RemoteStorage sync-req-done - sync cycle completed");
+      // Mark sync as complete if we were syncing (for ongoing syncs after initial)
+      if (isSyncing && hasCompletedInitialSync) {
+        isSyncing = false;
+        console.info("   ✅ Ongoing sync complete");
+      }
+      // Note: We rely on the "change" event handler to process individual file changes
+      // incrementally, so we don't rebuild the entire database here
     });
 
     remoteStorage.on("not-connected", function () {
-      console.info("remoteStorage not-connected (anonymous mode)");
+      console.info("⚪ remoteStorage not-connected (anonymous mode)");
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected - clearing local articles");
-      try {
-        await db.articles.clear();
-        processedArticles.clear(); // Clear processed articles tracking
-        console.info("✅ Cleared all articles from local database");
-      } catch (error) {
-        console.error("❌ Failed to clear articles from local database:", error);
+      const articleCount = await db.articles.count();
+      console.warn(`🔴 remoteStorage disconnected - ${articleCount} articles in local database`);
+      console.warn(`   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`);
+
+      // IMPORTANT: Only clear database if this is a deliberate user disconnect
+      // Do NOT clear during sync operations or reconnect cycles
+      if (!isSyncing && hasCompletedInitialSync) {
+        console.info("   → User-initiated disconnect detected, clearing local articles");
+        try {
+          await db.articles.clear();
+          processedArticles.clear(); // Clear processed articles tracking
+          hasCompletedInitialSync = false;
+          console.info("   ✅ Cleared all articles from local database");
+        } catch (error) {
+          console.error("   ❌ Failed to clear articles from local database:", error);
+        }
+      } else {
+        console.info("   → Preserving local database during sync/reconnect cycle");
       }
     });
 
-    let lastNotificationTime = 0;
-    let lastSyncErrTime = 0;
-    const INITIAL_NOTIFICATION_TIMEOUT = 60_000;
-    let notificationTimeout = INITIAL_NOTIFICATION_TIMEOUT;
-    const TEN_MINUTES = 10 * 60 * 1000;
-
     remoteStorage.on("error", function (err) {
-      console.error(`unforeseen remoteStorage error:`, err);
-
-      //   if ('Unauthorized' === err?.name) { return; }
-      //   if ("SyncError" === err?.name) {
-      //     const timeDiff = Date.now() - lastNotificationTime + 8000;
-      //     if (timeDiff > notificationTimeout) {
-      //       transientMsg(extractUserMessage(err), 'warning');
-      //       lastNotificationTime = Date.now();
-
-      //       if (Date.now() - lastSyncErrTime > TEN_MINUTES) {
-      //         notificationTimeout = INITIAL_NOTIFICATION_TIMEOUT;
-      //       } else {
-      //         notificationTimeout = Math.min(notificationTimeout * 2, TEN_MINUTES);
-      //       }
-      //     }
-      //     lastSyncErrTime = Date.now();
-      //   } else {
-      //     console.error(`unforeseen remoteStorage error:`, err);
-      //     transientMsg(extractUserMessage(err));
-      //   }
+      console.error(`🚨 remoteStorage error:`, err);
+      // Reset sync flag on error to prevent stuck state
+      if (isSyncing) {
+        console.warn("   → Resetting sync flag due to error");
+        isSyncing = false;
+      }
     });
 
     remoteStorage.on("network-offline", () => {
-      console.debug(`remoteStorage offline now.`);
+      console.info(`📴 remoteStorage network offline`);
     });
 
     remoteStorage.on("network-online", () => {
-      console.debug(`remoteStorage back online.`);
+      console.info(`📶 remoteStorage network online - sync will resume`);
+      // Sync automatically restarts when network comes back
+      if (hasCompletedInitialSync) {
+        isSyncing = true;
+      }
+    });
+
+    remoteStorage.on("wire-busy", () => {
+      console.debug(`⚡ remoteStorage wire-busy - network activity started`);
+    });
+
+    remoteStorage.on("wire-done", () => {
+      console.debug(`⚡ remoteStorage wire-done - network activity finished`);
     });
 
     // Track which articles we've already processed to avoid duplicates
@@ -300,11 +316,20 @@ function initRemote() {
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
     client.on("change", async (event: any) => {
-      console.log("RemoteStorage change event:", event);
-
-      // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
+
+      // Only log article-related changes to reduce noise
+      if (isArticleFile) {
+        console.log("🔄 RemoteStorage change event:", {
+          path,
+          origin: event.origin,
+          hasOldValue: event.oldValue !== undefined,
+          hasNewValue: event.newValue !== undefined
+        });
+      }
+
+      // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const isArticleChange =
         (path.startsWith("saves/") ||
           path.startsWith("/savr/saves/") ||
@@ -317,21 +342,27 @@ function initRemote() {
 
         // Skip if we've already processed this file
         if (processedArticles.has(normalizedPath)) {
-          console.log(`Skipping already processed article: ${normalizedPath}`);
+          console.log(`   ⏭️  Already processed: ${normalizedPath}`);
           return;
         }
 
         // Only process if this is a new file (newValue exists, oldValue doesn't)
         // or if it's an update (both exist)
         if (event.newValue !== undefined) {
-          console.log(`📥 New/updated article detected: ${normalizedPath}`);
+          console.log(`   📥 Processing new/updated article: ${normalizedPath}`);
           processedArticles.add(normalizedPath);
 
           // Process immediately - no debouncing for individual files
-          await processArticleFile(client, normalizedPath);
+          try {
+            await processArticleFile(client, normalizedPath);
+          } catch (error) {
+            console.error(`   ❌ Failed to process article file:`, error);
+            // Remove from processed set so it can be retried
+            processedArticles.delete(normalizedPath);
+          }
         } else if (event.oldValue !== undefined && event.newValue === undefined) {
           // File was deleted
-          console.log(`🗑️ Article deleted: ${normalizedPath}`);
+          console.log(`   🗑️  Article deleted: ${normalizedPath}`);
           processedArticles.delete(normalizedPath);
 
           // Extract slug from path and delete from IndexedDB
@@ -340,9 +371,9 @@ function initRemote() {
             const slug = slugMatch[1];
             try {
               await db.articles.delete(slug);
-              console.log(`  ✅ Deleted article from IndexedDB: ${slug}`);
+              console.log(`      ✅ Removed from IndexedDB: ${slug}`);
             } catch (error) {
-              console.error(`  ✗ Failed to delete article ${slug}:`, error);
+              console.error(`      ❌ Failed to delete article ${slug}:`, error);
             }
           }
         }
@@ -392,10 +423,10 @@ async function calculateTotalStorage(): Promise<{
 
         console.log("calculateTotalStorage", allFiles);
 
-        // Calculate size of files in RemoteStorage
+        // Calculate size of files in RemoteStorage (use local cache only)
         for (const filePath of allFiles) {
           try {
-            const file = (await store.client.getFile(filePath)) as { data: string };
+            const file = (await store.client.getFile(filePath, false)) as { data: string };
             if (file && file.data) {
               size += new Blob([file.data]).size;
             }
@@ -442,7 +473,7 @@ async function calculateArticleStorageSize(articleSlug: string): Promise<{
 
         for (const filePath of articleFiles) {
           try {
-            const file = (await store.client.getFile(filePath)) as { data: string };
+            const file = (await store.client.getFile(filePath, false)) as { data: string };
             if (file && file.data) {
               const fileSize = new Blob([file.data]).size;
               files.push({ path: filePath, size: fileSize });
