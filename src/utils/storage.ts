@@ -188,6 +188,13 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
     console.warn("  1. Remote storage is empty");
     console.warn("  2. Cache is not ready yet (sync still in progress)");
     console.warn("  3. Files exist but glob pattern didn't match");
+    // Mark sync as complete since there are no articles
+    notifySyncProgress({
+      isSyncing: false,
+      phase: "idle",
+      totalArticles: 0,
+      processedArticles: 0,
+    });
     return;
   }
 
@@ -196,6 +203,13 @@ async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) 
 
   if (articlesToProcess.length === 0) {
     console.log("✓ All articles already processed, skipping");
+    // Mark sync as complete since there's nothing to process
+    notifySyncProgress({
+      isSyncing: false,
+      phase: "idle",
+      totalArticles: 0,
+      processedArticles: 0,
+    });
     return;
   }
 
