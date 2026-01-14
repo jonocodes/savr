@@ -191,14 +191,19 @@ function initRemote() {
 
     remoteStorage.caching.enable("/savr/");
 
+    // Track sync state to prevent clearing database during active sync
+    let isSyncing = false;
+    let hasCompletedInitialSync = false;
+
     remoteStorage.on("ready", function () {
-      console.info("remoteStorage ready");
+      console.info("🔵 remoteStorage ready");
       resolve(remoteStorage);
     });
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
-      console.info(`remoteStorage connected to "${userAddress}"`);
+      console.info(`🟢 remoteStorage connected to "${userAddress}"`);
+      isSyncing = true;
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
@@ -231,6 +236,9 @@ function initRemote() {
       }
 
       await buildDbFromFiles(client, processedArticles);
+      isSyncing = false;
+      hasCompletedInitialSync = true;
+      console.info("✅ Initial sync complete - database ready");
     });
 
     // Also listen for when ongoing sync cycles complete
@@ -241,17 +249,28 @@ function initRemote() {
     });
 
     remoteStorage.on("not-connected", function () {
-      console.info("remoteStorage not-connected (anonymous mode)");
+      console.info("⚪ remoteStorage not-connected (anonymous mode)");
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected - clearing local articles");
-      try {
-        await db.articles.clear();
-        processedArticles.clear(); // Clear processed articles tracking
-        console.info("✅ Cleared all articles from local database");
-      } catch (error) {
-        console.error("❌ Failed to clear articles from local database:", error);
+      const articleCount = await db.articles.count();
+      console.warn(`🔴 remoteStorage disconnected - ${articleCount} articles in local database`);
+      console.warn(`   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`);
+
+      // IMPORTANT: Only clear database if this is a deliberate user disconnect
+      // Do NOT clear during sync operations or reconnect cycles
+      if (!isSyncing && hasCompletedInitialSync) {
+        console.info("   → User-initiated disconnect detected, clearing local articles");
+        try {
+          await db.articles.clear();
+          processedArticles.clear(); // Clear processed articles tracking
+          hasCompletedInitialSync = false;
+          console.info("   ✅ Cleared all articles from local database");
+        } catch (error) {
+          console.error("   ❌ Failed to clear articles from local database:", error);
+        }
+      } else {
+        console.info("   → Preserving local database during sync/reconnect cycle");
       }
     });
 
