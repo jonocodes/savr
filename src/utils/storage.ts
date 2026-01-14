@@ -423,10 +423,10 @@ async function calculateTotalStorage(): Promise<{
 
         console.log("calculateTotalStorage", allFiles);
 
-        // Calculate size of files in RemoteStorage
+        // Calculate size of files in RemoteStorage (use local cache only)
         for (const filePath of allFiles) {
           try {
-            const file = (await store.client.getFile(filePath)) as { data: string };
+            const file = (await store.client.getFile(filePath, false)) as { data: string };
             if (file && file.data) {
               size += new Blob([file.data]).size;
             }
@@ -473,7 +473,7 @@ async function calculateArticleStorageSize(articleSlug: string): Promise<{
 
         for (const filePath of articleFiles) {
           try {
-            const file = (await store.client.getFile(filePath)) as { data: string };
+            const file = (await store.client.getFile(filePath, false)) as { data: string };
             if (file && file.data) {
               const fileSize = new Blob([file.data]).size;
               files.push({ path: filePath, size: fileSize });
