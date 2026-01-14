@@ -25,6 +25,7 @@ let currentSyncProgress: SyncProgress = {
   phase: "idle",
 };
 let hasEverCompletedSync = false;
+let isBuildingDb = false; // Prevent multiple simultaneous buildDbFromFiles calls
 
 export function subscribeSyncProgress(listener: SyncProgressListener): () => void {
   syncProgressListeners.push(listener);
@@ -170,135 +171,146 @@ async function processArticleFile(client: BaseClient, filePath: string): Promise
 }
 
 async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) {
+  // Prevent multiple simultaneous calls
+  if (isBuildingDb) {
+    console.log("⏭️  buildDbFromFiles already running, skipping duplicate call");
+    return;
+  }
+
+  isBuildingDb = true;
   console.log("🔄 Refreshing database from remote storage files");
 
-  // Check cache status by looking at root listing
   try {
-    const rootListing = await client.getListing("");
-    console.log("📂 Root listing:", rootListing);
-  } catch (error) {
-    console.warn("⚠️ Failed to get root listing - cache may not be ready:", error);
-  }
-
-  const matches = await glob(client, "saves/*/article.json");
-
-  console.log(`📄 Matched ${matches.length} article files:`, matches);
-
-  if (matches.length === 0) {
-    console.warn("⚠️ No article.json files found. This could mean:");
-    console.warn("  1. Remote storage is empty");
-    console.warn("  2. Cache is not ready yet (sync still in progress)");
-    console.warn("  3. Files exist but glob pattern didn't match");
-    // Mark sync as complete since there are no articles
-    hasEverCompletedSync = true;
-    notifySyncProgress({
-      isSyncing: false,
-      phase: "idle",
-      totalArticles: 0,
-      processedArticles: 0,
-    });
-    return;
-  }
-
-  // Filter out already processed articles
-  const articlesToProcess = matches.filter(path => !processedSet || !processedSet.has(path));
-
-  if (articlesToProcess.length === 0) {
-    console.log("✓ All articles already processed, skipping");
-    // Mark sync as complete since there's nothing to process
-    hasEverCompletedSync = true;
-    notifySyncProgress({
-      isSyncing: false,
-      phase: "idle",
-      totalArticles: 0,
-      processedArticles: 0,
-    });
-    return;
-  }
-
-  // Notify that sync is starting
-  notifySyncProgress({
-    isSyncing: true,
-    totalArticles: articlesToProcess.length,
-    processedArticles: 0,
-    phase: hasEverCompletedSync ? "ongoing" : "initial",
-  });
-
-  // Fetch articles with their ingestDate for sorting
-  console.log(`📥 Fetching ${articlesToProcess.length} articles for sorting...`);
-  const articlesWithDates: Array<{ path: string; article: Article; ingestDateMs: number }> = [];
-
-  for (const path of articlesToProcess) {
-    const startTime = Date.now();
+    // Check cache status by looking at root listing
     try {
-      console.log(`  ⏳ Fetching ${path}...`);
-      const file = (await client.getFile(path)) as { data: string };
-      const fetchTime = Date.now() - startTime;
-      console.log(`  ✓ Fetched ${path} in ${fetchTime}ms`);
-
-      let article: Article;
-      if (typeof file.data === "object") {
-        article = file.data as Article;
-      } else {
-        article = JSON.parse(file.data);
-      }
-      // Convert ingestDate string to milliseconds timestamp for sorting
-      const ingestDateMs = article.ingestDate ? new Date(article.ingestDate).getTime() : 0;
-      articlesWithDates.push({
-        path,
-        article,
-        ingestDateMs,
-      });
+      const rootListing = await client.getListing("");
+      console.log("📂 Root listing:", rootListing);
     } catch (error) {
-      const fetchTime = Date.now() - startTime;
-      console.error(`  ✗ Error fetching article file ${path} after ${fetchTime}ms:`, error);
-    }
-  }
-
-  // Sort by archive status first (non-archived first), then by ingestDate descending (newest first)
-  articlesWithDates.sort((a, b) => {
-    // Prioritize non-archived articles
-    const aIsArchived = a.article.state === "archived" ? 1 : 0;
-    const bIsArchived = b.article.state === "archived" ? 1 : 0;
-
-    if (aIsArchived !== bIsArchived) {
-      return aIsArchived - bIsArchived; // Non-archived (0) comes before archived (1)
+      console.warn("⚠️ Failed to get root listing - cache may not be ready:", error);
     }
 
-    // Within same archive status, sort by newest first
-    return b.ingestDateMs - a.ingestDateMs;
-  });
-  console.log(`📊 Sorted ${articlesWithDates.length} articles (non-archived first, then by newest)`);
+    const matches = await glob(client, "saves/*/article.json");
 
-  // Process and insert articles in sorted order (non-archived first, then newest)
-  console.log(`💾 Processing ${articlesWithDates.length} articles (non-archived first, then newest)...`);
-  let processedCount = 0;
-  for (const { path, article } of articlesWithDates) {
-    try {
-      console.log(`📖 Processing article: ${article.slug} (${new Date(article.ingestDate).toISOString()})`);
-      await db.articles.put(article);
-      console.log(`  ✅ Inserted: ${article.slug}`);
-      if (processedSet) {
-        processedSet.add(path);
-      }
-      processedCount++;
-      // Update progress
+    console.log(`📄 Matched ${matches.length} article files:`, matches);
+
+    if (matches.length === 0) {
+      console.warn("⚠️ No article.json files found. This could mean:");
+      console.warn("  1. Remote storage is empty");
+      console.warn("  2. Cache is not ready yet (sync still in progress)");
+      console.warn("  3. Files exist but glob pattern didn't match");
+      // Mark sync as complete since there are no articles
+      hasEverCompletedSync = true;
       notifySyncProgress({
-        processedArticles: processedCount,
+        isSyncing: false,
+        phase: "idle",
+        totalArticles: 0,
+        processedArticles: 0,
       });
-    } catch (error) {
-      console.error(`  ✗ Error inserting article ${article.slug}:`, error);
+      return;
     }
+
+    // Filter out already processed articles
+    const articlesToProcess = matches.filter(path => !processedSet || !processedSet.has(path));
+
+    if (articlesToProcess.length === 0) {
+      console.log("✓ All articles already processed, skipping");
+      // Mark sync as complete since there's nothing to process
+      hasEverCompletedSync = true;
+      notifySyncProgress({
+        isSyncing: false,
+        phase: "idle",
+        totalArticles: 0,
+        processedArticles: 0,
+      });
+      return;
+    }
+
+    // Notify that sync is starting
+    notifySyncProgress({
+      isSyncing: true,
+      totalArticles: articlesToProcess.length,
+      processedArticles: 0,
+      phase: hasEverCompletedSync ? "ongoing" : "initial",
+    });
+
+    // Fetch articles with their ingestDate for sorting
+    console.log(`📥 Fetching ${articlesToProcess.length} articles for sorting...`);
+    const articlesWithDates: Array<{ path: string; article: Article; ingestDateMs: number }> = [];
+
+    for (const path of articlesToProcess) {
+      const startTime = Date.now();
+      try {
+        console.log(`  ⏳ Fetching ${path}...`);
+        const file = (await client.getFile(path)) as { data: string };
+        const fetchTime = Date.now() - startTime;
+        console.log(`  ✓ Fetched ${path} in ${fetchTime}ms`);
+
+        let article: Article;
+        if (typeof file.data === "object") {
+          article = file.data as Article;
+        } else {
+          article = JSON.parse(file.data);
+        }
+        // Convert ingestDate string to milliseconds timestamp for sorting
+        const ingestDateMs = article.ingestDate ? new Date(article.ingestDate).getTime() : 0;
+        articlesWithDates.push({
+          path,
+          article,
+          ingestDateMs,
+        });
+      } catch (error) {
+        const fetchTime = Date.now() - startTime;
+        console.error(`  ✗ Error fetching article file ${path} after ${fetchTime}ms:`, error);
+      }
+    }
+
+    // Sort by archive status first (non-archived first), then by ingestDate descending (newest first)
+    articlesWithDates.sort((a, b) => {
+      // Prioritize non-archived articles
+      const aIsArchived = a.article.state === "archived" ? 1 : 0;
+      const bIsArchived = b.article.state === "archived" ? 1 : 0;
+
+      if (aIsArchived !== bIsArchived) {
+        return aIsArchived - bIsArchived; // Non-archived (0) comes before archived (1)
+      }
+
+      // Within same archive status, sort by newest first
+      return b.ingestDateMs - a.ingestDateMs;
+    });
+    console.log(`📊 Sorted ${articlesWithDates.length} articles (non-archived first, then by newest)`);
+
+    // Process and insert articles in sorted order (non-archived first, then newest)
+    console.log(`💾 Processing ${articlesWithDates.length} articles (non-archived first, then newest)...`);
+    let processedCount = 0;
+    for (const { path, article } of articlesWithDates) {
+      try {
+        console.log(`📖 Processing article: ${article.slug} (${new Date(article.ingestDate).toISOString()})`);
+        await db.articles.put(article);
+        console.log(`  ✅ Inserted: ${article.slug}`);
+        if (processedSet) {
+          processedSet.add(path);
+        }
+        processedCount++;
+        // Update progress
+        notifySyncProgress({
+          processedArticles: processedCount,
+        });
+      } catch (error) {
+        console.error(`  ✗ Error inserting article ${article.slug}:`, error);
+      }
+    }
+
+    console.log("🏁 Database refresh complete");
+
+    // Mark sync as complete
+    hasEverCompletedSync = true;
+    notifySyncProgress({
+      isSyncing: false,
+      phase: "idle",
+    });
+  } finally {
+    isBuildingDb = false;
   }
-
-  console.log("🏁 Database refresh complete");
-
-  // Mark sync as complete
-  hasEverCompletedSync = true;
-  notifySyncProgress({
-    isSyncing: false,
-    phase: "idle",
-  });
 }
 
 function initRemote() {
