@@ -315,6 +315,7 @@ function initRemote() {
     // Track sync state to prevent clearing database during active sync
     let isSyncing = false;
     let hasCompletedInitialSync = false;
+    let hasProcessedAfterFirstCycle = false;
 
     remoteStorage.on("ready", function () {
       console.info("🔵 remoteStorage ready");
@@ -325,6 +326,7 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
       isSyncing = true;
+      hasProcessedAfterFirstCycle = false; // Reset for this connection
 
       // Check if we already have articles in IndexedDB to determine if this is truly initial
       const existingArticleCount = await db.articles.count();
@@ -379,13 +381,18 @@ function initRemote() {
     // Also listen for when ongoing sync cycles complete
     remoteStorage.on("sync-req-done", async () => {
       console.info("🔄 RemoteStorage sync-req-done - sync cycle completed");
-      // Mark sync as complete if we were syncing (for ongoing syncs after initial)
-      if (isSyncing && hasCompletedInitialSync) {
+
+      // Check for any articles that weren't caught by change events
+      // This handles the case where RemoteStorage loops on sync-req-done without firing sync-done
+      // Only process once after the first cycle to avoid repeated processing
+      if (isSyncing && !hasProcessedAfterFirstCycle) {
+        hasProcessedAfterFirstCycle = true;
+        console.info("   → Checking for articles missed by change events");
+        await buildDbFromFiles(client, processedArticles);
         isSyncing = false;
-        console.info("   ✅ Ongoing sync complete");
+        hasCompletedInitialSync = true;
+        console.info("   ✅ Sync complete");
       }
-      // Note: We rely on the "change" event handler to process individual file changes
-      // incrementally, so we don't rebuild the entire database here
     });
 
     remoteStorage.on("not-connected", function () {
