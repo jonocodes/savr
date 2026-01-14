@@ -139,7 +139,8 @@ export async function loadThumbnail(slug: string): Promise<string> {
     const storage = await init();
     if (storage && storage.client) {
       const thumbnailPath = getFilePathThumbnail(slug);
-      const file = (await storage.client.getFile(thumbnailPath)) as { data: string };
+      // Use local cache only for fast thumbnail loading
+      const file = (await storage.client.getFile(thumbnailPath, false)) as { data: string };
 
       if (file && file.data) {
         return file.data;
