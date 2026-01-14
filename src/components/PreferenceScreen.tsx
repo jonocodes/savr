@@ -53,8 +53,8 @@ import {
   setHeaderHidingInCookie,
   getAfterExternalSaveFromCookie,
   setAfterExternalSaveInCookie,
-  getWiFiOnlySyncFromCookie,
-  setWiFiOnlySyncInCookie,
+  // getWiFiOnlySyncFromCookie, // Disabled - feature not working correctly
+  // setWiFiOnlySyncInCookie, // Disabled - feature not working correctly
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
 } from "~/utils/cookies";
@@ -74,7 +74,7 @@ export default function PreferencesScreen() {
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
-  const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false);
+  // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
@@ -118,8 +118,8 @@ export default function PreferencesScreen() {
       setSyncEnabled(syncValue === "true");
     }
 
-    // Load WiFi-only sync setting from cookies
-    setWifiOnlySync(getWiFiOnlySyncFromCookie());
+    // Load WiFi-only sync setting from cookies - DISABLED
+    // setWifiOnlySync(getWiFiOnlySyncFromCookie());
 
     // Load header hiding setting from cookies
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
@@ -275,11 +275,12 @@ export default function PreferencesScreen() {
     }
   };
 
-  const handleWiFiOnlySyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.checked;
-    setWifiOnlySync(newValue);
-    setWiFiOnlySyncInCookie(newValue);
-  };
+  // DISABLED - WiFi-only sync feature not working correctly
+  // const handleWiFiOnlySyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const newValue = event.target.checked;
+  //   setWifiOnlySync(newValue);
+  //   setWiFiOnlySyncInCookie(newValue);
+  // };
 
   const handleHeaderHidingToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.checked;
@@ -459,7 +460,8 @@ export default function PreferencesScreen() {
               <Switch edge="end" checked={syncEnabled} onChange={handleSyncToggle} />
             </ListItem>
 
-            {syncEnabled && networkSupported && (
+            {/* DISABLED - WiFi-only sync feature not working correctly */}
+            {/* {syncEnabled && networkSupported && (
               <ListItem>
                 <ListItemIcon>
                   <WifiIcon />
@@ -477,7 +479,7 @@ export default function PreferencesScreen() {
                 />
                 <Switch edge="end" checked={wifiOnlySync} onChange={handleWiFiOnlySyncToggle} />
               </ListItem>
-            )}
+            )} */}
           </List>
 
           {/* Reading Section */}
