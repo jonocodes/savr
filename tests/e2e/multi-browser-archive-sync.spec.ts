@@ -25,6 +25,9 @@ try {
 }
 
 test.describe("Multi-Browser Archive Sync", () => {
+  // These tests involve multiple browser contexts and sync operations, which take longer
+  test.setTimeout(120000); // 2 minutes
+
   test("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
@@ -92,6 +95,12 @@ test.describe("Multi-Browser Archive Sync", () => {
       expect(article1?.slug).toBe("death-by-a-thousand-cuts");
       expect(article1?.state).toBe("unread");
       console.log("✅ Browser 1: Article verified as 'unread' in IndexedDB");
+
+      // Wait for Browser 1 to sync article to server before Browser 2 tries to pull
+      console.log("   Browser 1: Waiting for sync to server...");
+      await waitForRemoteStorageSync(page1);
+      await page1.waitForTimeout(2000);
+      console.log("   ✅ Browser 1: Sync completed");
 
       // Sync article to Browser 2
       console.log("\n4️⃣  Browser 2: Syncing to pull article from Browser 1...");
