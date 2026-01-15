@@ -170,6 +170,56 @@ async function processArticleFile(client: BaseClient, filePath: string): Promise
   }
 }
 
+// Process missing articles using cached listing (avoids slow glob operation)
+async function processMissingArticles(client: BaseClient, cachedListing: Record<string, any>, processedSet: Set<string>) {
+  console.log("🔍 Processing missing articles from cached listing");
+
+  // Get all article slugs from the listing
+  const articleSlugs = Object.keys(cachedListing).filter((key) => cachedListing[key] === true);
+  console.log(`   Found ${articleSlugs.length} articles in listing`);
+
+  // Check which ones are missing from IndexedDB
+  const missingArticles: string[] = [];
+  for (const slug of articleSlugs) {
+    const articlePath = `saves/${slug}/article.json`;
+
+    // Skip if already processed in this session
+    if (processedSet.has(articlePath)) {
+      continue;
+    }
+
+    // Check if exists in IndexedDB
+    const exists = await db.articles.get(slug);
+    if (!exists) {
+      missingArticles.push(articlePath);
+    }
+  }
+
+  console.log(`   📥 ${missingArticles.length} articles missing from DB, fetching...`);
+
+  if (missingArticles.length === 0) {
+    console.log("   ✓ No missing articles to process");
+    return;
+  }
+
+  // Process missing articles
+  let processed = 0;
+  for (const articlePath of missingArticles) {
+    try {
+      await processArticleFile(client, articlePath);
+      processedSet.add(articlePath);
+      processed++;
+      notifySyncProgress({
+        processedArticles: processedSet.size,
+      });
+    } catch (error) {
+      console.error(`   ❌ Failed to process ${articlePath}:`, error);
+    }
+  }
+
+  console.log(`   ✅ Processed ${processed} missing articles`);
+}
+
 async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) {
   // Prevent multiple simultaneous calls
   if (isBuildingDb) {
@@ -379,30 +429,38 @@ function initRemote() {
       // Run buildDbFromFiles if we're missing articles or if we have very few (suggests change events didn't work)
       const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
       if (missingArticles > 0 || articlesInDb < 10) {
-        console.info(`   → Missing ${missingArticles} articles, running buildDbFromFiles to catch them`);
+        console.info(`   → Missing ${missingArticles} articles, processing them`);
 
-        // Check if sync is actually complete by verifying cache status
-        let retries = 0;
-        const maxRetries = 5;
-        while (retries < maxRetries) {
-          try {
-            const listing = await client.getListing("saves/");
-            if (listing !== undefined) {
-              // Cache appears ready, proceed with buildDbFromFiles
-              break;
+        // Use cached listing if available (avoids slow glob operation)
+        if (cachedArticleListing) {
+          console.info("   → Using cached listing to process missing articles");
+          await processMissingArticles(client, cachedArticleListing, processedArticles);
+        } else {
+          console.info("   → No cached listing, running full buildDbFromFiles");
+
+          // Check if sync is actually complete by verifying cache status
+          let retries = 0;
+          const maxRetries = 5;
+          while (retries < maxRetries) {
+            try {
+              const listing = await client.getListing("saves/");
+              if (listing !== undefined) {
+                // Cache appears ready, proceed with buildDbFromFiles
+                break;
+              }
+            } catch (error) {
+              console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
             }
-          } catch (error) {
-            console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
+            retries++;
+            if (retries < maxRetries) {
+              await new Promise((resolve) => setTimeout(resolve, 500));
+            }
           }
-          retries++;
-          if (retries < maxRetries) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
-          }
-        }
 
-        await buildDbFromFiles(client, processedArticles);
+          await buildDbFromFiles(client, processedArticles);
+        }
       } else {
-        console.info("   → All articles synced via change events, skipping buildDbFromFiles");
+        console.info("   → All articles synced via change events, skipping");
       }
 
       isSyncing = false;
@@ -433,10 +491,18 @@ function initRemote() {
         // Run buildDbFromFiles if we're missing articles or if we have very few (suggests change events didn't work)
         const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
         if (missingArticles > 0 || articlesInDb < 10) {
-          console.info(`   → Missing ${missingArticles} articles, running buildDbFromFiles to catch them`);
-          await buildDbFromFiles(client, processedArticles);
+          console.info(`   → Missing ${missingArticles} articles, processing them`);
+
+          // Use cached listing if available (avoids slow glob operation)
+          if (cachedArticleListing) {
+            console.info("   → Using cached listing to process missing articles");
+            await processMissingArticles(client, cachedArticleListing, processedArticles);
+          } else {
+            console.info("   → No cached listing, running full buildDbFromFiles");
+            await buildDbFromFiles(client, processedArticles);
+          }
         } else {
-          console.info("   → All articles synced via change events, skipping buildDbFromFiles");
+          console.info("   → All articles synced via change events, skipping");
         }
 
         isSyncing = false;
@@ -511,6 +577,7 @@ function initRemote() {
 
     // Track if we've fetched the total article count for progress reporting
     let hasSetTotalArticles = false;
+    let cachedArticleListing: Record<string, any> | null = null;
 
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
@@ -546,6 +613,7 @@ function initRemote() {
           try {
             const listing = await client.getListing("saves/") as Record<string, any>;
             if (listing) {
+              cachedArticleListing = listing; // Cache for later use
               const totalArticles = Object.keys(listing).filter(
                 (key) => listing[key] === true
               ).length;
