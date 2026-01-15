@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import RemoteStorage from "remotestoragejs";
 import { init } from "~/utils/storage";
 import BaseClient from "remotestoragejs/release/types/baseclient";
-import { useRouter } from "@tanstack/react-router";
+import { useLocation } from "@tanstack/react-router";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 // import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network"; // Disabled - WiFi-only sync feature not working correctly
 
@@ -38,7 +38,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   const [client, setClient] = useState<BaseClient | null>(null);
   const [widget, setWidget] = useState<any>(null);
   const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
-  const router = useRouter();
+  const location = useLocation();
 
   // Initialize remote storage and widget (runs once)
   useEffect(() => {
@@ -78,14 +78,8 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
         newWidget.attach("remotestorage-container");
         widgetInstance = newWidget;
         setWidget(newWidget);
-
-        // Set initial visibility
-        setTimeout(() => {
-          const widgetElement = document.getElementById("remotestorage-widget");
-          if (widgetElement) {
-            widgetElement.style.display = isSyncEnabled ? "block" : "none";
-          }
-        }, 100);
+        // Note: Initial visibility is handled by the visibility effect
+        // which will re-run when setWidget triggers a state update
       }
     };
 
@@ -105,33 +99,16 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => clearInterval(interval);
   }, [syncEnabled]);
 
-  // Update widget visibility based on route
+  // Update widget visibility based on route and sync state
+  // This effect re-runs when widget is created, route changes, or sync setting changes
   useEffect(() => {
-    const updateVisibility = () => {
-      const widgetElement = document.getElementById("remotestorage-widget");
-      if (!widgetElement) return;
+    const widgetElement = document.getElementById("remotestorage-widget");
+    if (!widgetElement) return;
 
-      const isArticlePage = window.location.pathname.startsWith("/article/");
-      const shouldShowWidget = syncEnabled && !isArticlePage;
-      widgetElement.style.display = shouldShowWidget ? "block" : "none";
-    };
-
-    // Update immediately
-    updateVisibility();
-
-    // Poll for pathname changes to detect route changes
-    let lastPathname = window.location.pathname;
-    const intervalId = setInterval(() => {
-      if (window.location.pathname !== lastPathname) {
-        lastPathname = window.location.pathname;
-        updateVisibility();
-      }
-    }, 100);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [syncEnabled]);
+    const isArticlePage = location.pathname.startsWith("/article/");
+    const shouldShowWidget = syncEnabled && !isArticlePage;
+    widgetElement.style.display = shouldShowWidget ? "block" : "none";
+  }, [widget, syncEnabled, location.pathname]);
 
   // DISABLED - WiFi-only sync feature not working correctly
   // Control sync based on WiFi status (only in PWA mode)
