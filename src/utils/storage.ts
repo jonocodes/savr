@@ -174,8 +174,10 @@ async function processArticleFile(client: BaseClient, filePath: string): Promise
 async function processMissingArticles(client: BaseClient, cachedListing: Record<string, any>, processedSet: Set<string>) {
   console.log("🔍 Processing missing articles from cached listing");
 
-  // Get all article slugs from the listing
-  const articleSlugs = Object.keys(cachedListing).filter((key) => cachedListing[key] === true);
+  // Get all article slugs from the listing (strip trailing slashes from directory names)
+  const articleSlugs = Object.keys(cachedListing)
+    .filter((key) => cachedListing[key] === true)
+    .map((key) => key.endsWith("/") ? key.slice(0, -1) : key);
   console.log(`   Found ${articleSlugs.length} articles in listing`);
 
   // Check which ones are missing from IndexedDB
@@ -192,6 +194,7 @@ async function processMissingArticles(client: BaseClient, cachedListing: Record<
     const exists = await db.articles.get(slug);
     if (!exists) {
       missingArticles.push(articlePath);
+      console.log(`      Missing: ${slug}`);
     }
   }
 
@@ -433,33 +436,17 @@ function initRemote() {
       if (missingArticles > 0 || articlesInDb < 10) {
         console.info(`   → Missing ${missingArticles} articles, processing them`);
 
-        // Use cached listing if available (avoids slow glob operation)
-        if (cachedArticleListing) {
-          console.info("   → Using cached listing to process missing articles");
-          await processMissingArticles(client, cachedArticleListing, processedArticles);
-        } else {
-          console.info("   → No cached listing, running full buildDbFromFiles");
-
-          // Check if sync is actually complete by verifying cache status
-          let retries = 0;
-          const maxRetries = 5;
-          while (retries < maxRetries) {
-            try {
-              const listing = await client.getListing("saves/");
-              if (listing !== undefined) {
-                // Cache appears ready, proceed with buildDbFromFiles
-                break;
-              }
-            } catch (error) {
-              console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
-            }
-            retries++;
-            if (retries < maxRetries) {
-              await new Promise((resolve) => setTimeout(resolve, 500));
-            }
+        // Fetch fresh listing (fast operation, avoids slow glob)
+        try {
+          console.info("   → Fetching article listing to process missing articles");
+          const listing = await client.getListing("saves/") as Record<string, any>;
+          if (listing) {
+            await processMissingArticles(client, listing, processedArticles);
+          } else {
+            console.warn("   ⚠️ Failed to get listing, cannot process missing articles");
           }
-
-          await buildDbFromFiles(client, processedArticles);
+        } catch (error) {
+          console.error("   ❌ Error fetching listing:", error);
         }
       } else {
         console.info("   → All articles synced via change events, skipping");
@@ -495,13 +482,17 @@ function initRemote() {
         if (missingArticles > 0 || articlesInDb < 10) {
           console.info(`   → Missing ${missingArticles} articles, processing them`);
 
-          // Use cached listing if available (avoids slow glob operation)
-          if (cachedArticleListing) {
-            console.info("   → Using cached listing to process missing articles");
-            await processMissingArticles(client, cachedArticleListing, processedArticles);
-          } else {
-            console.info("   → No cached listing, running full buildDbFromFiles");
-            await buildDbFromFiles(client, processedArticles);
+          // Fetch fresh listing (fast operation, avoids slow glob)
+          try {
+            console.info("   → Fetching article listing to process missing articles");
+            const listing = await client.getListing("saves/") as Record<string, any>;
+            if (listing) {
+              await processMissingArticles(client, listing, processedArticles);
+            } else {
+              console.warn("   ⚠️ Failed to get listing, cannot process missing articles");
+            }
+          } catch (error) {
+            console.error("   ❌ Error fetching listing:", error);
           }
         } else {
           console.info("   → All articles synced via change events, skipping");
