@@ -373,11 +373,13 @@ function initRemote() {
 
       // Check how many articles change events have already processed
       const articlesInDb = await db.articles.count();
-      console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB`);
+      const expectedTotal = currentSyncProgress.totalArticles;
+      console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`);
 
-      // Only run buildDbFromFiles if we have very few articles (suggests change events aren't working)
-      if (articlesInDb < 10) {
-        console.info("   → Few articles found, running buildDbFromFiles to catch missed ones");
+      // Run buildDbFromFiles if we're missing articles or if we have very few (suggests change events didn't work)
+      const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
+      if (missingArticles > 0 || articlesInDb < 10) {
+        console.info(`   → Missing ${missingArticles} articles, running buildDbFromFiles to catch them`);
 
         // Check if sync is actually complete by verifying cache status
         let retries = 0;
@@ -400,7 +402,7 @@ function initRemote() {
 
         await buildDbFromFiles(client, processedArticles);
       } else {
-        console.info("   → Change events appear to be working, skipping buildDbFromFiles");
+        console.info("   → All articles synced via change events, skipping buildDbFromFiles");
       }
 
       isSyncing = false;
@@ -425,14 +427,16 @@ function initRemote() {
 
         // Check how many articles change events have already processed
         const articlesInDb = await db.articles.count();
-        console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB`);
+        const expectedTotal = currentSyncProgress.totalArticles;
+        console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`);
 
-        // Only run buildDbFromFiles if we have very few articles (suggests change events aren't working)
-        if (articlesInDb < 10) {
-          console.info("   → Few articles found, running buildDbFromFiles to catch missed ones");
+        // Run buildDbFromFiles if we're missing articles or if we have very few (suggests change events didn't work)
+        const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
+        if (missingArticles > 0 || articlesInDb < 10) {
+          console.info(`   → Missing ${missingArticles} articles, running buildDbFromFiles to catch them`);
           await buildDbFromFiles(client, processedArticles);
         } else {
-          console.info("   → Change events appear to be working, skipping buildDbFromFiles");
+          console.info("   → All articles synced via change events, skipping buildDbFromFiles");
         }
 
         isSyncing = false;
