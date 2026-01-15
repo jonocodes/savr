@@ -405,6 +405,11 @@ function initRemote() {
 
       isSyncing = false;
       hasCompletedInitialSync = true;
+      // Notify UI that sync is complete
+      notifySyncProgress({
+        isSyncing: false,
+        phase: "idle",
+      });
       console.info("✅ Initial sync complete - database ready");
     });
 
@@ -432,6 +437,11 @@ function initRemote() {
 
         isSyncing = false;
         hasCompletedInitialSync = true;
+        // Notify UI that sync is complete
+        notifySyncProgress({
+          isSyncing: false,
+          phase: "idle",
+        });
         console.info("   ✅ Sync complete");
       }
     });
