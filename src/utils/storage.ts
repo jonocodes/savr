@@ -716,25 +716,42 @@ export async function syncMissingArticles(): Promise<string> {
     const articlesInDb = await db.articles.count();
     const expectedTotal = currentSyncProgress.totalArticles;
 
-    if (articlesInDb >= expectedTotal) {
-      return `All articles synced (${articlesInDb}/${expectedTotal})`;
-    }
+    console.log(`🔧 Manual sync: DB has ${articlesInDb}, expected ${expectedTotal}`);
 
-    const missing = expectedTotal - articlesInDb;
-    console.log(`🔧 Manual sync: ${missing} articles missing`);
-
-    // Fetch listing and process missing articles
+    // Fetch fresh listing
     const listing = await storage.client.getListing("saves/") as Record<string, any>;
     if (!listing) {
       return "Failed to fetch article listing";
     }
 
-    // Create a temporary processed set
+    // Count articles in listing
+    const articleSlugsInListing = Object.keys(listing)
+      .filter((key) => listing[key] === true)
+      .map((key) => key.endsWith("/") ? key.slice(0, -1) : key);
+
+    console.log(`🔧 Listing has ${articleSlugsInListing.length} articles`);
+    console.log(`🔧 Expected total was ${expectedTotal}`);
+
+    // Check actual missing articles
+    const actuallyMissing: string[] = [];
+    for (const slug of articleSlugsInListing) {
+      const exists = await db.articles.get(slug);
+      if (!exists) {
+        actuallyMissing.push(slug);
+        console.log(`   Missing: ${slug}`);
+      }
+    }
+
+    if (actuallyMissing.length === 0) {
+      return `No missing articles found. DB: ${articlesInDb}, Listing: ${articleSlugsInListing.length}, Expected: ${expectedTotal}`;
+    }
+
+    // Process missing articles
     const processedSet = new Set<string>();
     await processMissingArticles(storage.client, listing, processedSet);
 
     const newCount = await db.articles.count();
-    return `Synced ${newCount - articlesInDb} missing articles (${newCount}/${expectedTotal})`;
+    return `Synced ${newCount - articlesInDb} articles. Now: ${newCount}/${articleSlugsInListing.length}`;
   } catch (error) {
     console.error("Manual sync failed:", error);
     return `Error: ${error instanceof Error ? error.message : String(error)}`;
