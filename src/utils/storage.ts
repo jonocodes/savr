@@ -371,26 +371,38 @@ function initRemote() {
       // Wait a bit longer to ensure cache is fully populated and change events have fired
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Check if sync is actually complete by verifying cache status
-      let retries = 0;
-      const maxRetries = 5;
-      while (retries < maxRetries) {
-        try {
-          const listing = await client.getListing("saves/");
-          if (listing !== undefined) {
-            // Cache appears ready, proceed with buildDbFromFiles
-            break;
+      // Check how many articles change events have already processed
+      const articlesInDb = await db.articles.count();
+      console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB`);
+
+      // Only run buildDbFromFiles if we have very few articles (suggests change events aren't working)
+      if (articlesInDb < 10) {
+        console.info("   → Few articles found, running buildDbFromFiles to catch missed ones");
+
+        // Check if sync is actually complete by verifying cache status
+        let retries = 0;
+        const maxRetries = 5;
+        while (retries < maxRetries) {
+          try {
+            const listing = await client.getListing("saves/");
+            if (listing !== undefined) {
+              // Cache appears ready, proceed with buildDbFromFiles
+              break;
+            }
+          } catch (error) {
+            console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
           }
-        } catch (error) {
-          console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
+          retries++;
+          if (retries < maxRetries) {
+            await new Promise((resolve) => setTimeout(resolve, 500));
+          }
         }
-        retries++;
-        if (retries < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+
+        await buildDbFromFiles(client, processedArticles);
+      } else {
+        console.info("   → Change events appear to be working, skipping buildDbFromFiles");
       }
 
-      await buildDbFromFiles(client, processedArticles);
       isSyncing = false;
       hasCompletedInitialSync = true;
       console.info("✅ Initial sync complete - database ready");
@@ -405,8 +417,19 @@ function initRemote() {
       // Only process once after the first cycle to avoid repeated processing
       if (isSyncing && !hasProcessedAfterFirstCycle) {
         hasProcessedAfterFirstCycle = true;
-        console.info("   → Checking for articles missed by change events");
-        await buildDbFromFiles(client, processedArticles);
+
+        // Check how many articles change events have already processed
+        const articlesInDb = await db.articles.count();
+        console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB`);
+
+        // Only run buildDbFromFiles if we have very few articles (suggests change events aren't working)
+        if (articlesInDb < 10) {
+          console.info("   → Few articles found, running buildDbFromFiles to catch missed ones");
+          await buildDbFromFiles(client, processedArticles);
+        } else {
+          console.info("   → Change events appear to be working, skipping buildDbFromFiles");
+        }
+
         isSyncing = false;
         hasCompletedInitialSync = true;
         console.info("   ✅ Sync complete");
