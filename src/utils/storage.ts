@@ -455,11 +455,15 @@ function initRemote() {
       isSyncing = false;
       hasCompletedInitialSync = true;
       // Notify UI that sync is complete
+      // Set total to actual DB count (accounts for any failed/dangling articles)
+      const finalCount = await db.articles.count();
       notifySyncProgress({
         isSyncing: false,
         phase: "idle",
+        totalArticles: finalCount,
+        processedArticles: finalCount,
       });
-      console.info("✅ Initial sync complete - database ready");
+      console.info(`✅ Initial sync complete - ${finalCount} articles in database`);
     });
 
     // Also listen for when ongoing sync cycles complete
@@ -501,11 +505,15 @@ function initRemote() {
         isSyncing = false;
         hasCompletedInitialSync = true;
         // Notify UI that sync is complete
+        // Set total to actual DB count (accounts for any failed/dangling articles)
+        const finalCount = await db.articles.count();
         notifySyncProgress({
           isSyncing: false,
           phase: "idle",
+          totalArticles: finalCount,
+          processedArticles: finalCount,
         });
-        console.info("   ✅ Sync complete");
+        console.info(`   ✅ Sync complete - ${finalCount} articles in database`);
       }
     });
 
