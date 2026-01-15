@@ -621,16 +621,29 @@ function initRemote() {
             const listing = await client.getListing("saves/") as Record<string, any>;
             if (listing) {
               cachedArticleListing = listing; // Cache for later use
-              const totalArticles = Object.keys(listing).filter(
-                (key) => listing[key] === true
-              ).length;
-              console.log(`   📊 Total articles to sync: ${totalArticles}`);
-              // Use actual DB count, not processedSet size
               const articlesInDb = await db.articles.count();
-              notifySyncProgress({
-                totalArticles,
-                processedArticles: articlesInDb,
-              });
+
+              // If we already have articles in DB, use that as the total (accounts for dangling)
+              // Otherwise use the listing count
+              if (articlesInDb > 0) {
+                // We've synced before - use DB count as the canonical total
+                console.log(`   📊 Using DB count as total: ${articlesInDb} articles (ignores dangling)`);
+                notifySyncProgress({
+                  totalArticles: articlesInDb,
+                  processedArticles: articlesInDb,
+                });
+                hasFinalizedTotal = true; // Mark as finalized immediately
+              } else {
+                // First sync - use listing count
+                const totalArticles = Object.keys(listing).filter(
+                  (key) => listing[key] === true
+                ).length;
+                console.log(`   📊 Total articles to sync: ${totalArticles}`);
+                notifySyncProgress({
+                  totalArticles,
+                  processedArticles: articlesInDb,
+                });
+              }
             }
           } catch (error) {
             console.warn("   ⚠️ Failed to get article count:", error);
