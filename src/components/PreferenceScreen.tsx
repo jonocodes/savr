@@ -53,12 +53,12 @@ import {
   setHeaderHidingInCookie,
   getAfterExternalSaveFromCookie,
   setAfterExternalSaveInCookie,
-  AFTER_EXTERNAL_SAVE_ACTIONS,
-  AfterExternalSaveAction,
   getWiFiOnlySyncFromCookie,
   setWiFiOnlySyncInCookie,
+  AFTER_EXTERNAL_SAVE_ACTIONS,
+  AfterExternalSaveAction,
 } from "~/utils/cookies";
-import { isPWAMode } from "~/utils/network";
+import { isPWAMode, isNetworkInfoSupported } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -79,6 +79,7 @@ export default function PreferencesScreen() {
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
   );
+  const networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
     files: number;
@@ -458,7 +459,7 @@ export default function PreferencesScreen() {
               <Switch edge="end" checked={syncEnabled} onChange={handleSyncToggle} />
             </ListItem>
 
-            {syncEnabled && isInstalledPWA && (
+            {syncEnabled && networkSupported && (
               <ListItem>
                 <ListItemIcon>
                   <WifiIcon />
@@ -467,7 +468,7 @@ export default function PreferencesScreen() {
                   primary={
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       Sync only over WiFi
-                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. This setting only works in installed PWA mode.">
+                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. Works on mobile browsers that support network detection.">
                         <HelpIcon fontSize="small" color="action" />
                       </Tooltip>
                     </Box>

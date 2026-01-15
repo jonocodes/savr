@@ -275,7 +275,7 @@ export default function ArticleListScreen() {
 
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
-  const { status: syncStatus, isPWA } = useSyncStatus();
+  const { status: syncStatus, isNetworkSupported } = useSyncStatus();
 
   // Track if we've shown the initial load message
   const hasShownInitialLoad = useRef(false);
@@ -716,15 +716,15 @@ export default function ArticleListScreen() {
           <AddIcon />
         </Fab> */}
 
-      {/* Sync Status Indicator - Only show in PWA mode and when sync is not disabled */}
-      {isPWA && syncStatus !== "disabled" && (
+      {/* Sync Status Indicator - Show when network info is supported and sync is not disabled */}
+      {isNetworkSupported && syncStatus !== "disabled" && (
         <Tooltip
           title={
             syncStatus === "active"
               ? "Sync active"
               : syncStatus === "paused"
-              ? "Sync paused (WiFi only - currently on cellular)"
-              : ""
+                ? "Sync paused (WiFi only - currently on cellular)"
+                : ""
           }
         >
           <Box
