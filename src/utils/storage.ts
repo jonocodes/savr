@@ -492,8 +492,11 @@ function initRemote() {
         // Only process if this is a new file (newValue exists, oldValue doesn't)
         // or if it's an update (both exist)
         if (event.newValue !== undefined) {
-          // Skip if we've already processed this file in this session
-          if (processedArticles.has(normalizedPath)) {
+          // Distinguish between new additions and updates
+          const isUpdate = event.oldValue !== undefined;
+
+          // For new additions (not updates), skip if already processed this session
+          if (!isUpdate && processedArticles.has(normalizedPath)) {
             return;
           }
 
@@ -502,12 +505,17 @@ function initRemote() {
           if (slugMatch) {
             const slug = slugMatch[1];
 
-            // Check if article already exists in IndexedDB (from previous session)
+            // Check if article already exists in IndexedDB
             const existingArticle = await db.articles.get(slug);
-            if (existingArticle) {
+
+            // For new additions (not updates), skip if already in DB from previous session
+            if (!isUpdate && existingArticle) {
               processedArticles.add(normalizedPath);  // Track that we've seen it, but don't update progress
               return;
             }
+
+            // For updates, always process even if already exists
+            // (this handles archive/unarchive and other metadata changes)
           }
 
           processedArticles.add(normalizedPath);
