@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/network";
-import { getWiFiOnlySyncFromCookie, SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
+import { /* getWiFiOnlySyncFromCookie, */ SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies"; // Disabled WiFi-only sync
 
 export type SyncStatus = "active" | "paused" | "disabled";
 
@@ -20,7 +20,8 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
   const [isWiFi, setIsWiFi] = useState<boolean>(isOnWiFi());
   // Default to true to match RemoteStorageProvider behavior
   const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
-  const [wiFiOnlySync, setWiFiOnlySync] = useState<boolean>(false);
+  // DISABLED - WiFi-only sync feature not working correctly
+  // const [wiFiOnlySync, setWiFiOnlySync] = useState<boolean>(false);
   const isNetworkSupported = isNetworkInfoSupported();
 
   // Load initial sync settings
@@ -36,8 +37,8 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
       }
       // If no cookie exists, keep default of true (matching RemoteStorageProvider)
 
-      // Check if WiFi-only mode is enabled
-      setWiFiOnlySync(getWiFiOnlySyncFromCookie());
+      // DISABLED - Check if WiFi-only mode is enabled
+      // setWiFiOnlySync(getWiFiOnlySyncFromCookie());
     };
 
     loadSettings();
@@ -69,13 +70,13 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
       return "disabled";
     }
 
-    // If WiFi-only is enabled and we're not on WiFi, pause sync
-    if (wiFiOnlySync && !isWiFi) {
-      return "paused";
-    }
+    // DISABLED - If WiFi-only is enabled and we're not on WiFi, pause sync
+    // if (wiFiOnlySync && !isWiFi) {
+    //   return "paused";
+    // }
 
     return "active";
-  }, [syncEnabled, wiFiOnlySync, isWiFi]);
+  }, [syncEnabled, /* wiFiOnlySync, */ isWiFi]);
 
   return (
     <SyncStatusContext.Provider value={{ status, isWiFi, isNetworkSupported }}>

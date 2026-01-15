@@ -744,8 +744,8 @@ export default function ArticleListScreen() {
           <AddIcon />
         </Fab> */}
 
-      {/* Sync Status Indicator - Show when network info is supported and sync is not disabled */}
-      {isNetworkSupported && syncStatus !== "disabled" && (
+      {/* DISABLED - Sync Status Indicator for WiFi-only sync feature */}
+      {/* {isNetworkSupported && syncStatus !== "disabled" && (
         <Tooltip
           title={
             syncStatus === "active"
@@ -790,7 +790,7 @@ export default function ArticleListScreen() {
             )}
           </Box>
         </Tooltip>
-      )}
+      )} */}
     </Box>
   );
 }
