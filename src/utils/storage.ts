@@ -400,6 +400,8 @@ function initRemote() {
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
       isSyncing = true;
       hasProcessedAfterFirstCycle = false; // Reset for this connection
+      hasSetTotalArticles = false; // Allow fetching total for new connection
+      hasFinalizedTotal = false; // Allow updating total for new sync
 
       // Check if we already have articles in IndexedDB to determine if this is truly initial
       const existingArticleCount = await db.articles.count();
@@ -454,6 +456,7 @@ function initRemote() {
 
       isSyncing = false;
       hasCompletedInitialSync = true;
+      hasFinalizedTotal = true; // Lock the total to prevent resetting
       // Notify UI that sync is complete
       // Set total to actual DB count (accounts for any failed/dangling articles)
       const finalCount = await db.articles.count();
@@ -504,6 +507,7 @@ function initRemote() {
 
         isSyncing = false;
         hasCompletedInitialSync = true;
+        hasFinalizedTotal = true; // Lock the total to prevent resetting
         // Notify UI that sync is complete
         // Set total to actual DB count (accounts for any failed/dangling articles)
         const finalCount = await db.articles.count();
@@ -578,6 +582,7 @@ function initRemote() {
 
     // Track if we've fetched the total article count for progress reporting
     let hasSetTotalArticles = false;
+    let hasFinalizedTotal = false; // Prevent resetting total after sync completes
     let cachedArticleListing: Record<string, any> | null = null;
 
     // Listen for change events from RemoteStorage sync
@@ -609,7 +614,8 @@ function initRemote() {
         const normalizedPath = path.startsWith("/savr/") ? path.slice(6) : path;
 
         // On first article change, get total count and update progress
-        if (!hasSetTotalArticles && isSyncing) {
+        // Don't update if we've already finalized the total (accounts for dangling articles)
+        if (!hasSetTotalArticles && isSyncing && !hasFinalizedTotal) {
           hasSetTotalArticles = true;
           try {
             const listing = await client.getListing("saves/") as Record<string, any>;
