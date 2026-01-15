@@ -218,6 +218,52 @@ async function processMissingArticles(client: BaseClient, cachedListing: Record<
   console.log(`   ✅ Processed ${processed} missing articles`);
 }
 
+// Process deleted articles (articles in DB but not in RemoteStorage listing)
+async function processDeletedArticles(cachedListing: Record<string, any>) {
+  console.log("🗑️  Checking for deleted articles");
+
+  // Get all article slugs from the RemoteStorage listing
+  const remoteArticleSlugs = new Set(
+    Object.keys(cachedListing)
+      .filter((key) => cachedListing[key] === true)
+      .map((key) => key.endsWith("/") ? key.slice(0, -1) : key)
+  );
+
+  console.log(`   Remote has ${remoteArticleSlugs.size} articles`);
+
+  // Get all articles from IndexedDB
+  const localArticles = await db.articles.toArray();
+  console.log(`   Local DB has ${localArticles.length} articles`);
+
+  // Find articles in DB but not in RemoteStorage
+  const articlesToDelete: string[] = [];
+  for (const article of localArticles) {
+    if (!remoteArticleSlugs.has(article.slug)) {
+      articlesToDelete.push(article.slug);
+      console.log(`      Deleted remotely: ${article.slug}`);
+    }
+  }
+
+  if (articlesToDelete.length === 0) {
+    console.log("   ✓ No deleted articles to remove");
+    return;
+  }
+
+  console.log(`   🗑️  Removing ${articlesToDelete.length} deleted articles from DB`);
+
+  // Delete articles from IndexedDB
+  for (const slug of articlesToDelete) {
+    try {
+      await db.articles.delete(slug);
+      console.log(`   ✓ Deleted ${slug}`);
+    } catch (error) {
+      console.error(`   ❌ Failed to delete ${slug}:`, error);
+    }
+  }
+
+  console.log(`   ✅ Removed ${articlesToDelete.length} deleted articles`);
+}
+
 function initRemote() {
   remotePrms = new Promise<RemoteStorage>((resolve) => {
     const remoteStorage = new RemoteStorage({
@@ -282,25 +328,30 @@ function initRemote() {
       const expectedTotal = currentSyncProgress.totalArticles;
       console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`);
 
-      // Process missing articles if we're missing any or if we have very few (suggests change events didn't work)
-      const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
-      if (missingArticles > 0 || articlesInDb < 10) {
-        console.info(`   → Missing ${missingArticles} articles, processing them`);
-
-        // Fetch fresh listing (fast operation, avoids slow glob)
-        try {
-          console.info("   → Fetching article listing to process missing articles");
-          const listing = await client.getListing("saves/") as Record<string, any>;
-          if (listing) {
+      // Fetch fresh listing to check for additions and deletions
+      // (fast operation, avoids slow glob)
+      try {
+        console.info("   → Fetching article listing to check for sync discrepancies");
+        const listing = await client.getListing("saves/") as Record<string, any>;
+        if (listing) {
+          // Process missing articles (additions made while browser was closed)
+          const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
+          if (missingArticles > 0 || articlesInDb < 10) {
+            console.info(`   → Missing ${missingArticles} articles, processing them`);
             await processMissingArticles(client, listing, processedArticles);
           } else {
-            console.warn("   ⚠️ Failed to get listing, cannot process missing articles");
+            console.info("   → All articles synced via change events");
           }
-        } catch (error) {
-          console.error("   ❌ Error fetching listing:", error);
+
+          // Process deleted articles (deletions made while browser was closed)
+          // This is necessary because deletion change events require oldValue,
+          // which is undefined if the browser was closed when deletion occurred
+          await processDeletedArticles(listing);
+        } else {
+          console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
-      } else {
-        console.info("   → All articles synced via change events, skipping");
+      } catch (error) {
+        console.error("   ❌ Error fetching listing:", error);
       }
 
       isSyncing = false;
@@ -333,25 +384,27 @@ function initRemote() {
         const expectedTotal = currentSyncProgress.totalArticles;
         console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`);
 
-        // Process missing articles if we're missing any or if we have very few (suggests change events didn't work)
-        const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
-        if (missingArticles > 0 || articlesInDb < 10) {
-          console.info(`   → Missing ${missingArticles} articles, processing them`);
-
-          // Fetch listing to identify which articles are missing
-          try {
-            console.info("   → Fetching article listing to process missing articles");
-            const listing = await client.getListing("saves/") as Record<string, any>;
-            if (listing) {
+        // Fetch listing to check for additions and deletions
+        try {
+          console.info("   → Fetching article listing to check for sync discrepancies");
+          const listing = await client.getListing("saves/") as Record<string, any>;
+          if (listing) {
+            // Process missing articles (additions made while browser was closed)
+            const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
+            if (missingArticles > 0 || articlesInDb < 10) {
+              console.info(`   → Missing ${missingArticles} articles, processing them`);
               await processMissingArticles(client, listing, processedArticles);
             } else {
-              console.warn("   ⚠️ Failed to get listing, cannot process missing articles");
+              console.info("   → All articles synced via change events");
             }
-          } catch (error) {
-            console.error("   ❌ Error fetching listing:", error);
+
+            // Process deleted articles (deletions made while browser was closed)
+            await processDeletedArticles(listing);
+          } else {
+            console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
           }
-        } else {
-          console.info("   → All articles synced via change events, skipping");
+        } catch (error) {
+          console.error("   ❌ Error fetching listing:", error);
         }
 
         isSyncing = false;
@@ -615,16 +668,24 @@ export async function syncMissingArticles(): Promise<string> {
       }
     }
 
-    if (actuallyMissing.length === 0) {
-      return `No missing articles found. DB: ${articlesInDb}, Listing: ${articleSlugsInListing.length}, Expected: ${expectedTotal}`;
+    // Process missing articles (additions)
+    const processedSet = new Set<string>();
+    if (actuallyMissing.length > 0) {
+      await processMissingArticles(storage.client, listing, processedSet);
     }
 
-    // Process missing articles
-    const processedSet = new Set<string>();
-    await processMissingArticles(storage.client, listing, processedSet);
+    // Process deleted articles (deletions)
+    await processDeletedArticles(listing);
 
     const newCount = await db.articles.count();
-    return `Synced ${newCount - articlesInDb} articles. Now: ${newCount}/${articleSlugsInListing.length}`;
+    const added = Math.max(0, newCount - articlesInDb);
+    const removed = Math.max(0, articlesInDb - newCount);
+
+    if (added === 0 && removed === 0) {
+      return `No discrepancies found. DB: ${articlesInDb}, Listing: ${articleSlugsInListing.length}, Expected: ${expectedTotal}`;
+    }
+
+    return `Synced: +${added} articles, -${removed} deleted. Now: ${newCount}/${articleSlugsInListing.length}`;
   } catch (error) {
     console.error("Manual sync failed:", error);
     return `Error: ${error instanceof Error ? error.message : String(error)}`;
