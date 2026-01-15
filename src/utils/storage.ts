@@ -208,13 +208,17 @@ async function processArticleFile(
 }
 
 // Process missing articles using cached listing (avoids slow glob operation)
-async function processMissingArticles(client: BaseClient, cachedListing: Record<string, any>, processedSet: Set<string>) {
+async function processMissingArticles(
+  client: BaseClient,
+  cachedListing: Record<string, any>,
+  processedSet: Set<string>
+) {
   console.log("🔍 Processing missing articles from cached listing");
 
   // Get all article slugs from the listing (strip trailing slashes from directory names)
   const articleSlugs = Object.keys(cachedListing)
     .filter((key) => cachedListing[key] === true)
-    .map((key) => key.endsWith("/") ? key.slice(0, -1) : key);
+    .map((key) => (key.endsWith("/") ? key.slice(0, -1) : key));
   console.log(`   Found ${articleSlugs.length} articles in listing`);
 
   // Check which ones are missing from IndexedDB
@@ -270,7 +274,7 @@ async function processDeletedArticles(cachedListing: Record<string, any>) {
   const remoteArticleSlugs = new Set(
     Object.keys(cachedListing)
       .filter((key) => cachedListing[key] === true)
-      .map((key) => key.endsWith("/") ? key.slice(0, -1) : key)
+      .map((key) => (key.endsWith("/") ? key.slice(0, -1) : key))
   );
 
   console.log(`   Remote has ${remoteArticleSlugs.size} articles`);
@@ -355,7 +359,9 @@ function initRemote() {
         totalArticles: 0, // Don't know yet
         processedArticles: 0,
       });
-      console.info(`   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`);
+      console.info(
+        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`
+      );
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
@@ -370,13 +376,15 @@ function initRemote() {
       // Check how many articles change events have already processed
       const articlesInDb = await db.articles.count();
       const expectedTotal = currentSyncProgress.totalArticles;
-      console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`);
+      console.info(
+        `   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`
+      );
 
       // Fetch fresh listing to check for additions and deletions
       // (fast operation, avoids slow glob)
       try {
         console.info("   → Fetching article listing to check for sync discrepancies");
-        const listing = await client.getListing("saves/") as Record<string, any>;
+        const listing = (await client.getListing("saves/")) as Record<string, any>;
         if (listing) {
           // Process missing articles (additions made while browser was closed)
           const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
@@ -426,12 +434,14 @@ function initRemote() {
         // Check how many articles change events have already processed
         const articlesInDb = await db.articles.count();
         const expectedTotal = currentSyncProgress.totalArticles;
-        console.info(`   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`);
+        console.info(
+          `   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`
+        );
 
         // Fetch listing to check for additions and deletions
         try {
           console.info("   → Fetching article listing to check for sync discrepancies");
-          const listing = await client.getListing("saves/") as Record<string, any>;
+          const listing = (await client.getListing("saves/")) as Record<string, any>;
           if (listing) {
             // Process missing articles (additions made while browser was closed)
             const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
@@ -474,7 +484,9 @@ function initRemote() {
     remoteStorage.on("disconnected", async function () {
       const articleCount = await db.articles.count();
       console.warn(`🔴 remoteStorage disconnected - ${articleCount} articles in local database`);
-      console.warn(`   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`);
+      console.warn(
+        `   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`
+      );
 
       // IMPORTANT: Only clear database if this is a deliberate user disconnect
       // Do NOT clear during sync operations or reconnect cycles
@@ -554,7 +566,7 @@ function initRemote() {
         if (!hasSetTotalArticles && isSyncing && !hasFinalizedTotal) {
           hasSetTotalArticles = true;
           try {
-            const listing = await client.getListing("saves/") as Record<string, any>;
+            const listing = (await client.getListing("saves/")) as Record<string, any>;
             if (listing) {
               const articlesInDb = await db.articles.count();
 
@@ -563,7 +575,9 @@ function initRemote() {
               // If this IS an initial sync, always use the listing count
               if (!isInitialSync) {
                 // Subsequent sync - use DB count as the canonical total (ignores dangling)
-                console.log(`   📊 Using DB count as total: ${articlesInDb} articles (ignores dangling)`);
+                console.log(
+                  `   📊 Using DB count as total: ${articlesInDb} articles (ignores dangling)`
+                );
                 notifySyncProgress({
                   totalArticles: articlesInDb,
                   processedArticles: articlesInDb,
@@ -588,7 +602,7 @@ function initRemote() {
 
         // Determine what action to take using extracted sync logic
         const slug = extractSlugFromPath(normalizedPath);
-        const existingArticle = slug ? (await db.articles.get(slug)) ?? null : null;
+        const existingArticle = slug ? ((await db.articles.get(slug)) ?? null) : null;
         const alreadyProcessed = processedArticles.has(normalizedPath);
 
         const syncEvent: SyncEvent = {
@@ -599,7 +613,7 @@ function initRemote() {
 
         const action = determineSyncAction(syncEvent, existingArticle, alreadyProcessed);
 
-        if (action === 'add' || action === 'update') {
+        if (action === "add" || action === "update") {
           // Track that we're processing this article
           processedArticles.add(normalizedPath);
 
@@ -618,7 +632,7 @@ function initRemote() {
             // Remove from processed set so it can be retried
             processedArticles.delete(normalizedPath);
           }
-        } else if (action === 'delete') {
+        } else if (action === "delete") {
           // File was deleted
           processedArticles.delete(normalizedPath);
 
@@ -668,7 +682,7 @@ export async function syncMissingArticles(): Promise<string> {
     console.log(`🔧 Manual sync: DB has ${articlesInDb}, expected ${expectedTotal}`);
 
     // Fetch fresh listing
-    const listing = await storage.client.getListing("saves/") as Record<string, any>;
+    const listing = (await storage.client.getListing("saves/")) as Record<string, any>;
     if (!listing) {
       return "Failed to fetch article listing";
     }
@@ -676,7 +690,7 @@ export async function syncMissingArticles(): Promise<string> {
     // Count articles in listing
     const articleSlugsInListing = Object.keys(listing)
       .filter((key) => listing[key] === true)
-      .map((key) => key.endsWith("/") ? key.slice(0, -1) : key);
+      .map((key) => (key.endsWith("/") ? key.slice(0, -1) : key));
 
     console.log(`🔧 Listing has ${articleSlugsInListing.length} articles`);
     console.log(`🔧 Expected total was ${expectedTotal}`);
