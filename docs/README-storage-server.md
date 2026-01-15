@@ -27,7 +27,7 @@ node armadietto.cjs
 This will:
 - Create a test user (`testuser` / `testpass`)
 - Generate an OAuth token for API access
-- Start the server on `http://127.0.0.1:8004`
+- Start the server on `http://localhost:8004`
 - Print the token and example curl commands
 
 ## Connecting Your App
@@ -40,7 +40,7 @@ Or see [README-connect-widget.md](README-connect-widget.md) for detailed technic
 1. Start server: `cd test-server && ./demo-widget-connection.sh`
 2. Start app: `npm run dev`
 3. Click RemoteStorage widget (bottom-right)
-4. Enter: `testuser@127.0.0.1:8004`
+4. Enter: `testuser@localhost:8004`
 5. Password: `testpass`
 6. Approve authorization
 
@@ -53,16 +53,16 @@ The server will print curl commands you can use immediately. For example:
 ```bash
 # Write a file
 curl -X PUT -H 'Authorization: Bearer <TOKEN>' \
-  http://127.0.0.1:8004/storage/testuser/test.txt \
+  http://localhost:8004/storage/testuser/test.txt \
   -d 'hello world'
 
 # Read a file
 curl -H 'Authorization: Bearer <TOKEN>' \
-  http://127.0.0.1:8004/storage/testuser/test.txt
+  http://localhost:8004/storage/testuser/test.txt
 
 # List directory
 curl -H 'Authorization: Bearer <TOKEN>' \
-  http://127.0.0.1:8004/storage/testuser/
+  http://localhost:8004/storage/testuser/
 ```
 
 ### 3. Run automated tests
@@ -82,11 +82,13 @@ This runs a comprehensive test suite including:
 The server is configured in [armadietto.cjs](armadietto.cjs):
 
 - **Storage path**: `/tmp/restore`
-- **Host**: `127.0.0.1`
-- **Port**: `8004`
+- **Host**: `localhost`
+- **Port**: `8004` (manual testing) / `8006` (automated testing)
 - **Test user**: `testuser` / `testpass`
 - **Permissions**: Full read/write access to root path (`/`)
 - **Signup**: Disabled (users must be created programmatically)
+
+> **Note**: The server automatically detects testing mode via `NODE_ENV=test` and switches to port 8006 for automated tests while using port 8004 for manual development.
 
 ## API Endpoints
 
@@ -157,7 +159,7 @@ Or modify [armadietto.cjs](armadietto.cjs) to reuse existing tokens.
 ### Port already in use
 Change the port in [armadietto.cjs](armadietto.cjs:37):
 ```javascript
-http: { host: "127.0.0.1", port: 8005 },
+http: { host: "localhost", port: 8005 },
 ```
 
 ### Permission denied
@@ -189,7 +191,7 @@ TOKEN=$(grep "Token:" /tmp/storage-server.log | awk '{print $2}')
 
 # Run your tests
 curl -X PUT -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/test.txt \
+  http://localhost:8004/storage/testuser/test.txt \
   -d "test data"
 
 # Cleanup

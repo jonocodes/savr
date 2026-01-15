@@ -1,9 +1,0 @@
-
-compatibility_date = "2024-11-13"
-compatibility_flags = ["nodejs_compat"]
-keep_vars = true
-name = "savr"
-pages_build_output_dir = "./dist"
-[vars]
-VITE_DEBUG = "asda"
-foo = "bar"

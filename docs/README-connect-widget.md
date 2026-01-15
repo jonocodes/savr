@@ -5,6 +5,7 @@ Your app uses the RemoteStorage widget which allows users to connect to any Remo
 ## Quick Start
 
 ### 1. Start the test server
+
 ```bash
 cd test-server
 node armadietto.cjs
@@ -13,6 +14,7 @@ node armadietto.cjs
 Note the token that's printed - you'll use it later for API testing.
 
 ### 2. Start your app
+
 ```bash
 npm run dev
 ```
@@ -22,16 +24,18 @@ npm run dev
 In your app's UI, you should see a RemoteStorage widget (usually in the bottom-right corner). Click on it and enter:
 
 ```
-testuser@127.0.0.1:8004
+testuser@localhost:8004
 ```
 
 Then click "Connect" and when prompted, enter the password:
+
 ```
 testpass
 ```
 
 The widget will:
-1. Perform WebFinger discovery at `http://127.0.0.1:8004/.well-known/webfinger?resource=acct:testuser@127.0.0.1:8004`
+
+1. Perform WebFinger discovery at `http://localhost:8004/.well-known/webfinger?resource=acct:testuser@localhost:8004`
 2. Get the storage API endpoint
 3. Show an OAuth authorization page
 4. After you approve, redirect back with an access token
@@ -42,11 +46,13 @@ The widget will:
 ### App Storage Structure
 
 Your app ([storage.ts](src/utils/storage.ts:23)) uses the scope `/savr/` and stores articles at:
+
 - `saves/*/article.json` - Article metadata and content
 
 ### Widget Configuration
 
 The widget ([RemoteStorageProvider.tsx](src/components/RemoteStorageProvider.tsx)) is configured to:
+
 - Appear in the bottom-right corner (when sync is enabled)
 - Claim `rw` (read/write) access to the `/savr/` scope
 - Support Google Drive and Dropbox (via API keys) as well as any RemoteStorage server
@@ -55,9 +61,9 @@ The widget ([RemoteStorageProvider.tsx](src/components/RemoteStorageProvider.tsx
 
 When you connect via the widget:
 
-1. **User enters address**: `testuser@127.0.0.1:8004`
+1. **User enters address**: `testuser@localhost:8004`
 2. **WebFinger discovery**: Widget queries `/.well-known/webfinger`
-3. **OAuth redirect**: Browser opens `http://127.0.0.1:8004/oauth/testuser?client_id=...&scope=savr:rw`
+3. **OAuth redirect**: Browser opens `http://localhost:8004/oauth/testuser?client_id=...&scope=savr:rw`
 4. **User login**: Enter password `testpass` and approve
 5. **Token grant**: Server generates token and redirects back
 6. **Connected**: Widget stores token and app can access storage
@@ -67,23 +73,29 @@ When you connect via the widget:
 If you want to manually test the OAuth flow:
 
 ### 1. Start the server
+
 ```bash
 node armadietto.cjs
 ```
 
 ### 2. Build the OAuth URL
+
 Open in your browser:
+
 ```
-http://127.0.0.1:8004/oauth/testuser?client_id=http://localhost:8000&redirect_uri=http://localhost:8000&response_type=token&scope=savr:rw&state=test123
+http://localhost:8004/oauth/testuser?client_id=http://localhost:8000&redirect_uri=http://localhost:8000&response_type=token&scope=savr:rw&state=test123
 ```
 
 ### 3. Login
+
 - Username: `testuser`
 - Password: `testpass`
 - Click "Authorize"
 
 ### 4. Extract token
+
 After redirect, the URL will contain:
+
 ```
 http://localhost:8000#access_token=XXXXXXXX&token_type=bearer&state=test123
 ```
@@ -102,7 +114,7 @@ TOKEN="cDikVtDo8g2akTq1xjDjIbWg4xs="
 curl -X PUT \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/test-123/article.json \
+  http://localhost:8004/storage/testuser/savr/saves/test-123/article.json \
   -d '{
     "id": "test-123",
     "url": "https://example.com/test",
@@ -113,11 +125,11 @@ curl -X PUT \
 
 # Read it back
 curl -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/test-123/article.json
+  http://localhost:8004/storage/testuser/savr/saves/test-123/article.json
 
 # List all articles
 curl -H "Authorization: Bearer $TOKEN" \
-  http://127.0.0.1:8004/storage/testuser/savr/saves/
+  http://localhost:8004/storage/testuser/savr/saves/
 ```
 
 ## Differences Between Tokens
@@ -143,12 +155,14 @@ For widget testing, you'll use OAuth tokens (option 2). For automated testing, u
 ### Widget says "Failed to connect"
 
 **Check:**
-1. Server is running on `127.0.0.1:8004`
-2. You entered `testuser@127.0.0.1:8004` (not just `testuser`)
+
+1. Server is running on `localhost:8004`
+2. You entered `testuser@localhost:8004` (not just `testuser`)
 3. Password is `testpass`
 4. CORS is enabled (Armadietto enables this by default)
 
 **Debug:**
+
 - Open browser DevTools → Network tab
 - Look for requests to `/.well-known/webfinger` and `/oauth/testuser`
 - Check console for errors
@@ -160,8 +174,9 @@ Make sure you're using `testpass` not the OAuth token.
 ### Data not syncing
 
 **Check:**
+
 1. Widget shows "Connected" status (green)
-2. Browser console shows `remoteStorage connected to "testuser@127.0.0.1:8004"`
+2. Browser console shows `remoteStorage connected to "testuser@localhost:8004"`
 3. Sync is enabled in preferences
 4. Check storage directly:
    ```bash
@@ -180,9 +195,9 @@ Check [PreferenceScreen.tsx](src/components/PreferenceScreen.tsx) - sync must be
 
 To test sync between multiple browser tabs:
 
-1. Connect in Tab 1: `testuser@127.0.0.1:8004`
+1. Connect in Tab 1: `testuser@localhost:8004`
 2. Save an article in Tab 1
-3. Connect in Tab 2: `testuser@127.0.0.1:8004`
+3. Connect in Tab 2: `testuser@localhost:8004`
 4. Article should appear in Tab 2
 
 Note: RemoteStorage doesn't have real-time sync - tabs poll for changes.
@@ -198,13 +213,9 @@ for (const username of ["testuser", "alice", "bob"]) {
     await store.createUser({
       username: username,
       password: "testpass",
-      email: `${username}@example.com`
+      email: `${username}@example.com`,
     });
-    const token = await store.authorize(
-      "http://localhost:3000",
-      username,
-      { "/": ["r", "w"] }
-    );
+    const token = await store.authorize("http://localhost:3000", username, { "/": ["r", "w"] });
     console.log(`${username}: ${token}`);
   } catch (error) {
     // User exists
@@ -213,8 +224,9 @@ for (const username of ["testuser", "alice", "bob"]) {
 ```
 
 Then connect with:
-- `alice@127.0.0.1:8004`
-- `bob@127.0.0.1:8004`
+
+- `alice@localhost:8004`
+- `bob@localhost:8004`
 
 Each user has isolated storage.
 
@@ -234,6 +246,7 @@ After connecting and saving articles, your storage looks like:
 ```
 
 You can inspect this directly:
+
 ```bash
 cat /tmp/restore/te/testuser/storage/savr/saves/article-123/article.json
 ```

@@ -446,7 +446,7 @@ export default function ArticleScreen(props: Props) {
             </Tooltip>
           )}
 
-          <IconButton color="inherit" onClick={openMenu}>
+          <IconButton color="inherit" onClick={openMenu} data-testid="article-page-menu-button">
             <MoreVertIcon />
           </IconButton>
 
@@ -454,6 +454,7 @@ export default function ArticleScreen(props: Props) {
             anchorEl={anchorEl}
             open={Boolean(anchorEl)}
             onClose={closeMenu}
+            data-testid="article-page-menu"
             anchorOrigin={{
               vertical: "bottom",
               horizontal: "right",
@@ -532,7 +533,7 @@ export default function ArticleScreen(props: Props) {
               <ListItemText>Share</ListItemText>
             </MenuItem>
 
-            <MenuItem onClick={handleDelete} sx={{ py: 1 }}>
+            <MenuItem onClick={handleDelete} sx={{ py: 1 }} data-testid="article-page-menu-delete">
               <ListItemIcon>
                 <DeleteIcon fontSize="small" />
               </ListItemIcon>

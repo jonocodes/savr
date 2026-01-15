@@ -53,12 +53,12 @@ import {
   setHeaderHidingInCookie,
   getAfterExternalSaveFromCookie,
   setAfterExternalSaveInCookie,
-  getWiFiOnlySyncFromCookie,
-  setWiFiOnlySyncInCookie,
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
+  getWiFiOnlySyncFromCookie,
+  setWiFiOnlySyncInCookie,
 } from "~/utils/cookies";
-import { isNetworkInfoSupported } from "~/utils/network";
+import { isPWAMode } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -79,7 +79,6 @@ export default function PreferencesScreen() {
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
   );
-  const networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
     files: number;
@@ -89,13 +88,7 @@ export default function PreferencesScreen() {
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA
-  const isInstalledPWA = React.useMemo(() => {
-    return (
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as any).standalone === true ||
-      document.referrer.includes("android-app://")
-    );
-  }, []);
+  const isInstalledPWA = isPWAMode();
 
   const { client: storageClient } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
@@ -206,9 +199,11 @@ export default function PreferencesScreen() {
       }
 
       setDeleteDialogOpen(false);
+
       enqueueSnackbar("All articles deleted successfully!", { variant: "success" });
     } catch (error) {
       console.error("Error deleting all articles:", error);
+      enqueueSnackbar("Failed to delete articles", { variant: "error" });
     }
   };
 
@@ -463,7 +458,7 @@ export default function PreferencesScreen() {
               <Switch edge="end" checked={syncEnabled} onChange={handleSyncToggle} />
             </ListItem>
 
-            {syncEnabled && networkSupported && (
+            {syncEnabled && isInstalledPWA && (
               <ListItem>
                 <ListItemIcon>
                   <WifiIcon />
@@ -472,7 +467,7 @@ export default function PreferencesScreen() {
                   primary={
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       Sync only over WiFi
-                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. Works on mobile browsers that support network detection.">
+                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. This setting only works in installed PWA mode.">
                         <HelpIcon fontSize="small" color="action" />
                       </Tooltip>
                     </Box>
@@ -705,6 +700,7 @@ export default function PreferencesScreen() {
         onClose={() => setDeleteDialogOpen(false)}
         aria-labelledby="delete-dialog-title"
         aria-describedby="delete-dialog-description"
+        data-testid="delete-all-articles-dialog"
       >
         <DialogTitle id="delete-dialog-title">Delete All Articles</DialogTitle>
         <DialogContent>
@@ -715,7 +711,12 @@ export default function PreferencesScreen() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
-          <Button onClick={handleDeleteAllArticles} color="error" variant="contained">
+          <Button
+            onClick={handleDeleteAllArticles}
+            color="error"
+            variant="contained"
+            data-testid="confirm-delete-all-button"
+          >
             Delete All Articles
           </Button>
         </DialogActions>

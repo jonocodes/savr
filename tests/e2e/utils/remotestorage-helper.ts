@@ -9,99 +9,177 @@ export async function connectToRemoteStorage(
   userAddress: string,
   token: string
 ): Promise<void> {
+  // Wait for RemoteStorage to be initialized by RemoteStorageProvider
+  await page.waitForFunction(() => !!(window as any).remoteStorage, { timeout: 10000 });
+
   await page.evaluate(
     async ({ userAddress, token }) => {
-      // Wait for RemoteStorage to be initialized
-      let attempts = 0;
-      while (!(window as any).remoteStorage && attempts < 50) {
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        attempts++;
-      }
-
-      if (!(window as any).remoteStorage) {
-        throw new Error("RemoteStorage not initialized after 5 seconds");
-      }
-
       const rs = (window as any).remoteStorage;
 
-      // Give RemoteStorage a moment to fully initialize
-      // The ready event should have already fired, but we'll wait a bit just in case
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      if (!rs) {
+        throw new Error("RemoteStorage not initialized");
+      }
 
-      // Connect with token (bypasses OAuth flow)
+      // Check if already connected to the same user address
+      if (rs.remote && rs.remote.connected && rs.remote.userAddress === userAddress) {
+        return;
+      }
+
+      // Extract the storage URL from userAddress (format: testuser@localhost:8006)
+      const [username, hostPort] = userAddress.split("@");
+      const storageRoot = `http://${hostPort}/storage/${username}`;
+      const properties = {
+        userAddress: userAddress,
+        href: storageRoot,
+        storageApi: "draft-dejong-remotestorage-22",
+        token: token,
+        properties: {
+          "http://remotestorage.io/spec/version": "draft-dejong-remotestorage-22",
+          "http://tools.ietf.org/html/rfc6749#section-4.2": `http://${hostPort}/oauth/${username}`,
+        },
+      };
+
+      // Directly configure the remote storage (bypass webfinger discovery)
       return new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(
-          () => reject(new Error("Connection timeout after 15 seconds")),
-          15000
-        );
+        const timeout = setTimeout(() => {
+          reject(new Error(`Connection timeout after 15 seconds to ${userAddress}`));
+        }, 15000);
 
         const cleanup = () => {
           clearTimeout(timeout);
-          rs.off("connected", onConnected);
-          rs.off("error", onError);
+          rs.removeEventListener("connected", onConnected);
+          rs.removeEventListener("error", onError);
         };
 
         const onConnected = () => {
           cleanup();
-          console.log("RemoteStorage connected successfully");
           resolve();
         };
 
         const onError = (err: any) => {
-          // Log the error for debugging
-          console.error("RemoteStorage connection error:", err);
-
-          // If it's a DiscoveryError, it might be transient - wait a bit and retry once
-          if (
-            err?.name === "DiscoveryError" ||
-            err?.constructor?.name === "DiscoveryError" ||
-            String(err).includes("DiscoveryError")
-          ) {
-            console.log("DiscoveryError detected, waiting 1 second before retry...");
-            cleanup();
-
-            setTimeout(() => {
-              // Retry connection once
-              const retryTimeout = setTimeout(
-                () => reject(new Error("Connection retry failed after DiscoveryError")),
-                10000
-              );
-
-              const onRetryConnected = () => {
-                clearTimeout(retryTimeout);
-                rs.off("connected", onRetryConnected);
-                rs.off("error", onRetryError);
-                console.log("RemoteStorage connected successfully on retry");
-                resolve();
-              };
-
-              const onRetryError = (retryErr: any) => {
-                clearTimeout(retryTimeout);
-                rs.off("connected", onRetryConnected);
-                rs.off("error", onRetryError);
-                reject(retryErr);
-              };
-
-              rs.on("connected", onRetryConnected);
-              rs.on("error", onRetryError);
-
-              rs.connect(userAddress, token);
-            }, 1000);
-          } else {
-            cleanup();
-            reject(err);
-          }
+          cleanup();
+          reject(err);
         };
 
         rs.on("connected", onConnected);
         rs.on("error", onError);
 
-        // Use the Armadietto-generated token to connect directly
-        rs.connect(userAddress, token);
+        // Configure the remote storage directly (bypasses webfinger discovery)
+        try {
+          rs.remote.configure(properties);
+        } catch (err) {
+          cleanup();
+          reject(err);
+        }
       });
     },
     { userAddress, token }
   );
+}
+
+/**
+ * Trigger a manual sync in RemoteStorage
+ * This forces RemoteStorage to check the server for changes
+ */
+export async function triggerRemoteStorageSync(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.sync) {
+      throw new Error("RemoteStorage or sync not available");
+    }
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        cleanup();
+        resolve(); // Resolve anyway to avoid hanging tests
+      }, 10000);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        rs.removeEventListener("sync-done", onSyncDone);
+        rs.removeEventListener("sync-req-done", onSyncReqDone);
+      };
+
+      const onSyncDone = () => {
+        console.log("Manual sync completed (sync-done)");
+        cleanup();
+        resolve();
+      };
+
+      const onSyncReqDone = () => {
+        console.log("Manual sync completed (sync-req-done)");
+        cleanup();
+        resolve();
+      };
+
+      rs.on("sync-done", onSyncDone);
+      rs.on("sync-req-done", onSyncReqDone);
+
+      // Trigger manual sync
+      console.log("Triggering manual RemoteStorage sync...");
+      rs.sync.sync();
+    });
+  });
+}
+
+/**
+ * Wait for RemoteStorage to finish pushing outgoing changes to the server
+ * This explicitly triggers a sync and waits for sync-done event
+ * This is useful after delete/update operations to ensure changes are pushed to server
+ * before another browser context tries to pull them
+ */
+export async function waitForOutgoingSync(page: Page, timeoutMs = 15000): Promise<void> {
+  await page.evaluate(async (timeoutMs) => {
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.sync) {
+      console.log("RemoteStorage not available, skipping outgoing sync wait");
+      return;
+    }
+
+    return new Promise<void>((resolve) => {
+      let resolved = false;
+
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          console.log(`⏰ Outgoing sync timeout after ${timeoutMs}ms`);
+          resolve();
+        }
+      }, timeoutMs);
+
+      const cleanup = () => {
+        clearTimeout(timeout);
+        rs.removeEventListener("sync-done", onSyncDone);
+      };
+
+      const onSyncDone = () => {
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          console.log(`✅ Outgoing sync completed (sync-done event received)`);
+          // Add buffer to ensure server has fully processed
+          setTimeout(() => resolve(), 1500);
+        }
+      };
+
+      // Listen for sync completion
+      rs.on("sync-done", onSyncDone);
+
+      // Trigger a sync to push outgoing changes
+      console.log("🔄 Triggering sync to push outgoing deletions/updates...");
+      try {
+        rs.sync.sync();
+      } catch (error) {
+        console.warn("Error triggering sync:", error);
+        if (!resolved) {
+          resolved = true;
+          cleanup();
+          resolve();
+        }
+      }
+    });
+  }, timeoutMs);
 }
 
 /**
@@ -229,19 +307,37 @@ export async function getArticleFromDB(page: Page, slug: string): Promise<any> {
 /**
  * Delete article from RemoteStorage
  * Used for test cleanup
+ * Will throw if RemoteStorage is not available, but gracefully handles if article doesn't exist
  */
 export async function deleteArticleFromStorage(page: Page, slug: string): Promise<void> {
   await page.evaluate(async (slug) => {
     const client = (window as any).remoteStorageClient;
-    if (!client) throw new Error("RemoteStorage client not available");
+    if (!client) {
+      throw new Error(
+        "RemoteStorage client not available - cannot cleanup. Did the test disconnect?"
+      );
+    }
 
     try {
+      // Check if article exists first
+      const listing = await client.getListing(`saves/${slug}/`);
+      if (!listing || Object.keys(listing).length === 0) {
+        console.log(`Article ${slug} not found in RemoteStorage (already deleted)`);
+        return;
+      }
+
       // Delete article directory
       await client.remove(`saves/${slug}/`);
       console.log(`Deleted article ${slug} from RemoteStorage`);
-    } catch (error) {
-      console.warn(`Failed to delete article ${slug}:`, error);
-      // Don't throw - cleanup failures shouldn't fail tests
+    } catch (error: any) {
+      // Gracefully handle "not found" errors (article was already deleted)
+      if (error?.message?.includes("404") || error?.message?.includes("not found")) {
+        console.log(`Article ${slug} not found in RemoteStorage (already deleted)`);
+        return;
+      }
+      // Throw for other errors
+      console.error(`Failed to delete article ${slug}:`, error);
+      throw error;
     }
   }, slug);
 }
@@ -320,4 +416,89 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
       };
     });
   }, slug);
+}
+
+/**
+ * Clear all articles from RemoteStorage and IndexedDB
+ * Useful for cleaning up test state between tests
+ */
+export async function clearAllArticles(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.remote || !rs.remote.connected) {
+      console.log("RemoteStorage not connected, skipping cleanup");
+      return;
+    }
+
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      console.log("RemoteStorage client not found, skipping cleanup");
+      return;
+    }
+
+    try {
+      // Get all article directories
+      const listing = await client.getListing("saves/");
+
+      if (listing && typeof listing === "object") {
+        const slugs = Object.keys(listing);
+        console.log(`Clearing ${slugs.length} articles from RemoteStorage`);
+
+        // Delete each article directory
+        for (const slug of slugs) {
+          try {
+            await client.remove(`saves/${slug}/article.json`);
+            await client.remove(`saves/${slug}/`);
+            console.log(`Deleted article: ${slug}`);
+          } catch (err) {
+            console.warn(`Failed to delete article ${slug}:`, err);
+          }
+        }
+
+        // Wait for deletion sync to complete
+        if (slugs.length > 0) {
+          console.log("Waiting for deletion sync to complete...");
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+    } catch (error) {
+      console.warn("Error clearing RemoteStorage:", error);
+    }
+
+    // Clear IndexedDB
+    try {
+      const dbName = "savrDb";
+      const request = indexedDB.open(dbName);
+
+      await new Promise<void>((resolve, reject) => {
+        request.onsuccess = () => {
+          const db = request.result;
+
+          try {
+            const transaction = db.transaction(["articles"], "readwrite");
+            const store = transaction.objectStore("articles");
+            const clearRequest = store.clear();
+
+            clearRequest.onsuccess = () => {
+              console.log("Cleared all articles from IndexedDB");
+              db.close();
+              resolve();
+            };
+
+            clearRequest.onerror = () => {
+              db.close();
+              reject(clearRequest.error);
+            };
+          } catch (error) {
+            db.close();
+            reject(error);
+          }
+        };
+
+        request.onerror = () => reject(request.error);
+      });
+    } catch (error) {
+      console.warn("Error clearing IndexedDB:", error);
+    }
+  });
 }

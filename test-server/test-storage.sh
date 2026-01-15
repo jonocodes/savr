@@ -6,7 +6,7 @@ set -e
 
 TOKEN="${1:-}"
 PORT="${PORT:-8004}"
-HOST="${HOST:-127.0.0.1}"
+HOST="${HOST:-localhost}"
 BASE_URL="http://${HOST}:${PORT}/storage/testuser"
 
 if [ -z "$TOKEN" ]; then

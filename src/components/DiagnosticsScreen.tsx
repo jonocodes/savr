@@ -14,20 +14,18 @@ import {
 import {
   CloudQueue as CloudQueueIcon,
   CloudOff as CloudOffIcon,
-  Cloud as CloudIcon,
+  Circle as CircleIcon,
 } from "@mui/icons-material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
-import { isPWAMode, isNetworkInfoSupported, isOnWiFi } from "~/utils/network";
 import React from "react";
 
 export default function DiagnosticsScreen() {
   // Get all articles from the database
   const articles = useLiveQuery(() => db.articles.toArray());
-  const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -51,6 +49,7 @@ export default function DiagnosticsScreen() {
   } | null>(null);
 
   const { client: remoteStorageClient } = useRemoteStorage();
+  const { status: syncStatus, isWiFi, isPWA } = useSyncStatus();
 
   // Scan for dangling remote storage items (directories without corresponding database entries)
   const scanDanglingItems = React.useCallback(async () => {
@@ -340,101 +339,26 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Current Status
+              Sync Status Indicator Reference
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Current sync and network status used by the indicator
+              All possible sync indicator states (shown on article list page)
             </Typography>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor:
-                      syncStatus === "active"
-                        ? "success.main"
-                        : syncStatus === "paused"
-                          ? "warning.main"
-                          : "grey.500",
-                  }}
-                />
-                <Typography variant="body2">
-                  syncStatus: <strong>{syncStatus}</strong>
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor: isPWAMode() ? "success.main" : "grey.500",
-                  }}
-                />
-                <Typography variant="body2">
-                  isPwa: <strong>{isPWAMode() ? "true" : "false"}</strong>
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor: isWiFi ? "success.main" : "warning.main",
-                  }}
-                />
-                <Typography variant="body2">
-                  isWifi: <strong>{isWiFi ? "true" : "false"}</strong>
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor: isNetworkSupported ? "success.main" : "grey.500",
-                  }}
-                />
-                <Typography variant="body2">
-                  isNetworkSupported: <strong>{isNetworkSupported ? "true" : "false"}</strong>
-                </Typography>
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Box
-                  sx={{
-                    width: 12,
-                    height: 12,
-                    borderRadius: "50%",
-                    backgroundColor:
-                      isNetworkSupported && syncStatus !== "disabled" ? "success.main" : "grey.500",
-                  }}
-                />
-                <Typography variant="body2">
-                  indicatorVisible:{" "}
-                  <strong>
-                    {isNetworkSupported && syncStatus !== "disabled" ? "true" : "false"}
-                  </strong>
-                </Typography>
-              </Box>
-            </Box>
-          </Box>
 
-          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
-            <Typography variant="h6" component="h3" gutterBottom>
-              Sync Indicator Preview
-            </Typography>
-            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              {isNetworkSupported && syncStatus !== "disabled"
-                ? "The 3 possible indicator states (current state is highlighted)"
-                : "Indicator not visible (Network API not supported or sync disabled)"}
-            </Typography>
-            <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
-              {/* Active state */}
-              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Active Sync - Green */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  p: 2,
+                  backgroundColor: syncStatus === "active" && isPWA ? "success.light" : "transparent",
+                  borderRadius: 1,
+                  border: syncStatus === "active" && isPWA ? "2px solid" : "1px solid",
+                  borderColor: syncStatus === "active" && isPWA ? "success.main" : "divider",
+                }}
+              >
                 <Box
                   sx={{
                     backgroundColor: "background.paper",
@@ -444,24 +368,40 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: isNetworkSupported && syncStatus === "active" ? 6 : 1,
+                    boxShadow: 2,
                     border: "2px solid",
                     borderColor: "success.main",
-                    opacity: isNetworkSupported && syncStatus === "active" ? 1 : 0.4,
+                    flexShrink: 0,
                   }}
                 >
                   <CloudQueueIcon sx={{ color: "success.main", fontSize: 32 }} />
                 </Box>
-                <Typography
-                  variant="caption"
-                  sx={{ fontWeight: isNetworkSupported && syncStatus === "active" ? "bold" : "normal" }}
-                >
-                  Active
-                </Typography>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" fontWeight="bold">
+                    Active Sync (Green)
+                    {syncStatus === "active" && isPWA && (
+                      <Chip label="CURRENT" size="small" color="success" sx={{ ml: 1 }} />
+                    )}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Sync is running normally. Shown when WiFi-only is OFF, or when WiFi-only is ON and connected to WiFi.
+                  </Typography>
+                </Box>
               </Box>
 
-              {/* Paused state */}
-              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+              {/* Paused Sync - Orange */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  p: 2,
+                  backgroundColor: syncStatus === "paused" && isPWA ? "warning.light" : "transparent",
+                  borderRadius: 1,
+                  border: syncStatus === "paused" && isPWA ? "2px solid" : "1px solid",
+                  borderColor: syncStatus === "paused" && isPWA ? "warning.main" : "divider",
+                }}
+              >
                 <Box
                   sx={{
                     backgroundColor: "background.paper",
@@ -471,24 +411,40 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: isNetworkSupported && syncStatus === "paused" ? 6 : 1,
+                    boxShadow: 2,
                     border: "2px solid",
                     borderColor: "warning.main",
-                    opacity: isNetworkSupported && syncStatus === "paused" ? 1 : 0.4,
+                    flexShrink: 0,
                   }}
                 >
                   <CloudOffIcon sx={{ color: "warning.main", fontSize: 32 }} />
                 </Box>
-                <Typography
-                  variant="caption"
-                  sx={{ fontWeight: isNetworkSupported && syncStatus === "paused" ? "bold" : "normal" }}
-                >
-                  Paused
-                </Typography>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" fontWeight="bold">
+                    Paused Sync (Orange)
+                    {syncStatus === "paused" && isPWA && (
+                      <Chip label="CURRENT" size="small" color="warning" sx={{ ml: 1 }} />
+                    )}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Sync is paused. Shown when WiFi-only mode is enabled and device is on cellular data.
+                  </Typography>
+                </Box>
               </Box>
 
-              {/* Disabled state */}
-              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
+              {/* Disabled/Hidden - Gray */}
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 2,
+                  p: 2,
+                  backgroundColor: (syncStatus === "disabled" || !isPWA) ? "action.selected" : "transparent",
+                  borderRadius: 1,
+                  border: (syncStatus === "disabled" || !isPWA) ? "2px solid" : "1px solid",
+                  borderColor: (syncStatus === "disabled" || !isPWA) ? "action.disabled" : "divider",
+                }}
+              >
                 <Box
                   sx={{
                     backgroundColor: "background.paper",
@@ -498,21 +454,45 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: !isNetworkSupported || syncStatus === "disabled" ? 6 : 1,
+                    boxShadow: 2,
                     border: "2px solid",
-                    borderColor: "grey.500",
-                    opacity: !isNetworkSupported || syncStatus === "disabled" ? 1 : 0.4,
+                    borderColor: "action.disabled",
+                    flexShrink: 0,
                   }}
                 >
-                  <CloudIcon sx={{ color: "grey.500", fontSize: 32 }} />
+                  <CircleIcon sx={{ color: "action.disabled", fontSize: 32 }} />
                 </Box>
-                <Typography
-                  variant="caption"
-                  sx={{ fontWeight: !isNetworkSupported || syncStatus === "disabled" ? "bold" : "normal" }}
-                >
-                  {!isNetworkSupported ? "Not Supported" : "Disabled"}
-                </Typography>
+                <Box sx={{ flexGrow: 1 }}>
+                  <Typography variant="body1" fontWeight="bold">
+                    Hidden / Not Shown (Gray)
+                    {(syncStatus === "disabled" || !isPWA) && (
+                      <Chip label="CURRENT" size="small" sx={{ ml: 1 }} />
+                    )}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary">
+                    Indicator is hidden. Shown here for reference only. This happens when sync is disabled in settings OR when not running in PWA mode.
+                  </Typography>
+                </Box>
               </Box>
+            </Box>
+
+            <Box sx={{ mt: 2, p: 2, backgroundColor: "info.light", borderRadius: 1 }}>
+              <Typography variant="body2" fontWeight="bold" color="info.dark">
+                Current Status:
+              </Typography>
+              <Typography variant="body2" component="pre" sx={{ mt: 1 }}>
+                {JSON.stringify(
+                  {
+                    syncStatus: syncStatus,
+                    isPWA: isPWA,
+                    isWiFi: isWiFi,
+                    indicatorVisible: syncStatus !== "disabled" && isPWA,
+                    visibleOn: "Article list page only (not on individual article pages)",
+                  },
+                  null,
+                  2
+                )}
+              </Typography>
             </Box>
           </Box>
 

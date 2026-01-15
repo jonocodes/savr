@@ -1,9 +1,8 @@
-import { test, expect, Browser } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
   triggerRemoteStorageSync,
-  waitForOutgoingSync,
   getArticleFromDB,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -25,8 +24,8 @@ try {
   );
 }
 
-test.describe("Multi-Browser RemoteStorage Sync", () => {
-  test("should sync article add and delete between two browser contexts", async ({ browser }) => {
+test.describe("Multi-Browser Archive Sync", () => {
+  test("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
     const context1 = await browser.newContext();
@@ -84,92 +83,102 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       console.log("2️⃣  Browser 1: Waiting for article to appear...");
       const articleTitle1 = page1.getByText(/Death/i);
       await expect(articleTitle1).toBeVisible({ timeout: 60000 });
-      console.log("✅ Browser 1: Article appeared in list");
+      console.log("✅ Browser 1: Article appeared in Saves list");
 
-      // Verify article in Browser 1's IndexedDB
-      console.log("3️⃣  Browser 1: Verifying article in IndexedDB...");
+      // Verify article is in "unread" state in Browser 1's IndexedDB
+      console.log("3️⃣  Browser 1: Verifying article state in IndexedDB...");
       const article1 = await getArticleFromDB(page1, "death-by-a-thousand-cuts");
       expect(article1).toBeTruthy();
       expect(article1?.slug).toBe("death-by-a-thousand-cuts");
-      console.log("✅ Browser 1: Article verified in IndexedDB:", article1?.title);
+      expect(article1?.state).toBe("unread");
+      console.log("✅ Browser 1: Article verified as 'unread' in IndexedDB");
 
-      // Trigger manual sync in Browser 2 to pull article from server
+      // Sync article to Browser 2
       console.log("\n4️⃣  Browser 2: Syncing to pull article from Browser 1...");
       await triggerRemoteStorageSync(page2);
       await page2.waitForTimeout(2000);
 
       const articleTitle2 = page2.getByText(/Death/i);
       await expect(articleTitle2).toBeVisible({ timeout: 10000 });
-      console.log("✅ Browser 2: Article appeared in list after sync!");
+      console.log("✅ Browser 2: Article appeared in Saves list after sync!");
 
       // Verify article in Browser 2's IndexedDB
       console.log("5️⃣  Browser 2: Verifying article in IndexedDB...");
-      const article2 = await getArticleFromDB(page2, "death-by-a-thousand-cuts");
-      expect(article2).toBeTruthy();
-      expect(article2?.slug).toBe("death-by-a-thousand-cuts");
-      expect(article2?.title).toBe(article1?.title);
-      console.log("✅ Browser 2: Article verified in IndexedDB:", article2?.title);
+      const article2Before = await getArticleFromDB(page2, "death-by-a-thousand-cuts");
+      expect(article2Before).toBeTruthy();
+      expect(article2Before?.state).toBe("unread");
+      console.log("✅ Browser 2: Article verified as 'unread' in IndexedDB");
 
-      // Test deletion sync: Delete in Browser 1, should disappear in Browser 2
-      console.log("\n6️⃣  Browser 1: Deleting article...");
+      // Archive the article in Browser 1
+      console.log("\n6️⃣  Browser 1: Archiving article...");
 
       // Find the article card and click menu
       const articleListItem1 = page1.locator(".MuiListItem-root").filter({ hasText: /Death/i });
       const menuButton1 = articleListItem1.locator(".MuiIconButton-root").last();
       await menuButton1.click();
 
-      const deleteMenuItem1 = page1.locator('.MuiMenuItem-root:has-text("Delete")');
-      await expect(deleteMenuItem1).toBeVisible({ timeout: 5000 });
-      await deleteMenuItem1.click();
+      const archiveMenuItem1 = page1.locator('.MuiMenuItem-root:has-text("Archive")');
+      await expect(archiveMenuItem1).toBeVisible({ timeout: 5000 });
+      await archiveMenuItem1.click();
 
-      // Wait for article to disappear from Browser 1
+      // Wait for article to disappear from Saves tab in Browser 1
       await expect(articleTitle1).not.toBeVisible({ timeout: 10000 });
-      console.log("✅ Browser 1: Article deleted and disappeared from list");
+      console.log("✅ Browser 1: Article disappeared from Saves tab");
 
-      // Verify article is gone from Browser 1's IndexedDB
-      console.log("7️⃣  Browser 1: Verifying article is deleted from IndexedDB...");
-      const articleAfterDelete1 = await getArticleFromDB(page1, "death-by-a-thousand-cuts");
-      expect(articleAfterDelete1).toBeFalsy();
-      console.log("✅ Browser 1: Article confirmed deleted from IndexedDB");
+      // Switch to Archive tab in Browser 1 to verify it's there
+      const archiveTab1 = page1.locator('button:has-text("Archive")');
+      await archiveTab1.click();
+      await expect(page1.getByText(/Death/i)).toBeVisible({ timeout: 5000 });
+      console.log("✅ Browser 1: Article now visible in Archive tab");
 
-      // Wait for Browser 1's deletion to be pushed to the server
-      console.log("\n8️⃣  Browser 1: Waiting for deletion to sync to server...");
-      await waitForOutgoingSync(page1);
-      console.log("✅ Browser 1: Deletion synced to server");
+      // Verify article state in Browser 1's IndexedDB
+      console.log("7️⃣  Browser 1: Verifying article state in IndexedDB...");
+      const article1After = await getArticleFromDB(page1, "death-by-a-thousand-cuts");
+      expect(article1After).toBeTruthy();
+      expect(article1After?.state).toBe("archived");
+      console.log("✅ Browser 1: Article state confirmed as 'archived' in IndexedDB");
 
-      // Trigger sync in Browser 2 to pull the deletion
-      console.log("9️⃣  Browser 2: Syncing to pull deletion...");
+      // Wait for archive state to sync to server
+      console.log("\n8️⃣  Browser 2: Syncing to pull archive state from Browser 1...");
+      await page1.waitForTimeout(2000);
+
+      // Trigger sync in Browser 2
       await triggerRemoteStorageSync(page2);
-
-      // Give change events time to process
       await page2.waitForTimeout(2000);
 
+      // Article should disappear from Saves tab in Browser 2
       await expect(articleTitle2).not.toBeVisible({ timeout: 10000 });
-      console.log("✅ Browser 2: Article disappeared after deletion sync!");
+      console.log("✅ Browser 2: Article disappeared from Saves tab after sync");
 
-      // Verify article is gone from Browser 2's IndexedDB
-      console.log("🔟 Browser 2: Verifying article is deleted from IndexedDB...");
-      const articleAfterDelete2 = await getArticleFromDB(page2, "death-by-a-thousand-cuts");
-      expect(articleAfterDelete2).toBeFalsy();
-      console.log("✅ Browser 2: Article confirmed deleted from IndexedDB");
+      // Verify article state in Browser 2's IndexedDB
+      console.log("9️⃣  Browser 2: Verifying article state in IndexedDB...");
+      const article2After = await getArticleFromDB(page2, "death-by-a-thousand-cuts");
+      expect(article2After).toBeTruthy();
+      expect(article2After?.state).toBe("archived");
+      console.log("✅ Browser 2: Article state confirmed as 'archived' in IndexedDB");
 
-      console.log("\n🎉 Multi-browser sync test completed successfully!");
+      // Switch to Archive tab in Browser 2 to verify it's there
+      const archiveTab2 = page2.locator('button:has-text("Archive")');
+      await archiveTab2.click();
+      await page2.waitForTimeout(500);
+      await expect(page2.getByText(/Death/i)).toBeVisible({ timeout: 5000 });
+      console.log("✅ Browser 2: Article now visible in Archive tab!");
+
+      console.log("\n🎉 Multi-browser archive sync test completed successfully!");
       console.log("   ✓ Article synced from Browser 1 to Browser 2");
-      console.log("   ✓ Deletion synced from Browser 1 to Browser 2");
-      console.log("   ✓ Both browsers' IndexedDB updated correctly");
+      console.log("   ✓ Archive state synced from Browser 1 to Browser 2");
+      console.log("   ✓ Both browsers' IndexedDB and UI updated correctly");
     } finally {
       // Cleanup
       console.log("\n🧹 Cleaning up browser contexts...");
       try {
         await context1.close();
       } catch (error) {
-        // Context might already be closed
         console.warn("⚠️  Context 1 cleanup:", error);
       }
       try {
         await context2.close();
       } catch (error) {
-        // Context might already be closed
         console.warn("⚠️  Context 2 cleanup:", error);
       }
       console.log("✅ Cleanup completed");

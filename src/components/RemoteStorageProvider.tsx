@@ -3,7 +3,8 @@ import RemoteStorage from "remotestoragejs";
 import { init } from "~/utils/storage";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { useRouter } from "@tanstack/react-router";
-import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
+import { SYNC_ENABLED_COOKIE_NAME, getWiFiOnlySyncFromCookie } from "~/utils/cookies";
+import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network";
 
 type RemoteStorageContextType = {
   remoteStorage: RemoteStorage | null;
@@ -83,7 +84,8 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
           const widgetElement = document.getElementById("remotestorage-widget");
           if (widgetElement) {
             const isArticlePage = window.location.pathname.startsWith("/article/");
-            widgetElement.style.display = isSyncEnabled && !isArticlePage ? "block" : "none";
+            const shouldShow = isSyncEnabled && !isArticlePage;
+            widgetElement.style.display = shouldShow ? "block" : "none";
           }
         }, 100);
       }
@@ -107,13 +109,79 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
 
   // Update widget visibility based on route
   useEffect(() => {
-    const widgetElement = document.getElementById("remotestorage-widget");
-    if (widgetElement) {
-      const isArticlePage = router.state.location.pathname.startsWith("/article/");
+    const updateVisibility = () => {
+      const widgetElement = document.getElementById("remotestorage-widget");
+      if (!widgetElement) return;
+
+      const isArticlePage = window.location.pathname.startsWith("/article/");
       const shouldShowWidget = syncEnabled && !isArticlePage;
       widgetElement.style.display = shouldShowWidget ? "block" : "none";
+    };
+
+    // Update immediately
+    updateVisibility();
+
+    // Poll for pathname changes to detect route changes
+    let lastPathname = window.location.pathname;
+    const intervalId = setInterval(() => {
+      if (window.location.pathname !== lastPathname) {
+        lastPathname = window.location.pathname;
+        updateVisibility();
+      }
+    }, 100);
+
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [syncEnabled]);
+
+  // Control sync based on WiFi status (only in PWA mode)
+  useEffect(() => {
+    if (!remoteStorage || !isPWAMode()) {
+      // If not in PWA mode or remoteStorage not initialized, don't control sync
+      return;
     }
-  }, [router.state.location.pathname, syncEnabled]);
+
+    const checkAndControlSync = () => {
+      const wifiOnlyEnabled = getWiFiOnlySyncFromCookie();
+      const currentlyOnWiFi = isOnWiFi();
+
+      // If WiFi-only is enabled and we're not on WiFi, stop sync
+      if (wifiOnlyEnabled && !currentlyOnWiFi) {
+        console.log("📴 Sync paused: WiFi-only mode enabled and not on WiFi");
+        try {
+          remoteStorage.stopSync();
+        } catch (error) {
+          console.warn("Failed to stop sync:", error);
+        }
+      } else {
+        // Otherwise, ensure sync is running
+        console.log("🔄 Sync active");
+        try {
+          remoteStorage.startSync();
+        } catch (error) {
+          console.warn("Failed to start sync:", error);
+        }
+      }
+    };
+
+    // Check sync status on mount
+    checkAndControlSync();
+
+    // Monitor network changes
+    const cleanupNetworkListener = onNetworkChange(() => {
+      console.log("Network change detected, checking sync status...");
+      checkAndControlSync();
+    });
+
+    // Monitor WiFi-only preference changes
+    const intervalId = setInterval(checkAndControlSync, 2000);
+
+    return () => {
+      cleanupNetworkListener();
+      clearInterval(intervalId);
+    };
+  }, [remoteStorage]);
 
   return (
     <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>
@@ -124,10 +192,6 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
           bottom: "10px",
           right: "10px",
           zIndex: 1000,
-          display:
-            syncEnabled && !router.state.location.pathname.startsWith("/article/")
-              ? "block"
-              : "none",
         }}
       />
       {children}

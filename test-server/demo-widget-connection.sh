@@ -37,7 +37,7 @@ echo ""
 
 # Test WebFinger endpoint
 echo "Testing WebFinger discovery..."
-WEBFINGER_RESULT=$(curl -s "http://127.0.0.1:8004/.well-known/webfinger?resource=acct:testuser@127.0.0.1:8004")
+WEBFINGER_RESULT=$(curl -s "http://localhost:8004/.well-known/webfinger?resource=acct:testuser@localhost:8004")
 
 if echo "$WEBFINGER_RESULT" | grep -q "remotestorage"; then
   echo "✓ WebFinger discovery working"
@@ -59,7 +59,7 @@ echo ""
 echo "2. Look for the RemoteStorage widget in the bottom-right"
 echo ""
 echo "3. Click the widget and enter:"
-echo "   testuser@127.0.0.1:8004"
+echo "   testuser@localhost:8004"
 echo ""
 echo "4. When prompted for password, enter:"
 echo "   testpass"
@@ -80,7 +80,7 @@ echo ""
 echo "curl -X PUT \\"
 echo "  -H 'Authorization: Bearer $TOKEN' \\"
 echo "  -H 'Content-Type: application/json' \\"
-echo "  http://127.0.0.1:8004/storage/testuser/savr/saves/demo-123/article.json \\"
+echo "  http://localhost:8004/storage/testuser/savr/saves/demo-123/article.json \\"
 echo "  -d '{"
 echo '    "id": "demo-123",'
 echo '    "url": "https://example.com/demo",'

@@ -47,7 +47,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
-import { generateInfoForCard } from "../../lib/src/lib";
+import { generateInfoForCard, getFilePathContent } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -72,6 +72,7 @@ function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
+  const [contentExists, setContentExists] = useState<boolean>(true);
 
   const storage = useRemoteStorage();
 
@@ -92,6 +93,23 @@ function ArticleItem({ article }: { article: Article }) {
 
     loadThumbnailData();
   }, []);
+
+  useEffect(() => {
+    const checkContentExists = async () => {
+      if (!storage.client) return;
+
+      try {
+        const contentPath = getFilePathContent(article.slug);
+        const file = (await storage.client.getFile(contentPath)) as { data: string } | null;
+        setContentExists(!!(file && file.data));
+      } catch (error) {
+        console.warn(`Failed to check content for ${article.slug}:`, error);
+        setContentExists(false);
+      }
+    };
+
+    checkContentExists();
+  }, [article.slug, storage.client]);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation(); // Prevent the ListItem click from firing
@@ -184,14 +202,19 @@ function ArticleItem({ article }: { article: Article }) {
         }
         secondary={
           <Typography variant="caption" color="text.secondary">
-            {generateInfoForCard(article)}
+            {contentExists ? generateInfoForCard(article) : "(content missing)"}
           </Typography>
         }
       />
-      <IconButton onClick={openMenu}>
+      <IconButton onClick={openMenu} data-testid="article-menu-button">
         <MoreVertIcon />
       </IconButton>
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={closeMenu}>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={closeMenu}
+        data-testid="article-menu"
+      >
         {article.state === "archived" ? (
           <MenuItem onClick={handleUnarchive}>
             <ListItemIcon>
@@ -213,7 +236,7 @@ function ArticleItem({ article }: { article: Article }) {
           </ListItemIcon>
           Share
         </MenuItem>
-        <MenuItem onClick={handleDelete}>
+        <MenuItem onClick={handleDelete} data-testid="article-menu-delete">
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
@@ -252,7 +275,7 @@ export default function ArticleListScreen() {
 
   const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
-  const { status: syncStatus, isNetworkSupported } = useSyncStatus();
+  const { status: syncStatus, isPWA } = useSyncStatus();
 
   // Track if we've shown the initial load message
   const hasShownInitialLoad = useRef(false);
@@ -541,11 +564,11 @@ export default function ArticleListScreen() {
             size="small"
           >
             <ToggleButton value="unread">
-              <ArticleIcon sx={{ mr: 1 }} />
+              <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
               Saves{unreadCount !== undefined ? ` (${unreadCount})` : ""}
             </ToggleButton>
             <ToggleButton value="archived">
-              <ArchiveIcon2 sx={{ mr: 1 }} />
+              <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
               Archive{archivedCount !== undefined ? ` (${archivedCount})` : ""}
             </ToggleButton>
           </ToggleButtonGroup>
@@ -581,9 +604,6 @@ export default function ArticleListScreen() {
               textAlign: "center",
             }}
           >
-            {/* <Typography variant="h4" gutterBottom>
-              Welcome to Savr
-            </Typography> */}
             <Typography variant="body1" color="text.secondary" gutterBottom>
               {filter === "unread"
                 ? "Start saving articles to see them here"
@@ -696,15 +716,15 @@ export default function ArticleListScreen() {
           <AddIcon />
         </Fab> */}
 
-      {/* Sync Status Indicator - Show when network info is supported and sync is not disabled */}
-      {isNetworkSupported && syncStatus !== "disabled" && (
+      {/* Sync Status Indicator - Only show in PWA mode and when sync is not disabled */}
+      {isPWA && syncStatus !== "disabled" && (
         <Tooltip
           title={
             syncStatus === "active"
               ? "Sync active"
               : syncStatus === "paused"
-                ? "Sync paused (WiFi only - currently on cellular)"
-                : ""
+              ? "Sync paused (WiFi only - currently on cellular)"
+              : ""
           }
         >
           <Box

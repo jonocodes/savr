@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/network";
+import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network";
 import { getWiFiOnlySyncFromCookie, SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 
 export type SyncStatus = "active" | "paused" | "disabled";
@@ -7,7 +7,7 @@ export type SyncStatus = "active" | "paused" | "disabled";
 interface SyncStatusContextType {
   status: SyncStatus;
   isWiFi: boolean;
-  isNetworkSupported: boolean;
+  isPWA: boolean;
 }
 
 const SyncStatusContext = createContext<SyncStatusContextType | undefined>(undefined);
@@ -18,10 +18,9 @@ interface SyncStatusProviderProps {
 
 export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
   const [isWiFi, setIsWiFi] = useState<boolean>(isOnWiFi());
-  // Default to true to match RemoteStorageProvider behavior
-  const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
+  const [syncEnabled, setSyncEnabled] = useState<boolean>(false);
   const [wiFiOnlySync, setWiFiOnlySync] = useState<boolean>(false);
-  const isNetworkSupported = isNetworkInfoSupported();
+  const isPWA = isPWAMode();
 
   // Load initial sync settings
   useEffect(() => {
@@ -34,7 +33,6 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
         const syncValue = syncCookie.split("=")[1];
         setSyncEnabled(syncValue === "true");
       }
-      // If no cookie exists, keep default of true (matching RemoteStorageProvider)
 
       // Check if WiFi-only mode is enabled
       setWiFiOnlySync(getWiFiOnlySyncFromCookie());
@@ -48,8 +46,13 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
     return () => clearInterval(intervalId);
   }, []);
 
-  // Monitor network changes - works in mobile browsers, not just PWA
+  // Monitor network changes
   useEffect(() => {
+    if (!isPWA) {
+      // If not in PWA mode, always assume WiFi (don't bother monitoring)
+      return;
+    }
+
     // Set initial WiFi status
     setIsWiFi(isOnWiFi());
 
@@ -61,12 +64,17 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
     });
 
     return cleanup;
-  }, []);
+  }, [isPWA]);
 
   // Calculate sync status
   const status: SyncStatus = React.useMemo(() => {
     if (!syncEnabled) {
       return "disabled";
+    }
+
+    // If not in PWA mode, WiFi-only doesn't apply
+    if (!isPWA) {
+      return "active";
     }
 
     // If WiFi-only is enabled and we're not on WiFi, pause sync
@@ -75,10 +83,10 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
     }
 
     return "active";
-  }, [syncEnabled, wiFiOnlySync, isWiFi]);
+  }, [syncEnabled, wiFiOnlySync, isWiFi, isPWA]);
 
   return (
-    <SyncStatusContext.Provider value={{ status, isWiFi, isNetworkSupported }}>
+    <SyncStatusContext.Provider value={{ status, isWiFi, isPWA }}>
       {children}
     </SyncStatusContext.Provider>
   );
