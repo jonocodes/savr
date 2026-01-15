@@ -178,8 +178,8 @@ export default function ArticleScreen(props: Props) {
 
       // const raw = await storage.client?.getFile(getFilePathRaw(slug));
 
-      // Load the current HTML from storage
-      const file = (await storage.client?.getFile(getFilePathContent(slug))) as { data: string };
+      // Load the current HTML from storage (local-only for fast read)
+      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as { data: string };
       if (!file) {
         throw new Error("Could not load HTML from storage");
       }
@@ -310,7 +310,7 @@ export default function ArticleScreen(props: Props) {
         displayDebugMessage("loading content ...");
         if (viewMode === "original") {
           storage.client
-            ?.getFile(getFilePathRaw(slug))
+            ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
             .then((file: any) => {
               setContent(file.data);
               setHtml(`${file.data}`);
@@ -320,7 +320,7 @@ export default function ArticleScreen(props: Props) {
             });
         } else {
           storage.client
-            ?.getFile(`saves/${slug}/index.html`)
+            ?.getFile(`saves/${slug}/index.html`, false) // maxAge: false = local-only, no network requests
             .then((file: any) => {
               setContent(file.data);
               setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);

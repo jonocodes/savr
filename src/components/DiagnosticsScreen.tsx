@@ -10,22 +10,35 @@ import {
   TableHead,
   TableRow,
   Chip,
+  Button,
+  Alert,
 } from "@mui/material";
 import {
   CloudQueue as CloudQueueIcon,
   CloudOff as CloudOffIcon,
-  Circle as CircleIcon,
+  Cloud as CloudIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
+import { useSyncProgress } from "~/hooks/useSyncProgress";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
+import { isPWAMode, isNetworkInfoSupported, isOnWiFi } from "~/utils/network";
 import React from "react";
+
+interface RemoteStorageEvent {
+  timestamp: string;
+  event: string;
+  data?: any;
+}
 
 export default function DiagnosticsScreen() {
   // Get all articles from the database
   const articles = useLiveQuery(() => db.articles.toArray());
+  const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
+  const syncProgress = useSyncProgress();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -47,9 +60,18 @@ export default function DiagnosticsScreen() {
     oldestIngestDate: string | null;
     newestIngestDate: string | null;
   } | null>(null);
+  const [remoteStorageEvents, setRemoteStorageEvents] = React.useState<RemoteStorageEvent[]>([]);
+  const [remoteStorageState, setRemoteStorageState] = React.useState<{
+    connected: boolean;
+    userAddress: string | null;
+    backend: string | null;
+  }>({
+    connected: false,
+    userAddress: null,
+    backend: null,
+  });
 
-  const { client: remoteStorageClient } = useRemoteStorage();
-  const { status: syncStatus, isWiFi, isPWA } = useSyncStatus();
+  const { client: remoteStorageClient, remoteStorage, widget } = useRemoteStorage();
 
   // Scan for dangling remote storage items (directories without corresponding database entries)
   const scanDanglingItems = React.useCallback(async () => {
@@ -198,6 +220,128 @@ export default function DiagnosticsScreen() {
     }
   }, [articles?.length]);
 
+  // Set up RemoteStorage event listeners
+  React.useEffect(() => {
+    if (!remoteStorage) return;
+
+    const addEvent = (event: string, data?: any) => {
+      setRemoteStorageEvents((prev) => [
+        {
+          timestamp: new Date().toLocaleTimeString(),
+          event,
+          data,
+        },
+        ...prev.slice(0, 49), // Keep last 50 events
+      ]);
+    };
+
+    const handleReady = () => {
+      addEvent("ready");
+    };
+
+    const handleConnected = () => {
+      addEvent("connected", {
+        userAddress: remoteStorage.remote?.userAddress,
+        backend: (remoteStorage.remote as any)?.backend,
+      });
+      setRemoteStorageState({
+        connected: true,
+        userAddress: remoteStorage.remote?.userAddress || null,
+        backend: (remoteStorage.remote as any)?.backend || null,
+      });
+    };
+
+    const handleDisconnected = () => {
+      addEvent("disconnected");
+      setRemoteStorageState({
+        connected: false,
+        userAddress: null,
+        backend: null,
+      });
+    };
+
+    const handleNotConnected = () => {
+      addEvent("not-connected");
+    };
+
+    const handleSyncDone = () => {
+      addEvent("sync-done");
+    };
+
+    const handleSyncReqDone = () => {
+      addEvent("sync-req-done");
+    };
+
+    const handleNetworkOnline = () => {
+      addEvent("network-online");
+    };
+
+    const handleNetworkOffline = () => {
+      addEvent("network-offline");
+    };
+
+    const handleWireError = (error: any) => {
+      addEvent("wire-error", { error: error?.message || String(error) });
+    };
+
+    const handleWireBusy = (req: any) => {
+      addEvent("wire-busy", { path: req?.path });
+    };
+
+    const handleWireDone = (req: any) => {
+      addEvent("wire-done", { path: req?.path });
+    };
+
+    // Register all event listeners
+    remoteStorage.on("ready", handleReady);
+    remoteStorage.on("connected", handleConnected);
+    remoteStorage.on("disconnected", handleDisconnected);
+    remoteStorage.on("not-connected", handleNotConnected);
+    remoteStorage.on("sync-done", handleSyncDone);
+    remoteStorage.on("sync-req-done", handleSyncReqDone);
+    remoteStorage.on("network-online", handleNetworkOnline);
+    remoteStorage.on("network-offline", handleNetworkOffline);
+    remoteStorage.on("error", handleWireError);
+    remoteStorage.on("wire-busy", handleWireBusy);
+    remoteStorage.on("wire-done", handleWireDone);
+
+    // Initialize state if already connected
+    if (remoteStorage.remote?.connected) {
+      setRemoteStorageState({
+        connected: true,
+        userAddress: remoteStorage.remote.userAddress || null,
+        backend: (remoteStorage.remote as any).backend || null,
+      });
+    }
+
+    // Cleanup
+    return () => {
+      remoteStorage.removeEventListener("ready", handleReady);
+      remoteStorage.removeEventListener("connected", handleConnected);
+      remoteStorage.removeEventListener("disconnected", handleDisconnected);
+      remoteStorage.removeEventListener("not-connected", handleNotConnected);
+      remoteStorage.removeEventListener("sync-done", handleSyncDone);
+      remoteStorage.removeEventListener("sync-req-done", handleSyncReqDone);
+      remoteStorage.removeEventListener("network-online", handleNetworkOnline);
+      remoteStorage.removeEventListener("network-offline", handleNetworkOffline);
+      remoteStorage.removeEventListener("error", handleWireError);
+      remoteStorage.removeEventListener("wire-busy", handleWireBusy);
+      remoteStorage.removeEventListener("wire-done", handleWireDone);
+    };
+  }, [remoteStorage]);
+
+  // Show RemoteStorage widget on diagnostics page
+  React.useEffect(() => {
+    if (widget) {
+      widget.attach();
+    }
+    return () => {
+      if (widget) {
+        widget.attach(); // Keep it attached even when leaving page
+      }
+    };
+  }, [widget]);
+
   if (!articles) {
     return (
       <Box sx={{ minHeight: "100vh", backgroundColor: "background.default", pt: 4 }}>
@@ -222,6 +366,143 @@ export default function DiagnosticsScreen() {
           <Typography variant="h4" component="h1" gutterBottom>
             Diagnostics
           </Typography>
+
+          {/* RemoteStorage Status Section */}
+          <Box sx={{ mt: 2, mb: 4 }}>
+            <Typography variant="h6" component="h2" gutterBottom>
+              RemoteStorage Status
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
+              {/* Connection Status */}
+              <Alert
+                severity={remoteStorageState.connected ? "success" : "warning"}
+                sx={{ display: "flex", alignItems: "center" }}
+              >
+                <Box sx={{ flex: 1 }}>
+                  <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                    {remoteStorageState.connected ? "Connected" : "Not Connected"}
+                  </Typography>
+                  {remoteStorageState.connected && (
+                    <>
+                      <Typography variant="body2" sx={{ mt: 0.5 }}>
+                        User: {remoteStorageState.userAddress || "Unknown"}
+                      </Typography>
+                      <Typography variant="body2">
+                        Backend: {remoteStorageState.backend || "Unknown"}
+                      </Typography>
+                    </>
+                  )}
+                </Box>
+              </Alert>
+
+              {/* Sync Progress */}
+              <Alert severity={syncProgress.isSyncing ? "info" : "success"}>
+                <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                  {syncProgress.isSyncing ? "Sync in Progress" : "Last Sync Status"}
+                </Typography>
+                <Typography variant="body2">Phase: {syncProgress.phase}</Typography>
+                <Typography variant="body2">
+                  Progress: {syncProgress.processedArticles} / {syncProgress.totalArticles}{" "}
+                  {syncProgress.totalArticles === 0 ? "(preparing...)" : "articles"}
+                </Typography>
+                {syncProgress.processedArticles < syncProgress.totalArticles &&
+                  !syncProgress.isSyncing && (
+                    <Box sx={{ mt: 1 }}>
+                      <Button
+                        size="small"
+                        variant="contained"
+                        color="primary"
+                        onClick={async () => {
+                          const { syncMissingArticles } = await import("~/utils/storage");
+                          const result = await syncMissingArticles();
+                          alert(result);
+                        }}
+                      >
+                        Manually Sync Missing Articles
+                      </Button>
+                    </Box>
+                  )}
+              </Alert>
+
+              {/* Recent Events */}
+              <Paper variant="outlined" sx={{ p: 2 }}>
+                <Box
+                  sx={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    mb: 1,
+                  }}
+                >
+                  <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                    RemoteStorage Events (Last 50)
+                  </Typography>
+                  <Button
+                    size="small"
+                    startIcon={<RefreshIcon />}
+                    onClick={() => setRemoteStorageEvents([])}
+                  >
+                    Clear
+                  </Button>
+                </Box>
+                <Box
+                  sx={{
+                    maxHeight: 300,
+                    overflowY: "auto",
+                    backgroundColor: "grey.50",
+                    borderRadius: 1,
+                    p: 1,
+                  }}
+                >
+                  {remoteStorageEvents.length > 0 ? (
+                    <Table size="small">
+                      <TableHead>
+                        <TableRow>
+                          <TableCell sx={{ fontWeight: "bold", width: "100px" }}>Time</TableCell>
+                          <TableCell sx={{ fontWeight: "bold", width: "150px" }}>Event</TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>Data</TableCell>
+                        </TableRow>
+                      </TableHead>
+                      <TableBody>
+                        {remoteStorageEvents.map((event, index) => (
+                          <TableRow key={index}>
+                            <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                              {event.timestamp}
+                            </TableCell>
+                            <TableCell>
+                              <Chip
+                                label={event.event}
+                                size="small"
+                                color={
+                                  event.event === "connected" || event.event === "sync-done"
+                                    ? "success"
+                                    : event.event.includes("error") ||
+                                        event.event === "disconnected"
+                                      ? "error"
+                                      : "default"
+                                }
+                              />
+                            </TableCell>
+                            <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                              {event.data ? JSON.stringify(event.data) : "-"}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  ) : (
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{ textAlign: "center", py: 2 }}
+                    >
+                      No events yet. Events will appear here as RemoteStorage operations occur.
+                    </Typography>
+                  )}
+                </Box>
+              </Paper>
+            </Box>
+          </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
@@ -339,26 +620,101 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Sync Status Indicator Reference
+              Current Status
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              All possible sync indicator states (shown on article list page)
+              Current sync and network status used by the indicator
             </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      syncStatus === "active"
+                        ? "success.main"
+                        : syncStatus === "paused"
+                          ? "warning.main"
+                          : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  syncStatus: <strong>{syncStatus}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isPWAMode() ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  isPwa: <strong>{isPWAMode() ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isWiFi ? "success.main" : "warning.main",
+                  }}
+                />
+                <Typography variant="body2">
+                  isWifi: <strong>{isWiFi ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor: isNetworkSupported ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  isNetworkSupported: <strong>{isNetworkSupported ? "true" : "false"}</strong>
+                </Typography>
+              </Box>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Box
+                  sx={{
+                    width: 12,
+                    height: 12,
+                    borderRadius: "50%",
+                    backgroundColor:
+                      isNetworkSupported && syncStatus !== "disabled" ? "success.main" : "grey.500",
+                  }}
+                />
+                <Typography variant="body2">
+                  indicatorVisible:{" "}
+                  <strong>
+                    {isNetworkSupported && syncStatus !== "disabled" ? "true" : "false"}
+                  </strong>
+                </Typography>
+              </Box>
+            </Box>
+          </Box>
 
-            <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {/* Active Sync - Green */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  p: 2,
-                  backgroundColor: syncStatus === "active" && isPWA ? "success.light" : "transparent",
-                  borderRadius: 1,
-                  border: syncStatus === "active" && isPWA ? "2px solid" : "1px solid",
-                  borderColor: syncStatus === "active" && isPWA ? "success.main" : "divider",
-                }}
-              >
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Typography variant="h6" component="h3" gutterBottom>
+              Sync Indicator Preview
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {isNetworkSupported && syncStatus !== "disabled"
+                ? "The 3 possible indicator states (current state is highlighted)"
+                : "Indicator not visible (Network API not supported or sync disabled)"}
+            </Typography>
+            <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
+              {/* Active state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <Box
                   sx={{
                     backgroundColor: "background.paper",
@@ -368,40 +724,26 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: 2,
+                    boxShadow: isNetworkSupported && syncStatus === "active" ? 6 : 1,
                     border: "2px solid",
                     borderColor: "success.main",
-                    flexShrink: 0,
+                    opacity: isNetworkSupported && syncStatus === "active" ? 1 : 0.4,
                   }}
                 >
                   <CloudQueueIcon sx={{ color: "success.main", fontSize: 32 }} />
                 </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="body1" fontWeight="bold">
-                    Active Sync (Green)
-                    {syncStatus === "active" && isPWA && (
-                      <Chip label="CURRENT" size="small" color="success" sx={{ ml: 1 }} />
-                    )}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Sync is running normally. Shown when WiFi-only is OFF, or when WiFi-only is ON and connected to WiFi.
-                  </Typography>
-                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: isNetworkSupported && syncStatus === "active" ? "bold" : "normal",
+                  }}
+                >
+                  Active
+                </Typography>
               </Box>
 
-              {/* Paused Sync - Orange */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  p: 2,
-                  backgroundColor: syncStatus === "paused" && isPWA ? "warning.light" : "transparent",
-                  borderRadius: 1,
-                  border: syncStatus === "paused" && isPWA ? "2px solid" : "1px solid",
-                  borderColor: syncStatus === "paused" && isPWA ? "warning.main" : "divider",
-                }}
-              >
+              {/* Paused state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <Box
                   sx={{
                     backgroundColor: "background.paper",
@@ -411,40 +753,26 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: 2,
+                    boxShadow: isNetworkSupported && syncStatus === "paused" ? 6 : 1,
                     border: "2px solid",
                     borderColor: "warning.main",
-                    flexShrink: 0,
+                    opacity: isNetworkSupported && syncStatus === "paused" ? 1 : 0.4,
                   }}
                 >
                   <CloudOffIcon sx={{ color: "warning.main", fontSize: 32 }} />
                 </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="body1" fontWeight="bold">
-                    Paused Sync (Orange)
-                    {syncStatus === "paused" && isPWA && (
-                      <Chip label="CURRENT" size="small" color="warning" sx={{ ml: 1 }} />
-                    )}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Sync is paused. Shown when WiFi-only mode is enabled and device is on cellular data.
-                  </Typography>
-                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight: isNetworkSupported && syncStatus === "paused" ? "bold" : "normal",
+                  }}
+                >
+                  Paused
+                </Typography>
               </Box>
 
-              {/* Disabled/Hidden - Gray */}
-              <Box
-                sx={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 2,
-                  p: 2,
-                  backgroundColor: (syncStatus === "disabled" || !isPWA) ? "action.selected" : "transparent",
-                  borderRadius: 1,
-                  border: (syncStatus === "disabled" || !isPWA) ? "2px solid" : "1px solid",
-                  borderColor: (syncStatus === "disabled" || !isPWA) ? "action.disabled" : "divider",
-                }}
-              >
+              {/* Disabled state */}
+              <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 1 }}>
                 <Box
                   sx={{
                     backgroundColor: "background.paper",
@@ -454,45 +782,24 @@ export default function DiagnosticsScreen() {
                     display: "flex",
                     alignItems: "center",
                     justifyContent: "center",
-                    boxShadow: 2,
+                    boxShadow: !isNetworkSupported || syncStatus === "disabled" ? 6 : 1,
                     border: "2px solid",
-                    borderColor: "action.disabled",
-                    flexShrink: 0,
+                    borderColor: "grey.500",
+                    opacity: !isNetworkSupported || syncStatus === "disabled" ? 1 : 0.4,
                   }}
                 >
-                  <CircleIcon sx={{ color: "action.disabled", fontSize: 32 }} />
+                  <CloudIcon sx={{ color: "grey.500", fontSize: 32 }} />
                 </Box>
-                <Box sx={{ flexGrow: 1 }}>
-                  <Typography variant="body1" fontWeight="bold">
-                    Hidden / Not Shown (Gray)
-                    {(syncStatus === "disabled" || !isPWA) && (
-                      <Chip label="CURRENT" size="small" sx={{ ml: 1 }} />
-                    )}
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary">
-                    Indicator is hidden. Shown here for reference only. This happens when sync is disabled in settings OR when not running in PWA mode.
-                  </Typography>
-                </Box>
+                <Typography
+                  variant="caption"
+                  sx={{
+                    fontWeight:
+                      !isNetworkSupported || syncStatus === "disabled" ? "bold" : "normal",
+                  }}
+                >
+                  {!isNetworkSupported ? "Not Supported" : "Disabled"}
+                </Typography>
               </Box>
-            </Box>
-
-            <Box sx={{ mt: 2, p: 2, backgroundColor: "info.light", borderRadius: 1 }}>
-              <Typography variant="body2" fontWeight="bold" color="info.dark">
-                Current Status:
-              </Typography>
-              <Typography variant="body2" component="pre" sx={{ mt: 1 }}>
-                {JSON.stringify(
-                  {
-                    syncStatus: syncStatus,
-                    isPWA: isPWA,
-                    isWiFi: isWiFi,
-                    indicatorVisible: syncStatus !== "disabled" && isPWA,
-                    visibleOn: "Article list page only (not on individual article pages)",
-                  },
-                  null,
-                  2
-                )}
-              </Typography>
             </Box>
           </Box>
 

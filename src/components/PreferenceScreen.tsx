@@ -53,12 +53,12 @@ import {
   setHeaderHidingInCookie,
   getAfterExternalSaveFromCookie,
   setAfterExternalSaveInCookie,
+  // getWiFiOnlySyncFromCookie, // Disabled - feature not working correctly
+  // setWiFiOnlySyncInCookie, // Disabled - feature not working correctly
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
-  getWiFiOnlySyncFromCookie,
-  setWiFiOnlySyncInCookie,
 } from "~/utils/cookies";
-import { isPWAMode } from "~/utils/network";
+import { isPWAMode, isNetworkInfoSupported } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -74,11 +74,12 @@ export default function PreferencesScreen() {
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
-  const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false);
+  // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
   );
+  const networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
     files: number;
@@ -117,8 +118,8 @@ export default function PreferencesScreen() {
       setSyncEnabled(syncValue === "true");
     }
 
-    // Load WiFi-only sync setting from cookies
-    setWifiOnlySync(getWiFiOnlySyncFromCookie());
+    // Load WiFi-only sync setting from cookies - DISABLED
+    // setWifiOnlySync(getWiFiOnlySyncFromCookie());
 
     // Load header hiding setting from cookies
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
@@ -274,11 +275,12 @@ export default function PreferencesScreen() {
     }
   };
 
-  const handleWiFiOnlySyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const newValue = event.target.checked;
-    setWifiOnlySync(newValue);
-    setWiFiOnlySyncInCookie(newValue);
-  };
+  // DISABLED - WiFi-only sync feature not working correctly
+  // const handleWiFiOnlySyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+  //   const newValue = event.target.checked;
+  //   setWifiOnlySync(newValue);
+  //   setWiFiOnlySyncInCookie(newValue);
+  // };
 
   const handleHeaderHidingToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.checked;
@@ -458,7 +460,8 @@ export default function PreferencesScreen() {
               <Switch edge="end" checked={syncEnabled} onChange={handleSyncToggle} />
             </ListItem>
 
-            {syncEnabled && isInstalledPWA && (
+            {/* DISABLED - WiFi-only sync feature not working correctly */}
+            {/* {syncEnabled && networkSupported && (
               <ListItem>
                 <ListItemIcon>
                   <WifiIcon />
@@ -467,7 +470,7 @@ export default function PreferencesScreen() {
                   primary={
                     <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                       Sync only over WiFi
-                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. This setting only works in installed PWA mode.">
+                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. Works on mobile browsers that support network detection.">
                         <HelpIcon fontSize="small" color="action" />
                       </Tooltip>
                     </Box>
@@ -476,7 +479,7 @@ export default function PreferencesScreen() {
                 />
                 <Switch edge="end" checked={wifiOnlySync} onChange={handleWiFiOnlySyncToggle} />
               </ListItem>
-            )}
+            )} */}
           </List>
 
           {/* Reading Section */}

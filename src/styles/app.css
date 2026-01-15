@@ -11,6 +11,13 @@ pre { */
 
   html {
     color-scheme: light dark;
+    /* Disable pull-to-refresh gesture on mobile browsers */
+    overscroll-behavior-y: contain;
+  }
+
+  body {
+    /* Additional safeguard to prevent pull-to-refresh */
+    overscroll-behavior-y: contain;
   }
 /* 
   * {
