@@ -255,7 +255,7 @@ function initRemote() {
 
       // Check if we already have articles in IndexedDB to determine if this is truly initial
       const existingArticleCount = await db.articles.count();
-      const isInitialSync = existingArticleCount === 0;
+      isInitialSync = existingArticleCount === 0;
 
       // Notify UI that RemoteStorage sync is starting (downloading files to cache)
       // We don't know article count yet, so show as "preparing"
@@ -432,6 +432,7 @@ function initRemote() {
     // Track if we've fetched the total article count for progress reporting
     let hasSetTotalArticles = false;
     let hasFinalizedTotal = false; // Prevent resetting total after sync completes
+    let isInitialSync = false; // True if DB was empty when we connected
 
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
@@ -460,10 +461,11 @@ function initRemote() {
             if (listing) {
               const articlesInDb = await db.articles.count();
 
-              // If we already have articles in DB, use that as the total (accounts for dangling)
-              // Otherwise use the listing count
-              if (articlesInDb > 0) {
-                // We've synced before - use DB count as the canonical total
+              // If this is NOT an initial sync (we had articles when connected), use DB count as total
+              // This accounts for dangling articles and gives accurate progress on subsequent syncs
+              // If this IS an initial sync, always use the listing count
+              if (!isInitialSync) {
+                // Subsequent sync - use DB count as the canonical total (ignores dangling)
                 console.log(`   📊 Using DB count as total: ${articlesInDb} articles (ignores dangling)`);
                 notifySyncProgress({
                   totalArticles: articlesInDb,
@@ -471,7 +473,7 @@ function initRemote() {
                 });
                 hasFinalizedTotal = true; // Mark as finalized immediately
               } else {
-                // First sync - use listing count
+                // Initial sync - use listing count to show real progress
                 const totalArticles = Object.keys(listing).filter(
                   (key) => listing[key] === true
                 ).length;
