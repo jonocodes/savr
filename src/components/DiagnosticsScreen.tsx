@@ -407,6 +407,22 @@ export default function DiagnosticsScreen() {
                   Progress: {syncProgress.processedArticles} / {syncProgress.totalArticles}{" "}
                   {syncProgress.totalArticles === 0 ? "(preparing...)" : "articles"}
                 </Typography>
+                {syncProgress.processedArticles < syncProgress.totalArticles && !syncProgress.isSyncing && (
+                  <Box sx={{ mt: 1 }}>
+                    <Button
+                      size="small"
+                      variant="contained"
+                      color="primary"
+                      onClick={async () => {
+                        const { syncMissingArticles } = await import("~/utils/storage");
+                        const result = await syncMissingArticles();
+                        alert(result);
+                      }}
+                    >
+                      Manually Sync Missing Articles
+                    </Button>
+                  </Box>
+                )}
               </Alert>
 
               {/* Recent Events */}

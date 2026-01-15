@@ -709,6 +709,38 @@ export async function saveResource(
   return localPath;
 }
 
+// Manually trigger sync of missing articles (for diagnostics button)
+export async function syncMissingArticles(): Promise<string> {
+  try {
+    const storage = await init();
+    const articlesInDb = await db.articles.count();
+    const expectedTotal = currentSyncProgress.totalArticles;
+
+    if (articlesInDb >= expectedTotal) {
+      return `All articles synced (${articlesInDb}/${expectedTotal})`;
+    }
+
+    const missing = expectedTotal - articlesInDb;
+    console.log(`🔧 Manual sync: ${missing} articles missing`);
+
+    // Fetch listing and process missing articles
+    const listing = await storage.client.getListing("saves/") as Record<string, any>;
+    if (!listing) {
+      return "Failed to fetch article listing";
+    }
+
+    // Create a temporary processed set
+    const processedSet = new Set<string>();
+    await processMissingArticles(storage.client, listing, processedSet);
+
+    const newCount = await db.articles.count();
+    return `Synced ${newCount - articlesInDb} missing articles (${newCount}/${expectedTotal})`;
+  } catch (error) {
+    console.error("Manual sync failed:", error);
+    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 async function calculateTotalStorage(): Promise<{
   size: number;
   files: number;
