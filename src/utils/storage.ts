@@ -209,8 +209,10 @@ async function processMissingArticles(client: BaseClient, cachedListing: Record<
       await processArticleFile(client, articlePath);
       processedSet.add(articlePath);
       processed++;
+      // Use actual DB count for progress, not processedSet size
+      const articlesInDb = await db.articles.count();
       notifySyncProgress({
-        processedArticles: processedSet.size,
+        processedArticles: articlesInDb,
       });
     } catch (error) {
       console.error(`   ❌ Failed to process ${articlePath}:`, error);
@@ -618,9 +620,11 @@ function initRemote() {
                 (key) => listing[key] === true
               ).length;
               console.log(`   📊 Total articles to sync: ${totalArticles}`);
+              // Use actual DB count, not processedSet size
+              const articlesInDb = await db.articles.count();
               notifySyncProgress({
                 totalArticles,
-                processedArticles: processedArticles.size,
+                processedArticles: articlesInDb,
               });
             }
           } catch (error) {
@@ -646,7 +650,7 @@ function initRemote() {
             const existingArticle = await db.articles.get(slug);
             if (existingArticle) {
               console.log(`   ⏭️  Article already in DB: ${slug}`);
-              processedArticles.add(normalizedPath);
+              processedArticles.add(normalizedPath);  // Track that we've seen it, but don't update progress
               return;
             }
           }
@@ -658,9 +662,11 @@ function initRemote() {
           try {
             await processArticleFile(client, normalizedPath);
             // Update progress after processing each article
+            // Only count articles we actually inserted (not ones already in DB)
             if (isSyncing) {
+              const articlesInDb = await db.articles.count();
               notifySyncProgress({
-                processedArticles: processedArticles.size,
+                processedArticles: articlesInDb,
               });
             }
           } catch (error) {
