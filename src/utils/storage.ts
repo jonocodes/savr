@@ -556,15 +556,29 @@ function initRemote() {
           }
         }
 
-        // Skip if we've already processed this file
+        // Skip if we've already processed this file in this session
         if (processedArticles.has(normalizedPath)) {
-          console.log(`   ⏭️  Already processed: ${normalizedPath}`);
+          console.log(`   ⏭️  Already processed in this session: ${normalizedPath}`);
           return;
         }
 
         // Only process if this is a new file (newValue exists, oldValue doesn't)
         // or if it's an update (both exist)
         if (event.newValue !== undefined) {
+          // Extract slug to check if article already exists in IndexedDB
+          const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
+          if (slugMatch) {
+            const slug = slugMatch[1];
+
+            // Check if article already exists in IndexedDB (from previous session)
+            const existingArticle = await db.articles.get(slug);
+            if (existingArticle) {
+              console.log(`   ⏭️  Article already in DB: ${slug}`);
+              processedArticles.add(normalizedPath);
+              return;
+            }
+          }
+
           console.log(`   📥 Processing new/updated article: ${normalizedPath}`);
           processedArticles.add(normalizedPath);
 
