@@ -26,6 +26,9 @@ try {
 }
 
 test.describe("Multi-Browser RemoteStorage Sync", () => {
+  // These tests involve multiple browser contexts and sync operations, which take longer
+  test.setTimeout(120000); // 2 minutes
+
   test("should sync article add and delete between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
@@ -92,6 +95,12 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       expect(article1).toBeTruthy();
       expect(article1?.slug).toBe("death-by-a-thousand-cuts");
       console.log("✅ Browser 1: Article verified in IndexedDB:", article1?.title);
+
+      // Wait for Browser 1 to sync article to server
+      console.log("   Browser 1: Waiting for sync to server...");
+      await waitForOutgoingSync(page1);
+      await page1.waitForTimeout(2000);
+      console.log("   ✅ Browser 1: Sync completed");
 
       // Trigger manual sync in Browser 2 to pull article from server
       console.log("\n4️⃣  Browser 2: Syncing to pull article from Browser 1...");

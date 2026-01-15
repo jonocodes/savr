@@ -38,24 +38,34 @@ test.describe("RemoteStorage Widget Visibility", () => {
 
     // Add a test article to the database so we can navigate to it
     await page.evaluate(() => {
-      return new Promise<void>((resolve) => {
-        const request = indexedDB.open("savr-db");
+      return new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("savrDb");
+        request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const db = request.result;
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          store.put({
-            slug: "test-article",
-            title: "Test Article",
-            url: "https://example.com/test",
-            state: "unread",
-            ingestDate: new Date().toISOString(),
-            readTimeMinutes: 5,
-          });
-          transaction.oncomplete = () => {
+          try {
+            const transaction = db.transaction(["articles"], "readwrite");
+            const store = transaction.objectStore("articles");
+            store.put({
+              slug: "test-article",
+              title: "Test Article",
+              url: "https://example.com/test",
+              state: "unread",
+              ingestDate: new Date().toISOString(),
+              readTimeMinutes: 5,
+            });
+            transaction.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            transaction.onerror = () => {
+              db.close();
+              reject(transaction.error);
+            };
+          } catch (e) {
             db.close();
-            resolve();
-          };
+            reject(e);
+          }
         };
       });
     });
@@ -67,9 +77,10 @@ test.describe("RemoteStorage Widget Visibility", () => {
     // Wait for widget visibility to update
     await page.waitForTimeout(500);
 
-    // Check that the widget container is hidden
-    const widgetContainer = page.locator("#remotestorage-container");
-    await expect(widgetContainer).toBeHidden();
+    // Check that the widget itself is hidden (the container is always present,
+    // but the widget inside has display:none on article pages)
+    const widget = page.locator("#remotestorage-widget");
+    await expect(widget).toBeHidden();
   });
 
   test("widget should be hidden when sync is disabled", async ({ page }) => {
@@ -90,9 +101,10 @@ test.describe("RemoteStorage Widget Visibility", () => {
     // Wait for widget to initialize
     await page.waitForTimeout(500);
 
-    // Check that the widget container is hidden
-    const widgetContainer = page.locator("#remotestorage-container");
-    await expect(widgetContainer).toBeHidden();
+    // Check that the widget itself is hidden (the container is always present,
+    // but the widget inside has display:none when sync is disabled)
+    const widget = page.locator("#remotestorage-widget");
+    await expect(widget).toBeHidden();
   });
 
   test("widget should become visible when navigating from article page to list", async ({
@@ -103,24 +115,34 @@ test.describe("RemoteStorage Widget Visibility", () => {
     await page.waitForLoadState("networkidle");
 
     await page.evaluate(() => {
-      return new Promise<void>((resolve) => {
-        const request = indexedDB.open("savr-db");
+      return new Promise<void>((resolve, reject) => {
+        const request = indexedDB.open("savrDb");
+        request.onerror = () => reject(request.error);
         request.onsuccess = () => {
           const db = request.result;
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          store.put({
-            slug: "test-article-nav",
-            title: "Test Article Navigation",
-            url: "https://example.com/test-nav",
-            state: "unread",
-            ingestDate: new Date().toISOString(),
-            readTimeMinutes: 5,
-          });
-          transaction.oncomplete = () => {
+          try {
+            const transaction = db.transaction(["articles"], "readwrite");
+            const store = transaction.objectStore("articles");
+            store.put({
+              slug: "test-article-nav",
+              title: "Test Article Navigation",
+              url: "https://example.com/test-nav",
+              state: "unread",
+              ingestDate: new Date().toISOString(),
+              readTimeMinutes: 5,
+            });
+            transaction.oncomplete = () => {
+              db.close();
+              resolve();
+            };
+            transaction.onerror = () => {
+              db.close();
+              reject(transaction.error);
+            };
+          } catch (e) {
             db.close();
-            resolve();
-          };
+            reject(e);
+          }
         };
       });
     });
@@ -130,14 +152,14 @@ test.describe("RemoteStorage Widget Visibility", () => {
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(500);
 
-    const widgetContainer = page.locator("#remotestorage-container");
-    await expect(widgetContainer).toBeHidden();
+    const widget = page.locator("#remotestorage-widget");
+    await expect(widget).toBeHidden();
 
     // Navigate back to list - widget should become visible
     await page.goto("/");
     await page.waitForLoadState("networkidle");
     await page.waitForTimeout(500);
 
-    await expect(widgetContainer).toBeVisible();
+    await expect(widget).toBeVisible();
   });
 });
