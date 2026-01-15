@@ -396,20 +396,18 @@ export default function DiagnosticsScreen() {
               </Alert>
 
               {/* Sync Progress */}
-              {syncProgress.isSyncing && (
-                <Alert severity="info">
-                  <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
-                    Sync in Progress
-                  </Typography>
-                  <Typography variant="body2">
-                    Phase: {syncProgress.phase}
-                  </Typography>
-                  <Typography variant="body2">
-                    Progress: {syncProgress.processedArticles} / {syncProgress.totalArticles}{" "}
-                    {syncProgress.totalArticles === 0 ? "(preparing...)" : "articles"}
-                  </Typography>
-                </Alert>
-              )}
+              <Alert severity={syncProgress.isSyncing ? "info" : "success"}>
+                <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
+                  {syncProgress.isSyncing ? "Sync in Progress" : "Last Sync Status"}
+                </Typography>
+                <Typography variant="body2">
+                  Phase: {syncProgress.phase}
+                </Typography>
+                <Typography variant="body2">
+                  Progress: {syncProgress.processedArticles} / {syncProgress.totalArticles}{" "}
+                  {syncProgress.totalArticles === 0 ? "(preparing...)" : "articles"}
+                </Typography>
+              </Alert>
 
               {/* Recent Events */}
               <Paper variant="outlined" sx={{ p: 2 }}>
