@@ -6,6 +6,7 @@ import { Article } from "../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
 import { DefaultGlobalNotFound } from "@tanstack/react-router";
+import { determineSyncAction, extractSlugFromPath, type SyncEvent } from "./syncLogic";
 
 // Sync progress tracking
 export interface SyncProgress {
@@ -542,46 +543,27 @@ function initRemote() {
           }
         }
 
-        // Only process if this is a new file (newValue exists, oldValue doesn't)
-        // or if it's an update (both exist)
-        if (event.newValue !== undefined) {
-          // Extract slug to check if article already exists in IndexedDB
-          const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
-          let existingArticle = null;
+        // Determine what action to take using extracted sync logic
+        const slug = extractSlugFromPath(normalizedPath);
+        const existingArticle = slug ? (await db.articles.get(slug)) ?? null : null;
+        const alreadyProcessed = processedArticles.has(normalizedPath);
 
-          if (slugMatch) {
-            const slug = slugMatch[1];
-            existingArticle = await db.articles.get(slug);
-          }
+        const syncEvent: SyncEvent = {
+          path: normalizedPath,
+          oldValue: event.oldValue,
+          newValue: event.newValue,
+        };
 
-          // Distinguish between new additions and updates
-          // An update is either:
-          // 1. RemoteStorage reports oldValue (file was in local cache and changed)
-          // 2. Article exists in IndexedDB (even if not in local cache - handles reopened browsers)
-          const isUpdate = event.oldValue !== undefined || existingArticle !== null;
+        const action = determineSyncAction(syncEvent, existingArticle, alreadyProcessed);
 
-          // For new additions (not updates), skip if already processed this session
-          if (!isUpdate && processedArticles.has(normalizedPath)) {
-            return;
-          }
-
-          // For new additions (not updates), skip if somehow already in DB
-          // This shouldn't happen given the isUpdate logic above, but safety check
-          if (!isUpdate && existingArticle) {
-            processedArticles.add(normalizedPath);  // Track that we've seen it, but don't update progress
-            return;
-          }
-
-          // For updates, always process to sync latest changes
-          // (handles archive/unarchive, metadata changes, even across browser restarts)
-
+        if (action === 'add' || action === 'update') {
+          // Track that we're processing this article
           processedArticles.add(normalizedPath);
 
-          // Process immediately - no debouncing for individual files
+          // Process the article file
           try {
             await processArticleFile(client, normalizedPath);
             // Update progress after processing each article
-            // Only count articles we actually inserted (not ones already in DB)
             if (isSyncing) {
               const articlesInDb = await db.articles.count();
               notifySyncProgress({
@@ -593,14 +575,11 @@ function initRemote() {
             // Remove from processed set so it can be retried
             processedArticles.delete(normalizedPath);
           }
-        } else if (event.oldValue !== undefined && event.newValue === undefined) {
+        } else if (action === 'delete') {
           // File was deleted
           processedArticles.delete(normalizedPath);
 
-          // Extract slug from path and delete from IndexedDB
-          const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
-          if (slugMatch) {
-            const slug = slugMatch[1];
+          if (slug) {
             try {
               await db.articles.delete(slug);
             } catch (error) {
@@ -608,6 +587,7 @@ function initRemote() {
             }
           }
         }
+        // If action is 'skip', do nothing
       }
     });
   });
