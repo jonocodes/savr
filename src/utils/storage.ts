@@ -489,14 +489,14 @@ function initRemote() {
           }
         }
 
-        // Skip if we've already processed this file in this session
-        if (processedArticles.has(normalizedPath)) {
-          return;
-        }
-
         // Only process if this is a new file (newValue exists, oldValue doesn't)
         // or if it's an update (both exist)
         if (event.newValue !== undefined) {
+          // Skip if we've already processed this file in this session
+          if (processedArticles.has(normalizedPath)) {
+            return;
+          }
+
           // Extract slug to check if article already exists in IndexedDB
           const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
           if (slugMatch) {
