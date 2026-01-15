@@ -147,24 +147,19 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
 // Process a single article.json file and insert it into IndexedDB immediately
 async function processArticleFile(client: BaseClient, filePath: string): Promise<void> {
   try {
-    console.log(`📖 Processing article file: ${filePath}`);
     const file = (await client.getFile(filePath)) as { data: string };
 
     let article: Article;
     if (typeof file.data === "object") {
-      // for some reason this only happens with dropbox storage?
       article = file.data as Article;
-      console.log(`  ✓ Loaded article (object format): ${article.slug}`);
     } else {
       article = JSON.parse(file.data);
-      console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
     }
 
     // Insert immediately into IndexedDB
     await db.articles.put(article);
-    console.log(`  ✅ Inserted: ${article.slug}`);
   } catch (error) {
-    console.error(`  ✗ Error processing article file ${filePath}:`, error);
+    console.error(`Failed to process article ${filePath}:`, error);
   }
 }
 
@@ -445,16 +440,6 @@ function initRemote() {
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
 
-      // Only log article-related changes to reduce noise
-      if (isArticleFile) {
-        console.log("🔄 RemoteStorage change event:", {
-          path,
-          origin: event.origin,
-          hasOldValue: event.oldValue !== undefined,
-          hasNewValue: event.newValue !== undefined
-        });
-      }
-
       // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const isArticleChange =
         (path.startsWith("saves/") ||
@@ -504,7 +489,6 @@ function initRemote() {
 
         // Skip if we've already processed this file in this session
         if (processedArticles.has(normalizedPath)) {
-          console.log(`   ⏭️  Already processed in this session: ${normalizedPath}`);
           return;
         }
 
@@ -519,13 +503,11 @@ function initRemote() {
             // Check if article already exists in IndexedDB (from previous session)
             const existingArticle = await db.articles.get(slug);
             if (existingArticle) {
-              console.log(`   ⏭️  Article already in DB: ${slug}`);
               processedArticles.add(normalizedPath);  // Track that we've seen it, but don't update progress
               return;
             }
           }
 
-          console.log(`   📥 Processing new/updated article: ${normalizedPath}`);
           processedArticles.add(normalizedPath);
 
           // Process immediately - no debouncing for individual files
@@ -546,7 +528,6 @@ function initRemote() {
           }
         } else if (event.oldValue !== undefined && event.newValue === undefined) {
           // File was deleted
-          console.log(`   🗑️  Article deleted: ${normalizedPath}`);
           processedArticles.delete(normalizedPath);
 
           // Extract slug from path and delete from IndexedDB
@@ -555,9 +536,8 @@ function initRemote() {
             const slug = slugMatch[1];
             try {
               await db.articles.delete(slug);
-              console.log(`      ✅ Removed from IndexedDB: ${slug}`);
             } catch (error) {
-              console.error(`      ❌ Failed to delete article ${slug}:`, error);
+              console.error(`Failed to delete article ${slug}:`, error);
             }
           }
         }
