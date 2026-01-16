@@ -171,6 +171,13 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
+    // Wait for article to sync to server before disconnecting
+    console.log("   Waiting for sync to server...");
+    await waitForRemoteStorageSync(page);
+    // Extra wait to ensure sync completes
+    await page.waitForTimeout(2000);
+    console.log("   ✅ Sync completed");
+
     // 2. Disconnect from RemoteStorage
     console.log("2️⃣  Disconnecting from RemoteStorage...");
     await disconnectFromRemoteStorage(page);
@@ -553,8 +560,20 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test.afterEach(async ({ page }) => {
     // Clean up: delete test article from RemoteStorage and IndexedDB
     console.log("🧹 Cleaning up test article...");
-    await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
-    await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
-    console.log("✅ Cleanup completed\n");
+
+    // Navigate back to app if we're on an external page (e.g., content server)
+    const currentUrl = page.url();
+    if (!currentUrl.includes("localhost:3002")) {
+      await page.goto("/");
+      await page.waitForLoadState("networkidle");
+    }
+
+    try {
+      await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
+      await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
+      console.log("✅ Cleanup completed\n");
+    } catch (error) {
+      console.log("⚠️ Cleanup error (non-fatal):", error);
+    }
   });
 });

@@ -6,6 +6,40 @@ import { Article } from "../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
 import { DefaultGlobalNotFound } from "@tanstack/react-router";
+import { determineSyncAction, extractSlugFromPath, type SyncEvent } from "./syncLogic";
+
+// Sync progress tracking
+export interface SyncProgress {
+  isSyncing: boolean;
+  totalArticles: number;
+  processedArticles: number;
+  phase: "initial" | "ongoing" | "idle";
+}
+
+type SyncProgressListener = (progress: SyncProgress) => void;
+
+let syncProgressListeners: SyncProgressListener[] = [];
+let currentSyncProgress: SyncProgress = {
+  isSyncing: false,
+  totalArticles: 0,
+  processedArticles: 0,
+  phase: "idle",
+};
+
+export function subscribeSyncProgress(listener: SyncProgressListener): () => void {
+  syncProgressListeners.push(listener);
+  // Immediately notify with current state
+  listener(currentSyncProgress);
+  // Return unsubscribe function
+  return () => {
+    syncProgressListeners = syncProgressListeners.filter((l) => l !== listener);
+  };
+}
+
+function notifySyncProgress(progress: Partial<SyncProgress>) {
+  currentSyncProgress = { ...currentSyncProgress, ...progress };
+  syncProgressListeners.forEach((listener) => listener(currentSyncProgress));
+}
 
 // declare global {
 //   interface Window {
@@ -139,12 +173,9 @@ async function processArticleFile(
 
     let article: Article;
     if (typeof file.data === "object") {
-      // for some reason this only happens with dropbox storage?
       article = file.data as Article;
-      console.log(`  ✓ Loaded article (object format): ${article.slug}`);
     } else {
       article = JSON.parse(file.data);
-      console.log(`  ✓ Loaded article (JSON format): ${article.slug}`);
     }
 
     if (!article || !article.slug) {
@@ -176,43 +207,109 @@ async function processArticleFile(
   }
 }
 
-async function buildDbFromFiles(client: BaseClient, processedSet?: Set<string>) {
-  console.log("🔄 Refreshing database from remote storage files");
+// Process missing articles using cached listing (avoids slow glob operation)
+async function processMissingArticles(
+  client: BaseClient,
+  cachedListing: Record<string, any>,
+  processedSet: Set<string>
+) {
+  console.log("🔍 Processing missing articles from cached listing");
 
-  // Check cache status by looking at root listing
-  try {
-    const rootListing = await client.getListing("");
-    console.log("📂 Root listing:", rootListing);
-  } catch (error) {
-    console.warn("⚠️ Failed to get root listing - cache may not be ready:", error);
+  // Get all article slugs from the listing (strip trailing slashes from directory names)
+  const articleSlugs = Object.keys(cachedListing)
+    .filter((key) => cachedListing[key] === true)
+    .map((key) => (key.endsWith("/") ? key.slice(0, -1) : key));
+  console.log(`   Found ${articleSlugs.length} articles in listing`);
+
+  // Check which ones are missing from IndexedDB
+  const missingArticles: string[] = [];
+  for (const slug of articleSlugs) {
+    const articlePath = `saves/${slug}/article.json`;
+
+    // Skip if already processed in this session
+    if (processedSet.has(articlePath)) {
+      continue;
+    }
+
+    // Check if exists in IndexedDB
+    const exists = await db.articles.get(slug);
+    if (!exists) {
+      missingArticles.push(articlePath);
+      console.log(`      Missing: ${slug}`);
+    }
   }
 
-  const matches = await glob(client, "saves/*/article.json");
+  console.log(`   📥 ${missingArticles.length} articles missing from DB, fetching...`);
 
-  console.log(`📄 Matched ${matches.length} article files:`, matches);
-
-  if (matches.length === 0) {
-    console.warn("⚠️ No article.json files found. This could mean:");
-    console.warn("  1. Remote storage is empty");
-    console.warn("  2. Cache is not ready yet (sync still in progress)");
-    console.warn("  3. Files exist but glob pattern didn't match");
+  if (missingArticles.length === 0) {
+    console.log("   ✓ No missing articles to process");
     return;
   }
 
-  // Process and insert articles incrementally as they're found
-  console.log(`💾 Processing ${matches.length} articles incrementally...`);
-  for (const path of matches) {
-    // Skip if already processed (when called from change handler)
-    if (processedSet && processedSet.has(path)) {
-      continue;
-    }
-    await processArticleFile(client, path);
-    if (processedSet) {
-      processedSet.add(path);
+  // Process missing articles
+  let processed = 0;
+  for (const articlePath of missingArticles) {
+    try {
+      await processArticleFile(client, articlePath);
+      processedSet.add(articlePath);
+      processed++;
+      // Use actual DB count for progress, not processedSet size
+      const articlesInDb = await db.articles.count();
+      notifySyncProgress({
+        processedArticles: articlesInDb,
+      });
+    } catch (error) {
+      console.error(`   ❌ Failed to process ${articlePath}:`, error);
     }
   }
 
-  console.log("🏁 Database refresh complete");
+  console.log(`   ✅ Processed ${processed} missing articles`);
+}
+
+// Process deleted articles (articles in DB but not in RemoteStorage listing)
+async function processDeletedArticles(cachedListing: Record<string, any>) {
+  console.log("🗑️  Checking for deleted articles");
+
+  // Get all article slugs from the RemoteStorage listing
+  const remoteArticleSlugs = new Set(
+    Object.keys(cachedListing)
+      .filter((key) => cachedListing[key] === true)
+      .map((key) => (key.endsWith("/") ? key.slice(0, -1) : key))
+  );
+
+  console.log(`   Remote has ${remoteArticleSlugs.size} articles`);
+
+  // Get all articles from IndexedDB
+  const localArticles = await db.articles.toArray();
+  console.log(`   Local DB has ${localArticles.length} articles`);
+
+  // Find articles in DB but not in RemoteStorage
+  const articlesToDelete: string[] = [];
+  for (const article of localArticles) {
+    if (!remoteArticleSlugs.has(article.slug)) {
+      articlesToDelete.push(article.slug);
+      console.log(`      Deleted remotely: ${article.slug}`);
+    }
+  }
+
+  if (articlesToDelete.length === 0) {
+    console.log("   ✓ No deleted articles to remove");
+    return;
+  }
+
+  console.log(`   🗑️  Removing ${articlesToDelete.length} deleted articles from DB`);
+
+  // Delete articles from IndexedDB
+  for (const slug of articlesToDelete) {
+    try {
+      await db.articles.delete(slug);
+      console.log(`   ✓ Deleted ${slug}`);
+    } catch (error) {
+      console.error(`   ❌ Failed to delete ${slug}:`, error);
+    }
+  }
+
+  console.log(`   ✅ Removed ${articlesToDelete.length} deleted articles`);
 }
 
 function initRemote() {
@@ -232,139 +329,228 @@ function initRemote() {
 
     remoteStorage.caching.enable("/savr/");
 
+    // Track sync state to prevent clearing database during active sync
+    let isSyncing = false;
+    let hasCompletedInitialSync = false;
+    let hasProcessedAfterFirstCycle = false;
+
     remoteStorage.on("ready", function () {
-      console.info("remoteStorage ready");
+      console.info("🔵 remoteStorage ready");
       resolve(remoteStorage);
     });
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
-      console.info(`remoteStorage connected to "${userAddress}"`);
+      console.info(`🟢 remoteStorage connected to "${userAddress}"`);
+      isSyncing = true;
+      hasProcessedAfterFirstCycle = false; // Reset for this connection
+      hasSetTotalArticles = false; // Allow fetching total for new connection
+      hasFinalizedTotal = false; // Allow updating total for new sync
+
+      // Check if we already have articles in IndexedDB to determine if this is truly initial
+      const existingArticleCount = await db.articles.count();
+      isInitialSync = existingArticleCount === 0;
+
+      // Notify UI that RemoteStorage sync is starting (downloading files to cache)
+      // We don't know article count yet, so show as "preparing"
+      notifySyncProgress({
+        isSyncing: true,
+        phase: isInitialSync ? "initial" : "ongoing",
+        totalArticles: 0, // Don't know yet
+        processedArticles: 0,
+      });
+      console.info(
+        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`
+      );
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
     });
 
     // This event fires after the initial sync completes and files are cached locally
-    // We still run buildDbFromFiles here to catch any files that might have been missed
-    // by the incremental change handler, but most articles should already be loaded
+    // Check for any articles that might have been missed by the incremental change handler
     remoteStorage.on("sync-done", async () => {
-      console.info("RemoteStorage sync-done - checking for any missed files");
-      // Wait a bit longer to ensure cache is fully populated and change events have fired
+      console.info("RemoteStorage sync-done - checking for any missed articles");
+      // Wait a bit to ensure change events have fired
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
-      // Check if sync is actually complete by verifying cache status
-      let retries = 0;
-      const maxRetries = 5;
-      while (retries < maxRetries) {
-        try {
-          const listing = await client.getListing("saves/");
-          if (listing !== undefined) {
-            // Cache appears ready, proceed with buildDbFromFiles
-            break;
+      // Check how many articles change events have already processed
+      const articlesInDb = await db.articles.count();
+      const expectedTotal = currentSyncProgress.totalArticles;
+      console.info(
+        `   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`
+      );
+
+      // Fetch fresh listing to check for additions and deletions
+      // (fast operation, avoids slow glob)
+      try {
+        console.info("   → Fetching article listing to check for sync discrepancies");
+        const listing = (await client.getListing("saves/")) as Record<string, any>;
+        if (listing) {
+          // Process missing articles (additions made while browser was closed)
+          const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
+          if (missingArticles > 0 || articlesInDb < 10) {
+            console.info(`   → Missing ${missingArticles} articles, processing them`);
+            await processMissingArticles(client, listing, processedArticles);
+          } else {
+            console.info("   → All articles synced via change events");
           }
-        } catch (error) {
-          console.warn(`⚠️ Cache check failed (attempt ${retries + 1}/${maxRetries}):`, error);
+
+          // Process deleted articles (deletions made while browser was closed)
+          // This is necessary because deletion change events require oldValue,
+          // which is undefined if the browser was closed when deletion occurred
+          await processDeletedArticles(listing);
+        } else {
+          console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
-        retries++;
-        if (retries < maxRetries) {
-          await new Promise((resolve) => setTimeout(resolve, 500));
-        }
+      } catch (error) {
+        console.error("   ❌ Error fetching listing:", error);
       }
 
-      // Get current article count before processing
-      const articlesBefore = await db.articles.count();
-      console.log(`📊 Articles in database before buildDbFromFiles: ${articlesBefore}`);
-
-      await buildDbFromFiles(client, processedArticles);
-
-      // Get article count after processing
-      const articlesAfter = await db.articles.count();
-      console.log(`📊 Articles in database after buildDbFromFiles: ${articlesAfter}`);
-
-      // Force a database query to ensure useLiveQuery detects the changes
-      // This helps trigger React re-renders if useLiveQuery didn't detect the changes
-      if (articlesAfter > articlesBefore) {
-        console.log(`✅ Added ${articlesAfter - articlesBefore} new articles - triggering refresh`);
-        // Force a query to ensure the database transaction is complete
-        await db.articles.toArray();
-      }
+      isSyncing = false;
+      hasCompletedInitialSync = true;
+      hasFinalizedTotal = true; // Lock the total to prevent resetting
+      // Notify UI that sync is complete
+      // Set total to actual DB count (accounts for any failed/dangling articles)
+      const finalCount = await db.articles.count();
+      notifySyncProgress({
+        isSyncing: false,
+        phase: "idle",
+        totalArticles: finalCount,
+        processedArticles: finalCount,
+      });
+      console.info(`✅ Initial sync complete - ${finalCount} articles in database`);
     });
 
     // Also listen for when ongoing sync cycles complete
     remoteStorage.on("sync-req-done", async () => {
-      console.info("RemoteStorage sync-req-done - sync cycle completed");
-      // Note: We rely on the "change" event handler below to trigger rebuilds
-      // for individual file changes, so we don't rebuild here to avoid duplicates
+      console.info("🔄 RemoteStorage sync-req-done - sync cycle completed");
+
+      // Check for any articles that weren't caught by change events
+      // This handles the case where RemoteStorage loops on sync-req-done without firing sync-done
+      // Only process once after the first cycle to avoid repeated processing
+      if (isSyncing && !hasProcessedAfterFirstCycle) {
+        hasProcessedAfterFirstCycle = true;
+
+        // Check how many articles change events have already processed
+        const articlesInDb = await db.articles.count();
+        const expectedTotal = currentSyncProgress.totalArticles;
+        console.info(
+          `   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`
+        );
+
+        // Fetch listing to check for additions and deletions
+        try {
+          console.info("   → Fetching article listing to check for sync discrepancies");
+          const listing = (await client.getListing("saves/")) as Record<string, any>;
+          if (listing) {
+            // Process missing articles (additions made while browser was closed)
+            const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
+            if (missingArticles > 0 || articlesInDb < 10) {
+              console.info(`   → Missing ${missingArticles} articles, processing them`);
+              await processMissingArticles(client, listing, processedArticles);
+            } else {
+              console.info("   → All articles synced via change events");
+            }
+
+            // Process deleted articles (deletions made while browser was closed)
+            await processDeletedArticles(listing);
+          } else {
+            console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
+          }
+        } catch (error) {
+          console.error("   ❌ Error fetching listing:", error);
+        }
+
+        isSyncing = false;
+        hasCompletedInitialSync = true;
+        hasFinalizedTotal = true; // Lock the total to prevent resetting
+        // Notify UI that sync is complete
+        // Set total to actual DB count (accounts for any failed/dangling articles)
+        const finalCount = await db.articles.count();
+        notifySyncProgress({
+          isSyncing: false,
+          phase: "idle",
+          totalArticles: finalCount,
+          processedArticles: finalCount,
+        });
+        console.info(`   ✅ Sync complete - ${finalCount} articles in database`);
+      }
     });
 
     remoteStorage.on("not-connected", function () {
-      console.info("remoteStorage not-connected (anonymous mode)");
+      console.info("⚪ remoteStorage not-connected (anonymous mode)");
     });
 
     remoteStorage.on("disconnected", async function () {
-      console.info("remoteStorage disconnected");
+      const articleCount = await db.articles.count();
+      console.warn(`🔴 remoteStorage disconnected - ${articleCount} articles in local database`);
+      console.warn(
+        `   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`
+      );
 
-      // NOTE: We DON'T clear local articles on disconnect because:
-      // 1. Users may want to keep reading cached articles while disconnected
-      // 2. Clearing the database triggers RemoteStorage sync which can delete
-      //    articles from the server before disconnect completes
-      // 3. Articles will be cleared/refreshed on next connection anyway
-
-      // Just clear the processed articles tracking
-      processedArticles.clear();
-      console.info("✅ Cleared processed articles tracking");
+      // IMPORTANT: Only clear database if this is a deliberate user disconnect
+      // Do NOT clear during sync operations or reconnect cycles
+      if (!isSyncing && hasCompletedInitialSync) {
+        console.info("   → User-initiated disconnect detected, clearing local articles");
+        try {
+          await db.articles.clear();
+          processedArticles.clear(); // Clear processed articles tracking
+          hasCompletedInitialSync = false;
+          console.info("   ✅ Cleared all articles from local database");
+        } catch (error) {
+          console.error("   ❌ Failed to clear articles from local database:", error);
+        }
+      } else {
+        console.info("   → Preserving local database during sync/reconnect cycle");
+      }
     });
 
-    let lastNotificationTime = 0;
-    let lastSyncErrTime = 0;
-    const INITIAL_NOTIFICATION_TIMEOUT = 60_000;
-    let notificationTimeout = INITIAL_NOTIFICATION_TIMEOUT;
-    const TEN_MINUTES = 10 * 60 * 1000;
-
     remoteStorage.on("error", function (err) {
-      console.error(`unforeseen remoteStorage error:`, err);
-
-      //   if ('Unauthorized' === err?.name) { return; }
-      //   if ("SyncError" === err?.name) {
-      //     const timeDiff = Date.now() - lastNotificationTime + 8000;
-      //     if (timeDiff > notificationTimeout) {
-      //       transientMsg(extractUserMessage(err), 'warning');
-      //       lastNotificationTime = Date.now();
-
-      //       if (Date.now() - lastSyncErrTime > TEN_MINUTES) {
-      //         notificationTimeout = INITIAL_NOTIFICATION_TIMEOUT;
-      //       } else {
-      //         notificationTimeout = Math.min(notificationTimeout * 2, TEN_MINUTES);
-      //       }
-      //     }
-      //     lastSyncErrTime = Date.now();
-      //   } else {
-      //     console.error(`unforeseen remoteStorage error:`, err);
-      //     transientMsg(extractUserMessage(err));
-      //   }
+      console.error(`🚨 remoteStorage error:`, err);
+      // Reset sync flag on error to prevent stuck state
+      if (isSyncing) {
+        console.warn("   → Resetting sync flag due to error");
+        isSyncing = false;
+      }
     });
 
     remoteStorage.on("network-offline", () => {
-      console.debug(`remoteStorage offline now.`);
+      console.info(`📴 remoteStorage network offline`);
     });
 
     remoteStorage.on("network-online", () => {
-      console.debug(`remoteStorage back online.`);
+      console.info(`📶 remoteStorage network online - sync will resume`);
+      // Sync automatically restarts when network comes back
+      if (hasCompletedInitialSync) {
+        isSyncing = true;
+      }
+    });
+
+    remoteStorage.on("wire-busy", () => {
+      console.debug(`⚡ remoteStorage wire-busy - network activity started`);
+    });
+
+    remoteStorage.on("wire-done", () => {
+      console.debug(`⚡ remoteStorage wire-done - network activity finished`);
     });
 
     // Track which articles we've already processed to avoid duplicates
     // This is shared between the change handler and sync-done handler
     const processedArticles = new Set<string>();
 
+    // Track if we've fetched the total article count for progress reporting
+    let hasSetTotalArticles = false;
+    let hasFinalizedTotal = false; // Prevent resetting total after sync completes
+    let isInitialSync = false; // True if DB was empty when we connected
+
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
     client.on("change", async (event: any) => {
-      console.log("RemoteStorage change event:", event);
-
-      // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
+
+      // Check for both relative (saves/) and absolute (/savr/saves/) paths
       const isArticleChange =
         (path.startsWith("saves/") ||
           path.startsWith("/savr/saves/") ||
@@ -375,60 +561,90 @@ function initRemote() {
         // Normalize path to relative format for tracking
         const normalizedPath = path.startsWith("/savr/") ? path.slice(6) : path;
 
-        // Check if this is a deletion event (oldValue exists, newValue doesn't)
-        // IMPORTANT: Check deletions BEFORE the processedArticles check
-        if (event.oldValue !== undefined && event.newValue === undefined) {
+        // On first article change, get total count and update progress
+        // Don't update if we've already finalized the total (accounts for dangling articles)
+        if (!hasSetTotalArticles && isSyncing && !hasFinalizedTotal) {
+          hasSetTotalArticles = true;
+          try {
+            const listing = (await client.getListing("saves/")) as Record<string, any>;
+            if (listing) {
+              const articlesInDb = await db.articles.count();
+
+              // If this is NOT an initial sync (we had articles when connected), use DB count as total
+              // This accounts for dangling articles and gives accurate progress on subsequent syncs
+              // If this IS an initial sync, always use the listing count
+              if (!isInitialSync) {
+                // Subsequent sync - use DB count as the canonical total (ignores dangling)
+                console.log(
+                  `   📊 Using DB count as total: ${articlesInDb} articles (ignores dangling)`
+                );
+                notifySyncProgress({
+                  totalArticles: articlesInDb,
+                  processedArticles: articlesInDb,
+                });
+                hasFinalizedTotal = true; // Mark as finalized immediately
+              } else {
+                // Initial sync - use listing count to show real progress
+                const totalArticles = Object.keys(listing).filter(
+                  (key) => listing[key] === true
+                ).length;
+                console.log(`   📊 Total articles to sync: ${totalArticles}`);
+                notifySyncProgress({
+                  totalArticles,
+                  processedArticles: articlesInDb,
+                });
+              }
+            }
+          } catch (error) {
+            console.warn("   ⚠️ Failed to get article count:", error);
+          }
+        }
+
+        // Determine what action to take using extracted sync logic
+        const slug = extractSlugFromPath(normalizedPath);
+        const existingArticle = slug ? ((await db.articles.get(slug)) ?? null) : null;
+        const alreadyProcessed = processedArticles.has(normalizedPath);
+
+        const syncEvent: SyncEvent = {
+          path: normalizedPath,
+          oldValue: event.oldValue,
+          newValue: event.newValue,
+        };
+
+        const action = determineSyncAction(syncEvent, existingArticle, alreadyProcessed);
+
+        if (action === "add" || action === "update") {
+          // Track that we're processing this article
+          processedArticles.add(normalizedPath);
+
+          // Process the article file
+          try {
+            await processArticleFile(client, normalizedPath);
+            // Update progress after processing each article
+            if (isSyncing) {
+              const articlesInDb = await db.articles.count();
+              notifySyncProgress({
+                processedArticles: articlesInDb,
+              });
+            }
+          } catch (error) {
+            console.error(`   ❌ Failed to process article file:`, error);
+            // Remove from processed set so it can be retried
+            processedArticles.delete(normalizedPath);
+          }
+        } else if (action === "delete") {
           // File was deleted
-          console.log(`🗑️ Article deleted: ${normalizedPath}`);
           processedArticles.delete(normalizedPath);
 
-          // Extract slug from path and delete from IndexedDB
-          const slugMatch = normalizedPath.match(/saves\/([^\/]+)\/article\.json/);
-          if (slugMatch) {
-            const slug = slugMatch[1];
+          if (slug) {
             try {
               await db.articles.delete(slug);
-              console.log(`  ✅ Deleted article from IndexedDB: ${slug}`);
-              // Force a query to ensure useLiveQuery detects the change
-              await db.articles.toArray();
             } catch (error) {
-              console.error(`  ✗ Failed to delete article ${slug}:`, error);
-            }
-          }
-        } else if (event.newValue !== undefined) {
-          // This is a new file or update
-          const isUpdate = event.oldValue !== undefined;
-
-          // Skip if we've already processed this file AND it's not an update
-          // Updates must always be processed to sync state changes (like archive/unarchive)
-          if (processedArticles.has(normalizedPath) && !isUpdate) {
-            console.log(`Skipping already processed article: ${normalizedPath}`);
-            return;
-          }
-
-          if (isUpdate) {
-            console.log(`🔄 Article update detected: ${normalizedPath}`);
-          } else {
-            console.log(`📥 New article detected: ${normalizedPath}`);
-            processedArticles.add(normalizedPath);
-          }
-
-          try {
-            // Process immediately - no debouncing for individual files
-            await processArticleFile(client, normalizedPath);
-            // Force a query to ensure useLiveQuery detects the change
-            await db.articles.toArray();
-          } catch (error) {
-            console.error(
-              `  ✗ Failed to process article from change event: ${normalizedPath}`,
-              error
-            );
-            // Remove from processed set so it can be retried by buildDbFromFiles (only for new files)
-            if (!isUpdate) {
-              processedArticles.delete(normalizedPath);
+              console.error(`Failed to delete article ${slug}:`, error);
             }
           }
         }
+        // If action is 'skip', do nothing
       }
     });
   });
@@ -456,6 +672,63 @@ export async function saveResource(
   return localPath;
 }
 
+// Manually trigger sync of missing articles (for diagnostics button)
+export async function syncMissingArticles(): Promise<string> {
+  try {
+    const storage = await init();
+    const articlesInDb = await db.articles.count();
+    const expectedTotal = currentSyncProgress.totalArticles;
+
+    console.log(`🔧 Manual sync: DB has ${articlesInDb}, expected ${expectedTotal}`);
+
+    // Fetch fresh listing
+    const listing = (await storage.client.getListing("saves/")) as Record<string, any>;
+    if (!listing) {
+      return "Failed to fetch article listing";
+    }
+
+    // Count articles in listing
+    const articleSlugsInListing = Object.keys(listing)
+      .filter((key) => listing[key] === true)
+      .map((key) => (key.endsWith("/") ? key.slice(0, -1) : key));
+
+    console.log(`🔧 Listing has ${articleSlugsInListing.length} articles`);
+    console.log(`🔧 Expected total was ${expectedTotal}`);
+
+    // Check actual missing articles
+    const actuallyMissing: string[] = [];
+    for (const slug of articleSlugsInListing) {
+      const exists = await db.articles.get(slug);
+      if (!exists) {
+        actuallyMissing.push(slug);
+        console.log(`   Missing: ${slug}`);
+      }
+    }
+
+    // Process missing articles (additions)
+    const processedSet = new Set<string>();
+    if (actuallyMissing.length > 0) {
+      await processMissingArticles(storage.client, listing, processedSet);
+    }
+
+    // Process deleted articles (deletions)
+    await processDeletedArticles(listing);
+
+    const newCount = await db.articles.count();
+    const added = Math.max(0, newCount - articlesInDb);
+    const removed = Math.max(0, articlesInDb - newCount);
+
+    if (added === 0 && removed === 0) {
+      return `No discrepancies found. DB: ${articlesInDb}, Listing: ${articleSlugsInListing.length}, Expected: ${expectedTotal}`;
+    }
+
+    return `Synced: +${added} articles, -${removed} deleted. Now: ${newCount}/${articleSlugsInListing.length}`;
+  } catch (error) {
+    console.error("Manual sync failed:", error);
+    return `Error: ${error instanceof Error ? error.message : String(error)}`;
+  }
+}
+
 async function calculateTotalStorage(): Promise<{
   size: number;
   files: number;
@@ -475,10 +748,10 @@ async function calculateTotalStorage(): Promise<{
 
         console.log("calculateTotalStorage", allFiles);
 
-        // Calculate size of files in RemoteStorage
+        // Calculate size of files in RemoteStorage (use local cache only)
         for (const filePath of allFiles) {
           try {
-            const file = (await store.client.getFile(filePath)) as { data: string };
+            const file = (await store.client.getFile(filePath, false)) as { data: string };
             if (file && file.data) {
               size += new Blob([file.data]).size;
             }
@@ -525,7 +798,7 @@ async function calculateArticleStorageSize(articleSlug: string): Promise<{
 
         for (const filePath of articleFiles) {
           try {
-            const file = (await store.client.getFile(filePath)) as { data: string };
+            const file = (await store.client.getFile(filePath, false)) as { data: string };
             if (file && file.data) {
               const fileSize = new Blob([file.data]).size;
               files.push({ path: filePath, size: fileSize });

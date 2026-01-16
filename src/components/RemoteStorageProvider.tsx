@@ -2,9 +2,9 @@ import React, { createContext, useContext, useState, useEffect } from "react";
 import RemoteStorage from "remotestoragejs";
 import { init } from "~/utils/storage";
 import BaseClient from "remotestoragejs/release/types/baseclient";
-import { useRouter } from "@tanstack/react-router";
-import { SYNC_ENABLED_COOKIE_NAME, getWiFiOnlySyncFromCookie } from "~/utils/cookies";
-import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network";
+import { useLocation } from "@tanstack/react-router";
+import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
+// import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network"; // Disabled - WiFi-only sync feature not working correctly
 
 type RemoteStorageContextType = {
   remoteStorage: RemoteStorage | null;
@@ -38,7 +38,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   const [client, setClient] = useState<BaseClient | null>(null);
   const [widget, setWidget] = useState<any>(null);
   const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
-  const router = useRouter();
+  const location = useLocation();
 
   // Initialize remote storage and widget (runs once)
   useEffect(() => {
@@ -78,16 +78,8 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
         newWidget.attach("remotestorage-container");
         widgetInstance = newWidget;
         setWidget(newWidget);
-
-        // Set initial visibility
-        setTimeout(() => {
-          const widgetElement = document.getElementById("remotestorage-widget");
-          if (widgetElement) {
-            const isArticlePage = window.location.pathname.startsWith("/article/");
-            const shouldShow = isSyncEnabled && !isArticlePage;
-            widgetElement.style.display = shouldShow ? "block" : "none";
-          }
-        }, 100);
+        // Note: Initial visibility is handled by the visibility effect
+        // which will re-run when setWidget triggers a state update
       }
     };
 
@@ -107,81 +99,65 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => clearInterval(interval);
   }, [syncEnabled]);
 
-  // Update widget visibility based on route
+  // Update widget visibility based on route and sync state
+  // This effect re-runs when widget is created, route changes, or sync setting changes
   useEffect(() => {
-    const updateVisibility = () => {
-      const widgetElement = document.getElementById("remotestorage-widget");
-      if (!widgetElement) return;
+    const widgetElement = document.getElementById("remotestorage-widget");
+    if (!widgetElement) return;
 
-      const isArticlePage = window.location.pathname.startsWith("/article/");
-      const shouldShowWidget = syncEnabled && !isArticlePage;
-      widgetElement.style.display = shouldShowWidget ? "block" : "none";
-    };
+    const isArticlePage = location.pathname.startsWith("/article/");
+    const shouldShowWidget = syncEnabled && !isArticlePage;
+    widgetElement.style.display = shouldShowWidget ? "block" : "none";
+  }, [widget, syncEnabled, location.pathname]);
 
-    // Update immediately
-    updateVisibility();
-
-    // Poll for pathname changes to detect route changes
-    let lastPathname = window.location.pathname;
-    const intervalId = setInterval(() => {
-      if (window.location.pathname !== lastPathname) {
-        lastPathname = window.location.pathname;
-        updateVisibility();
-      }
-    }, 100);
-
-    return () => {
-      clearInterval(intervalId);
-    };
-  }, [syncEnabled]);
-
+  // DISABLED - WiFi-only sync feature not working correctly
   // Control sync based on WiFi status (only in PWA mode)
-  useEffect(() => {
-    if (!remoteStorage || !isPWAMode()) {
-      // If not in PWA mode or remoteStorage not initialized, don't control sync
-      return;
-    }
+  // useEffect(() => {
+  //   if (!remoteStorage || !isPWAMode()) {
+  //     // If not in PWA mode or remoteStorage not initialized, don't control sync
+  //     return;
+  //   }
 
-    const checkAndControlSync = () => {
-      const wifiOnlyEnabled = getWiFiOnlySyncFromCookie();
-      const currentlyOnWiFi = isOnWiFi();
+  //   const checkAndControlSync = () => {
+  //     const wifiOnlyEnabled = getWiFiOnlySyncFromCookie();
+  //     const currentlyOnWiFi = isOnWiFi();
 
-      // If WiFi-only is enabled and we're not on WiFi, stop sync
-      if (wifiOnlyEnabled && !currentlyOnWiFi) {
-        console.log("📴 Sync paused: WiFi-only mode enabled and not on WiFi");
-        try {
-          remoteStorage.stopSync();
-        } catch (error) {
-          console.warn("Failed to stop sync:", error);
-        }
-      } else {
-        // Otherwise, ensure sync is running
-        console.log("🔄 Sync active");
-        try {
-          remoteStorage.startSync();
-        } catch (error) {
-          console.warn("Failed to start sync:", error);
-        }
-      }
-    };
+  //     // If WiFi-only is enabled and we're not on WiFi, stop sync
+  //     if (wifiOnlyEnabled && !currentlyOnWiFi) {
+  //       console.log("📴 Sync paused: WiFi-only mode enabled and not on WiFi");
+  //       try {
+  //         remoteStorage.stopSync();
+  //       } catch (error) {
+  //         console.warn("Failed to stop sync:", error);
+  //       }
+  //     } else {
+  //       // Otherwise, ensure sync is running
+  //       console.log("🔄 Sync active");
+  //       try {
+  //         remoteStorage.startSync();
+  //       } catch (error) {
+  //         console.warn("Failed to start sync:", error);
+  //       }
+  //     }
+  //   };
 
-    // Check sync status on mount
-    checkAndControlSync();
+  //   // Check sync status on mount
+  //   checkAndControlSync();
 
-    // Monitor network changes
-    const cleanupNetworkListener = onNetworkChange(() => {
-      console.log("Network change detected, checking sync status...");
-      checkAndControlSync();
-    });
+  //   // Monitor network changes
+  //   const cleanupNetworkListener = onNetworkChange(() => {
+  //     console.log("Network change detected, checking sync status...");
+  //     checkAndControlSync();
+  //   });
 
-    // Monitor WiFi-only preference changes
-    const intervalId = setInterval(checkAndControlSync, 2000);
+  //   // Monitor WiFi-only preference changes
+  //   const intervalId = setInterval(checkAndControlSync, 2000);
 
-    return () => {
-      cleanupNetworkListener();
-      clearInterval(intervalId);
-    };
-  }, [remoteStorage]);
+  //   return () => {
+  //     cleanupNetworkListener();
+  //     clearInterval(intervalId);
+  //   };
+  // }, [remoteStorage]);
 
   return (
     <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>
