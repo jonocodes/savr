@@ -53,6 +53,7 @@ import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
+import { formatReadTime } from "./PreferenceScreen";
 
 import { keyframes } from "@mui/system";
 
@@ -270,6 +271,16 @@ export default function ArticleListScreen() {
     return db.articles.where("state").equals("archived").count();
   });
 
+  // Read time sum queries
+  const unreadReadTimeSum = useLiveQuery(async () => {
+    const unreadArticles = await db.articles.where("state").equals("unread").toArray();
+    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+  });
+  const archivedReadTimeSum = useLiveQuery(async () => {
+    const archivedArticles = await db.articles.where("state").equals("archived").toArray();
+    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+  });
+
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
@@ -364,7 +375,7 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-          }
+          },
         );
 
         await db.articles.put(article);
@@ -402,7 +413,7 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-          }
+          },
         );
 
         console.log("About to save article to IndexedDB:", article);
@@ -457,7 +468,7 @@ export default function ArticleListScreen() {
       setUrl,
       enqueueSnackbar,
       navigate,
-    ]
+    ],
   );
 
   // Handle saveUrl query parameter
@@ -568,11 +579,11 @@ export default function ArticleListScreen() {
           >
             <ToggleButton value="unread">
               <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Saves{unreadCount !== undefined ? ` (${unreadCount})` : ""}
+              Saves
             </ToggleButton>
             <ToggleButton value="archived">
               <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Archive{archivedCount !== undefined ? ` (${archivedCount})` : ""}
+              Archive
             </ToggleButton>
           </ToggleButtonGroup>
         </Box>
@@ -602,7 +613,11 @@ export default function ArticleListScreen() {
             <Typography variant="body2">
               {syncProgress.totalArticles === 0 ? (
                 // During RemoteStorage sync phase (downloading to cache)
-                syncProgress.phase === "initial" ? "Preparing to sync..." : "Syncing..."
+                syncProgress.phase === "initial" ? (
+                  "Preparing to sync..."
+                ) : (
+                  "Syncing..."
+                )
               ) : (
                 // During article processing phase (we know the count)
                 <>
@@ -634,6 +649,30 @@ export default function ArticleListScreen() {
         maxWidth="sm"
         sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
       >
+        {/* Article count and reading time info */}
+        {filteredArticles.length > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
+            {filter === "unread" ? (
+              unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                <>
+                  Saves: {unreadCount} articles
+                  <br />
+                  Reading time: {formatReadTime(unreadReadTimeSum)}
+                </>
+              ) : (
+                "Loading..."
+              )
+            ) : archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+              <>
+                Archive: {archivedCount} articles
+                <br />
+                Reading time: {formatReadTime(archivedReadTimeSum)}
+              </>
+            ) : (
+              "Loading..."
+            )}
+          </Typography>
+        )}
         {filteredArticles.length > 0 ? (
           // TODO: make this a stack if I want spacing between items
           <List>

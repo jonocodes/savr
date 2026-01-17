@@ -68,6 +68,35 @@ import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 
+/**
+ * Formats minutes as a human-readable time string.
+ * Examples:
+ *   - 22 min -> "22 min"
+ *   - 683 min -> "11:23"
+ *   - 1500 min -> "1 day 1:00"
+ *   - 3000 min -> "2 days 2:00"
+ */
+export function formatReadTime(minutes: number): string {
+  const totalHours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  // Under 1 hour: show just minutes
+  if (totalHours === 0) {
+    return `${mins} min`;
+  }
+
+  // 24+ hours: show days and hours:minutes
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const dayLabel = days === 1 ? "day" : "days";
+    return `${days} ${dayLabel} ${hours}:${mins.toString().padStart(2, "0")}`;
+  }
+
+  // 1-24 hours: show hours:minutes
+  return `${totalHours}:${mins.toString().padStart(2, "0")}`;
+}
+
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
   const [corsProxy, setCorsProxy] = React.useState<string>("");
@@ -521,9 +550,15 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Unread Articles"
                 secondary={
-                  unreadCount !== undefined && unreadReadTimeSum !== undefined
-                    ? `${unreadCount} articles (total estimated reading time: ${unreadReadTimeSum} min)`
-                    : "Loading..."
+                  unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                    <>
+                      {unreadCount} articles
+                      <br />
+                      Reading time: {formatReadTime(unreadReadTimeSum)}
+                    </>
+                  ) : (
+                    "Loading..."
+                  )
                 }
               />
             </ListItem>
@@ -535,9 +570,15 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Archived Articles"
                 secondary={
-                  archivedCount !== undefined && archivedReadTimeSum !== undefined
-                    ? `${archivedCount} articles (total estimated reading time: ${archivedReadTimeSum} min)`
-                    : "Loading..."
+                  archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+                    <>
+                      {archivedCount} articles
+                      <br />
+                      Reading time: {formatReadTime(archivedReadTimeSum)}
+                    </>
+                  ) : (
+                    "Loading..."
+                  )
                 }
               />
             </ListItem>
@@ -655,9 +696,6 @@ export default function PreferencesScreen() {
             </ListItem>
             <ListItem>
               <ListItemText primary="Deployed" secondary={buildDate} />
-            </ListItem>
-            <ListItem>
-              <ListItemText primary="Mode" secondary={isInstalledPWA ? "PWA" : "Web app"} />
             </ListItem>
             <ListItem>
               <ListItemText

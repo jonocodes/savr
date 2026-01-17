@@ -12,6 +12,7 @@ import { PWARegister } from "~/components/PWARegister";
 import { SnackbarProvider } from "notistack";
 import { getThemeFromCookie, getEffectiveTheme, useSystemThemeListener } from "~/utils/cookies";
 import { createAppTheme } from "~/utils/theme";
+import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 
 export const Route = createRootRoute({
   errorComponent: DefaultCatchBoundary,
@@ -112,6 +113,9 @@ function UrlPatternMatcher() {
 
 function RootComponent() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
+
+  // Update document title with unread count
+  useDocumentTitle();
 
   // Listen for theme changes
   React.useEffect(() => {
