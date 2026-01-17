@@ -34,9 +34,18 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForLoadState("networkidle");
 
     // Clear all browser storage to ensure clean state
-    await page.evaluate(() => {
-      // Clear IndexedDB
-      indexedDB.deleteDatabase("savrDb");
+    await page.evaluate(async () => {
+      // Clear IndexedDB - must properly await the deletion
+      await new Promise<void>((resolve) => {
+        const request = indexedDB.deleteDatabase("savrDb");
+        request.onsuccess = () => resolve();
+        request.onerror = () => resolve(); // Resolve anyway to avoid hanging
+        request.onblocked = () => {
+          // Database is blocked by open connections, wait and resolve
+          console.log("Database deletion blocked, waiting...");
+          setTimeout(resolve, 500);
+        };
+      });
       // Clear localStorage
       localStorage.clear();
       // Clear sessionStorage
@@ -86,7 +95,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should ingest article from local server and display it", async ({ page }) => {
     // 1. Open add article dialog
     console.log("1️⃣  Opening add article dialog...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    // Use a robust locator that works both in empty state (text button) and non-empty state (icon button)
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -147,7 +157,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should persist article after disconnect and reconnect", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -230,7 +240,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -329,7 +339,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should delete article from listing page", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -390,7 +400,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should delete article from article page and redirect to listing", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -462,7 +472,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should delete all articles from preferences page", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 

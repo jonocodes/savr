@@ -11,7 +11,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should open add article dialog when Add Article button is clicked", async ({ page }) => {
     // Find and click the Add Article button
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible();
 
     await addButton.click();
@@ -29,7 +29,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should have URL input field in add article dialog", async ({ page }) => {
     // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await addButton.click();
 
     // Wait for dialog
@@ -48,7 +48,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should have save button in add article dialog", async ({ page }) => {
     // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await addButton.click();
 
     // Wait for dialog
@@ -65,7 +65,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should close dialog when cancel is clicked", async ({ page }) => {
     // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await addButton.click();
 
     // Wait for dialog
@@ -85,7 +85,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should close dialog when clicking outside", async ({ page }) => {
     // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await addButton.click();
 
     // Wait for dialog
@@ -101,7 +101,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should validate URL input", async ({ page }) => {
     // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await addButton.click();
 
     // Wait for dialog
@@ -129,7 +129,7 @@ test.describe("Add Article Dialog", () => {
 
   test("should accept valid URL format", async ({ page }) => {
     // Open the add article dialog
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await addButton.click();
 
     // Wait for dialog
@@ -150,7 +150,7 @@ test.describe("Add Article Dialog", () => {
 
   // test("should ingest CBC article and display correct title", async ({ page }) => {
   //   // Open the add article dialog
-  //   const addButton = page.locator('button:has-text("Add Article")');
+  //   const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
   //   await addButton.click();
 
   //   // Wait for dialog
