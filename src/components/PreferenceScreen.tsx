@@ -71,23 +71,30 @@ import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 /**
  * Formats minutes as a human-readable time string.
  * Examples:
- *   - 45 min -> "0:45 hours"
- *   - 683 min -> "11:23 hours"
- *   - 1500 min -> "1 day 1:00 hours"
- *   - 3000 min -> "2 days 2:00 hours"
+ *   - 22 min -> "22 min"
+ *   - 683 min -> "11:23"
+ *   - 1500 min -> "1 day 1:00"
+ *   - 3000 min -> "2 days 2:00"
  */
 export function formatReadTime(minutes: number): string {
   const totalHours = Math.floor(minutes / 60);
   const mins = minutes % 60;
 
+  // Under 1 hour: show just minutes
+  if (totalHours === 0) {
+    return `${mins} min`;
+  }
+
+  // 24+ hours: show days and hours:minutes
   if (totalHours >= 24) {
     const days = Math.floor(totalHours / 24);
     const hours = totalHours % 24;
     const dayLabel = days === 1 ? "day" : "days";
-    return `${days} ${dayLabel} ${hours}:${mins.toString().padStart(2, "0")} hours`;
+    return `${days} ${dayLabel} ${hours}:${mins.toString().padStart(2, "0")}`;
   }
 
-  return `${totalHours}:${mins.toString().padStart(2, "0")} hours`;
+  // 1-24 hours: show hours:minutes
+  return `${totalHours}:${mins.toString().padStart(2, "0")}`;
 }
 
 export default function PreferencesScreen() {
@@ -543,9 +550,15 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Unread Articles"
                 secondary={
-                  unreadCount !== undefined && unreadReadTimeSum !== undefined
-                    ? `${unreadCount} articles (estimated reading time: ${formatReadTime(unreadReadTimeSum)} hours)`
-                    : "Loading..."
+                  unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                    <>
+                      {unreadCount} articles
+                      <br />
+                      Reading time: {formatReadTime(unreadReadTimeSum)}
+                    </>
+                  ) : (
+                    "Loading..."
+                  )
                 }
               />
             </ListItem>
@@ -557,9 +570,15 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Archived Articles"
                 secondary={
-                  archivedCount !== undefined && archivedReadTimeSum !== undefined
-                    ? `${archivedCount} articles (estimated reading time: ${formatReadTime(archivedReadTimeSum)} hours)`
-                    : "Loading..."
+                  archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+                    <>
+                      {archivedCount} articles
+                      <br />
+                      Reading time: {formatReadTime(archivedReadTimeSum)}
+                    </>
+                  ) : (
+                    "Loading..."
+                  )
                 }
               />
             </ListItem>

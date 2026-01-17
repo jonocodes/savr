@@ -654,10 +654,22 @@ export default function ArticleListScreen() {
           >
             {filter === "unread"
               ? unreadCount !== undefined && unreadReadTimeSum !== undefined
-                ? `${unreadCount} articles (estimated reading time: ${formatReadTime(unreadReadTimeSum)})`
+                ? (
+                  <>
+                    {unreadCount} articles
+                    <br />
+                    Reading time: {formatReadTime(unreadReadTimeSum)}
+                  </>
+                )
                 : "Loading..."
               : archivedCount !== undefined && archivedReadTimeSum !== undefined
-                ? `${archivedCount} articles (estimated reading time: ${formatReadTime(archivedReadTimeSum)})`
+                ? (
+                  <>
+                    {archivedCount} articles
+                    <br />
+                    Reading time: {formatReadTime(archivedReadTimeSum)}
+                  </>
+                )
                 : "Loading..."}
           </Typography>
         )}
