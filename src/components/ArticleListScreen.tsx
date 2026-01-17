@@ -375,7 +375,7 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-          }
+          },
         );
 
         await db.articles.put(article);
@@ -413,7 +413,7 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-          }
+          },
         );
 
         console.log("About to save article to IndexedDB:", article);
@@ -468,7 +468,7 @@ export default function ArticleListScreen() {
       setUrl,
       enqueueSnackbar,
       navigate,
-    ]
+    ],
   );
 
   // Handle saveUrl query parameter
@@ -613,7 +613,11 @@ export default function ArticleListScreen() {
             <Typography variant="body2">
               {syncProgress.totalArticles === 0 ? (
                 // During RemoteStorage sync phase (downloading to cache)
-                syncProgress.phase === "initial" ? "Preparing to sync..." : "Syncing..."
+                syncProgress.phase === "initial" ? (
+                  "Preparing to sync..."
+                ) : (
+                  "Syncing..."
+                )
               ) : (
                 // During article processing phase (we know the count)
                 <>
@@ -647,30 +651,26 @@ export default function ArticleListScreen() {
       >
         {/* Article count and reading time info */}
         {filteredArticles.length > 0 && (
-          <Typography
-            variant="body2"
-            color="text.secondary"
-            sx={{ mb: 1, textAlign: "center" }}
-          >
-            {filter === "unread"
-              ? unreadCount !== undefined && unreadReadTimeSum !== undefined
-                ? (
-                  <>
-                    {unreadCount} articles
-                    <br />
-                    Reading time: {formatReadTime(unreadReadTimeSum)}
-                  </>
-                )
-                : "Loading..."
-              : archivedCount !== undefined && archivedReadTimeSum !== undefined
-                ? (
-                  <>
-                    {archivedCount} articles
-                    <br />
-                    Reading time: {formatReadTime(archivedReadTimeSum)}
-                  </>
-                )
-                : "Loading..."}
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
+            {filter === "unread" ? (
+              unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                <>
+                  Saves: {unreadCount} articles
+                  <br />
+                  Reading time: {formatReadTime(unreadReadTimeSum)}
+                </>
+              ) : (
+                "Loading..."
+              )
+            ) : archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+              <>
+                Archive: {archivedCount} articles
+                <br />
+                Reading time: {formatReadTime(archivedReadTimeSum)}
+              </>
+            ) : (
+              "Loading..."
+            )}
           </Typography>
         )}
         {filteredArticles.length > 0 ? (
