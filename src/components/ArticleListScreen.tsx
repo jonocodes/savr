@@ -53,6 +53,7 @@ import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
+import { formatReadTime } from "./PreferenceScreen";
 
 import { keyframes } from "@mui/system";
 
@@ -268,6 +269,16 @@ export default function ArticleListScreen() {
   // Count archived articles for the button label
   const archivedCount = useLiveQuery(() => {
     return db.articles.where("state").equals("archived").count();
+  });
+
+  // Read time sum queries
+  const unreadReadTimeSum = useLiveQuery(async () => {
+    const unreadArticles = await db.articles.where("state").equals("unread").toArray();
+    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+  });
+  const archivedReadTimeSum = useLiveQuery(async () => {
+    const archivedArticles = await db.articles.where("state").equals("archived").toArray();
+    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
@@ -568,11 +579,11 @@ export default function ArticleListScreen() {
           >
             <ToggleButton value="unread">
               <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Saves{unreadCount !== undefined ? ` (${unreadCount})` : ""}
+              Saves
             </ToggleButton>
             <ToggleButton value="archived">
               <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Archive{archivedCount !== undefined ? ` (${archivedCount})` : ""}
+              Archive
             </ToggleButton>
           </ToggleButtonGroup>
         </Box>
@@ -634,6 +645,22 @@ export default function ArticleListScreen() {
         maxWidth="sm"
         sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
       >
+        {/* Article count and reading time info */}
+        {filteredArticles.length > 0 && (
+          <Typography
+            variant="body2"
+            color="text.secondary"
+            sx={{ mb: 1, textAlign: "center" }}
+          >
+            {filter === "unread"
+              ? unreadCount !== undefined && unreadReadTimeSum !== undefined
+                ? `${unreadCount} articles (estimated reading time: ${formatReadTime(unreadReadTimeSum)})`
+                : "Loading..."
+              : archivedCount !== undefined && archivedReadTimeSum !== undefined
+                ? `${archivedCount} articles (estimated reading time: ${formatReadTime(archivedReadTimeSum)})`
+                : "Loading..."}
+          </Typography>
+        )}
         {filteredArticles.length > 0 ? (
           // TODO: make this a stack if I want spacing between items
           <List>

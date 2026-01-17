@@ -68,6 +68,28 @@ import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 
+/**
+ * Formats minutes as a human-readable time string.
+ * Examples:
+ *   - 45 min -> "0:45 hours"
+ *   - 683 min -> "11:23 hours"
+ *   - 1500 min -> "1 day 1:00 hours"
+ *   - 3000 min -> "2 days 2:00 hours"
+ */
+export function formatReadTime(minutes: number): string {
+  const totalHours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const dayLabel = days === 1 ? "day" : "days";
+    return `${days} ${dayLabel} ${hours}:${mins.toString().padStart(2, "0")} hours`;
+  }
+
+  return `${totalHours}:${mins.toString().padStart(2, "0")} hours`;
+}
+
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
   const [corsProxy, setCorsProxy] = React.useState<string>("");
@@ -522,7 +544,7 @@ export default function PreferencesScreen() {
                 primary="Unread Articles"
                 secondary={
                   unreadCount !== undefined && unreadReadTimeSum !== undefined
-                    ? `${unreadCount} articles (total estimated reading time: ${unreadReadTimeSum} min)`
+                    ? `${unreadCount} articles (estimated reading time: ${formatReadTime(unreadReadTimeSum)} hours)`
                     : "Loading..."
                 }
               />
@@ -536,7 +558,7 @@ export default function PreferencesScreen() {
                 primary="Archived Articles"
                 secondary={
                   archivedCount !== undefined && archivedReadTimeSum !== undefined
-                    ? `${archivedCount} articles (total estimated reading time: ${archivedReadTimeSum} min)`
+                    ? `${archivedCount} articles (estimated reading time: ${formatReadTime(archivedReadTimeSum)} hours)`
                     : "Loading..."
                 }
               />
@@ -655,9 +677,6 @@ export default function PreferencesScreen() {
             </ListItem>
             <ListItem>
               <ListItemText primary="Deployed" secondary={buildDate} />
-            </ListItem>
-            <ListItem>
-              <ListItemText primary="Mode" secondary={isInstalledPWA ? "PWA" : "Web app"} />
             </ListItem>
             <ListItem>
               <ListItemText
