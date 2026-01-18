@@ -1,5 +1,5 @@
 import { ArrowBack } from "@mui/icons-material";
-import { createFileRoute, Navigate, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import DiagnosticsScreen from "~/components/DiagnosticsScreen";
 
 export const Route = createFileRoute("/diagnostics")({

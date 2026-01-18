@@ -1,9 +1,8 @@
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
-import viteReact from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(() => {
   // Use DEBUG environment variable for feature flags
   const isDebug = (() => {
     const debugValue = process.env.VITE_DEBUG || "true";
