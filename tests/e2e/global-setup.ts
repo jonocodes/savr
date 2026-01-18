@@ -26,7 +26,7 @@ async function waitForServer(
         // 401 is OK for Armadietto - means server is up but needs auth
         return;
       }
-    } catch (err) {
+    } catch {
       // Server not responding yet, continue polling
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -35,7 +35,7 @@ async function waitForServer(
   throw new Error(`Server at ${url} did not respond within ${timeoutMs}ms`);
 }
 
-export default async function globalSetup(config: FullConfig) {
+export default async function globalSetup(_config: FullConfig) {
   console.log("\n🚀 Starting test servers...\n");
 
   // Start Armadietto RemoteStorage server

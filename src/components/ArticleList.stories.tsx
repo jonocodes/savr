@@ -52,6 +52,8 @@ const mockArticles: Article[] = [
   },
 ];
 
+// Used in commented ArchivedOnly story below
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const archivedArticles: Article[] = [
   {
     slug: "archived-article-1",

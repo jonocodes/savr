@@ -88,7 +88,7 @@ export async function triggerRemoteStorageSync(page: Page): Promise<void> {
       throw new Error("RemoteStorage or sync not available");
     }
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       const timeout = setTimeout(() => {
         cleanup();
         resolve(); // Resolve anyway to avoid hanging tests
@@ -204,7 +204,7 @@ export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Pro
     const maxWaitTime = Math.min(timeout, 10000); // Cap at 10 seconds for faster tests
 
     // Simple polling approach - don't wait for events that might not fire
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       const checkDb = async () => {
         const timeSinceStart = Date.now() - startTime;
 
@@ -383,7 +383,7 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
     const dbName = "savrDb";
     const request = indexedDB.open(dbName);
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve) => {
       request.onsuccess = () => {
         const db = request.result;
 

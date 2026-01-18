@@ -1,7 +1,6 @@
-// @ts-ignore
+// @ts-expect-error - Storybook react-vite types
 import type { Preview } from "@storybook/react-vite";
 import React from "react";
-import { CssBaseline } from "@mui/material";
 import {
   RouterProvider,
   createMemoryHistory,

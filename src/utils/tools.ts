@@ -1,8 +1,8 @@
-import { Article, ArticleAndRender } from "../../lib/src/models";
+import { Article } from "../../lib/src/models";
 import { getDefaultCorsProxy } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db } from "./db";
-import { deleteArticleStorage, glob, init } from "./storage";
+import { deleteArticleStorage, init } from "./storage";
 import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../lib/src/lib";
 import { resizeImage } from "../../lib/src/ingestion";

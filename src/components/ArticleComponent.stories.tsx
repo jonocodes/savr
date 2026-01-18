@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import ArticleComponent from "./ArticleComponent";
 import { useState, useEffect } from "react";
-import { createAppTheme, withLightTheme, withDarkTheme } from "~/utils/theme";
+import { withLightTheme, withDarkTheme } from "~/utils/theme";
 
 const simpleHtmlContent = `
 <div style="padding: 20px; font-family: Arial, sans-serif;">
@@ -24,7 +24,8 @@ mock
 </div>
 `;
 
-// Component to load and display raw HTML content
+// Component to load and display raw HTML content (used in commented stories below)
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const RawHtmlComponent: React.FC<{ fontSize: number }> = ({ fontSize }) => {
   const [html, setHtml] = useState(mockHtmlContent);
   const [loading, setLoading] = useState(false);

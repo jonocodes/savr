@@ -72,7 +72,7 @@ test.describe("Main Page", () => {
 
   test("should handle empty state gracefully", async ({ page }) => {
     // Check if there's an empty state message or placeholder
-    const emptyState = page.locator(
+    const _emptyState = page.locator(
       "text=No articles, text=Empty, text=Start by adding, .MuiTypography-root"
     );
 
