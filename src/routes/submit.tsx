@@ -1,5 +1,4 @@
-import { Link, Outlet, createFileRoute } from "@tanstack/react-router";
-import PreferencesScreen from "~/components/PreferenceScreen";
+import { createFileRoute } from "@tanstack/react-router";
 import SubmitScreen from "~/components/SubmitScreen";
 
 export const Route = createFileRoute("/submit")({

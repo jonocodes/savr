@@ -5,7 +5,6 @@ import { db } from "./db";
 import { Article } from "../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
-import { DefaultGlobalNotFound } from "@tanstack/react-router";
 import { determineSyncAction, extractSlugFromPath, type SyncEvent } from "./syncLogic";
 
 // Sync progress tracking
@@ -85,8 +84,8 @@ async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
     // console.log("recursiveList: Got listing for", safePath, listing);
 
     let files: string[] = [];
-    for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
-      // console.log("recursiveList: Processing item", { name, isFolder, path: safePath });
+    for (const [name, _isFolder] of Object.entries(listing as Record<string, boolean>)) {
+      // console.log("recursiveList: Processing item", { name, _isFolder, path: safePath });
       // Type assertion here
       if (name.endsWith("/")) {
         // Recursively list subfolder
@@ -103,7 +102,6 @@ async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
     return files;
   } catch (error) {
     console.error("recursiveList: Failed to get listing for", path, error);
-    debugger;
     return [];
   }
 }
@@ -140,7 +138,6 @@ async function glob(client: BaseClient, pattern: string, basePath = ""): Promise
     return filteredFiles;
   } catch (error) {
     console.error("glob: Failed to process pattern", pattern, "basePath", basePath, error);
-    debugger;
     return [];
   }
 }
@@ -945,7 +942,7 @@ async function recursiveDeleteDirectory(
     const listing = await client.getListing(normalizedPath);
 
     // Process all items in the directory
-    for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+    for (const [name, _isFolder] of Object.entries(listing as Record<string, boolean>)) {
       const fullPath = normalizedPath + name;
 
       if (name.endsWith("/")) {
@@ -1029,7 +1026,7 @@ async function deleteAllRemoteStorage(): Promise<{
   // TODO: remove this hack once I figure out why deleting everything from remote storage is not sufficient
 
   // Delete all data from IndexedDB
-  const databases = await window.indexedDB.databases();
+  const _databases = await window.indexedDB.databases();
   // for (const db of databases) {
   //   if (db.name) {
   //     console.log("deleting database", db.name);

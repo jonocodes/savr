@@ -1,4 +1,4 @@
-import { test, expect, Browser } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,

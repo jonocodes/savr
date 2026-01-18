@@ -26,7 +26,7 @@ async function waitForServer(
         // 401 is OK for Armadietto - means server is up but needs auth
         return;
       }
-    } catch (err) {
+    } catch {
       // Server not responding yet, continue polling
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
