@@ -455,10 +455,47 @@ export async function clearAllArticles(page: Page): Promise<void> {
           }
         }
 
-        // Wait for deletion sync to complete
+        // Trigger sync and wait for deletions to propagate to server
         if (slugs.length > 0) {
-          console.log("Waiting for deletion sync to complete...");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          console.log("Triggering sync to push deletions to server...");
+
+          // Trigger sync and wait for it to complete
+          await new Promise<void>((resolve) => {
+            let resolved = false;
+
+            const timeout = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                console.log("Sync timeout after 10 seconds, continuing...");
+                resolve();
+              }
+            }, 10000);
+
+            const onSyncDone = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                rs.removeEventListener("sync-done", onSyncDone);
+                console.log("Deletion sync completed");
+                // Add small buffer to ensure server has processed
+                setTimeout(resolve, 500);
+              }
+            };
+
+            rs.on("sync-done", onSyncDone);
+
+            // Trigger the sync
+            try {
+              rs.sync.sync();
+            } catch (err) {
+              console.warn("Error triggering sync:", err);
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                resolve();
+              }
+            }
+          });
         }
       }
     } catch (error) {

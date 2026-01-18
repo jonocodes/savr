@@ -64,7 +64,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
 
       // Ingest article in Browser 1
       console.log("\n1️⃣  Browser 1: Ingesting article...");
-      const addButton1 = page1.locator('button:has-text("Add Article")');
+      const addButton1 = page1.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
       await expect(addButton1).toBeVisible({ timeout: 10000 });
       await addButton1.click();
 
