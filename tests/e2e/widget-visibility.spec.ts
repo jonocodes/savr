@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { getTestHost } from "./utils/remotestorage-helper";
 
 test.describe("RemoteStorage Widget Visibility", () => {
   test.beforeEach(async ({ page }) => {
@@ -7,7 +8,7 @@ test.describe("RemoteStorage Widget Visibility", () => {
       {
         name: "savr-sync-enabled",
         value: "true",
-        domain: "localhost",
+        domain: getTestHost(),
         path: "/",
       },
     ]);
@@ -90,7 +91,7 @@ test.describe("RemoteStorage Widget Visibility", () => {
       {
         name: "savr-sync-enabled",
         value: "false",
-        domain: "localhost",
+        domain: getTestHost(),
         path: "/",
       },
     ]);

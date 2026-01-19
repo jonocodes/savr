@@ -1,6 +1,29 @@
 import { Page } from "@playwright/test";
 
 /**
+ * Get the correct host for test servers based on environment
+ * When using Docker browser (PW_SERVER set), use host.docker.internal
+ * Otherwise use localhost
+ */
+export function getTestHost(): string {
+  return process.env.PW_SERVER ? "host.docker.internal" : "localhost";
+}
+
+/**
+ * Get the RemoteStorage server address for tests
+ */
+export function getRemoteStorageAddress(): string {
+  return `testuser@${getTestHost()}:8006`;
+}
+
+/**
+ * Get the content server base URL for tests
+ */
+export function getContentServerUrl(): string {
+  return `http://${getTestHost()}:8080`;
+}
+
+/**
  * Connect to RemoteStorage programmatically using OAuth token
  * This bypasses the normal OAuth flow by using a pre-generated token from Armadietto
  */

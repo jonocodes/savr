@@ -7,6 +7,8 @@ import {
   deleteArticleFromDB,
   disconnectFromRemoteStorage,
   clearAllArticles,
+  getRemoteStorageAddress,
+  getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -58,7 +60,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Connect to RemoteStorage programmatically
     const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, "testuser@localhost:8006", token);
+    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -70,7 +72,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should verify content server is serving test article", async ({ page }) => {
     console.log("🔍 Verifying content server accessibility...");
 
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
 
     // Navigate directly to the content server URL
     const response = await page.goto(testUrl);
@@ -109,7 +111,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
     console.log("2️⃣  Entering URL:", testUrl);
     await urlInput.fill(testUrl);
     await expect(urlInput).toHaveValue(testUrl);
@@ -167,7 +169,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -201,7 +203,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
     const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, "testuser@localhost:8006", token);
+    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");
 
@@ -250,7 +252,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -349,7 +351,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -410,7 +412,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -482,7 +484,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
