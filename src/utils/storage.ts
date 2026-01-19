@@ -333,6 +333,7 @@ function initRemote() {
     let isSyncing = false;
     let hasCompletedInitialSync = false;
     let hasProcessedAfterFirstCycle = false;
+    let isNetworkOffline = false; // Track network state to distinguish user disconnect from network loss
 
     remoteStorage.on("ready", function () {
       console.info("🔵 remoteStorage ready");
@@ -426,10 +427,19 @@ function initRemote() {
       console.info("🔄 RemoteStorage sync-req-done - sync cycle completed");
 
       // Check for any articles that weren't caught by change events
-      // This handles the case where RemoteStorage loops on sync-req-done without firing sync-done
-      // Only process once after the first cycle to avoid repeated processing
-      if (isSyncing && !hasProcessedAfterFirstCycle) {
-        hasProcessedAfterFirstCycle = true;
+      // This handles the case where:
+      // 1. RemoteStorage loops on sync-req-done without firing sync-done (initial sync)
+      // 2. Manual sync triggered after initial sync (subsequent sync to pull new articles)
+      //
+      // For initial sync: only process once (hasProcessedAfterFirstCycle = false)
+      // For subsequent syncs: always check for missing articles (hasCompletedInitialSync = true)
+      const isInitialSyncCycle = isSyncing && !hasProcessedAfterFirstCycle;
+      const isSubsequentSync = hasCompletedInitialSync && !isSyncing;
+
+      if (isInitialSyncCycle || isSubsequentSync) {
+        if (isInitialSyncCycle) {
+          hasProcessedAfterFirstCycle = true;
+        }
 
         // Check how many articles change events have already processed
         const articlesInDb = await db.articles.count();
@@ -443,10 +453,11 @@ function initRemote() {
           console.info("   → Fetching article listing to check for sync discrepancies");
           const listing = (await client.getListing("saves/")) as Record<string, any>;
           if (listing) {
-            // Process missing articles (additions made while browser was closed)
-            const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
-            if (missingArticles > 0 || articlesInDb < 10) {
-              console.info(`   → Missing ${missingArticles} articles, processing them`);
+            // Process missing articles (additions made while browser was closed or by another browser)
+            const remoteCount = Object.keys(listing).filter((key) => listing[key] === true).length;
+            const missingArticles = remoteCount - articlesInDb;
+            if (missingArticles > 0 || articlesInDb < remoteCount) {
+              console.info(`   → Missing ${missingArticles} articles (remote: ${remoteCount}, local: ${articlesInDb}), processing them`);
               await processMissingArticles(client, listing, processedArticles);
             } else {
               console.info("   → All articles synced via change events");
@@ -461,9 +472,13 @@ function initRemote() {
           console.error("   ❌ Error fetching listing:", error);
         }
 
-        isSyncing = false;
-        hasCompletedInitialSync = true;
-        hasFinalizedTotal = true; // Lock the total to prevent resetting
+        // Only update sync state if this is the initial sync cycle
+        if (isInitialSyncCycle) {
+          isSyncing = false;
+          hasCompletedInitialSync = true;
+          hasFinalizedTotal = true; // Lock the total to prevent resetting
+        }
+
         // Notify UI that sync is complete
         // Set total to actual DB count (accounts for any failed/dangling articles)
         const finalCount = await db.articles.count();
@@ -485,17 +500,15 @@ function initRemote() {
       const articleCount = await db.articles.count();
       console.warn(`🔴 remoteStorage disconnected - ${articleCount} articles in local database`);
       console.warn(
-        `   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}`
+        `   isSyncing: ${isSyncing}, hasCompletedInitialSync: ${hasCompletedInitialSync}, isNetworkOffline: ${isNetworkOffline}`
       );
 
       // IMPORTANT: Only clear database if this is a deliberate user disconnect
-      // Do NOT clear during sync operations or reconnect cycles
-      if (!isSyncing && hasCompletedInitialSync) {
+      // Do NOT clear during sync operations, reconnect cycles, or network interruptions
+      if (!isSyncing && hasCompletedInitialSync && !isNetworkOffline) {
         console.info("   → User-initiated disconnect detected, clearing local articles");
         try {
           await db.articles.clear();
-          processedArticles.clear(); // Clear processed articles tracking
-          hasCompletedInitialSync = false;
           console.info("   ✅ Cleared all articles from local database");
         } catch (error) {
           console.error("   ❌ Failed to clear articles from local database:", error);
@@ -503,6 +516,15 @@ function initRemote() {
       } else {
         console.info("   → Preserving local database during sync/reconnect cycle");
       }
+
+      // ALWAYS reset sync state flags on any disconnect so next connection triggers fresh sync
+      // This is critical for multi-browser sync to work - when reconnecting, we need to
+      // check the server for new articles that were added by other browsers
+      processedArticles.clear();
+      hasCompletedInitialSync = false;
+      hasProcessedAfterFirstCycle = false;
+      isSyncing = false;
+      console.info("   → Reset sync state flags for fresh sync on next connection");
     });
 
     remoteStorage.on("error", function (err) {
@@ -516,10 +538,12 @@ function initRemote() {
 
     remoteStorage.on("network-offline", () => {
       console.info(`📴 remoteStorage network offline`);
+      isNetworkOffline = true;
     });
 
     remoteStorage.on("network-online", () => {
       console.info(`📶 remoteStorage network online - sync will resume`);
+      isNetworkOffline = false;
       // Sync automatically restarts when network comes back
       if (hasCompletedInitialSync) {
         isSyncing = true;

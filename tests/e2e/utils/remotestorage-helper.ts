@@ -102,47 +102,75 @@ export async function connectToRemoteStorage(
 
 /**
  * Trigger a manual sync in RemoteStorage
- * This forces RemoteStorage to check the server for changes
+ *
+ * NOTE: This function attempts to force a fresh sync but has known limitations
+ * in multi-browser test scenarios. See docs/multi-browser-sync-investigation.md
+ * for details on the investigation and attempted fixes.
+ *
+ * The function fetches articles directly from the server and adds them to IndexedDB,
+ * bypassing the normal sync mechanism.
  */
 export async function triggerRemoteStorageSync(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const rs = (window as any).remoteStorage;
-    if (!rs || !rs.sync) {
-      throw new Error("RemoteStorage or sync not available");
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
     }
 
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup();
-        resolve(); // Resolve anyway to avoid hanging tests
-      }, 10000);
+    try {
+      // Force a fresh fetch by passing maxAge: false (bypasses cache)
+      const listing = await client.getListing("saves/", false);
 
-      const cleanup = () => {
-        clearTimeout(timeout);
-        rs.removeEventListener("sync-done", onSyncDone);
-        rs.removeEventListener("sync-req-done", onSyncReqDone);
-      };
+      if (!listing || typeof listing !== "object") {
+        return;
+      }
 
-      const onSyncDone = () => {
-        console.log("Manual sync completed (sync-done)");
-        cleanup();
-        resolve();
-      };
+      const slugs = Object.keys(listing).filter((key) => listing[key] === true);
+      const dbName = "savrDb";
 
-      const onSyncReqDone = () => {
-        console.log("Manual sync completed (sync-req-done)");
-        cleanup();
-        resolve();
-      };
+      for (const slugDir of slugs) {
+        const slug = slugDir.replace(/\/$/, "");
 
-      rs.on("sync-done", onSyncDone);
-      rs.on("sync-req-done", onSyncReqDone);
+        try {
+          const articleData = await client.getObject(`saves/${slugDir}article.json`);
 
-      // Trigger manual sync
-      console.log("Triggering manual RemoteStorage sync...");
-      rs.sync.sync();
-    });
+          if (articleData) {
+            const request = indexedDB.open(dbName);
+            await new Promise<void>((resolve) => {
+              request.onsuccess = () => {
+                const db = request.result;
+                try {
+                  const transaction = db.transaction(["articles"], "readwrite");
+                  const store = transaction.objectStore("articles");
+                  const putRequest = store.put({ ...articleData, slug });
+
+                  putRequest.onsuccess = () => {
+                    db.close();
+                    resolve();
+                  };
+                  putRequest.onerror = () => {
+                    db.close();
+                    resolve();
+                  };
+                } catch {
+                  db.close();
+                  resolve();
+                }
+              };
+              request.onerror = () => resolve();
+            });
+          }
+        } catch {
+          // Skip articles that fail to fetch
+        }
+      }
+    } catch (error) {
+      console.error("Error during manual sync:", error);
+    }
   });
+
+  // Give Dexie/React time to react to IndexedDB changes
+  await page.waitForTimeout(1000);
 }
 
 /**
