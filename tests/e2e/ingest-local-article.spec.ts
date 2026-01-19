@@ -575,7 +575,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Navigate back to app if we're on an external page (e.g., content server)
     const currentUrl = page.url();
-    if (!currentUrl.includes("localhost:3002")) {
+    if (!currentUrl.includes(":3002")) {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
     }
