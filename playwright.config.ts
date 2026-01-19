@@ -1,5 +1,14 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Connect to Playwright server in Docker when PW_SERVER is set
+const connectOptions = process.env.PW_SERVER
+  ? { wsEndpoint: process.env.PW_SERVER }
+  : undefined;
+
+// When using Docker browser, use host.docker.internal instead of localhost
+const baseHost = process.env.PW_SERVER ? "host.docker.internal" : "localhost";
+const defaultBaseURL = `http://${baseHost}:3002`;
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -21,7 +30,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3002",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || defaultBaseURL,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
@@ -37,7 +46,7 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: { ...devices["Desktop Chrome"], connectOptions },
     },
 
     // {

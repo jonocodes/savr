@@ -1,0 +1,14 @@
+services:
+  playwright:
+    image: mcr.microsoft.com/playwright:v1.54.0-jammy
+    command: npx playwright@1.54.0 run-server --port 3001 --host 0.0.0.0
+    ports:
+      - "3001:3001"
+    # Required for running browsers in Docker
+    ipc: host
+    # Use host network so browser can access localhost services
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    # Useful for debugging
+    environment:
+      - DEBUG=${DEBUG:-}
