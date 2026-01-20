@@ -35,7 +35,7 @@ async function waitForServer(
   throw new Error(`Server at ${url} did not respond within ${timeoutMs}ms`);
 }
 
-export default async function globalSetup(config: FullConfig) {
+export default async function globalSetup(_config: FullConfig) {
   console.log("\n🚀 Starting test servers...\n");
 
   // Start Armadietto RemoteStorage server
@@ -138,39 +138,14 @@ export default async function globalSetup(config: FullConfig) {
     throw new Error(`Content server failed to respond: ${err}`);
   }
 
-  // Store token for tests
-  const testEnv = { RS_TOKEN: token };
+  // Store token and PIDs for tests and teardown
+  const testEnv = {
+    RS_TOKEN: token,
+    ARMADIETTO_PID: armadettoProcess?.pid,
+    CONTENT_SERVER_PID: contentServerProcess?.pid,
+  };
   const testEnvPath = path.join(process.cwd(), "tests/e2e/.test-env.json");
   fs.writeFileSync(testEnvPath, JSON.stringify(testEnv, null, 2));
   console.log("✅ Test environment saved\n");
   console.log("🎬 All servers ready! Starting tests...\n");
-
-  // Return teardown function
-  return async () => {
-    console.log("\n🧹 Cleaning up test servers...\n");
-
-    if (armadettoProcess) {
-      console.log("Stopping Armadietto server...");
-      armadettoProcess.kill("SIGTERM");
-      // Give it a moment to clean up
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Force kill if still running
-      if (!armadettoProcess.killed) {
-        armadettoProcess.kill("SIGKILL");
-      }
-      console.log("✅ Armadietto server stopped");
-    }
-
-    if (contentServerProcess) {
-      console.log("Stopping content server...");
-      contentServerProcess.kill("SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      if (!contentServerProcess.killed) {
-        contentServerProcess.kill("SIGKILL");
-      }
-      console.log("✅ Content server stopped");
-    }
-
-    console.log("✅ Cleanup complete\n");
-  };
 }
