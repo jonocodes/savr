@@ -7,7 +7,6 @@ import {
   getArticleFromDB,
   getRemoteStorageAddress,
   getContentServerUrl,
-  getTestHost,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -24,7 +23,7 @@ try {
 } catch (error) {
   throw new Error(
     `Failed to load test environment from ${testEnvPath}. ` +
-      `Make sure global-setup.ts ran successfully. Error: ${error}`
+      `Make sure global-setup.ts ran successfully. Error: ${error}`,
   );
 }
 
@@ -44,12 +43,13 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
     const context2 = await browser.newContext();
 
     // Enable sync via cookie for both contexts
-    const testHost = getTestHost();
+    // Note: Cookie domain must be "localhost" even in Docker mode, because
+    // host.docker.internal is resolved by the Docker browser to the host's localhost
     await context1.addCookies([
-      { name: "savr-sync-enabled", value: "true", domain: testHost, path: "/" }
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
     ]);
     await context2.addCookies([
-      { name: "savr-sync-enabled", value: "true", domain: testHost, path: "/" }
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
     ]);
 
     const page1 = await context1.newPage();
@@ -81,7 +81,11 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
 
       // Ingest article in Browser 1
       console.log("\n1️⃣  Browser 1: Ingesting article...");
-      const addButton1 = page1.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
+      const addButton1 = page1
+        .locator(
+          'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)',
+        )
+        .first();
       await expect(addButton1).toBeVisible({ timeout: 10000 });
       await addButton1.click();
 

@@ -6,7 +6,6 @@ import {
   getArticleFromDB,
   getRemoteStorageAddress,
   getContentServerUrl,
-  getTestHost,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -23,7 +22,7 @@ try {
 } catch (error) {
   throw new Error(
     `Failed to load test environment from ${testEnvPath}. ` +
-      `Make sure global-setup.ts ran successfully. Error: ${error}`
+      `Make sure global-setup.ts ran successfully. Error: ${error}`,
   );
 }
 
@@ -31,11 +30,9 @@ test.describe("Multi-Browser Archive Sync", () => {
   // These tests involve multiple browser contexts and sync operations, which take longer
   test.setTimeout(120000); // 2 minutes
 
-  // SKIPPED: Multi-browser sync doesn't work reliably in test environment.
-  // The RemoteStorage client in Browser 2 returns empty listings even when Browser 1
-  // has synced articles to the server. This appears to be a limitation of how
-  // RemoteStorage.js handles multi-client sync or an Armadietto server issue.
-  // Single-browser tests all pass, confirming core functionality works.
+  // SKIPPED: Fails when running in Docker (test:e2e:docker) but passes locally.
+  // Browser 2 doesn't receive the synced article from Browser 1.
+  // TODO: Investigate Docker-specific sync issue.
   test.skip("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
@@ -43,12 +40,13 @@ test.describe("Multi-Browser Archive Sync", () => {
     const context2 = await browser.newContext();
 
     // Enable sync via cookie for both contexts
-    const testHost = getTestHost();
+    // Note: Cookie domain must be "localhost" even in Docker mode, because
+    // host.docker.internal is resolved by the Docker browser to the host's localhost
     await context1.addCookies([
-      { name: "savr-sync-enabled", value: "true", domain: testHost, path: "/" }
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
     ]);
     await context2.addCookies([
-      { name: "savr-sync-enabled", value: "true", domain: testHost, path: "/" }
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
     ]);
 
     const page1 = await context1.newPage();
@@ -80,7 +78,11 @@ test.describe("Multi-Browser Archive Sync", () => {
 
       // Ingest article in Browser 1
       console.log("\n1️⃣  Browser 1: Ingesting article...");
-      const addButton1 = page1.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
+      const addButton1 = page1
+        .locator(
+          'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)',
+        )
+        .first();
       await expect(addButton1).toBeVisible({ timeout: 10000 });
       await addButton1.click();
 
