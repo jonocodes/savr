@@ -14,13 +14,7 @@ import { useSyncConfirmation } from "~/hooks/useSyncConfirmation";
  * Should be rendered at the app root level to handle confirmations globally.
  */
 export function SyncConfirmationDialog() {
-  const {
-    confirmationState,
-    handleConfirm,
-    handleCancel,
-    handleKeepLocal,
-    handleReplaceWithServer,
-  } = useSyncConfirmation();
+  const { confirmationState, handleConfirm, handleCancel } = useSyncConfirmation();
 
   const { isOpen, type, articleCount } = confirmationState;
 
@@ -40,7 +34,7 @@ export function SyncConfirmationDialog() {
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCancel} color="primary">
-            Cancel
+            Keep Local Data
           </Button>
           <Button onClick={handleConfirm} color="error" variant="contained">
             Disconnect & Clear Local Data
@@ -50,39 +44,35 @@ export function SyncConfirmationDialog() {
     );
   }
 
-  if (type === "first-sync-with-local-data") {
+  if (type === "sync-would-delete-articles") {
     return (
       <Dialog open={isOpen} onClose={handleCancel} maxWidth="sm" fullWidth>
-        <DialogTitle>First Time Connecting with Local Articles</DialogTitle>
+        <DialogTitle>Local Articles Not Found on Server</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            You have <strong>{articleCount} article{articleCount !== 1 ? "s" : ""}</strong> saved
-            locally that {articleCount !== 1 ? "have" : "has"} not been synced to remote storage
-            before.
+            <strong>{articleCount} article{articleCount !== 1 ? "s" : ""}</strong>{" "}
+            {articleCount !== 1 ? "exist" : "exists"} locally but not on the remote server.
           </DialogContentText>
           <DialogContentText sx={{ mt: 2 }}>
-            How would you like to handle your local articles?
+            This could mean:
+          </DialogContentText>
+          <DialogContentText component="ul" sx={{ mt: 1, pl: 2 }}>
+            <li>
+              <strong>They were deleted on another device</strong> - choose "Remove" to sync the
+              deletion
+            </li>
+            <li>
+              <strong>They were saved offline and never synced</strong> - choose "Keep" to
+              preserve them
+            </li>
           </DialogContentText>
         </DialogContent>
-        <DialogActions sx={{ flexDirection: "column", alignItems: "stretch", gap: 1, p: 2 }}>
-          <Button
-            onClick={handleKeepLocal}
-            color="primary"
-            variant="contained"
-            fullWidth
-          >
-            Keep Local Articles (Recommended)
+        <DialogActions>
+          <Button onClick={handleCancel} color="primary" variant="contained">
+            Keep Local Articles
           </Button>
-          <Button
-            onClick={handleReplaceWithServer}
-            color="warning"
-            variant="outlined"
-            fullWidth
-          >
-            Replace with Server Data
-          </Button>
-          <Button onClick={handleCancel} color="inherit" fullWidth>
-            Cancel & Disconnect
+          <Button onClick={handleConfirm} color="error">
+            Remove Local Articles
           </Button>
         </DialogActions>
       </Dialog>

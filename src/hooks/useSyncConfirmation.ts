@@ -7,7 +7,7 @@ import {
 
 export interface SyncConfirmationState {
   isOpen: boolean;
-  type: "disconnect" | "first-sync-with-local-data" | null;
+  type: "disconnect" | "sync-would-delete-articles" | null;
   articleCount: number;
 }
 
@@ -15,8 +15,6 @@ export interface UseSyncConfirmationReturn {
   confirmationState: SyncConfirmationState;
   handleConfirm: () => void;
   handleCancel: () => void;
-  handleKeepLocal: () => void;
-  handleReplaceWithServer: () => void;
 }
 
 /**
@@ -65,7 +63,7 @@ export function useSyncConfirmation(): UseSyncConfirmationReturn {
     setPendingResolve(null);
   }, []);
 
-  // For disconnect: confirm clearing data
+  // Confirm the operation (delete articles or clear data)
   const handleConfirm = useCallback(() => {
     if (pendingResolve) {
       pendingResolve({ action: "confirm" });
@@ -73,26 +71,10 @@ export function useSyncConfirmation(): UseSyncConfirmationReturn {
     closeDialog();
   }, [pendingResolve, closeDialog]);
 
-  // For both: cancel the operation
+  // Cancel the operation (keep articles)
   const handleCancel = useCallback(() => {
     if (pendingResolve) {
       pendingResolve({ action: "cancel" });
-    }
-    closeDialog();
-  }, [pendingResolve, closeDialog]);
-
-  // For first-sync: keep local articles
-  const handleKeepLocal = useCallback(() => {
-    if (pendingResolve) {
-      pendingResolve({ action: "keep-local" });
-    }
-    closeDialog();
-  }, [pendingResolve, closeDialog]);
-
-  // For first-sync: replace with server data
-  const handleReplaceWithServer = useCallback(() => {
-    if (pendingResolve) {
-      pendingResolve({ action: "replace-with-server" });
     }
     closeDialog();
   }, [pendingResolve, closeDialog]);
@@ -101,7 +83,5 @@ export function useSyncConfirmation(): UseSyncConfirmationReturn {
     confirmationState,
     handleConfirm,
     handleCancel,
-    handleKeepLocal,
-    handleReplaceWithServer,
   };
 }
