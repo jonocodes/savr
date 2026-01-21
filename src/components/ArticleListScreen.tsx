@@ -342,6 +342,60 @@ export default function ArticleListScreen() {
     return () => document.removeEventListener("click", handleTap);
   }, []);
 
+  // Helper function to wait for RemoteStorage sync to complete before closing
+  const waitForSyncThenClose = useCallback(async () => {
+    if (!remoteStorage || !remoteStorage.remote?.connected) {
+      // No RemoteStorage connection, just close immediately
+      console.log("No RemoteStorage connection, closing window immediately");
+      window.close();
+      return;
+    }
+
+    console.log("Waiting for RemoteStorage sync to complete before closing...");
+    setIngestStatus("Syncing to server...");
+
+    await new Promise<void>((resolve) => {
+      let resolved = false;
+
+      // Timeout after 15 seconds
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.log("Sync timeout after 15 seconds, closing anyway");
+          resolve();
+        }
+      }, 15000);
+
+      const onSyncDone = () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          remoteStorage.removeEventListener("sync-done", onSyncDone);
+          console.log("Sync completed, closing window");
+          // Small buffer to ensure server has processed
+          setTimeout(resolve, 500);
+        }
+      };
+
+      remoteStorage.on("sync-done", onSyncDone);
+
+      // Trigger sync
+      try {
+        remoteStorage.sync.sync();
+      } catch (err) {
+        console.warn("Error triggering sync:", err);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          resolve();
+        }
+      }
+    });
+
+    setIngestStatus(null);
+    window.close();
+  }, [remoteStorage]);
+
   useEffect(() => {
     const bookmarklet = new URLSearchParams(window.location.search).get("bookmarklet");
 
@@ -379,19 +433,29 @@ export default function ArticleListScreen() {
         );
 
         await db.articles.put(article);
+        // Force sync to remote storage before closing window
+        // This ensures article.json is actually uploaded to the server,
+        // not just written to local cache (fixes cross-device sync issues)
+        setIngestStatus("Syncing to remote storage...");
+        try {
+          await remoteStorage?.startSync();
+        } catch (error) {
+          console.warn("Sync after bookmarklet save failed:", error);
+          // Continue anyway - the article is saved locally
+        }
 
-        setTimeout(() => {
+        // Wait a bit for UI to update, then wait for sync and close
+        setTimeout(async () => {
           setDialogVisible(false);
-          setIngestStatus(null);
           setIngestPercent(100);
           setUrl("");
-          window.close();
+          await waitForSyncThenClose();
         }, 1500);
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [client]);
+  }, [client, remoteStorage, waitForSyncThenClose]);
 
   const saveUrl = useCallback(
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
@@ -432,9 +496,8 @@ export default function ArticleListScreen() {
         // });
 
         // wait a bit before closing the dialog
-        setTimeout(() => {
+        setTimeout(async () => {
           setDialogVisible(false);
-          setIngestStatus(null);
           setIngestPercent(0);
           setUrl("");
 
@@ -442,13 +505,16 @@ export default function ArticleListScreen() {
 
           // Handle different after-save actions based on preference
           if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
-            // Close the tab (used by bookmarklet)
-            window.close();
+            // Wait for sync to complete before closing the tab
+            await waitForSyncThenClose();
           } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
             // Navigate to the article page
+            setIngestStatus(null);
             navigate({ to: `/article/${article.slug}` });
+          } else {
+            // If "show-list", just clear the status
+            setIngestStatus(null);
           }
-          // If "show-list", do nothing - just stay on the current page
         }, 1500);
       } catch (error) {
         console.error(error);
@@ -468,6 +534,7 @@ export default function ArticleListScreen() {
       setUrl,
       enqueueSnackbar,
       navigate,
+      waitForSyncThenClose,
     ],
   );
 
