@@ -380,6 +380,17 @@ export default function ArticleListScreen() {
 
         await db.articles.put(article);
 
+        // Force sync to remote storage before closing window
+        // This ensures article.json is actually uploaded to the server,
+        // not just written to local cache (fixes cross-device sync issues)
+        setIngestStatus("Syncing to remote storage...");
+        try {
+          await remoteStorage?.startSync();
+        } catch (error) {
+          console.warn("Sync after bookmarklet save failed:", error);
+          // Continue anyway - the article is saved locally
+        }
+
         setTimeout(() => {
           setDialogVisible(false);
           setIngestStatus(null);
@@ -391,7 +402,7 @@ export default function ArticleListScreen() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [client]);
+  }, [client, remoteStorage]);
 
   const saveUrl = useCallback(
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
