@@ -669,12 +669,15 @@ export default function ArticleListScreen() {
             display: "flex",
             flexDirection: "column",
             gap: 1,
-            backgroundColor: "info.light",
-            color: "info.contrastText",
+            backgroundColor: syncProgress.warning ? "warning.light" : "info.light",
+            color: syncProgress.warning ? "warning.contrastText" : "info.contrastText",
           }}
         >
           <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <CircularProgress size={20} sx={{ color: "info.contrastText" }} />
+            <CircularProgress
+              size={20}
+              sx={{ color: syncProgress.warning ? "warning.contrastText" : "info.contrastText" }}
+            />
             <Typography variant="body2">
               {syncProgress.totalArticles === 0 ? (
                 // During RemoteStorage sync phase (downloading to cache)
@@ -692,6 +695,11 @@ export default function ArticleListScreen() {
               )}
             </Typography>
           </Box>
+          {syncProgress.warning && (
+            <Typography variant="body2" sx={{ fontStyle: "italic" }}>
+              {syncProgress.warning}
+            </Typography>
+          )}
           <LinearProgress
             variant={syncProgress.totalArticles > 0 ? "determinate" : "indeterminate"}
             value={
@@ -702,7 +710,7 @@ export default function ArticleListScreen() {
             sx={{
               backgroundColor: "rgba(255, 255, 255, 0.3)",
               "& .MuiLinearProgress-bar": {
-                backgroundColor: "info.contrastText",
+                backgroundColor: syncProgress.warning ? "warning.contrastText" : "info.contrastText",
               },
             }}
           />

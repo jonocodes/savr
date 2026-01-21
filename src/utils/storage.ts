@@ -7,12 +7,18 @@ import { Article } from "../../lib/src/models";
 import { environmentConfig } from "~/config/environment";
 import { determineSyncAction, extractSlugFromPath, type SyncEvent } from "./syncLogic";
 
+// LocalStorage key to track if we've ever successfully synced with remote storage
+// This differentiates "first connection with local data" from "reconnection after sync"
+const REMOTE_SYNC_INITIALIZED_KEY = "savr_remote_sync_initialized";
+
 // Sync progress tracking
 export interface SyncProgress {
   isSyncing: boolean;
   totalArticles: number;
   processedArticles: number;
   phase: "initial" | "ongoing" | "idle";
+  // Optional warning message for special scenarios (e.g., first connection with local data)
+  warning?: string;
 }
 
 type SyncProgressListener = (progress: SyncProgress) => void;
@@ -62,6 +68,10 @@ function init() {
 }
 
 let remotePrms;
+
+// Flag to track if this is the first-ever connection with existing local articles
+// When true, we skip processDeletedArticles to preserve local data
+let isFirstConnectionWithLocalData = false;
 
 async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
   try {
@@ -349,6 +359,17 @@ function initRemote() {
       const existingArticleCount = await db.articles.count();
       isInitialSync = existingArticleCount === 0;
 
+      // Check if this is the first-ever connection with existing local articles
+      // This prevents deleting local articles that were never synced to remote
+      const hasEverSynced = localStorage.getItem(REMOTE_SYNC_INITIALIZED_KEY) === "true";
+      isFirstConnectionWithLocalData = !hasEverSynced && existingArticleCount > 0;
+
+      if (isFirstConnectionWithLocalData) {
+        console.warn(
+          `   ⚠️ First remote connection with ${existingArticleCount} local articles - will preserve local data`
+        );
+      }
+
       // Notify UI that RemoteStorage sync is starting (downloading files to cache)
       // We don't know article count yet, so show as "preparing"
       notifySyncProgress({
@@ -356,9 +377,12 @@ function initRemote() {
         phase: isInitialSync ? "initial" : "ongoing",
         totalArticles: 0, // Don't know yet
         processedArticles: 0,
+        warning: isFirstConnectionWithLocalData
+          ? `Found ${existingArticleCount} local articles. Your local data will be preserved during this first sync.`
+          : undefined,
       });
       console.info(
-        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`
+        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}, firstConnectionWithLocalData: ${isFirstConnectionWithLocalData}`
       );
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
@@ -396,7 +420,14 @@ function initRemote() {
           // Process deleted articles (deletions made while browser was closed)
           // This is necessary because deletion change events require oldValue,
           // which is undefined if the browser was closed when deletion occurred
-          await processDeletedArticles(listing);
+          // IMPORTANT: Skip on first connection with local data to preserve local articles
+          if (isFirstConnectionWithLocalData) {
+            console.info(
+              "   ⚠️ Skipping processDeletedArticles - first connection with local data"
+            );
+          } else {
+            await processDeletedArticles(listing);
+          }
         } else {
           console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
@@ -407,6 +438,12 @@ function initRemote() {
       isSyncing = false;
       hasCompletedInitialSync = true;
       hasFinalizedTotal = true; // Lock the total to prevent resetting
+
+      // Mark that we've successfully synced with remote storage
+      // This ensures future connections will properly sync deletions
+      localStorage.setItem(REMOTE_SYNC_INITIALIZED_KEY, "true");
+      isFirstConnectionWithLocalData = false; // Reset for future syncs in this session
+
       // Notify UI that sync is complete
       // Set total to actual DB count (accounts for any failed/dangling articles)
       const finalCount = await db.articles.count();
@@ -461,7 +498,14 @@ function initRemote() {
             }
 
             // Process deleted articles (deletions made while browser was closed)
-            await processDeletedArticles(listing);
+            // IMPORTANT: Skip on first connection with local data to preserve local articles
+            if (isFirstConnectionWithLocalData) {
+              console.info(
+                "   ⚠️ Skipping processDeletedArticles - first connection with local data"
+              );
+            } else {
+              await processDeletedArticles(listing);
+            }
           } else {
             console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
           }
@@ -474,6 +518,10 @@ function initRemote() {
           isSyncing = false;
           hasCompletedInitialSync = true;
           hasFinalizedTotal = true; // Lock the total to prevent resetting
+
+          // Mark that we've successfully synced with remote storage
+          localStorage.setItem(REMOTE_SYNC_INITIALIZED_KEY, "true");
+          isFirstConnectionWithLocalData = false; // Reset for future syncs
         }
 
         // Notify UI that sync is complete
@@ -506,7 +554,9 @@ function initRemote() {
         console.info("   → User-initiated disconnect detected, clearing local articles");
         try {
           await db.articles.clear();
-          console.info("   ✅ Cleared all articles from local database");
+          // Also clear the sync initialized flag so next connection starts fresh
+          localStorage.removeItem(REMOTE_SYNC_INITIALIZED_KEY);
+          console.info("   ✅ Cleared all articles from local database and reset sync state");
         } catch (error) {
           console.error("   ❌ Failed to clear articles from local database:", error);
         }
@@ -521,6 +571,7 @@ function initRemote() {
       hasCompletedInitialSync = false;
       hasProcessedAfterFirstCycle = false;
       isSyncing = false;
+      isFirstConnectionWithLocalData = false; // Reset for next connection
       console.info("   → Reset sync state flags for fresh sync on next connection");
     });
 
@@ -1060,6 +1111,70 @@ async function deleteAllRemoteStorage(): Promise<{
   };
 }
 
+/**
+ * Reset sync state and replace local articles with server data.
+ * Use this when you want to discard local articles and sync fresh from the server.
+ *
+ * This function:
+ * 1. Clears all local articles from IndexedDB
+ * 2. Resets the sync initialized flag
+ * 3. Triggers a fresh sync from the server
+ *
+ * @returns A promise that resolves when the reset is complete
+ */
+async function resetSyncStateAndReplaceWithServer(): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  try {
+    console.info("🔄 Resetting sync state and replacing local data with server data...");
+
+    // Clear all local articles
+    const articleCount = await db.articles.count();
+    await db.articles.clear();
+    console.info(`   ✅ Cleared ${articleCount} local articles`);
+
+    // Reset the sync initialized flag so next sync is treated as fresh
+    localStorage.removeItem(REMOTE_SYNC_INITIALIZED_KEY);
+    isFirstConnectionWithLocalData = false;
+    console.info("   ✅ Reset sync initialized flag");
+
+    // Trigger a fresh sync
+    const store = await init();
+    if (store && store.remoteStorage) {
+      await store.remoteStorage.startSync();
+      console.info("   ✅ Triggered fresh sync from server");
+    }
+
+    return {
+      success: true,
+      message: `Cleared ${articleCount} local articles and triggered fresh sync from server`,
+    };
+  } catch (error) {
+    console.error("Failed to reset sync state:", error);
+    return {
+      success: false,
+      message: `Failed to reset sync state: ${error}`,
+    };
+  }
+}
+
+/**
+ * Check if this is the first connection with existing local data.
+ * Can be used by UI to show appropriate messaging.
+ */
+function isFirstSyncWithLocalData(): boolean {
+  return isFirstConnectionWithLocalData;
+}
+
+/**
+ * Get the sync initialized status.
+ * Returns true if we've ever successfully synced with remote storage.
+ */
+function hasEverSynced(): boolean {
+  return localStorage.getItem(REMOTE_SYNC_INITIALIZED_KEY) === "true";
+}
+
 export {
   init,
   glob,
@@ -1069,4 +1184,7 @@ export {
   deleteAllRemoteStorage,
   recursiveDeleteDirectory,
   formatBytes,
+  resetSyncStateAndReplaceWithServer,
+  isFirstSyncWithLocalData,
+  hasEverSynced,
 };
