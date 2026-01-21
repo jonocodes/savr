@@ -8,6 +8,7 @@ import { ThemeProvider, CssBaseline } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 import { SyncStatusProvider } from "~/components/SyncStatusProvider";
 import { PWARegister } from "~/components/PWARegister";
+import { SyncConfirmationDialog } from "~/components/SyncConfirmationDialog";
 
 import { SnackbarProvider } from "notistack";
 import { getThemeFromCookie, getEffectiveTheme, useSystemThemeListener } from "~/utils/cookies";
@@ -149,6 +150,7 @@ function RootComponent() {
               <Outlet />
               <TanStackRouterDevtools position="bottom-left" />
               <PWARegister />
+              <SyncConfirmationDialog />
             </div>
           </ThemeProvider>
         </SyncStatusProvider>

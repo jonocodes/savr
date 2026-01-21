@@ -46,6 +46,81 @@ function notifySyncProgress(progress: Partial<SyncProgress>) {
   syncProgressListeners.forEach((listener) => listener(currentSyncProgress));
 }
 
+// Confirmation dialog system for data-affecting operations
+export type ConfirmationType = "disconnect" | "first-sync-with-local-data";
+
+export interface ConfirmationRequest {
+  type: ConfirmationType;
+  articleCount: number;
+  // For first-sync: user can choose to keep local, replace with server, or cancel
+  // For disconnect: user can confirm clear or cancel
+}
+
+export type ConfirmationResponse =
+  | { action: "confirm" } // For disconnect: clear local data
+  | { action: "cancel" } // Cancel the operation
+  | { action: "keep-local" } // For first-sync: preserve local articles (default behavior)
+  | { action: "replace-with-server" }; // For first-sync: clear local and sync from server
+
+type ConfirmationCallback = (request: ConfirmationRequest) => Promise<ConfirmationResponse>;
+
+let confirmationCallback: ConfirmationCallback | null = null;
+
+// Pending confirmation state
+let pendingDisconnectConfirmation: {
+  resolve: (shouldClear: boolean) => void;
+  articleCount: number;
+} | null = null;
+
+let pendingFirstSyncConfirmation: {
+  resolve: (response: ConfirmationResponse) => void;
+  articleCount: number;
+} | null = null;
+
+/**
+ * Register a callback to handle confirmation dialogs.
+ * The UI should register this to show dialogs when data-affecting operations occur.
+ */
+export function setConfirmationCallback(callback: ConfirmationCallback | null): void {
+  confirmationCallback = callback;
+}
+
+/**
+ * Check if there's a pending disconnect confirmation.
+ * Returns the article count if pending, null otherwise.
+ */
+export function getPendingDisconnectConfirmation(): number | null {
+  return pendingDisconnectConfirmation?.articleCount ?? null;
+}
+
+/**
+ * Check if there's a pending first-sync confirmation.
+ * Returns the article count if pending, null otherwise.
+ */
+export function getPendingFirstSyncConfirmation(): number | null {
+  return pendingFirstSyncConfirmation?.articleCount ?? null;
+}
+
+/**
+ * Respond to a pending disconnect confirmation.
+ */
+export function respondToDisconnectConfirmation(shouldClear: boolean): void {
+  if (pendingDisconnectConfirmation) {
+    pendingDisconnectConfirmation.resolve(shouldClear);
+    pendingDisconnectConfirmation = null;
+  }
+}
+
+/**
+ * Respond to a pending first-sync confirmation.
+ */
+export function respondToFirstSyncConfirmation(response: ConfirmationResponse): void {
+  if (pendingFirstSyncConfirmation) {
+    pendingFirstSyncConfirmation.resolve(response);
+    pendingFirstSyncConfirmation = null;
+  }
+}
+
 // declare global {
 //   interface Window {
 //     extensionConnector: typeof extensionConnector;
@@ -366,23 +441,55 @@ function initRemote() {
 
       if (isFirstConnectionWithLocalData) {
         console.warn(
-          `   ⚠️ First remote connection with ${existingArticleCount} local articles - will preserve local data`
+          `   ⚠️ First remote connection with ${existingArticleCount} local articles - requesting user confirmation`
         );
+
+        // Request confirmation from UI if callback is registered
+        if (confirmationCallback) {
+          try {
+            const response = await confirmationCallback({
+              type: "first-sync-with-local-data",
+              articleCount: existingArticleCount,
+            });
+
+            if (response.action === "cancel") {
+              console.info("   → User cancelled first sync, disconnecting");
+              isFirstConnectionWithLocalData = false;
+              isSyncing = false;
+              remoteStorage.disconnect();
+              return;
+            } else if (response.action === "replace-with-server") {
+              console.info("   → User chose to replace local with server data");
+              // Clear local articles and proceed with normal sync (allow processDeletedArticles)
+              await db.articles.clear();
+              isFirstConnectionWithLocalData = false;
+              isInitialSync = true; // Now it's a true initial sync
+            } else {
+              // keep-local or confirm: preserve local articles (skip processDeletedArticles)
+              console.info("   → User chose to keep local articles");
+            }
+          } catch (error) {
+            console.error("   → Confirmation callback failed, preserving local data:", error);
+          }
+        } else {
+          console.info("   → No confirmation callback, preserving local data by default");
+        }
       }
 
       // Notify UI that RemoteStorage sync is starting (downloading files to cache)
       // We don't know article count yet, so show as "preparing"
+      const currentLocalCount = await db.articles.count();
       notifySyncProgress({
         isSyncing: true,
         phase: isInitialSync ? "initial" : "ongoing",
         totalArticles: 0, // Don't know yet
         processedArticles: 0,
         warning: isFirstConnectionWithLocalData
-          ? `Found ${existingArticleCount} local articles. Your local data will be preserved during this first sync.`
+          ? `Found ${currentLocalCount} local articles. Your local data will be preserved during this first sync.`
           : undefined,
       });
       console.info(
-        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}, firstConnectionWithLocalData: ${isFirstConnectionWithLocalData}`
+        `   📊 Existing articles: ${currentLocalCount}, phase: ${isInitialSync ? "initial" : "ongoing"}, firstConnectionWithLocalData: ${isFirstConnectionWithLocalData}`
       );
       // Sync is automatically triggered on connection, but we can ensure it happens
       // The sync-done event will fire when sync completes
@@ -551,14 +658,37 @@ function initRemote() {
       // IMPORTANT: Only clear database if this is a deliberate user disconnect
       // Do NOT clear during sync operations, reconnect cycles, or network interruptions
       if (!isSyncing && hasCompletedInitialSync && !isNetworkOffline) {
-        console.info("   → User-initiated disconnect detected, clearing local articles");
-        try {
-          await db.articles.clear();
-          // Also clear the sync initialized flag so next connection starts fresh
-          localStorage.removeItem(REMOTE_SYNC_INITIALIZED_KEY);
-          console.info("   ✅ Cleared all articles from local database and reset sync state");
-        } catch (error) {
-          console.error("   ❌ Failed to clear articles from local database:", error);
+        console.info("   → User-initiated disconnect detected, requesting confirmation");
+
+        let shouldClear = true; // Default to clearing if no callback
+
+        // Request confirmation from UI if callback is registered
+        if (confirmationCallback && articleCount > 0) {
+          try {
+            const response = await confirmationCallback({
+              type: "disconnect",
+              articleCount,
+            });
+
+            shouldClear = response.action === "confirm";
+            console.info(`   → User chose to ${shouldClear ? "clear" : "keep"} local articles`);
+          } catch (error) {
+            console.error("   → Confirmation callback failed, preserving local data:", error);
+            shouldClear = false;
+          }
+        }
+
+        if (shouldClear) {
+          try {
+            await db.articles.clear();
+            // Also clear the sync initialized flag so next connection starts fresh
+            localStorage.removeItem(REMOTE_SYNC_INITIALIZED_KEY);
+            console.info("   ✅ Cleared all articles from local database and reset sync state");
+          } catch (error) {
+            console.error("   ❌ Failed to clear articles from local database:", error);
+          }
+        } else {
+          console.info("   → User chose to keep local articles after disconnect");
         }
       } else {
         console.info("   → Preserving local database during sync/reconnect cycle");
