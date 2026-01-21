@@ -58,7 +58,7 @@ import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
 } from "~/utils/cookies";
-import { isNetworkInfoSupported } from "~/utils/network";
+import { isNetworkInfoSupported, isPWAMode } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";

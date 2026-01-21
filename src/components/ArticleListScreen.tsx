@@ -36,6 +36,8 @@ import {
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
   ArrowForward,
+  CloudQueue as CloudQueueIcon,
+  CloudOff as CloudOffIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
@@ -284,9 +286,9 @@ export default function ArticleListScreen() {
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  const { client } = useRemoteStorage();
+  const { remoteStorage, client, widget } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
-  useSyncStatus();
+  const { status: syncStatus, isNetworkSupported } = useSyncStatus();
   const syncProgress = useSyncProgress();
 
   // Track if we've shown the initial load message
