@@ -361,10 +361,24 @@ function initRemote() {
     let hasCompletedInitialSync = false;
     let hasProcessedAfterFirstCycle = false;
     let isNetworkOffline = false; // Track network state to distinguish user disconnect from network loss
-    let isPreparingForSync = false; // Block change events while clearing local articles
+    // Block change events until we're ready - starts TRUE to block early events during connection
+    let isPreparingForSync = true;
+
+    // Track which articles we've already processed to avoid duplicates
+    // This is shared between the change handler and sync-done handler
+    const processedArticles = new Set<string>();
+
+    // Track if we've fetched the total article count for progress reporting
+    let hasSetTotalArticles = false;
+    let hasFinalizedTotal = false; // Prevent resetting total after sync completes
+    let isInitialSync = false; // True if DB was empty when we connected
 
     remoteStorage.on("ready", function () {
       console.info("🔵 remoteStorage ready");
+      // If not connected, allow change events (for offline/local-only mode)
+      if (!remoteStorage.remote.connected) {
+        isPreparingForSync = false;
+      }
       resolve(remoteStorage);
     });
 
@@ -372,7 +386,7 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
 
-      // Block change events while we prepare
+      // Ensure change events are blocked (should already be true, but be safe)
       isPreparingForSync = true;
 
       // Check if we have local articles before starting sync
@@ -397,8 +411,12 @@ function initRemote() {
         console.info("   ✅ Local articles cleared");
       }
 
+      // Reset processed articles set to ensure clean slate
+      processedArticles.clear();
+
       // Now allow change events to be processed
       isPreparingForSync = false;
+      console.info("   ✅ Ready to receive sync events");
 
       isSyncing = true;
       hasProcessedAfterFirstCycle = false; // Reset for this connection
@@ -621,15 +639,6 @@ function initRemote() {
     remoteStorage.on("wire-done", () => {
       console.debug(`⚡ remoteStorage wire-done - network activity finished`);
     });
-
-    // Track which articles we've already processed to avoid duplicates
-    // This is shared between the change handler and sync-done handler
-    const processedArticles = new Set<string>();
-
-    // Track if we've fetched the total article count for progress reporting
-    let hasSetTotalArticles = false;
-    let hasFinalizedTotal = false; // Prevent resetting total after sync completes
-    let isInitialSync = false; // True if DB was empty when we connected
 
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
