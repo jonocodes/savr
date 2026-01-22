@@ -8,9 +8,9 @@ import { ThemeProvider, CssBaseline } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 import { SyncStatusProvider } from "~/components/SyncStatusProvider";
 import { PWARegister } from "~/components/PWARegister";
-import { SyncConfirmationDialog } from "~/components/SyncConfirmationDialog";
 
-import { SnackbarProvider } from "notistack";
+import { SnackbarProvider, useSnackbar } from "notistack";
+import { setSyncNotifyCallback } from "~/utils/storage";
 import { getThemeFromCookie, getEffectiveTheme, useSystemThemeListener } from "~/utils/cookies";
 import { createAppTheme } from "~/utils/theme";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
@@ -112,6 +112,26 @@ function UrlPatternMatcher() {
   return <NotFound />;
 }
 
+// Component to set up sync notifications using snackbar
+function SyncNotificationSetup() {
+  const { enqueueSnackbar } = useSnackbar();
+
+  React.useEffect(() => {
+    setSyncNotifyCallback((notification) => {
+      enqueueSnackbar(notification.message, {
+        variant: "info",
+        autoHideDuration: 4000,
+      });
+    });
+
+    return () => {
+      setSyncNotifyCallback(null);
+    };
+  }, [enqueueSnackbar]);
+
+  return null;
+}
+
 function RootComponent() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
 
@@ -142,6 +162,7 @@ function RootComponent() {
 
   return (
     <SnackbarProvider maxSnack={3}>
+      <SyncNotificationSetup />
       <RemoteStorageProvider>
         <SyncStatusProvider>
           <ThemeProvider theme={appTheme}>
@@ -150,7 +171,6 @@ function RootComponent() {
               <Outlet />
               <TanStackRouterDevtools position="bottom-left" />
               <PWARegister />
-              <SyncConfirmationDialog />
             </div>
           </ThemeProvider>
         </SyncStatusProvider>

@@ -40,28 +40,24 @@ function notifySyncProgress(progress: Partial<SyncProgress>) {
   syncProgressListeners.forEach((listener) => listener(currentSyncProgress));
 }
 
-// Confirmation dialog system for data-affecting operations
-export type ConfirmationType = "disconnect" | "connect-with-local-articles";
+// Notification system for sync events
+export type SyncNotificationType = "connect-replacing-articles" | "disconnect-removed-articles";
 
-export interface ConfirmationRequest {
-  type: ConfirmationType;
-  articleCount: number;
+export interface SyncNotification {
+  type: SyncNotificationType;
+  message: string;
 }
 
-export type ConfirmationResponse =
-  | { action: "confirm" } // Confirm the operation
-  | { action: "cancel" }; // Cancel the operation
+type NotifyCallback = (notification: SyncNotification) => void;
 
-type ConfirmationCallback = (request: ConfirmationRequest) => Promise<ConfirmationResponse>;
-
-let confirmationCallback: ConfirmationCallback | null = null;
+let notifyCallback: NotifyCallback | null = null;
 
 /**
- * Register a callback to handle confirmation dialogs.
- * The UI should register this to show dialogs when data-affecting operations occur.
+ * Register a callback to show notifications for sync events.
+ * The UI should register this to show toast messages.
  */
-export function setConfirmationCallback(callback: ConfirmationCallback | null): void {
-  confirmationCallback = callback;
+export function setSyncNotifyCallback(callback: NotifyCallback | null): void {
+  notifyCallback = callback;
 }
 
 // declare global {
@@ -378,32 +374,22 @@ function initRemote() {
       // Check if we have local articles before starting sync
       const existingArticleCount = await db.articles.count();
 
-      // If there are local articles, warn the user that sync will override them
-      if (existingArticleCount > 0 && confirmationCallback) {
+      // If there are local articles, notify user and clear them before sync
+      if (existingArticleCount > 0) {
         console.info(
-          `   ⚠️ Found ${existingArticleCount} local articles - requesting confirmation before sync`
+          `   ⚠️ Found ${existingArticleCount} local articles - clearing before sync`
         );
 
-        try {
-          const response = await confirmationCallback({
-            type: "connect-with-local-articles",
-            articleCount: existingArticleCount,
+        // Notify the user that local articles are being replaced
+        if (notifyCallback) {
+          notifyCallback({
+            type: "connect-replacing-articles",
+            message: `Replacing ${existingArticleCount} local article${existingArticleCount !== 1 ? "s" : ""} with synced data`,
           });
-
-          if (response.action === "cancel") {
-            console.info("   → User cancelled, disconnecting");
-            remoteStorage.disconnect();
-            return;
-          }
-
-          // User confirmed - clear local articles so sync starts fresh
-          console.info("   → User confirmed, clearing local articles before sync");
-          await db.articles.clear();
-        } catch (error) {
-          console.error("   → Confirmation callback failed, disconnecting:", error);
-          remoteStorage.disconnect();
-          return;
         }
+
+        // Clear local articles so sync starts fresh
+        await db.articles.clear();
       }
 
       isSyncing = true;
@@ -565,35 +551,23 @@ function initRemote() {
       // IMPORTANT: Only clear database if this is a deliberate user disconnect
       // Do NOT clear during sync operations, reconnect cycles, or network interruptions
       if (!isSyncing && hasCompletedInitialSync && !isNetworkOffline) {
-        console.info("   → User-initiated disconnect detected, requesting confirmation");
+        console.info("   → User-initiated disconnect detected, clearing local data");
 
-        let shouldClear = true; // Default to clearing if no callback
-
-        // Request confirmation from UI if callback is registered
-        if (confirmationCallback && articleCount > 0) {
-          try {
-            const response = await confirmationCallback({
-              type: "disconnect",
-              articleCount,
+        if (articleCount > 0) {
+          // Notify the user that articles are being removed
+          if (notifyCallback) {
+            notifyCallback({
+              type: "disconnect-removed-articles",
+              message: `Removed ${articleCount} article${articleCount !== 1 ? "s" : ""} from device. Reconnect to get them back.`,
             });
-
-            shouldClear = response.action === "confirm";
-            console.info(`   → User chose to ${shouldClear ? "clear" : "keep"} local articles`);
-          } catch (error) {
-            console.error("   → Confirmation callback failed, preserving local data:", error);
-            shouldClear = false;
           }
-        }
 
-        if (shouldClear) {
           try {
             await db.articles.clear();
             console.info("   ✅ Cleared all articles from local database");
           } catch (error) {
             console.error("   ❌ Failed to clear articles from local database:", error);
           }
-        } else {
-          console.info("   → User chose to keep local articles after disconnect");
         }
       } else {
         console.info("   → Preserving local database during sync/reconnect cycle");
