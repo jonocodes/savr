@@ -361,6 +361,7 @@ function initRemote() {
     let hasCompletedInitialSync = false;
     let hasProcessedAfterFirstCycle = false;
     let isNetworkOffline = false; // Track network state to distinguish user disconnect from network loss
+    let isPreparingForSync = false; // Block change events while clearing local articles
 
     remoteStorage.on("ready", function () {
       console.info("🔵 remoteStorage ready");
@@ -371,10 +372,13 @@ function initRemote() {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
 
+      // Block change events while we prepare
+      isPreparingForSync = true;
+
       // Check if we have local articles before starting sync
       const existingArticleCount = await db.articles.count();
 
-      // If there are local articles, notify user and clear them before sync
+      // Always clear local articles before sync to avoid flickering
       if (existingArticleCount > 0) {
         console.info(
           `   ⚠️ Found ${existingArticleCount} local articles - clearing before sync`
@@ -390,7 +394,11 @@ function initRemote() {
 
         // Clear local articles so sync starts fresh
         await db.articles.clear();
+        console.info("   ✅ Local articles cleared");
       }
+
+      // Now allow change events to be processed
+      isPreparingForSync = false;
 
       isSyncing = true;
       hasProcessedAfterFirstCycle = false; // Reset for this connection
@@ -627,6 +635,12 @@ function initRemote() {
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
     client.on("change", async (event: any) => {
+      // Skip processing while we're clearing local articles
+      if (isPreparingForSync) {
+        console.debug("   ⏸️ Skipping change event while preparing for sync");
+        return;
+      }
+
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
 
