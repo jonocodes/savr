@@ -7,7 +7,7 @@ import {
 
 export interface SyncConfirmationState {
   isOpen: boolean;
-  type: "disconnect" | "sync-would-delete-articles" | null;
+  type: "disconnect" | "connect-with-local-articles" | null;
   articleCount: number;
 }
 

@@ -21,58 +21,41 @@ export function SyncConfirmationDialog() {
   if (type === "disconnect") {
     return (
       <Dialog open={isOpen} onClose={handleCancel}>
-        <DialogTitle>Disconnect from Remote Storage?</DialogTitle>
+        <DialogTitle>Disconnect from Sync?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            You have <strong>{articleCount} article{articleCount !== 1 ? "s" : ""}</strong> saved
-            locally. Disconnecting will remove all local articles from this device.
-          </DialogContentText>
-          <DialogContentText sx={{ mt: 2 }}>
-            Your articles will remain on the remote server and can be synced again when you
-            reconnect.
+            All {articleCount} article{articleCount !== 1 ? "s" : ""} will be removed from this
+            device. Reconnect to get them back.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
           <Button onClick={handleCancel} color="primary">
-            Keep Local Data
+            Cancel
           </Button>
           <Button onClick={handleConfirm} color="error" variant="contained">
-            Disconnect & Clear Local Data
+            Disconnect
           </Button>
         </DialogActions>
       </Dialog>
     );
   }
 
-  if (type === "sync-would-delete-articles") {
+  if (type === "connect-with-local-articles") {
     return (
-      <Dialog open={isOpen} onClose={handleCancel} maxWidth="sm" fullWidth>
-        <DialogTitle>Local Articles Not Found on Server</DialogTitle>
+      <Dialog open={isOpen} onClose={handleCancel}>
+        <DialogTitle>Turn on Sync?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            <strong>{articleCount} article{articleCount !== 1 ? "s" : ""}</strong>{" "}
-            {articleCount !== 1 ? "exist" : "exists"} locally but not on the remote server.
-          </DialogContentText>
-          <DialogContentText sx={{ mt: 2 }}>
-            This could mean:
-          </DialogContentText>
-          <DialogContentText component="ul" sx={{ mt: 1, pl: 2 }}>
-            <li>
-              <strong>They were deleted on another device</strong> - choose "Remove" to sync the
-              deletion
-            </li>
-            <li>
-              <strong>They were saved offline and never synced</strong> - choose "Keep" to
-              preserve them
-            </li>
+            Turning on sync will replace your {articleCount} locally saved article
+            {articleCount !== 1 ? "s" : ""} with articles from the server.
           </DialogContentText>
         </DialogContent>
         <DialogActions>
-          <Button onClick={handleCancel} color="primary" variant="contained">
-            Keep Local Articles
+          <Button onClick={handleCancel} color="primary">
+            Cancel
           </Button>
-          <Button onClick={handleConfirm} color="error">
-            Remove Local Articles
+          <Button onClick={handleConfirm} color="primary" variant="contained">
+            Turn on Sync
           </Button>
         </DialogActions>
       </Dialog>

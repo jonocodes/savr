@@ -41,19 +41,16 @@ function notifySyncProgress(progress: Partial<SyncProgress>) {
 }
 
 // Confirmation dialog system for data-affecting operations
-export type ConfirmationType = "disconnect" | "sync-would-delete-articles";
+export type ConfirmationType = "disconnect" | "connect-with-local-articles";
 
 export interface ConfirmationRequest {
   type: ConfirmationType;
   articleCount: number;
-  // For sync-would-delete: user can choose to delete (they were removed on server)
-  // or keep (they're local-only articles that were never synced)
-  // For disconnect: user can confirm clear or cancel
 }
 
 export type ConfirmationResponse =
-  | { action: "confirm" } // Confirm the operation (delete articles / clear local data)
-  | { action: "cancel" }; // Cancel/keep the articles
+  | { action: "confirm" } // Confirm the operation
+  | { action: "cancel" }; // Cancel the operation
 
 type ConfirmationCallback = (request: ConfirmationRequest) => Promise<ConfirmationResponse>;
 
@@ -377,25 +374,54 @@ function initRemote() {
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
+
+      // Check if we have local articles before starting sync
+      const existingArticleCount = await db.articles.count();
+
+      // If there are local articles, warn the user that sync will override them
+      if (existingArticleCount > 0 && confirmationCallback) {
+        console.info(
+          `   ⚠️ Found ${existingArticleCount} local articles - requesting confirmation before sync`
+        );
+
+        try {
+          const response = await confirmationCallback({
+            type: "connect-with-local-articles",
+            articleCount: existingArticleCount,
+          });
+
+          if (response.action === "cancel") {
+            console.info("   → User cancelled, disconnecting");
+            remoteStorage.disconnect();
+            return;
+          }
+
+          // User confirmed - clear local articles so sync starts fresh
+          console.info("   → User confirmed, clearing local articles before sync");
+          await db.articles.clear();
+        } catch (error) {
+          console.error("   → Confirmation callback failed, disconnecting:", error);
+          remoteStorage.disconnect();
+          return;
+        }
+      }
+
       isSyncing = true;
       hasProcessedAfterFirstCycle = false; // Reset for this connection
       hasSetTotalArticles = false; // Allow fetching total for new connection
       hasFinalizedTotal = false; // Allow updating total for new sync
 
-      // Check if we already have articles in IndexedDB to determine if this is truly initial
-      const existingArticleCount = await db.articles.count();
-      isInitialSync = existingArticleCount === 0;
+      // After potential clearing, this is now an initial sync
+      isInitialSync = true;
 
-      // Notify UI that RemoteStorage sync is starting (downloading files to cache)
+      // Notify UI that RemoteStorage sync is starting
       notifySyncProgress({
         isSyncing: true,
-        phase: isInitialSync ? "initial" : "ongoing",
+        phase: "initial",
         totalArticles: 0, // Don't know yet
         processedArticles: 0,
       });
-      console.info(
-        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`
-      );
+      console.info(`   📊 Starting sync`);
       // Sync is automatically triggered on connection
       // The sync-done event will fire when sync completes
     });
@@ -429,36 +455,9 @@ function initRemote() {
             console.info("   → All articles synced via change events");
           }
 
-          // Check for articles that exist locally but not on remote
-          // These could be: (a) deleted on another device, or (b) saved locally but never synced
-          // Ask user for confirmation before deleting
-          const articlesToDelete = await processDeletedArticles(listing, false);
-          if (articlesToDelete.length > 0) {
-            console.info(
-              `   ⚠️ Found ${articlesToDelete.length} local articles not on remote - requesting confirmation`
-            );
-
-            let shouldDelete = false;
-
-            if (confirmationCallback) {
-              try {
-                const response = await confirmationCallback({
-                  type: "sync-would-delete-articles",
-                  articleCount: articlesToDelete.length,
-                });
-                shouldDelete = response.action === "confirm";
-                console.info(
-                  `   → User chose to ${shouldDelete ? "delete" : "keep"} local articles`
-                );
-              } catch (error) {
-                console.error("   → Confirmation callback failed, keeping articles:", error);
-              }
-            }
-
-            if (shouldDelete) {
-              await processDeletedArticles(listing, true);
-            }
-          }
+          // Process deleted articles (articles in local DB but not on remote)
+          // Since user confirmed at connect time, we can safely delete these
+          await processDeletedArticles(listing, true);
         } else {
           console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
@@ -523,35 +522,8 @@ function initRemote() {
               console.info("   → All articles synced via change events");
             }
 
-            // Check for articles that exist locally but not on remote
-            // Ask user for confirmation before deleting
-            const articlesToDelete = await processDeletedArticles(listing, false);
-            if (articlesToDelete.length > 0) {
-              console.info(
-                `   ⚠️ Found ${articlesToDelete.length} local articles not on remote - requesting confirmation`
-              );
-
-              let shouldDelete = false;
-
-              if (confirmationCallback) {
-                try {
-                  const response = await confirmationCallback({
-                    type: "sync-would-delete-articles",
-                    articleCount: articlesToDelete.length,
-                  });
-                  shouldDelete = response.action === "confirm";
-                  console.info(
-                    `   → User chose to ${shouldDelete ? "delete" : "keep"} local articles`
-                  );
-                } catch (error) {
-                  console.error("   → Confirmation callback failed, keeping articles:", error);
-                }
-              }
-
-              if (shouldDelete) {
-                await processDeletedArticles(listing, true);
-              }
-            }
+            // Process deleted articles (articles in local DB but not on remote)
+            await processDeletedArticles(listing, true);
           } else {
             console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
           }
