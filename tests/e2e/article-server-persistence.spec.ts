@@ -5,6 +5,7 @@ import {
   waitForOutgoingSync,
   getArticleFromDB,
   getArticleFromServer,
+  getArticleContentFromServer,
   verifyArticleFilesOnServer,
   clearLocalIndexedDB,
   triggerRemoteStorageSync,
@@ -261,9 +262,407 @@ test.describe("Article Server Persistence", () => {
     console.log("\n🎉 Metadata integrity test completed successfully!");
   });
 
+  test("should delete article from remote server when deleted locally", async ({ page }) => {
+    // 1. Add an article
+    console.log("1️⃣  Adding article via UI...");
+    const addButton = page
+      .locator(
+        'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)'
+      )
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for article to appear
+    const articleTitle = page.getByText(/Death/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Article added");
+
+    // 2. Wait for sync to server
+    console.log("2️⃣  Waiting for sync to server...");
+    await waitForOutgoingSync(page);
+    await page.waitForTimeout(2000);
+    console.log("✅ Synced to server");
+
+    // 3. Verify article exists on server
+    console.log("3️⃣  Verifying article exists on server...");
+    const serverArticleBefore = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    expect(serverArticleBefore).toBeTruthy();
+    console.log("✅ Article confirmed on server");
+
+    // 4. Delete the article via UI
+    console.log("4️⃣  Deleting article via UI...");
+    const menuButton = page.getByTestId("article-menu-button").first();
+    await expect(menuButton).toBeVisible({ timeout: 5000 });
+    await menuButton.click();
+
+    const deleteMenuItem = page.getByTestId("article-menu-delete");
+    await expect(deleteMenuItem).toBeVisible({ timeout: 5000 });
+    await deleteMenuItem.click();
+
+    // Handle confirmation dialog if present
+    const confirmButton = page.locator('button:has-text("Delete"), button:has-text("Confirm")');
+    if (await confirmButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+      await confirmButton.click();
+    }
+
+    // Wait for article to disappear from UI
+    await expect(articleTitle).not.toBeVisible({ timeout: 10000 });
+    console.log("✅ Article deleted from UI");
+
+    // 5. Wait for deletion to sync to server
+    console.log("5️⃣  Waiting for deletion to sync to server...");
+    await waitForOutgoingSync(page);
+    await page.waitForTimeout(2000);
+    console.log("✅ Deletion synced");
+
+    // 6. Verify article is deleted from server
+    console.log("6️⃣  Verifying article is deleted from server...");
+    const serverArticleAfter = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    expect(serverArticleAfter).toBeFalsy();
+    console.log("✅ Article confirmed deleted from server");
+
+    // 7. Verify all article files are deleted from server
+    console.log("7️⃣  Verifying all article files are deleted from server...");
+    const fileStatus = await verifyArticleFilesOnServer(page, "death-by-a-thousand-cuts");
+    expect(fileStatus.articleJson).toBe(false);
+    expect(fileStatus.indexHtml).toBe(false);
+    expect(fileStatus.rawHtml).toBe(false);
+    expect(fileStatus.fetchLog).toBe(false);
+    console.log("✅ All article files confirmed deleted from server");
+
+    console.log("\n🎉 Deletion persistence test completed successfully!");
+  });
+
+  test("should persist article archive state to remote server", async ({ page }) => {
+    // 1. Add an article
+    console.log("1️⃣  Adding article via UI...");
+    const addButton = page
+      .locator(
+        'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)'
+      )
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for article to appear
+    const articleTitle = page.getByText(/Death/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Article added");
+
+    // 2. Verify initial state is "unread"
+    console.log("2️⃣  Verifying initial state is unread...");
+    const initialArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    expect(initialArticle?.state).toBe("unread");
+    console.log("✅ Initial state is unread");
+
+    // 3. Wait for initial sync
+    await waitForOutgoingSync(page);
+    await page.waitForTimeout(2000);
+
+    // 4. Archive the article via UI
+    console.log("3️⃣  Archiving article via UI...");
+    const menuButton = page.getByTestId("article-menu-button").first();
+    await expect(menuButton).toBeVisible({ timeout: 5000 });
+    await menuButton.click();
+
+    const archiveMenuItem = page.getByTestId("article-menu-archive");
+    await expect(archiveMenuItem).toBeVisible({ timeout: 5000 });
+    await archiveMenuItem.click();
+    console.log("✅ Archive clicked");
+
+    // Wait for article to be archived (it should disappear from unread list or show archived state)
+    await page.waitForTimeout(1000);
+
+    // 5. Verify article state changed to archived locally
+    console.log("4️⃣  Verifying article archived locally...");
+    const archivedArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    expect(archivedArticle?.state).toBe("archived");
+    console.log("✅ Article archived locally");
+
+    // 6. Wait for archive state to sync to server
+    console.log("5️⃣  Waiting for archive state to sync to server...");
+    await waitForOutgoingSync(page);
+    await page.waitForTimeout(2000);
+    console.log("✅ Archive state synced");
+
+    // 7. Verify archive state on server
+    console.log("6️⃣  Verifying archive state on server...");
+    const serverArticle = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    expect(serverArticle?.state).toBe("archived");
+    console.log("✅ Archive state confirmed on server");
+
+    // 8. Clear local and restore from server
+    console.log("7️⃣  Clearing local and restoring from server...");
+    await clearLocalIndexedDB(page);
+    await triggerRemoteStorageSync(page);
+    await page.waitForTimeout(2000);
+    console.log("✅ Restored from server");
+
+    // 9. Verify archive state persisted after restore
+    console.log("8️⃣  Verifying archive state persisted after restore...");
+    const restoredArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    expect(restoredArticle?.state).toBe("archived");
+    console.log("✅ Archive state persisted:", restoredArticle?.state);
+
+    console.log("\n🎉 Archive state persistence test completed successfully!");
+  });
+
+  test("should preserve article HTML content after server round-trip", async ({ page }) => {
+    // 1. Add an article
+    console.log("1️⃣  Adding article via UI...");
+    const addButton = page
+      .locator(
+        'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)'
+      )
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for article to appear
+    const articleTitle = page.getByText(/Death/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Article added");
+
+    // 2. Wait for sync to server
+    console.log("2️⃣  Waiting for sync to server...");
+    await waitForOutgoingSync(page);
+    await page.waitForTimeout(2000);
+    console.log("✅ Synced to server");
+
+    // 3. Get the original HTML content from server
+    console.log("3️⃣  Fetching original HTML content from server...");
+    const originalContent = await getArticleContentFromServer(page, "death-by-a-thousand-cuts");
+    expect(originalContent).toBeTruthy();
+    expect(originalContent!.length).toBeGreaterThan(100);
+    console.log("✅ Original content fetched, length:", originalContent!.length);
+
+    // 4. Verify content contains expected text
+    console.log("4️⃣  Verifying content contains expected text...");
+    expect(originalContent).toContain("Nix");
+    console.log("✅ Content contains expected text");
+
+    // 5. Clear local and restore from server
+    console.log("5️⃣  Clearing local storage...");
+    await clearLocalIndexedDB(page);
+    console.log("✅ Local storage cleared");
+
+    // 6. Fetch content again from server (should still be there)
+    console.log("6️⃣  Fetching content again from server...");
+    const restoredContent = await getArticleContentFromServer(page, "death-by-a-thousand-cuts");
+    expect(restoredContent).toBeTruthy();
+    console.log("✅ Content still available on server");
+
+    // 7. Verify content integrity
+    console.log("7️⃣  Verifying content integrity...");
+    expect(restoredContent).toBe(originalContent);
+    console.log("✅ Content integrity verified - exact match");
+
+    // 8. Navigate to article page and verify content renders
+    console.log("8️⃣  Navigating to article page to verify rendering...");
+    await triggerRemoteStorageSync(page);
+    await page.waitForTimeout(2000);
+    await page.goto("/article/death-by-a-thousand-cuts");
+    await page.waitForLoadState("networkidle");
+
+    // Wait for RemoteStorage to reinitialize
+    await page.waitForFunction(
+      () => !!(window as unknown as { remoteStorage: unknown }).remoteStorage,
+      { timeout: 10000 }
+    );
+    await waitForRemoteStorageSync(page);
+
+    // Verify content is displayed
+    const articleContent = page.locator("article, .article-content, main").first();
+    await expect(articleContent).toBeVisible({ timeout: 10000 });
+    const displayedText = await articleContent.textContent();
+    expect(displayedText).toContain("Nix");
+    console.log("✅ Article content renders correctly");
+
+    console.log("\n🎉 Content integrity test completed successfully!");
+  });
+
+  test("should persist multiple articles to remote server", async ({ page }) => {
+    const testArticles = [
+      {
+        url: `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`,
+        slug: "death-by-a-thousand-cuts",
+        titlePattern: /Death/i,
+      },
+      {
+        url: `${getContentServerUrl()}/input/dune-part-two/`,
+        slug: "dune-part-two",
+        titlePattern: /Dune/i,
+      },
+    ];
+
+    // 1. Add first article
+    console.log("1️⃣  Adding first article...");
+    let addButton = page
+      .locator(
+        'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)'
+      )
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    let dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    let urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    await urlInput.fill(testArticles[0].url);
+
+    let saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for first article to appear
+    const firstArticleTitle = page.getByText(testArticles[0].titlePattern);
+    await expect(firstArticleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ First article added");
+
+    // 2. Add second article
+    console.log("2️⃣  Adding second article...");
+    addButton = page
+      .locator(
+        'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)'
+      )
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    await urlInput.fill(testArticles[1].url);
+
+    saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    // Wait for second article to appear
+    const secondArticleTitle = page.getByText(testArticles[1].titlePattern);
+    await expect(secondArticleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Second article added");
+
+    // 3. Wait for both articles to sync to server
+    console.log("3️⃣  Waiting for both articles to sync to server...");
+    await waitForOutgoingSync(page);
+    await page.waitForTimeout(3000);
+    console.log("✅ Both articles synced");
+
+    // 4. Verify both articles exist on server
+    console.log("4️⃣  Verifying both articles exist on server...");
+    for (const article of testArticles) {
+      const serverArticle = await getArticleFromServer(page, article.slug);
+      expect(serverArticle).toBeTruthy();
+      expect(serverArticle?.slug).toBe(article.slug);
+      console.log(`   ✅ ${article.slug} verified on server`);
+    }
+    console.log("✅ Both articles verified on server");
+
+    // 5. Clear local IndexedDB
+    console.log("5️⃣  Clearing local IndexedDB...");
+    await clearLocalIndexedDB(page);
+
+    // Verify local DB is empty
+    for (const article of testArticles) {
+      const localArticle = await getArticleFromDB(page, article.slug);
+      expect(localArticle).toBeFalsy();
+    }
+    console.log("✅ Local IndexedDB cleared");
+
+    // 6. Trigger sync to restore both articles
+    console.log("6️⃣  Triggering sync to restore articles from server...");
+    await triggerRemoteStorageSync(page);
+    await page.waitForTimeout(3000);
+    console.log("✅ Sync triggered");
+
+    // 7. Verify both articles restored locally
+    console.log("7️⃣  Verifying both articles restored from server...");
+    for (const article of testArticles) {
+      const restoredArticle = await getArticleFromDB(page, article.slug);
+      expect(restoredArticle).toBeTruthy();
+      expect(restoredArticle?.slug).toBe(article.slug);
+      console.log(`   ✅ ${article.slug} restored from server`);
+    }
+    console.log("✅ Both articles restored");
+
+    // 8. Reload page and verify both articles appear in UI
+    console.log("8️⃣  Reloading page to verify UI...");
+    await page.reload();
+    await page.waitForLoadState("networkidle");
+
+    // Wait for RemoteStorage to reinitialize
+    await page.waitForFunction(
+      () => !!(window as unknown as { remoteStorage: unknown }).remoteStorage,
+      { timeout: 10000 }
+    );
+    await waitForRemoteStorageSync(page);
+
+    // Verify both articles visible
+    await expect(page.getByText(testArticles[0].titlePattern)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(testArticles[1].titlePattern)).toBeVisible({ timeout: 15000 });
+    console.log("✅ Both articles visible in UI");
+
+    console.log("\n🎉 Multiple articles persistence test completed successfully!");
+    console.log("   ✓ Both articles synced to server");
+    console.log("   ✓ Both articles restored from server");
+    console.log("   ✓ Both articles visible in UI");
+  });
+
   test.afterEach(async ({ page }) => {
-    // Clean up: delete test article from RemoteStorage and IndexedDB
-    console.log("🧹 Cleaning up test article...");
+    // Clean up: delete test articles from RemoteStorage and IndexedDB
+    console.log("🧹 Cleaning up test articles...");
 
     // Navigate back to app if we're on an external page
     const currentUrl = page.url();
@@ -272,12 +671,16 @@ test.describe("Article Server Persistence", () => {
       await page.waitForLoadState("networkidle");
     }
 
-    try {
-      await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
-      await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
-      console.log("✅ Cleanup completed\n");
-    } catch (error) {
-      console.log("⚠️ Cleanup error (non-fatal):", error);
+    // Clean up both test articles
+    const testSlugs = ["death-by-a-thousand-cuts", "dune-part-two"];
+    for (const slug of testSlugs) {
+      try {
+        await deleteArticleFromStorage(page, slug);
+        await deleteArticleFromDB(page, slug);
+      } catch {
+        // Non-fatal - article may not exist
+      }
     }
+    console.log("✅ Cleanup completed\n");
   });
 });

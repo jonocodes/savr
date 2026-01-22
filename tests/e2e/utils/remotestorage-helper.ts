@@ -532,6 +532,29 @@ export async function verifyArticleFilesOnServer(
 }
 
 /**
+ * Get the article HTML content directly from the remote server
+ * Returns the index.html content as a string, or null if not found
+ */
+export async function getArticleContentFromServer(page: Page, slug: string): Promise<string | null> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as unknown as { remoteStorageClient: {
+      getFile: (path: string, maxAge: boolean) => Promise<{ data: string } | null>;
+    } }).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    try {
+      // Use maxAge: false to bypass cache and fetch directly from server
+      const file = await client.getFile(`saves/${slug}/index.html`, false);
+      return file?.data || null;
+    } catch {
+      return null;
+    }
+  }, slug);
+}
+
+/**
  * Clear only the local IndexedDB without touching RemoteStorage
  * Useful for simulating a fresh browser/device while keeping server data
  */
