@@ -49,7 +49,7 @@ export default function DiagnosticsScreen() {
   const [isScanningDangling, setIsScanningDangling] = React.useState(false);
   const [orphanedArticles, setOrphanedArticles] = React.useState<
     Array<{
-      article: { slug: string; title?: string; state: string };
+      article: { slug: string; title?: string; state: string; url?: string | null };
       reason: string;
     }>
   >([]);
@@ -142,7 +142,7 @@ export default function DiagnosticsScreen() {
 
       // Check each article
       const orphaned: Array<{
-        article: { slug: string; title?: string; state: string };
+        article: { slug: string; title?: string; state: string; url?: string | null };
         reason: string;
       }> = [];
 
@@ -280,15 +280,18 @@ export default function DiagnosticsScreen() {
       addEvent("network-offline");
     };
 
-    const handleWireError = (error: Error | { message?: string }) => {
+    const handleWireError = (event: unknown) => {
+      const error = event as Error | { message?: string };
       addEvent("wire-error", { error: error?.message || String(error) });
     };
 
-    const handleWireBusy = (req: { path?: string }) => {
+    const handleWireBusy = (event: unknown) => {
+      const req = event as { path?: string };
       addEvent("wire-busy", { path: req?.path });
     };
 
-    const handleWireDone = (req: { path?: string }) => {
+    const handleWireDone = (event: unknown) => {
+      const req = event as { path?: string };
       addEvent("wire-done", { path: req?.path });
     };
 
@@ -333,11 +336,11 @@ export default function DiagnosticsScreen() {
   // Show RemoteStorage widget on diagnostics page
   React.useEffect(() => {
     if (widget) {
-      widget.attach();
+      widget.attach("remotestorage-container");
     }
     return () => {
       if (widget) {
-        widget.attach(); // Keep it attached even when leaving page
+        widget.attach("remotestorage-container"); // Keep it attached even when leaving page
       }
     };
   }, [widget]);

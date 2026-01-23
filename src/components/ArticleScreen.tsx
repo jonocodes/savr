@@ -306,9 +306,10 @@ export default function ArticleScreen(_props: Props) {
         if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
-            .then((file: { data: string }) => {
-              setContent(file.data);
-              setHtml(`${file.data}`);
+            .then((file) => {
+              const f = file as { data: string };
+              setContent(f.data);
+              setHtml(`${f.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);
@@ -316,9 +317,10 @@ export default function ArticleScreen(_props: Props) {
         } else {
           storage.client
             ?.getFile(`saves/${slug}/index.html`, false) // maxAge: false = local-only, no network requests
-            .then((file: { data: string }) => {
-              setContent(file.data);
-              setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+            .then((file) => {
+              const f = file as { data: string };
+              setContent(f.data);
+              setHtml(`<link rel="stylesheet" href="/static/web.css">${f.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);

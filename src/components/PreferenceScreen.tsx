@@ -110,7 +110,8 @@ export default function PreferencesScreen() {
     files: number;
   } | null>(null);
 
-  const [_bookmarklet, _setBookmarklet] = React.useState<string>("");
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [bookmarklet, setBookmarklet] = React.useState<string>("");
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA

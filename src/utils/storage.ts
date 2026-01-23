@@ -643,13 +643,14 @@ function initRemote() {
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
-    client.on("change", async (event: { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown }) => {
+    client.on("change", async (evt: unknown) => {
       // Skip processing while we're clearing local articles
       if (isPreparingForSync) {
         console.debug("   ⏸️ Skipping change event while preparing for sync");
         return;
       }
 
+      const event = evt as { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown };
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
 
