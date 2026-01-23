@@ -35,6 +35,9 @@ try {
 }
 
 test.describe("Article Server Persistence", () => {
+  // Run tests serially to avoid conflicts with shared RemoteStorage state
+  test.describe.configure({ mode: "serial" });
+
   // These tests involve sync operations which can take time
   test.setTimeout(90000); // 90 seconds
 
@@ -515,7 +518,7 @@ test.describe("Article Server Persistence", () => {
     await waitForRemoteStorageSync(page);
 
     // Verify content is displayed
-    const articleContent = page.locator("article, .article-content, main").first();
+    const articleContent = page.getByTestId("article-content");
     await expect(articleContent).toBeVisible({ timeout: 10000 });
     const displayedText = await articleContent.textContent();
     expect(displayedText).toContain("Nix");

@@ -217,14 +217,14 @@ function ArticleItem({ article }: { article: Article }) {
         data-testid="article-menu"
       >
         {article.state === "archived" ? (
-          <MenuItem onClick={handleUnarchive}>
+          <MenuItem onClick={handleUnarchive} data-testid="article-menu-unarchive">
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
             Unarchive
           </MenuItem>
         ) : (
-          <MenuItem onClick={handleArchive}>
+          <MenuItem onClick={handleArchive} data-testid="article-menu-archive">
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>

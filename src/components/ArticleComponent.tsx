@@ -10,6 +10,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) =
   return (
     <Container
       maxWidth="md"
+      data-testid="article-content"
       sx={{
         mt: 1,
         mb: 4,
