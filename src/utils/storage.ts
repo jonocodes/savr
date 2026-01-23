@@ -227,7 +227,7 @@ async function processArticleFile(
 // Process missing articles using cached listing (avoids slow glob operation)
 async function processMissingArticles(
   client: BaseClient,
-  cachedListing: Record<string, any>,
+  cachedListing: Record<string, boolean>,
   processedSet: Set<string>
 ) {
   console.log("🔍 Processing missing articles from cached listing");
@@ -286,7 +286,7 @@ async function processMissingArticles(
 // Process deleted articles (articles in DB but not in RemoteStorage listing)
 // Returns the list of articles that would be deleted, or actually deletes them based on shouldDelete flag
 async function processDeletedArticles(
-  cachedListing: Record<string, any>,
+  cachedListing: Record<string, boolean>,
   shouldDelete: boolean = true
 ): Promise<string[]> {
   console.log("🗑️  Checking for deleted articles");
@@ -456,7 +456,7 @@ function initRemote() {
       // (fast operation, avoids slow glob)
       try {
         console.info("   → Fetching article listing to check for sync discrepancies");
-        const listing = (await client.getListing("saves/")) as Record<string, any>;
+        const listing = (await client.getListing("saves/")) as Record<string, boolean>;
         if (listing) {
           // Process missing articles (additions made while browser was closed)
           const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
@@ -522,7 +522,7 @@ function initRemote() {
         // Fetch listing to check for additions and deletions
         try {
           console.info("   → Fetching article listing to check for sync discrepancies");
-          const listing = (await client.getListing("saves/")) as Record<string, any>;
+          const listing = (await client.getListing("saves/")) as Record<string, boolean>;
           if (listing) {
             // Process missing articles (additions made while browser was closed or by another browser)
             const remoteCount = Object.keys(listing).filter((key) => listing[key] === true).length;
@@ -643,7 +643,7 @@ function initRemote() {
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
-    client.on("change", async (event: any) => {
+    client.on("change", async (event: { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown }) => {
       // Skip processing while we're clearing local articles
       if (isPreparingForSync) {
         console.debug("   ⏸️ Skipping change event while preparing for sync");
@@ -669,7 +669,7 @@ function initRemote() {
         if (!hasSetTotalArticles && isSyncing && !hasFinalizedTotal) {
           hasSetTotalArticles = true;
           try {
-            const listing = (await client.getListing("saves/")) as Record<string, any>;
+            const listing = (await client.getListing("saves/")) as Record<string, boolean>;
             if (listing) {
               const articlesInDb = await db.articles.count();
 
@@ -785,7 +785,7 @@ export async function syncMissingArticles(): Promise<string> {
     console.log(`🔧 Manual sync: DB has ${articlesInDb}, expected ${expectedTotal}`);
 
     // Fetch fresh listing
-    const listing = (await storage.client.getListing("saves/")) as Record<string, any>;
+    const listing = (await storage.client.getListing("saves/")) as Record<string, boolean>;
     if (!listing) {
       return "Failed to fetch article listing";
     }

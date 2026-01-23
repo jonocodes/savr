@@ -312,7 +312,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Check if RemoteStorage cache still has the file
     const cacheCheck = await page.evaluate(async () => {
-      const client = (window as any).remoteStorageClient;
+      const client = (window as unknown as { remoteStorageClient?: { getFile: (path: string) => Promise<{ data?: string }> } }).remoteStorageClient;
       if (!client) return { error: "client is null" };
       try {
         const file = await client.getFile("saves/death-by-a-thousand-cuts/index.html");

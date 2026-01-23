@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   Box,
@@ -29,17 +29,13 @@ import {
   LightMode as LightModeIcon,
   DarkMode as DarkModeIcon,
   SettingsBrightness as SettingsBrightnessIcon,
-  Info as InfoIcon,
   Article as ArticleIcon,
   Archive as ArchiveIcon,
   Delete as DeleteIcon,
   Help as HelpIcon,
   Storage as StorageIcon,
   Sync as SyncIcon,
-  CalendarToday as CalendarTodayIcon,
-  TextFields as TextFieldsIcon,
   DragHandle as DragHandleIcon,
-  Wifi as WifiIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -108,13 +104,13 @@ export default function PreferencesScreen() {
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
   );
-  const networkSupported = isNetworkInfoSupported();
+  const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
     files: number;
   } | null>(null);
 
-  const [bookmarklet, setBookmarklet] = React.useState<string>("");
+  const [_bookmarklet, _setBookmarklet] = React.useState<string>("");
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA

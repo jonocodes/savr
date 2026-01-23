@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
 import { Button, Snackbar, Alert } from "@mui/material";
 
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+}
+
 export function PWARegister() {
-  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
 

@@ -17,7 +17,7 @@ function killProcess(pid: number | undefined, name: string): void {
       }
     }, 1000);
     console.log(`✅ ${name} stopped`);
-  } catch (err) {
+  } catch {
     // Process may already be dead
     console.log(`⚠️  ${name} was not running (PID: ${pid})`);
   }

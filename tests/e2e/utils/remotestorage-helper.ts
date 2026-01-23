@@ -1,3 +1,7 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Test helper file that needs to interact with browser-injected RemoteStorage globals
+// which don't have TypeScript types available
+
 import { Page } from "@playwright/test";
 
 /**
@@ -255,7 +259,7 @@ export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Pro
     const maxWaitTime = Math.min(timeout, 10000); // Cap at 10 seconds for faster tests
 
     // Simple polling approach - don't wait for events that might not fire
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, _reject) => {
       const checkDb = async () => {
         const timeSinceStart = Date.now() - startTime;
 
@@ -434,7 +438,7 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
     const dbName = "savrDb";
     const request = indexedDB.open(dbName);
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, _reject) => {
       request.onsuccess = () => {
         const db = request.result;
 

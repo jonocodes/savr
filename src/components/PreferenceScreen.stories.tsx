@@ -2,10 +2,11 @@ import type { Meta, StoryObj } from "@storybook/react";
 import PreferenceScreen from "./PreferenceScreen";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { setThemeInCookie } from "~/utils/cookies";
-import { createAppTheme, withLightTheme, withDarkTheme, withSystemTheme } from "~/utils/theme";
+import { createAppTheme } from "~/utils/theme";
+import type { ComponentType } from "react";
 
 // Theme decorator that sets up the theme based on cookie
-const withTheme = (themeMode: "light" | "dark" | "system") => (Story: any) => {
+const withTheme = (themeMode: "light" | "dark" | "system") => (Story: ComponentType) => {
   // Set the theme in cookie for the story
   if (typeof document !== "undefined") {
     setThemeInCookie(themeMode);

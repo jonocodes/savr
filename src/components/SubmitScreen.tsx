@@ -2,68 +2,27 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import {
   Box,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemIcon,
-  ListSubheader,
   TextField,
   Typography,
   AppBar,
   Toolbar,
   IconButton,
-  Paper,
   Container,
   Dialog,
   DialogTitle,
   DialogContent,
   DialogActions,
   Button,
-  Tooltip,
-  Switch,
   LinearProgress,
 } from "@mui/material";
+import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import {
-  ArrowBack as ArrowBackIcon,
-  BookmarkAdd as BookmarkAddIcon,
-  Web as WebIcon,
-  LightMode as LightModeIcon,
-  DarkMode as DarkModeIcon,
-  SettingsBrightness as SettingsBrightnessIcon,
-  Info as InfoIcon,
-  Article as ArticleIcon,
-  Archive as ArchiveIcon,
-  Delete as DeleteIcon,
-  Help as HelpIcon,
-  Storage as StorageIcon,
-  Sync as SyncIcon,
-  CalendarToday as CalendarTodayIcon,
-  TextFields as TextFieldsIcon,
-  DragHandle as DragHandleIcon,
-} from "@mui/icons-material";
-import { setCorsProxyValue } from "~/utils/tools";
-import { getDefaultCorsProxy } from "~/config/environment";
-import { getCorsProxyFromCookie } from "~/utils/cookies";
-import {
-  getThemeFromCookie,
-  toggleTheme,
-  useSystemThemeListener,
-  getEffectiveTheme,
-  getHeaderHidingFromCookie,
-  setHeaderHidingInCookie,
-  getAfterExternalSaveFromCookie,
-  setAfterExternalSaveInCookie,
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
 } from "~/utils/cookies";
-import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/utils/storage";
-import { version } from "../../package.json" with { type: "json" };
-import { BUILD_TIMESTAMP } from "~/config/environment";
-import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 import { ingestHtml } from "lib/src/ingestion";
 import type { Article } from "lib/src/models";
 
@@ -96,7 +55,7 @@ export default function SubmitScreen() {
   const navigate = useNavigate();
   const router = useRouter();
   console.log("Current route:", router.basepath);
-  const { remoteStorage, client, widget } = useRemoteStorage();
+  const { client } = useRemoteStorage();
   // const router = useRouter();
   // console.log("Current route:", router.location.pathname);
   // const navigate = useNavigate();
