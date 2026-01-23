@@ -470,6 +470,130 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
 }
 
 /**
+ * Fetch article metadata directly from the RemoteStorage server
+ * This bypasses any local cache to verify the article actually persists on the server
+ * Returns the article.json content if found, or null if not found
+ */
+export async function getArticleFromServer(page: Page, slug: string): Promise<any | null> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    try {
+      // Use maxAge: false to bypass cache and fetch directly from server
+      const articleData = await client.getObject(`saves/${slug}/article.json`, false);
+      return articleData || null;
+    } catch (error: any) {
+      // Handle 404 or not found errors gracefully
+      if (error?.message?.includes("404") || error?.message?.includes("not found")) {
+        return null;
+      }
+      throw error;
+    }
+  }, slug);
+}
+
+/**
+ * Verify all article files exist on the remote server
+ * Checks for article.json, index.html, raw.html, and fetch.log
+ * Returns an object with the status of each file
+ */
+export async function verifyArticleFilesOnServer(
+  page: Page,
+  slug: string
+): Promise<{ articleJson: boolean; indexHtml: boolean; rawHtml: boolean; fetchLog: boolean }> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    const checkFile = async (path: string): Promise<boolean> => {
+      try {
+        // Use maxAge: false to bypass cache
+        const file = await client.getFile(path, false);
+        return !!file && !!file.data;
+      } catch {
+        return false;
+      }
+    };
+
+    const [articleJson, indexHtml, rawHtml, fetchLog] = await Promise.all([
+      checkFile(`saves/${slug}/article.json`),
+      checkFile(`saves/${slug}/index.html`),
+      checkFile(`saves/${slug}/raw.html`),
+      checkFile(`saves/${slug}/fetch.log`),
+    ]);
+
+    return { articleJson, indexHtml, rawHtml, fetchLog };
+  }, slug);
+}
+
+/**
+ * Get the article HTML content directly from the remote server
+ * Returns the index.html content as a string, or null if not found
+ */
+export async function getArticleContentFromServer(page: Page, slug: string): Promise<string | null> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as unknown as { remoteStorageClient: {
+      getFile: (path: string, maxAge: boolean) => Promise<{ data: string } | null>;
+    } }).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    try {
+      // Use maxAge: false to bypass cache and fetch directly from server
+      const file = await client.getFile(`saves/${slug}/index.html`, false);
+      return file?.data || null;
+    } catch {
+      return null;
+    }
+  }, slug);
+}
+
+/**
+ * Clear only the local IndexedDB without touching RemoteStorage
+ * Useful for simulating a fresh browser/device while keeping server data
+ */
+export async function clearLocalIndexedDB(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const dbName = "savrDb";
+    const request = indexedDB.open(dbName);
+
+    await new Promise<void>((resolve, reject) => {
+      request.onsuccess = () => {
+        const db = request.result;
+
+        try {
+          const transaction = db.transaction(["articles"], "readwrite");
+          const store = transaction.objectStore("articles");
+          const clearRequest = store.clear();
+
+          clearRequest.onsuccess = () => {
+            console.log("Cleared all articles from local IndexedDB");
+            db.close();
+            resolve();
+          };
+
+          clearRequest.onerror = () => {
+            db.close();
+            reject(clearRequest.error);
+          };
+        } catch (error) {
+          db.close();
+          reject(error);
+        }
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  });
+}
+
+/**
  * Clear all articles from RemoteStorage and IndexedDB
  * Useful for cleaning up test state between tests
  */

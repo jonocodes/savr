@@ -32,7 +32,7 @@ function isPlaywrightContainerRunning() {
 function startPlaywrightContainer() {
   console.log('🐳 Starting Playwright Docker container...');
   try {
-    execSync('docker-compose -f docker-compose.playwright.yml up -d', {
+    execSync('docker compose -f docker-compose.playwright.yml up -d', {
       cwd: projectRoot,
       stdio: 'inherit'
     });
@@ -63,7 +63,7 @@ function startPlaywrightContainer() {
 function stopPlaywrightContainer() {
   console.log('\n🛑 Stopping Playwright Docker container...');
   try {
-    execSync('docker-compose -f docker-compose.playwright.yml down', {
+    execSync('docker compose -f docker-compose.playwright.yml down', {
       cwd: projectRoot,
       stdio: 'inherit'
     });

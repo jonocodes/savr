@@ -46,7 +46,19 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"], connectOptions },
+      use: {
+        ...devices["Desktop Chrome"],
+        connectOptions,
+        // Launch args for headless containerized environments
+        launchOptions: {
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+          ],
+        },
+      },
     },
 
     // {
