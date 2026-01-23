@@ -1,9 +1,7 @@
 import { defineConfig, devices } from "@playwright/test";
 
 // Connect to Playwright server in Docker when PW_SERVER is set
-const connectOptions = process.env.PW_SERVER
-  ? { wsEndpoint: process.env.PW_SERVER }
-  : undefined;
+const connectOptions = process.env.PW_SERVER ? { wsEndpoint: process.env.PW_SERVER } : undefined;
 
 // When using Docker browser, use host.docker.internal instead of localhost
 const baseHost = process.env.PW_SERVER ? "host.docker.internal" : "localhost";
