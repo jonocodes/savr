@@ -284,7 +284,7 @@ export default function ArticleListScreen() {
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  const { remoteStorage, client } = useRemoteStorage();
+  const { client, remoteStorage } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
   useSyncStatus();
   const syncProgress = useSyncProgress();
