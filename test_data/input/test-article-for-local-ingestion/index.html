@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Article for Local Ingestion</title>
+    <meta name="author" content="Test Author">
+    <meta name="description" content="A test article used for e2e testing of local article ingestion">
+    <meta property="og:site_name" content="Test Site">
+</head>
+<body>
+    <article>
+        <header>
+            <h1>Test Article for Local Ingestion</h1>
+            <p class="byline">By Test Author</p>
+            <time datetime="2025-01-15">January 15, 2025</time>
+        </header>
+
+        <section>
+            <h2>Introduction</h2>
+            <p>This is a test article specifically created for end-to-end testing of the local article ingestion feature in Savr. It contains enough content to verify that the ingestion process works correctly.</p>
+
+            <p>The article includes various HTML elements that might be found in real articles, such as headings, paragraphs, lists, and links.</p>
+        </section>
+
+        <section>
+            <h2>Key Features Being Tested</h2>
+            <ul>
+                <li>Article fetching from local content server</li>
+                <li>HTML parsing and content extraction</li>
+                <li>Metadata extraction (title, author, date)</li>
+                <li>Storage in IndexedDB</li>
+                <li>Synchronization with RemoteStorage</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Technical Details</h2>
+            <p>The Savr application uses several technologies to handle article ingestion:</p>
+
+            <h3>Frontend Stack</h3>
+            <p>React with TypeScript provides the user interface, while Material-UI offers consistent styling across components.</p>
+
+            <h3>Storage Layer</h3>
+            <p>Articles are stored locally using IndexedDB via the Dexie library. This allows for offline access and fast retrieval of saved articles.</p>
+
+            <h3>Sync Mechanism</h3>
+            <p>RemoteStorage.js handles synchronization between devices, ensuring that articles saved on one device appear on all connected devices.</p>
+        </section>
+
+        <section>
+            <h2>Conclusion</h2>
+            <p>This test article serves as a reliable fixture for automated testing. It contains predictable content that can be verified by test assertions.</p>
+
+            <p>The unique identifier "LocalIngestion" appears in this article to help tests verify that the correct content was loaded.</p>
+        </section>
+
+        <footer>
+            <p>Tags: <a href="/tags/testing/">testing</a>, <a href="/tags/e2e/">e2e</a></p>
+        </footer>
+    </article>
+</body>
+</html>

@@ -98,7 +98,7 @@ test.describe("Article Server Persistence", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-persistence/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -109,15 +109,15 @@ test.describe("Article Server Persistence", () => {
 
     // 2. Wait for article to appear in list
     console.log("2️⃣  Waiting for article to appear in list...");
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article for Persistence/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article appeared in list");
 
     // 3. Verify article is in local IndexedDB
     console.log("3️⃣  Verifying article in local IndexedDB...");
-    const localArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const localArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(localArticle).toBeTruthy();
-    expect(localArticle?.slug).toBe("death-by-a-thousand-cuts");
+    expect(localArticle?.slug).toBe("test-article-for-persistence");
     console.log("✅ Article verified in local IndexedDB:", localArticle?.title);
 
     // 4. Wait for sync to complete (push to server)
@@ -129,15 +129,15 @@ test.describe("Article Server Persistence", () => {
 
     // 5. Verify article exists on remote server (bypassing cache)
     console.log("5️⃣  Verifying article persists on remote server...");
-    const serverArticle = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticle = await getArticleFromServer(page, "test-article-for-persistence");
     expect(serverArticle).toBeTruthy();
-    expect(serverArticle?.slug).toBe("death-by-a-thousand-cuts");
-    expect(serverArticle?.title).toMatch(/Death/i);
+    expect(serverArticle?.slug).toBe("test-article-for-persistence");
+    expect(serverArticle?.title).toMatch(/Test Article for Persistence/i);
     console.log("✅ Article verified on remote server:", serverArticle?.title);
 
     // 6. Verify all article files exist on server
     console.log("6️⃣  Verifying all article files on remote server...");
-    const fileStatus = await verifyArticleFilesOnServer(page, "death-by-a-thousand-cuts");
+    const fileStatus = await verifyArticleFilesOnServer(page, "test-article-for-persistence");
     expect(fileStatus.articleJson).toBe(true);
     expect(fileStatus.indexHtml).toBe(true);
     expect(fileStatus.rawHtml).toBe(true);
@@ -149,7 +149,7 @@ test.describe("Article Server Persistence", () => {
     await clearLocalIndexedDB(page);
 
     // Verify local DB is empty
-    const articleAfterClear = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const articleAfterClear = await getArticleFromDB(page, "test-article-for-persistence");
     expect(articleAfterClear).toBeFalsy();
     console.log("✅ Local IndexedDB cleared");
 
@@ -162,10 +162,10 @@ test.describe("Article Server Persistence", () => {
 
     // 9. Verify article is restored in local IndexedDB
     console.log("9️⃣  Verifying article restored from server...");
-    const restoredArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const restoredArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(restoredArticle).toBeTruthy();
-    expect(restoredArticle?.slug).toBe("death-by-a-thousand-cuts");
-    expect(restoredArticle?.title).toMatch(/Death/i);
+    expect(restoredArticle?.slug).toBe("test-article-for-persistence");
+    expect(restoredArticle?.title).toMatch(/Test Article for Persistence/i);
     console.log("✅ Article restored from server:", restoredArticle?.title);
 
     // 10. Reload page and verify article appears in UI
@@ -180,7 +180,7 @@ test.describe("Article Server Persistence", () => {
     );
     await waitForRemoteStorageSync(page);
 
-    const restoredTitle = page.getByText(/Death/i);
+    const restoredTitle = page.getByText(/Test Article for Persistence/i);
     await expect(restoredTitle).toBeVisible({ timeout: 15000 });
     console.log("✅ Article visible in UI after restore");
 
@@ -208,7 +208,7 @@ test.describe("Article Server Persistence", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-persistence/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -217,13 +217,13 @@ test.describe("Article Server Persistence", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article for Persistence/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article added");
 
     // 2. Get original article metadata from local DB
     console.log("2️⃣  Capturing original article metadata...");
-    const originalArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const originalArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(originalArticle).toBeTruthy();
     console.log("✅ Original metadata captured");
 
@@ -242,7 +242,7 @@ test.describe("Article Server Persistence", () => {
 
     // 5. Compare metadata integrity
     console.log("5️⃣  Verifying metadata integrity after round-trip...");
-    const restoredArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const restoredArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(restoredArticle).toBeTruthy();
 
     // Verify key metadata fields are preserved
@@ -282,7 +282,7 @@ test.describe("Article Server Persistence", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-persistence/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -291,7 +291,7 @@ test.describe("Article Server Persistence", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article for Persistence/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article added");
 
@@ -303,7 +303,7 @@ test.describe("Article Server Persistence", () => {
 
     // 3. Verify article exists on server
     console.log("3️⃣  Verifying article exists on server...");
-    const serverArticleBefore = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticleBefore = await getArticleFromServer(page, "test-article-for-persistence");
     expect(serverArticleBefore).toBeTruthy();
     console.log("✅ Article confirmed on server");
 
@@ -335,13 +335,13 @@ test.describe("Article Server Persistence", () => {
 
     // 6. Verify article is deleted from server
     console.log("6️⃣  Verifying article is deleted from server...");
-    const serverArticleAfter = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticleAfter = await getArticleFromServer(page, "test-article-for-persistence");
     expect(serverArticleAfter).toBeFalsy();
     console.log("✅ Article confirmed deleted from server");
 
     // 7. Verify all article files are deleted from server
     console.log("7️⃣  Verifying all article files are deleted from server...");
-    const fileStatus = await verifyArticleFilesOnServer(page, "death-by-a-thousand-cuts");
+    const fileStatus = await verifyArticleFilesOnServer(page, "test-article-for-persistence");
     expect(fileStatus.articleJson).toBe(false);
     expect(fileStatus.indexHtml).toBe(false);
     expect(fileStatus.rawHtml).toBe(false);
@@ -368,7 +368,7 @@ test.describe("Article Server Persistence", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-persistence/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -377,13 +377,13 @@ test.describe("Article Server Persistence", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article for Persistence/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article added");
 
     // 2. Verify initial state is "unread"
     console.log("2️⃣  Verifying initial state is unread...");
-    const initialArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const initialArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(initialArticle?.state).toBe("unread");
     console.log("✅ Initial state is unread");
 
@@ -407,7 +407,7 @@ test.describe("Article Server Persistence", () => {
 
     // 5. Verify article state changed to archived locally
     console.log("4️⃣  Verifying article archived locally...");
-    const archivedArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const archivedArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(archivedArticle?.state).toBe("archived");
     console.log("✅ Article archived locally");
 
@@ -419,7 +419,7 @@ test.describe("Article Server Persistence", () => {
 
     // 7. Verify archive state on server
     console.log("6️⃣  Verifying archive state on server...");
-    const serverArticle = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticle = await getArticleFromServer(page, "test-article-for-persistence");
     expect(serverArticle?.state).toBe("archived");
     console.log("✅ Archive state confirmed on server");
 
@@ -432,7 +432,7 @@ test.describe("Article Server Persistence", () => {
 
     // 9. Verify archive state persisted after restore
     console.log("8️⃣  Verifying archive state persisted after restore...");
-    const restoredArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const restoredArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(restoredArticle?.state).toBe("archived");
     console.log("✅ Archive state persisted:", restoredArticle?.state);
 
@@ -456,7 +456,7 @@ test.describe("Article Server Persistence", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-persistence/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -465,7 +465,7 @@ test.describe("Article Server Persistence", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article for Persistence/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article added");
 
@@ -477,14 +477,14 @@ test.describe("Article Server Persistence", () => {
 
     // 3. Get the original HTML content from server
     console.log("3️⃣  Fetching original HTML content from server...");
-    const originalContent = await getArticleContentFromServer(page, "death-by-a-thousand-cuts");
+    const originalContent = await getArticleContentFromServer(page, "test-article-for-persistence");
     expect(originalContent).toBeTruthy();
     expect(originalContent!.length).toBeGreaterThan(100);
     console.log("✅ Original content fetched, length:", originalContent!.length);
 
     // 4. Verify content contains expected text
     console.log("4️⃣  Verifying content contains expected text...");
-    expect(originalContent).toContain("Nix");
+    expect(originalContent).toContain("PersistenceTest");
     console.log("✅ Content contains expected text");
 
     // 5. Clear local and restore from server
@@ -494,7 +494,7 @@ test.describe("Article Server Persistence", () => {
 
     // 6. Fetch content again from server (should still be there)
     console.log("6️⃣  Fetching content again from server...");
-    const restoredContent = await getArticleContentFromServer(page, "death-by-a-thousand-cuts");
+    const restoredContent = await getArticleContentFromServer(page, "test-article-for-persistence");
     expect(restoredContent).toBeTruthy();
     console.log("✅ Content still available on server");
 
@@ -507,7 +507,7 @@ test.describe("Article Server Persistence", () => {
     console.log("8️⃣  Navigating to article page to verify rendering...");
     await triggerRemoteStorageSync(page);
     await page.waitForTimeout(2000);
-    await page.goto("/article/death-by-a-thousand-cuts");
+    await page.goto("/article/test-article-for-persistence");
     await page.waitForLoadState("networkidle");
 
     // Wait for RemoteStorage to reinitialize
@@ -521,7 +521,7 @@ test.describe("Article Server Persistence", () => {
     const articleContent = page.getByTestId("article-content");
     await expect(articleContent).toBeVisible({ timeout: 10000 });
     const displayedText = await articleContent.textContent();
-    expect(displayedText).toContain("Nix");
+    expect(displayedText).toContain("PersistenceTest");
     console.log("✅ Article content renders correctly");
 
     console.log("\n🎉 Content integrity test completed successfully!");
@@ -530,14 +530,14 @@ test.describe("Article Server Persistence", () => {
   test("should persist multiple articles to remote server", async ({ page }) => {
     const testArticles = [
       {
-        url: `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`,
-        slug: "death-by-a-thousand-cuts",
-        titlePattern: /Death/i,
+        url: `${getContentServerUrl()}/input/test-article-for-persistence/`,
+        slug: "test-article-for-persistence",
+        titlePattern: /Test Article for Persistence/i,
       },
       {
-        url: `${getContentServerUrl()}/input/dune-part-two/`,
-        slug: "dune-part-two",
-        titlePattern: /Dune/i,
+        url: `${getContentServerUrl()}/input/test-article-secondary/`,
+        slug: "secondary-test-article",
+        titlePattern: /Secondary Test Article/i,
       },
     ];
 
@@ -675,7 +675,7 @@ test.describe("Article Server Persistence", () => {
     }
 
     // Clean up both test articles
-    const testSlugs = ["death-by-a-thousand-cuts", "dune-part-two"];
+    const testSlugs = ["test-article-for-persistence", "secondary-test-article"];
     for (const slug of testSlugs) {
       try {
         await deleteArticleFromStorage(page, slug);

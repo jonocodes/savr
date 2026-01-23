@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Article for Persistence</title>
+    <meta name="author" content="Persistence Tester">
+    <meta name="description" content="A test article for server persistence testing">
+    <meta property="og:site_name" content="Persistence Test Site">
+</head>
+<body>
+    <article>
+        <header>
+            <h1>Test Article for Persistence</h1>
+            <p class="byline">By Persistence Tester</p>
+            <time datetime="2025-01-20">January 20, 2025</time>
+        </header>
+
+        <section>
+            <h2>Overview</h2>
+            <p>This article is specifically designed for testing RemoteStorage persistence functionality. It verifies that articles can be synced to a server and restored correctly.</p>
+
+            <p>The unique keyword "PersistenceTest" appears in this article to help automated tests verify content integrity.</p>
+        </section>
+
+        <section>
+            <h2>Test Scenarios</h2>
+            <ul>
+                <li>Saving articles to RemoteStorage server</li>
+                <li>Clearing local IndexedDB</li>
+                <li>Restoring articles from server</li>
+                <li>Verifying metadata integrity</li>
+                <li>Testing archive state persistence</li>
+                <li>Verifying HTML content round-trip</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Implementation Details</h2>
+            <p>The persistence tests verify that article data survives a complete round-trip to the RemoteStorage server. This includes:</p>
+
+            <h3>Metadata Fields</h3>
+            <p>Title, author, publication date, site name, and ingestion source must all be preserved exactly.</p>
+
+            <h3>Content Integrity</h3>
+            <p>The full HTML content of the article must be identical before and after the server round-trip.</p>
+
+            <h3>State Management</h3>
+            <p>Article states like "unread" and "archived" must persist correctly across sync operations.</p>
+        </section>
+
+        <section>
+            <h2>Conclusion</h2>
+            <p>This test fixture ensures reliable server persistence behavior. The keyword "PersistenceTest" confirms this is the correct article.</p>
+        </section>
+
+        <footer>
+            <p>Tags: <a href="/tags/persistence/">persistence</a>, <a href="/tags/testing/">testing</a></p>
+        </footer>
+    </article>
+</body>
+</html>
