@@ -393,23 +393,16 @@ function initRemote() {
       // Check if we have local articles before starting sync
       const existingArticleCount = await db.articles.count();
 
-      // Always clear local articles before sync to avoid flickering
+      // If we already have articles, this is likely a page reload - use incremental sync
+      // If no articles, this is a fresh connection - will download all from server
       if (existingArticleCount > 0) {
         console.info(
-          `   ⚠️ Found ${existingArticleCount} local articles - clearing before sync`
+          `   📦 Found ${existingArticleCount} local articles - using incremental sync`
         );
-
-        // Notify the user that local articles are being replaced
-        if (notifyCallback) {
-          notifyCallback({
-            type: "connect-replacing-articles",
-            message: `Replacing ${existingArticleCount} local article${existingArticleCount !== 1 ? "s" : ""} with synced data`,
-          });
-        }
-
-        // Clear local articles so sync starts fresh
-        await db.articles.clear();
-        console.info("   ✅ Local articles cleared");
+        isInitialSync = false; // Not a fresh sync, just incremental updates
+      } else {
+        console.info("   📭 No local articles - starting fresh sync");
+        isInitialSync = true;
       }
 
       // Reset processed articles set to ensure clean slate
@@ -425,15 +418,12 @@ function initRemote() {
       hasSetTotalArticles = false; // Allow fetching total for new connection
       hasFinalizedTotal = false; // Allow updating total for new sync
 
-      // After potential clearing, this is now an initial sync
-      isInitialSync = true;
-
       // Notify UI that RemoteStorage sync is starting
       notifySyncProgress({
         isSyncing: true,
-        phase: "initial",
-        totalArticles: 0, // Don't know yet
-        processedArticles: 0,
+        phase: isInitialSync ? "initial" : "ongoing",
+        totalArticles: existingArticleCount,
+        processedArticles: existingArticleCount,
       });
       console.info(`   📊 Starting sync`);
       // Sync is automatically triggered on connection
