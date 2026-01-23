@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
@@ -31,10 +31,10 @@ try {
  * Add an article directly to IndexedDB (simulating local-only article)
  */
 async function addArticleToLocalDB(
-  page: any,
+  page: Page,
   article: { slug: string; title: string; url: string; state?: string }
 ): Promise<void> {
-  await page.evaluate(async (article: any) => {
+  await page.evaluate(async (article: { slug: string; title: string; url: string; state?: string }) => {
     const dbName = "savrDb";
     const request = indexedDB.open(dbName);
 
@@ -76,7 +76,7 @@ async function addArticleToLocalDB(
 /**
  * Get count of articles in local IndexedDB
  */
-async function getLocalArticleCount(page: any): Promise<number> {
+async function getLocalArticleCount(page: Page): Promise<number> {
   return await page.evaluate(async () => {
     const dbName = "savrDb";
     const request = indexedDB.open(dbName);
@@ -113,7 +113,7 @@ async function getLocalArticleCount(page: any): Promise<number> {
 /**
  * Get all article slugs from local IndexedDB
  */
-async function getLocalArticleSlugs(page: any): Promise<string[]> {
+async function getLocalArticleSlugs(page: Page): Promise<string[]> {
   return await page.evaluate(async () => {
     const dbName = "savrDb";
     const request = indexedDB.open(dbName);
@@ -151,11 +151,11 @@ async function getLocalArticleSlugs(page: any): Promise<string[]> {
  * Store article to RemoteStorage (for setting up test data)
  */
 async function storeArticleToRemoteStorage(
-  page: any,
+  page: Page,
   article: { slug: string; title: string; url: string; state?: string }
 ): Promise<void> {
-  await page.evaluate(async (article: any) => {
-    const client = (window as any).remoteStorageClient;
+  await page.evaluate(async (article: { slug: string; title: string; url: string; state?: string }) => {
+    const client = (window as unknown as { remoteStorageClient: { storeFile: (type: string, path: string, data: string) => Promise<void> } }).remoteStorageClient;
     if (!client) {
       throw new Error("RemoteStorage client not available");
     }
@@ -221,8 +221,8 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       console.log("✅ Added remote articles");
 
       // Verify remote articles exist in local DB
-      let remoteArticle1 = await getArticleFromDB(page, "remote-article-1");
-      let remoteArticle2 = await getArticleFromDB(page, "remote-article-2");
+      const remoteArticle1 = await getArticleFromDB(page, "remote-article-1");
+      const remoteArticle2 = await getArticleFromDB(page, "remote-article-2");
       expect(remoteArticle1).toBeTruthy();
       expect(remoteArticle2).toBeTruthy();
       console.log("✅ Verified remote articles in local DB");
