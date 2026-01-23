@@ -150,7 +150,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 9. Verify article content is displayed
     console.log("7️⃣  Verifying article page content...");
     // Wait for article text content to appear (excluding RemoteStorage widget)
-    await expect(page.getByText(/Death|Nix/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Death/i).first()).toBeVisible({ timeout: 10000 });
     console.log("✅ Article content displayed with expected text");
 
     console.log("\n🎉 Test completed successfully!\n");

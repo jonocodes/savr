@@ -18,8 +18,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Use single worker - tests share RemoteStorage backend and conflict when parallel */
-  workers: 1,
+  /* Limit workers - tests share RemoteStorage backend */
+  workers: 2,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
   /* Global setup and teardown for test servers */
