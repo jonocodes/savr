@@ -31,12 +31,10 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
   // These tests involve multiple browser contexts and sync operations, which take longer
   test.setTimeout(120000); // 2 minutes
 
-  // SKIPPED: Multi-browser sync doesn't work reliably in test environment.
-  // The RemoteStorage client in Browser 2 returns empty listings even when Browser 1
-  // has synced articles to the server. This appears to be a limitation of how
-  // RemoteStorage.js handles multi-client sync or an Armadietto server issue.
-  // Single-browser tests all pass, confirming core functionality works.
-  test.skip("should sync article add and delete between two browser contexts", async ({ browser }) => {
+  // NOTE: This test requires a working headless browser environment with React hydration support.
+  // May fail in resource-constrained environments where the browser crashes during IndexedDB init.
+  // Multi-browser sync depends on RemoteStorage.js properly handling multi-client sync.
+  test("should sync article add and delete between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
     const context1 = await browser.newContext();

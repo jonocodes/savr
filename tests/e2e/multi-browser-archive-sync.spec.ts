@@ -30,10 +30,10 @@ test.describe("Multi-Browser Archive Sync", () => {
   // These tests involve multiple browser contexts and sync operations, which take longer
   test.setTimeout(120000); // 2 minutes
 
-  // SKIPPED: Fails when running in Docker (test:e2e:docker) but passes locally.
-  // Browser 2 doesn't receive the synced article from Browser 1.
-  // TODO: Investigate Docker-specific sync issue.
-  test.skip("should sync article archive state between two browser contexts", async ({ browser }) => {
+  // NOTE: This test requires a working headless browser environment with React hydration support.
+  // May fail in resource-constrained environments where the browser crashes during IndexedDB init.
+  // Multi-browser sync depends on RemoteStorage.js properly handling multi-client sync.
+  test("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
     const context1 = await browser.newContext();
