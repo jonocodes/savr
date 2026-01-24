@@ -1,11 +1,11 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { IconButton, Tooltip } from "@mui/material";
 import {
   LightMode as LightModeIcon,
   DarkMode as DarkModeIcon,
   SettingsBrightness as SettingsBrightnessIcon,
 } from "@mui/icons-material";
-import { getThemeFromCookie, setThemeInCookie, toggleTheme, ThemeMode } from "~/utils/cookies";
+import { getThemeFromCookie, toggleTheme, ThemeMode } from "~/utils/cookies";
 
 interface CookieThemeToggleProps {
   size?: "small" | "medium" | "large";
@@ -16,11 +16,7 @@ export const CookieThemeToggle: React.FC<CookieThemeToggleProps> = ({
   size = "medium",
   onThemeChange,
 }) => {
-  const [currentTheme, setCurrentTheme] = useState<ThemeMode>("light");
-
-  useEffect(() => {
-    setCurrentTheme(getThemeFromCookie());
-  }, []);
+  const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getThemeFromCookie());
 
   const handleToggle = () => {
     const newTheme = toggleTheme();

@@ -11,10 +11,6 @@ import {
   ListItemIcon,
   ListItemText,
   Tooltip,
-  Paper,
-  Container,
-  Slide,
-  useScrollTrigger,
   Drawer,
   TextField,
   Button,
@@ -33,7 +29,6 @@ import {
   OpenInNew as OpenInNewIcon,
   Share as ShareIcon,
   Delete as DeleteIcon,
-  Edit as EditIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -45,7 +40,7 @@ import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
-import { getFilePathContent, getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
 
@@ -59,7 +54,7 @@ interface Props {
   children?: React.ReactElement<unknown>;
 }
 
-export default function ArticleScreen(props: Props) {
+export default function ArticleScreen(_props: Props) {
   // Get slug from URL path parameter
   // const slug = window.location.pathname.split("/").pop();
   const { slug } = Route.useParams();
@@ -156,7 +151,7 @@ export default function ArticleScreen(props: Props) {
     }
   };
 
-  const handleEditInfo = () => {
+  const _handleEditInfo = () => {
     setEditTitle(article.title || "");
     setEditAuthor(article.author || "");
     setInfoDrawerOpen(true);
@@ -311,9 +306,10 @@ export default function ArticleScreen(props: Props) {
         if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
-            .then((file: any) => {
-              setContent(file.data);
-              setHtml(`${file.data}`);
+            .then((file) => {
+              const f = file as { data: string };
+              setContent(f.data);
+              setHtml(`${f.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);
@@ -321,9 +317,10 @@ export default function ArticleScreen(props: Props) {
         } else {
           storage.client
             ?.getFile(`saves/${slug}/index.html`, false) // maxAge: false = local-only, no network requests
-            .then((file: any) => {
-              setContent(file.data);
-              setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+            .then((file) => {
+              const f = file as { data: string };
+              setContent(f.data);
+              setHtml(`<link rel="stylesheet" href="/static/web.css">${f.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);
@@ -432,7 +429,7 @@ export default function ArticleScreen(props: Props) {
 
           <CookieThemeToggle size="small" />
 
-          {article.state === ("archived" as any) ? (
+          {article.state === "archived" ? (
             <Tooltip title="Unarchive">
               <IconButton color="inherit" onClick={handleUnarchive}>
                 <UnarchiveIcon />

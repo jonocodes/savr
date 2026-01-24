@@ -51,9 +51,6 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
 
   // Monitor network changes - works in mobile browsers, not just PWA
   useEffect(() => {
-    // Set initial WiFi status
-    setIsWiFi(isOnWiFi());
-
     // Listen for network changes
     const cleanup = onNetworkChange(() => {
       const newWiFiStatus = isOnWiFi();
@@ -76,7 +73,7 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
     // }
 
     return "active";
-  }, [syncEnabled, /* wiFiOnlySync, */ isWiFi]);
+  }, [syncEnabled]);
 
   return (
     <SyncStatusContext.Provider value={{ status, isWiFi, isNetworkSupported }}>

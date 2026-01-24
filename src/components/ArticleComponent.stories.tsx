@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/rules-of-hooks */
+// Storybook render functions use hooks but aren't named components - this is expected behavior
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import ArticleComponent from "./ArticleComponent";
 import { useState, useEffect } from "react";

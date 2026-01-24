@@ -32,6 +32,9 @@ try {
 }
 
 test.describe("Bookmarklet Server Sync", () => {
+  // Run tests serially to avoid conflicts with shared RemoteStorage state
+  test.describe.configure({ mode: "serial" });
+
   // Bookmarklet tests involve sync operations which can take time
   test.setTimeout(120000); // 2 minutes
 
@@ -70,13 +73,14 @@ test.describe("Bookmarklet Server Sync", () => {
   test("should sync article to remote server before bookmarklet window closes", async ({
     page,
   }) => {
-    const testArticleUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    // Use dune-part-two to avoid conflicts with article-server-persistence tests
+    const testArticleUrl = `${getContentServerUrl()}/input/dune-part-two/`;
 
     // 1. Fetch the test article HTML (simulating what bookmarklet-client.js does)
     console.log("1️⃣  Fetching test article HTML...");
     const htmlResponse = await page.request.get(testArticleUrl);
     const testHtml = await htmlResponse.text();
-    expect(testHtml).toContain("Nix");
+    expect(testHtml).toContain("Dune");
     console.log("✅ Test HTML fetched, length:", testHtml.length);
 
     // 2. Navigate to app with bookmarklet parameter (simulating bookmarklet trigger)
@@ -117,9 +121,9 @@ test.describe("Bookmarklet Server Sync", () => {
 
     // 6. Verify article is in local IndexedDB
     console.log("6️⃣  Verifying article in local IndexedDB...");
-    const localArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const localArticle = await getArticleFromDB(page, "dune-part-two");
     expect(localArticle).toBeTruthy();
-    expect(localArticle?.slug).toBe("death-by-a-thousand-cuts");
+    expect(localArticle?.slug).toBe("dune-part-two");
     expect(localArticle?.ingestSource).toBe("bookmarklet");
     console.log("✅ Article in IndexedDB with ingestSource:", localArticle?.ingestSource);
 
@@ -132,15 +136,15 @@ test.describe("Bookmarklet Server Sync", () => {
 
     // 8. Verify article exists on remote server
     console.log("8️⃣  Verifying article persists on remote server...");
-    const serverArticle = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticle = await getArticleFromServer(page, "dune-part-two");
     expect(serverArticle).toBeTruthy();
-    expect(serverArticle?.slug).toBe("death-by-a-thousand-cuts");
-    expect(serverArticle?.title).toMatch(/Death|Nix/i);
+    expect(serverArticle?.slug).toBe("dune-part-two");
+    expect(serverArticle?.title).toMatch(/Dune/i);
     console.log("✅ Article verified on remote server:", serverArticle?.title);
 
     // 9. Verify all article files exist on server
     console.log("9️⃣  Verifying all article files on remote server...");
-    const fileStatus = await verifyArticleFilesOnServer(page, "death-by-a-thousand-cuts");
+    const fileStatus = await verifyArticleFilesOnServer(page, "dune-part-two");
     expect(fileStatus.articleJson).toBe(true);
     expect(fileStatus.indexHtml).toBe(true);
     expect(fileStatus.rawHtml).toBe(true);
@@ -154,7 +158,8 @@ test.describe("Bookmarklet Server Sync", () => {
   });
 
   test("should complete sync within the 15 second timeout", async ({ page }) => {
-    const testArticleUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    // Use dune-part-two to avoid conflicts with article-server-persistence tests
+    const testArticleUrl = `${getContentServerUrl()}/input/dune-part-two/`;
 
     // 1. Fetch the test article HTML
     console.log("1️⃣  Fetching test article HTML...");
@@ -205,7 +210,7 @@ test.describe("Bookmarklet Server Sync", () => {
 
     // 7. Verify article is on server
     console.log("6️⃣  Verifying article on server...");
-    const serverArticle = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticle = await getArticleFromServer(page, "dune-part-two");
     expect(serverArticle).toBeTruthy();
     console.log("✅ Article verified on server");
 
@@ -216,7 +221,8 @@ test.describe("Bookmarklet Server Sync", () => {
   test("should handle bookmarklet ingestion without RemoteStorage connection", async ({
     page,
   }) => {
-    const testArticleUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    // Use dune-part-two to avoid conflicts with article-server-persistence tests
+    const testArticleUrl = `${getContentServerUrl()}/input/dune-part-two/`;
 
     // 1. Disconnect from RemoteStorage first
     console.log("1️⃣  Disconnecting from RemoteStorage...");
@@ -262,9 +268,9 @@ test.describe("Bookmarklet Server Sync", () => {
 
     // 6. Verify article is in local IndexedDB
     console.log("6️⃣  Verifying article in local IndexedDB...");
-    const localArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const localArticle = await getArticleFromDB(page, "dune-part-two");
     expect(localArticle).toBeTruthy();
-    expect(localArticle?.slug).toBe("death-by-a-thousand-cuts");
+    expect(localArticle?.slug).toBe("dune-part-two");
     console.log("✅ Article saved locally without RemoteStorage");
 
     console.log("\n🎉 Offline bookmarklet test completed successfully!");
@@ -273,7 +279,8 @@ test.describe("Bookmarklet Server Sync", () => {
   });
 
   test("should set correct ingestSource for bookmarklet-saved articles", async ({ page }) => {
-    const testArticleUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
+    // Use dune-part-two to avoid conflicts with article-server-persistence tests
+    const testArticleUrl = `${getContentServerUrl()}/input/dune-part-two/`;
 
     // 1. Fetch the test article HTML
     console.log("1️⃣  Fetching test article HTML...");
@@ -311,13 +318,13 @@ test.describe("Bookmarklet Server Sync", () => {
 
     // 5. Verify ingestSource is "bookmarklet" locally
     console.log("4️⃣  Verifying ingestSource locally...");
-    const localArticle = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const localArticle = await getArticleFromDB(page, "dune-part-two");
     expect(localArticle?.ingestSource).toBe("bookmarklet");
     console.log("✅ Local ingestSource:", localArticle?.ingestSource);
 
     // 6. Verify ingestSource is "bookmarklet" on server
     console.log("5️⃣  Verifying ingestSource on server...");
-    const serverArticle = await getArticleFromServer(page, "death-by-a-thousand-cuts");
+    const serverArticle = await getArticleFromServer(page, "dune-part-two");
     expect(serverArticle?.ingestSource).toBe("bookmarklet");
     console.log("✅ Server ingestSource:", serverArticle?.ingestSource);
 
@@ -343,8 +350,8 @@ test.describe("Bookmarklet Server Sync", () => {
         // Ignore - may not have RS
       });
 
-      await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
-      await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
+      await deleteArticleFromStorage(page, "dune-part-two");
+      await deleteArticleFromDB(page, "dune-part-two");
       console.log("✅ Cleanup completed\n");
     } catch {
       console.log("⚠️ Cleanup skipped (non-fatal)\n");

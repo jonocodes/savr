@@ -6,10 +6,13 @@ import { useLocation } from "@tanstack/react-router";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 // import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network"; // Disabled - WiFi-only sync feature not working correctly
 
+// Widget type from remotestorage-widget (no TypeScript types available)
+type RemoteStorageWidget = { attach: (id: string) => void };
+
 type RemoteStorageContextType = {
   remoteStorage: RemoteStorage | null;
   client: BaseClient | null;
-  widget: any | null;
+  widget: RemoteStorageWidget | null;
 };
 
 const RemoteStorageContext = createContext<RemoteStorageContextType>({
@@ -20,7 +23,7 @@ const RemoteStorageContext = createContext<RemoteStorageContextType>({
 
 // Module-level flag to prevent double initialization across StrictMode remounts
 let widgetInitialized = false;
-let widgetInstance: any = null;
+let widgetInstance: RemoteStorageWidget | null = null;
 
 // Helper function to get sync enabled state from cookies
 const getSyncEnabled = (): boolean => {
@@ -36,7 +39,7 @@ const getSyncEnabled = (): boolean => {
 export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [remoteStorage, setRemoteStorage] = useState<RemoteStorage | null>(null);
   const [client, setClient] = useState<BaseClient | null>(null);
-  const [widget, setWidget] = useState<any>(null);
+  const [widget, setWidget] = useState<RemoteStorageWidget | null>(null);
   const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
   const location = useLocation();
 
@@ -61,8 +64,8 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
 
       // Add test hook (debug mode only)
       if (typeof window !== "undefined" && import.meta.env.VITE_DEBUG) {
-        (window as any).remoteStorage = store;
-        (window as any).remoteStorageClient = client;
+        (window as unknown as { remoteStorage: RemoteStorage }).remoteStorage = store;
+        (window as unknown as { remoteStorageClient: BaseClient }).remoteStorageClient = client;
       }
 
       if (typeof window !== "undefined") {

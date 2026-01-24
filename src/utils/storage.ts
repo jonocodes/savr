@@ -40,6 +40,26 @@ function notifySyncProgress(progress: Partial<SyncProgress>) {
   syncProgressListeners.forEach((listener) => listener(currentSyncProgress));
 }
 
+// Notification system for sync events
+export type SyncNotificationType = "connect-replacing-articles" | "disconnect-removed-articles";
+
+export interface SyncNotification {
+  type: SyncNotificationType;
+  message: string;
+}
+
+type NotifyCallback = (notification: SyncNotification) => void;
+
+let notifyCallback: NotifyCallback | null = null;
+
+/**
+ * Register a callback to show notifications for sync events.
+ * The UI should register this to show toast messages.
+ */
+export function setSyncNotifyCallback(callback: NotifyCallback | null): void {
+  notifyCallback = callback;
+}
+
 // declare global {
 //   interface Window {
 //     extensionConnector: typeof extensionConnector;
@@ -207,7 +227,7 @@ async function processArticleFile(
 // Process missing articles using cached listing (avoids slow glob operation)
 async function processMissingArticles(
   client: BaseClient,
-  cachedListing: Record<string, any>,
+  cachedListing: Record<string, boolean>,
   processedSet: Set<string>
 ) {
   console.log("🔍 Processing missing articles from cached listing");
@@ -264,7 +284,11 @@ async function processMissingArticles(
 }
 
 // Process deleted articles (articles in DB but not in RemoteStorage listing)
-async function processDeletedArticles(cachedListing: Record<string, any>) {
+// Returns the list of articles that would be deleted, or actually deletes them based on shouldDelete flag
+async function processDeletedArticles(
+  cachedListing: Record<string, boolean>,
+  shouldDelete: boolean = true
+): Promise<string[]> {
   console.log("🗑️  Checking for deleted articles");
 
   // Get all article slugs from the RemoteStorage listing
@@ -285,16 +309,21 @@ async function processDeletedArticles(cachedListing: Record<string, any>) {
   for (const article of localArticles) {
     if (!remoteArticleSlugs.has(article.slug)) {
       articlesToDelete.push(article.slug);
-      console.log(`      Deleted remotely: ${article.slug}`);
+      console.log(`      Not on remote: ${article.slug}`);
     }
   }
 
   if (articlesToDelete.length === 0) {
-    console.log("   ✓ No deleted articles to remove");
-    return;
+    console.log("   ✓ No articles to remove");
+    return [];
   }
 
-  console.log(`   🗑️  Removing ${articlesToDelete.length} deleted articles from DB`);
+  if (!shouldDelete) {
+    console.log(`   ⚠️ Found ${articlesToDelete.length} articles not on remote (not deleting yet)`);
+    return articlesToDelete;
+  }
+
+  console.log(`   🗑️  Removing ${articlesToDelete.length} articles from DB`);
 
   // Delete articles from IndexedDB
   for (const slug of articlesToDelete) {
@@ -306,7 +335,8 @@ async function processDeletedArticles(cachedListing: Record<string, any>) {
     }
   }
 
-  console.log(`   ✅ Removed ${articlesToDelete.length} deleted articles`);
+  console.log(`   ✅ Removed ${articlesToDelete.length} articles`);
+  return articlesToDelete;
 }
 
 function initRemote() {
@@ -330,37 +360,73 @@ function initRemote() {
     let isSyncing = false;
     let hasCompletedInitialSync = false;
     let hasProcessedAfterFirstCycle = false;
+    let hasProcessedAfterSyncDone = false; // Prevent repeated processing on sync-req-done after initial sync
     let isNetworkOffline = false; // Track network state to distinguish user disconnect from network loss
+    // Block change events until we're ready - starts TRUE to block early events during connection
+    let isPreparingForSync = true;
+
+    // Track which articles we've already processed to avoid duplicates
+    // This is shared between the change handler and sync-done handler
+    const processedArticles = new Set<string>();
+
+    // Track if we've fetched the total article count for progress reporting
+    let hasSetTotalArticles = false;
+    let hasFinalizedTotal = false; // Prevent resetting total after sync completes
+    let isInitialSync = false; // True if DB was empty when we connected
 
     remoteStorage.on("ready", function () {
       console.info("🔵 remoteStorage ready");
+      // If not connected, allow change events (for offline/local-only mode)
+      if (!remoteStorage.remote.connected) {
+        isPreparingForSync = false;
+      }
       resolve(remoteStorage);
     });
 
     remoteStorage.on("connected", async () => {
       const userAddress = remoteStorage.remote.userAddress;
       console.info(`🟢 remoteStorage connected to "${userAddress}"`);
+
+      // Ensure change events are blocked (should already be true, but be safe)
+      isPreparingForSync = true;
+
+      // Check if we have local articles before starting sync
+      const existingArticleCount = await db.articles.count();
+
+      // If we already have articles, this is likely a page reload - use incremental sync
+      // If no articles, this is a fresh connection - will download all from server
+      if (existingArticleCount > 0) {
+        console.info(
+          `   📦 Found ${existingArticleCount} local articles - using incremental sync`
+        );
+        isInitialSync = false; // Not a fresh sync, just incremental updates
+      } else {
+        console.info("   📭 No local articles - starting fresh sync");
+        isInitialSync = true;
+      }
+
+      // Reset processed articles set to ensure clean slate
+      processedArticles.clear();
+
+      // Now allow change events to be processed
+      isPreparingForSync = false;
+      console.info("   ✅ Ready to receive sync events");
+
       isSyncing = true;
       hasProcessedAfterFirstCycle = false; // Reset for this connection
+      hasProcessedAfterSyncDone = false; // Reset for this connection
       hasSetTotalArticles = false; // Allow fetching total for new connection
       hasFinalizedTotal = false; // Allow updating total for new sync
 
-      // Check if we already have articles in IndexedDB to determine if this is truly initial
-      const existingArticleCount = await db.articles.count();
-      isInitialSync = existingArticleCount === 0;
-
-      // Notify UI that RemoteStorage sync is starting (downloading files to cache)
-      // We don't know article count yet, so show as "preparing"
+      // Notify UI that RemoteStorage sync is starting
       notifySyncProgress({
         isSyncing: true,
         phase: isInitialSync ? "initial" : "ongoing",
-        totalArticles: 0, // Don't know yet
-        processedArticles: 0,
+        totalArticles: existingArticleCount,
+        processedArticles: existingArticleCount,
       });
-      console.info(
-        `   📊 Existing articles: ${existingArticleCount}, phase: ${isInitialSync ? "initial" : "ongoing"}`
-      );
-      // Sync is automatically triggered on connection, but we can ensure it happens
+      console.info(`   📊 Starting sync`);
+      // Sync is automatically triggered on connection
       // The sync-done event will fire when sync completes
     });
 
@@ -368,6 +434,14 @@ function initRemote() {
     // Check for any articles that might have been missed by the incremental change handler
     remoteStorage.on("sync-done", async () => {
       console.info("RemoteStorage sync-done - checking for any missed articles");
+
+      // Skip if we've already processed (sync-req-done may have handled this)
+      if (hasProcessedAfterSyncDone) {
+        console.debug("   ⏭️ Already processed after sync-done, skipping");
+        return;
+      }
+      hasProcessedAfterSyncDone = true;
+
       // Wait a bit to ensure change events have fired
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -382,7 +456,7 @@ function initRemote() {
       // (fast operation, avoids slow glob)
       try {
         console.info("   → Fetching article listing to check for sync discrepancies");
-        const listing = (await client.getListing("saves/")) as Record<string, any>;
+        const listing = (await client.getListing("saves/")) as Record<string, boolean>;
         if (listing) {
           // Process missing articles (additions made while browser was closed)
           const missingArticles = expectedTotal > 0 ? expectedTotal - articlesInDb : 0;
@@ -393,10 +467,15 @@ function initRemote() {
             console.info("   → All articles synced via change events");
           }
 
-          // Process deleted articles (deletions made while browser was closed)
-          // This is necessary because deletion change events require oldValue,
-          // which is undefined if the browser was closed when deletion occurred
-          await processDeletedArticles(listing);
+          // Process deleted articles (articles in local DB but not on remote)
+          // Only delete if this is NOT initial sync OR the listing has articles
+          // This prevents accidental deletion due to stale cache during initial sync
+          const remoteCount = Object.keys(listing).filter((key) => listing[key] === true).length;
+          if (!isInitialSync || remoteCount > 0) {
+            await processDeletedArticles(listing, true);
+          } else {
+            console.info("   ⚠️ Skipping deletion check - initial sync with empty listing");
+          }
         } else {
           console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
@@ -407,6 +486,7 @@ function initRemote() {
       isSyncing = false;
       hasCompletedInitialSync = true;
       hasFinalizedTotal = true; // Lock the total to prevent resetting
+
       // Notify UI that sync is complete
       // Set total to actual DB count (accounts for any failed/dangling articles)
       const finalCount = await db.articles.count();
@@ -420,73 +500,74 @@ function initRemote() {
     });
 
     // Also listen for when ongoing sync cycles complete
+    // This handles the initial sync when sync-done may not fire
     remoteStorage.on("sync-req-done", async () => {
-      console.info("🔄 RemoteStorage sync-req-done - sync cycle completed");
+      console.debug("🔄 RemoteStorage sync-req-done - sync cycle completed");
 
-      // Check for any articles that weren't caught by change events
-      // This handles the case where:
-      // 1. RemoteStorage loops on sync-req-done without firing sync-done (initial sync)
-      // 2. Manual sync triggered after initial sync (subsequent sync to pull new articles)
-      //
-      // For initial sync: only process once (hasProcessedAfterFirstCycle = false)
-      // For subsequent syncs: always check for missing articles (hasCompletedInitialSync = true)
+      // Only process during initial sync cycle (once per connection)
+      // Subsequent syncs are handled via sync-done event or manual syncMissingArticles()
       const isInitialSyncCycle = isSyncing && !hasProcessedAfterFirstCycle;
-      const isSubsequentSync = hasCompletedInitialSync && !isSyncing;
 
-      if (isInitialSyncCycle || isSubsequentSync) {
-        if (isInitialSyncCycle) {
-          hasProcessedAfterFirstCycle = true;
-        }
-
-        // Check how many articles change events have already processed
-        const articlesInDb = await db.articles.count();
-        const expectedTotal = currentSyncProgress.totalArticles;
-        console.info(
-          `   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`
-        );
-
-        // Fetch listing to check for additions and deletions
-        try {
-          console.info("   → Fetching article listing to check for sync discrepancies");
-          const listing = (await client.getListing("saves/")) as Record<string, any>;
-          if (listing) {
-            // Process missing articles (additions made while browser was closed or by another browser)
-            const remoteCount = Object.keys(listing).filter((key) => listing[key] === true).length;
-            const missingArticles = remoteCount - articlesInDb;
-            if (missingArticles > 0 || articlesInDb < remoteCount) {
-              console.info(`   → Missing ${missingArticles} articles (remote: ${remoteCount}, local: ${articlesInDb}), processing them`);
-              await processMissingArticles(client, listing, processedArticles);
-            } else {
-              console.info("   → All articles synced via change events");
-            }
-
-            // Process deleted articles (deletions made while browser was closed)
-            await processDeletedArticles(listing);
-          } else {
-            console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
-          }
-        } catch (error) {
-          console.error("   ❌ Error fetching listing:", error);
-        }
-
-        // Only update sync state if this is the initial sync cycle
-        if (isInitialSyncCycle) {
-          isSyncing = false;
-          hasCompletedInitialSync = true;
-          hasFinalizedTotal = true; // Lock the total to prevent resetting
-        }
-
-        // Notify UI that sync is complete
-        // Set total to actual DB count (accounts for any failed/dangling articles)
-        const finalCount = await db.articles.count();
-        notifySyncProgress({
-          isSyncing: false,
-          phase: "idle",
-          totalArticles: finalCount,
-          processedArticles: finalCount,
-        });
-        console.info(`   ✅ Sync complete - ${finalCount} articles in database`);
+      if (!isInitialSyncCycle) {
+        // Not during initial sync - skip processing to avoid repeated fetches
+        return;
       }
+
+      hasProcessedAfterFirstCycle = true;
+      hasProcessedAfterSyncDone = true; // Prevent sync-done from also processing
+
+      // Check how many articles change events have already processed
+      const articlesInDb = await db.articles.count();
+      const expectedTotal = currentSyncProgress.totalArticles;
+      console.info(
+        `   → Change events processed ${processedArticles.size} articles, ${articlesInDb} in DB, expected ${expectedTotal} total`
+      );
+
+      // Fetch listing to check for additions and deletions
+      try {
+        console.info("   → Fetching article listing to check for sync discrepancies");
+        const listing = (await client.getListing("saves/")) as Record<string, boolean>;
+        if (listing) {
+          // Process missing articles (additions made while browser was closed or by another browser)
+          const remoteCount = Object.keys(listing).filter((key) => listing[key] === true).length;
+          const missingArticles = remoteCount - articlesInDb;
+          if (missingArticles > 0 || articlesInDb < remoteCount) {
+            console.info(`   → Missing ${missingArticles} articles (remote: ${remoteCount}, local: ${articlesInDb}), processing them`);
+            await processMissingArticles(client, listing, processedArticles);
+          } else {
+            console.info("   → All articles synced via change events");
+          }
+
+          // Process deleted articles (articles in local DB but not on remote)
+          // Only delete if this is NOT initial sync OR the listing has articles
+          // This prevents accidental deletion due to stale cache during initial sync
+          if (!isInitialSync || remoteCount > 0) {
+            await processDeletedArticles(listing, true);
+          } else {
+            console.info("   ⚠️ Skipping deletion check - initial sync with empty listing");
+          }
+        } else {
+          console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
+        }
+      } catch (error) {
+        console.error("   ❌ Error fetching listing:", error);
+      }
+
+      // Update sync state
+      isSyncing = false;
+      hasCompletedInitialSync = true;
+      hasFinalizedTotal = true; // Lock the total to prevent resetting
+
+      // Notify UI that sync is complete
+      // Set total to actual DB count (accounts for any failed/dangling articles)
+      const finalCount = await db.articles.count();
+      notifySyncProgress({
+        isSyncing: false,
+        phase: "idle",
+        totalArticles: finalCount,
+        processedArticles: finalCount,
+      });
+      console.info(`   ✅ Sync complete - ${finalCount} articles in database`);
     });
 
     remoteStorage.on("not-connected", function () {
@@ -503,12 +584,23 @@ function initRemote() {
       // IMPORTANT: Only clear database if this is a deliberate user disconnect
       // Do NOT clear during sync operations, reconnect cycles, or network interruptions
       if (!isSyncing && hasCompletedInitialSync && !isNetworkOffline) {
-        console.info("   → User-initiated disconnect detected, clearing local articles");
-        try {
-          await db.articles.clear();
-          console.info("   ✅ Cleared all articles from local database");
-        } catch (error) {
-          console.error("   ❌ Failed to clear articles from local database:", error);
+        console.info("   → User-initiated disconnect detected, clearing local data");
+
+        if (articleCount > 0) {
+          // Notify the user that articles are being removed
+          if (notifyCallback) {
+            notifyCallback({
+              type: "disconnect-removed-articles",
+              message: `Removed ${articleCount} article${articleCount !== 1 ? "s" : ""} from device. Reconnect to get them back.`,
+            });
+          }
+
+          try {
+            await db.articles.clear();
+            console.info("   ✅ Cleared all articles from local database");
+          } catch (error) {
+            console.error("   ❌ Failed to clear articles from local database:", error);
+          }
         }
       } else {
         console.info("   → Preserving local database during sync/reconnect cycle");
@@ -555,19 +647,17 @@ function initRemote() {
       console.debug(`⚡ remoteStorage wire-done - network activity finished`);
     });
 
-    // Track which articles we've already processed to avoid duplicates
-    // This is shared between the change handler and sync-done handler
-    const processedArticles = new Set<string>();
-
-    // Track if we've fetched the total article count for progress reporting
-    let hasSetTotalArticles = false;
-    let hasFinalizedTotal = false; // Prevent resetting total after sync completes
-    let isInitialSync = false; // True if DB was empty when we connected
-
     // Listen for change events from RemoteStorage sync
     // This handles when files are added/modified/deleted on the server by other clients
     // Process articles incrementally as they're synced
-    client.on("change", async (event: any) => {
+    client.on("change", async (evt: unknown) => {
+      // Skip processing while we're clearing local articles
+      if (isPreparingForSync) {
+        console.debug("   ⏸️ Skipping change event while preparing for sync");
+        return;
+      }
+
+      const event = evt as { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown };
       const path = event.path || event.relativePath || "";
       const isArticleFile = path.endsWith("/article.json");
 
@@ -587,7 +677,7 @@ function initRemote() {
         if (!hasSetTotalArticles && isSyncing && !hasFinalizedTotal) {
           hasSetTotalArticles = true;
           try {
-            const listing = (await client.getListing("saves/")) as Record<string, any>;
+            const listing = (await client.getListing("saves/")) as Record<string, boolean>;
             if (listing) {
               const articlesInDb = await db.articles.count();
 
@@ -703,7 +793,7 @@ export async function syncMissingArticles(): Promise<string> {
     console.log(`🔧 Manual sync: DB has ${articlesInDb}, expected ${expectedTotal}`);
 
     // Fetch fresh listing
-    const listing = (await storage.client.getListing("saves/")) as Record<string, any>;
+    const listing = (await storage.client.getListing("saves/")) as Record<string, boolean>;
     if (!listing) {
       return "Failed to fetch article listing";
     }
@@ -1060,6 +1150,49 @@ async function deleteAllRemoteStorage(): Promise<{
   };
 }
 
+/**
+ * Reset sync state and replace local articles with server data.
+ * Use this when you want to discard local articles and sync fresh from the server.
+ *
+ * This function:
+ * 1. Clears all local articles from IndexedDB
+ * 2. Resets the sync initialized flag
+ * 3. Triggers a fresh sync from the server
+ *
+ * @returns A promise that resolves when the reset is complete
+ */
+async function resetSyncStateAndReplaceWithServer(): Promise<{
+  success: boolean;
+  message: string;
+}> {
+  try {
+    console.info("🔄 Resetting sync state and replacing local data with server data...");
+
+    // Clear all local articles
+    const articleCount = await db.articles.count();
+    await db.articles.clear();
+    console.info(`   ✅ Cleared ${articleCount} local articles`);
+
+    // Trigger a fresh sync
+    const store = await init();
+    if (store && store.remoteStorage) {
+      await store.remoteStorage.startSync();
+      console.info("   ✅ Triggered fresh sync from server");
+    }
+
+    return {
+      success: true,
+      message: `Cleared ${articleCount} local articles and triggered fresh sync from server`,
+    };
+  } catch (error) {
+    console.error("Failed to reset sync state:", error);
+    return {
+      success: false,
+      message: `Failed to reset sync state: ${error}`,
+    };
+  }
+}
+
 export {
   init,
   glob,
@@ -1069,4 +1202,5 @@ export {
   deleteAllRemoteStorage,
   recursiveDeleteDirectory,
   formatBytes,
+  resetSyncStateAndReplaceWithServer,
 };

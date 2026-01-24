@@ -2,6 +2,24 @@
  * Utility functions for network and PWA detection
  */
 
+// Type definitions for non-standard APIs
+interface NetworkInformation extends EventTarget {
+  type?: string;
+  effectiveType?: string;
+  downlink?: number;
+  rtt?: number;
+  saveData?: boolean;
+  addEventListener(type: string, listener: () => void): void;
+  removeEventListener(type: string, listener: () => void): void;
+}
+
+interface NavigatorWithConnection extends Navigator {
+  connection?: NetworkInformation;
+  mozConnection?: NetworkInformation;
+  webkitConnection?: NetworkInformation;
+  standalone?: boolean;
+}
+
 /**
  * Checks if the app is running as an installed PWA (Progressive Web App)
  * rather than in a regular browser tab.
@@ -15,7 +33,7 @@ export function isPWAMode(): boolean {
   }
 
   // Check for iOS standalone mode (older iOS versions)
-  if ((window.navigator as any).standalone === true) {
+  if ((window.navigator as NavigatorWithConnection).standalone === true) {
     return true;
   }
 
@@ -28,10 +46,8 @@ export function isPWAMode(): boolean {
  * @returns true if the API is available
  */
 export function isNetworkInfoSupported(): boolean {
-  const connection =
-    (navigator as any).connection ||
-    (navigator as any).mozConnection ||
-    (navigator as any).webkitConnection;
+  const nav = navigator as NavigatorWithConnection;
+  const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
   return !!connection;
 }
 
@@ -44,10 +60,8 @@ export function isNetworkInfoSupported(): boolean {
  * @returns true if on WiFi or if the API is unavailable (safe default), false if on cellular
  */
 export function isOnWiFi(): boolean {
-  const connection =
-    (navigator as any).connection ||
-    (navigator as any).mozConnection ||
-    (navigator as any).webkitConnection;
+  const nav = navigator as NavigatorWithConnection;
+  const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
 
   if (!connection) {
     // If API not available, assume WiFi (safer default - allow sync)
@@ -84,10 +98,8 @@ export function isOnWiFi(): boolean {
  * @returns Function to remove the event listener
  */
 export function onNetworkChange(callback: () => void): () => void {
-  const connection =
-    (navigator as any).connection ||
-    (navigator as any).mozConnection ||
-    (navigator as any).webkitConnection;
+  const nav = navigator as NavigatorWithConnection;
+  const connection = nav.connection || nav.mozConnection || nav.webkitConnection;
 
   if (!connection) {
     // API not available, return no-op cleanup function
