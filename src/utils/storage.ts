@@ -434,6 +434,14 @@ function initRemote() {
     // Check for any articles that might have been missed by the incremental change handler
     remoteStorage.on("sync-done", async () => {
       console.info("RemoteStorage sync-done - checking for any missed articles");
+
+      // Skip if we've already processed (sync-req-done may have handled this)
+      if (hasProcessedAfterSyncDone) {
+        console.debug("   ⏭️ Already processed after sync-done, skipping");
+        return;
+      }
+      hasProcessedAfterSyncDone = true;
+
       // Wait a bit to ensure change events have fired
       await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -460,8 +468,14 @@ function initRemote() {
           }
 
           // Process deleted articles (articles in local DB but not on remote)
-          // Since user confirmed at connect time, we can safely delete these
-          await processDeletedArticles(listing, true);
+          // Only delete if this is NOT initial sync OR the listing has articles
+          // This prevents accidental deletion due to stale cache during initial sync
+          const remoteCount = Object.keys(listing).filter((key) => listing[key] === true).length;
+          if (!isInitialSync || remoteCount > 0) {
+            await processDeletedArticles(listing, true);
+          } else {
+            console.info("   ⚠️ Skipping deletion check - initial sync with empty listing");
+          }
         } else {
           console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
@@ -500,6 +514,7 @@ function initRemote() {
       }
 
       hasProcessedAfterFirstCycle = true;
+      hasProcessedAfterSyncDone = true; // Prevent sync-done from also processing
 
       // Check how many articles change events have already processed
       const articlesInDb = await db.articles.count();
@@ -524,7 +539,13 @@ function initRemote() {
           }
 
           // Process deleted articles (articles in local DB but not on remote)
-          await processDeletedArticles(listing, true);
+          // Only delete if this is NOT initial sync OR the listing has articles
+          // This prevents accidental deletion due to stale cache during initial sync
+          if (!isInitialSync || remoteCount > 0) {
+            await processDeletedArticles(listing, true);
+          } else {
+            console.info("   ⚠️ Skipping deletion check - initial sync with empty listing");
+          }
         } else {
           console.warn("   ⚠️ Failed to get listing, cannot check for sync discrepancies");
         }
