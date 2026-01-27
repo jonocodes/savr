@@ -213,19 +213,22 @@ export default function ArticleScreen(_props: Props) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(file.data, "text/html");
 
-      // Update metadata in the document
-      const metaDiv = doc.querySelector("#savr-metadata");
-      if (metaDiv) {
-        metaDiv.textContent = JSON.stringify(
-          {
-            // Preserve other metadata first, then override with new values
-            ...JSON.parse(metaDiv.textContent || "{}"),
-            title: editTitle,
-            author: editAuthor,
-          },
-          null,
-          2
-        );
+      // Update title in the h1 element
+      const titleEl = doc.querySelector("#savr-metadata h1");
+      if (titleEl) {
+        titleEl.textContent = editTitle;
+      }
+
+      // Update author in the byline element
+      const bylineEl = doc.querySelector("#savr-byline");
+      if (bylineEl) {
+        bylineEl.textContent = editAuthor;
+      }
+
+      // Also update the page title
+      const pageTitleEl = doc.querySelector("title");
+      if (pageTitleEl) {
+        pageTitleEl.textContent = `Savr - ${editTitle}`;
       }
 
       // Save the updated HTML back to storage
