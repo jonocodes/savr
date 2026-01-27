@@ -30,6 +30,7 @@ import {
   Share as ShareIcon,
   Delete as DeleteIcon,
   Headphones as HeadphonesIcon,
+  Edit as EditIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -180,7 +181,7 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const _handleEditInfo = () => {
+  const handleEditInfo = () => {
     setEditTitle(article.title || "");
     setEditAuthor(article.author || "");
     setInfoDrawerOpen(true);
@@ -555,12 +556,12 @@ export default function ArticleScreen(_props: Props) {
               <ListItemText>Visit Original</ListItemText>
             </MenuItem>
 
-            {/* <MenuItem onClick={handleEditInfo}>
+            <MenuItem onClick={handleEditInfo} sx={{ py: 1 }}>
               <ListItemIcon>
                 <EditIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Info</ListItemText>
-            </MenuItem> */}
+              <ListItemText>Edit Info</ListItemText>
+            </MenuItem>
 
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
