@@ -10,6 +10,12 @@ export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
 export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
 export const WIFI_ONLY_SYNC_COOKIE_NAME = "savr-wifi-only-sync";
+export const SUMMARY_PROMPT_COOKIE_NAME = "savr-summary-prompt";
+export const SUMMARIZATION_ENABLED_COOKIE_NAME = "savr-summarization-enabled";
+export const SUMMARY_PROVIDER_COOKIE_NAME = "savr-summary-provider";
+export const SUMMARY_MODEL_COOKIE_NAME = "savr-summary-model";
+export const SUMMARY_API_KEYS_COOKIE_NAME = "savr-summary-api-keys";
+export const SUMMARY_SETTINGS_COOKIE_NAME = "savr-summary-settings";
 
 // After external save action constants
 export const AFTER_EXTERNAL_SAVE_ACTIONS = {
@@ -266,3 +272,224 @@ export const setAfterExternalSaveInCookie = (value: AfterExternalSaveAction): vo
 
 //   document.cookie = `${WIFI_ONLY_SYNC_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
 // };
+
+// Get summary prompt from cookie (returns null if not set, meaning use default)
+export const getSummaryPromptFromCookie = (): string | null => {
+  if (typeof document === "undefined") return null;
+
+  const cookies = document.cookie.split(";");
+  const summaryPromptCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARY_PROMPT_COOKIE_NAME}=`)
+  );
+
+  if (summaryPromptCookie) {
+    const value = decodeURIComponent(
+      summaryPromptCookie.replace(`${SUMMARY_PROMPT_COOKIE_NAME}=`, "").trim()
+    );
+    return value || null;
+  }
+
+  return null;
+};
+
+// Set summary prompt in cookie
+export const setSummaryPromptInCookie = (prompt: string | null): void => {
+  if (typeof document === "undefined") return;
+
+  // Set cookie to expire in 1 year
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  if (prompt && prompt.trim()) {
+    // Encode the prompt to handle special characters
+    document.cookie = `${SUMMARY_PROMPT_COOKIE_NAME}=${encodeURIComponent(prompt.trim())}; expires=${expires.toUTCString()}; path=/`;
+  } else {
+    // Remove cookie if value is null or empty
+    document.cookie = `${SUMMARY_PROMPT_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
+  }
+};
+
+// Get summarization enabled preference from cookie (defaults to false)
+export const getSummarizationEnabledFromCookie = (): boolean => {
+  if (typeof document === "undefined") return false;
+
+  const cookies = document.cookie.split(";");
+  const summarizationEnabledCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARIZATION_ENABLED_COOKIE_NAME}=`)
+  );
+
+  if (summarizationEnabledCookie) {
+    const value = summarizationEnabledCookie.split("=")[1];
+    return value === "true";
+  }
+
+  return false; // Default to disabled
+};
+
+// Set summarization enabled preference in cookie
+export const setSummarizationEnabledInCookie = (enabled: boolean): void => {
+  if (typeof document === "undefined") return;
+
+  // Set cookie to expire in 1 year
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${SUMMARIZATION_ENABLED_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get summary provider from cookie (defaults to "groq")
+export const getSummaryProviderFromCookie = (): string => {
+  if (typeof document === "undefined") return "groq";
+
+  const cookies = document.cookie.split(";");
+  const providerCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARY_PROVIDER_COOKIE_NAME}=`)
+  );
+
+  if (providerCookie) {
+    const value = providerCookie.split("=")[1]?.trim();
+    return value || "groq";
+  }
+
+  return "groq";
+};
+
+// Set summary provider in cookie
+export const setSummaryProviderInCookie = (provider: string): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${SUMMARY_PROVIDER_COOKIE_NAME}=${provider}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get summary model from cookie (defaults to "llama-3.3-70b-versatile")
+export const getSummaryModelFromCookie = (): string => {
+  if (typeof document === "undefined") return "llama-3.3-70b-versatile";
+
+  const cookies = document.cookie.split(";");
+  const modelCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARY_MODEL_COOKIE_NAME}=`)
+  );
+
+  if (modelCookie) {
+    const value = modelCookie.split("=")[1]?.trim();
+    return value || "llama-3.3-70b-versatile";
+  }
+
+  return "llama-3.3-70b-versatile";
+};
+
+// Set summary model in cookie
+export const setSummaryModelInCookie = (model: string): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${SUMMARY_MODEL_COOKIE_NAME}=${model}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get API keys from cookie (stored as JSON object: { groq: "key", openai: "key" })
+export const getApiKeysFromCookie = (): Record<string, string> => {
+  if (typeof document === "undefined") return {};
+
+  const cookies = document.cookie.split(";");
+  const keysCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARY_API_KEYS_COOKIE_NAME}=`)
+  );
+
+  if (keysCookie) {
+    try {
+      const value = decodeURIComponent(
+        keysCookie.replace(`${SUMMARY_API_KEYS_COOKIE_NAME}=`, "").trim()
+      );
+      return JSON.parse(value) || {};
+    } catch {
+      return {};
+    }
+  }
+
+  return {};
+};
+
+// Set API keys in cookie
+export const setApiKeysInCookie = (keys: Record<string, string>): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${SUMMARY_API_KEYS_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(keys))}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get single API key for a provider
+export const getApiKeyForProvider = (provider: string): string | null => {
+  const keys = getApiKeysFromCookie();
+  return keys[provider] || null;
+};
+
+// Set single API key for a provider
+export const setApiKeyForProvider = (provider: string, key: string | null): void => {
+  const keys = getApiKeysFromCookie();
+  if (key) {
+    keys[provider] = key;
+  } else {
+    delete keys[provider];
+  }
+  setApiKeysInCookie(keys);
+};
+
+// Summary settings type
+export interface SummarySettingsCookie {
+  detailLevel: number;
+  tone: string;
+  focus: string;
+  format: string;
+  customPrompt: string;
+}
+
+const DEFAULT_SUMMARY_SETTINGS_COOKIE: SummarySettingsCookie = {
+  detailLevel: 2,
+  tone: "neutral",
+  focus: "general",
+  format: "paragraphs",
+  customPrompt: "",
+};
+
+// Get summary settings from cookie
+export const getSummarySettingsFromCookie = (): SummarySettingsCookie => {
+  if (typeof document === "undefined") return DEFAULT_SUMMARY_SETTINGS_COOKIE;
+
+  const cookies = document.cookie.split(";");
+  const settingsCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARY_SETTINGS_COOKIE_NAME}=`)
+  );
+
+  if (settingsCookie) {
+    try {
+      const value = decodeURIComponent(
+        settingsCookie.replace(`${SUMMARY_SETTINGS_COOKIE_NAME}=`, "").trim()
+      );
+      return { ...DEFAULT_SUMMARY_SETTINGS_COOKIE, ...JSON.parse(value) };
+    } catch {
+      return DEFAULT_SUMMARY_SETTINGS_COOKIE;
+    }
+  }
+
+  return DEFAULT_SUMMARY_SETTINGS_COOKIE;
+};
+
+// Set summary settings in cookie
+export const setSummarySettingsInCookie = (settings: Partial<SummarySettingsCookie>): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  const currentSettings = getSummarySettingsFromCookie();
+  const newSettings = { ...currentSettings, ...settings };
+
+  document.cookie = `${SUMMARY_SETTINGS_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(newSettings))}; expires=${expires.toUTCString()}; path=/`;
+};

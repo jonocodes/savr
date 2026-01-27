@@ -824,6 +824,10 @@ export default function ArticleListScreen() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button onClick={() => { setDialogVisible(false); navigate({ to: "/submit" }); }}>
+            Advanced
+          </Button>
+          <Box sx={{ flexGrow: 1 }} />
           {articles && articles.length > 0 && (
             <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
           )}

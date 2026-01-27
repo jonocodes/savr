@@ -12,6 +12,7 @@ export type Article = {
   mimeType: string;
   readTimeMinutes: number | null;
   progress: number;
+  summary?: string; // AI-generated summary of the article
   // publishedTime: string | null;
 };
 
