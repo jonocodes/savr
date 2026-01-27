@@ -442,12 +442,22 @@ export default function ArticleListScreen() {
           // Continue anyway - the article is saved locally
         }
 
-        // Wait a bit for UI to update, then wait for sync and close
+        // Wait a bit for UI to update, then handle based on preference
         setTimeout(async () => {
           setDialogVisible(false);
           setIngestPercent(100);
           setUrl("");
-          await waitForSyncThenClose();
+
+          const afterExternalSave = getAfterExternalSaveFromCookie();
+          if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
+            await waitForSyncThenClose();
+          } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
+            setIngestStatus(null);
+            navigate({ to: `/article/${article.slug}` });
+          } else {
+            // SHOW_LIST - just clear the status
+            setIngestStatus(null);
+          }
         }, 1500);
       }
     };
