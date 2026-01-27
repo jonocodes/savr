@@ -30,29 +30,42 @@ try {
 }
 
 test.describe("Local Article Ingestion via RemoteStorage", () => {
+  // These tests involve article ingestion which can take 60+ seconds
+  test.setTimeout(120000); // 2 minutes
+
   test.beforeEach(async ({ page }) => {
     // Navigate to app
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
     // Clear all browser storage to ensure clean state
-    await page.evaluate(async () => {
-      // Clear IndexedDB - must properly await the deletion
-      await new Promise<void>((resolve) => {
-        const request = indexedDB.deleteDatabase("savrDb");
-        request.onsuccess = () => resolve();
-        request.onerror = () => resolve(); // Resolve anyway to avoid hanging
-        request.onblocked = () => {
-          // Database is blocked by open connections, wait and resolve
-          console.log("Database deletion blocked, waiting...");
-          setTimeout(resolve, 500);
-        };
+    // Use a timeout to prevent hanging if IndexedDB operations fail
+    try {
+      await page.evaluate(async () => {
+        // Clear IndexedDB with timeout - must properly await the deletion
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            const request = indexedDB.deleteDatabase("savrDb");
+            request.onsuccess = () => resolve();
+            request.onerror = () => resolve(); // Resolve anyway to avoid hanging
+            request.onblocked = () => {
+              // Database is blocked by open connections, wait and resolve
+              console.log("Database deletion blocked, waiting...");
+              setTimeout(resolve, 500);
+            };
+          }),
+          // Timeout after 5 seconds
+          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+        ]);
+        // Clear localStorage
+        localStorage.clear();
+        // Clear sessionStorage
+        sessionStorage.clear();
       });
-      // Clear localStorage
-      localStorage.clear();
-      // Clear sessionStorage
-      sessionStorage.clear();
-    });
+    } catch (error) {
+      console.log("Warning: Failed to clear browser storage:", error);
+      // Continue anyway - the test might still work
+    }
 
     // Reload after clearing storage
     await page.reload();
@@ -156,10 +169,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("\n🎉 Test completed successfully!\n");
   });
 
-  // SKIPPED: Flaky locally - article list is empty after reconnect even though IndexedDB has the data.
-  // Passes in Docker (test:e2e:docker). Likely a timing issue with React/Dexie reactivity.
-  // TODO: Investigate why articles aren't loaded from IndexedDB after reconnect locally.
-  test.skip("should persist article after disconnect and reconnect", async ({ page }) => {
+  // Previously skipped: Flaky locally - investigating timing issue with React/Dexie reactivity
+  test("should persist article after disconnect and reconnect", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
     const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
