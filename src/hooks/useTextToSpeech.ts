@@ -47,6 +47,7 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
 
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
+        console.log("TTS: Loaded", voices.length, "voices");
         if (voices.length > 0) {
           setAvailableVoices(voices);
           // Set default voice (prefer English voices)
@@ -55,6 +56,7 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
           );
           const defaultVoice = englishVoice || voices[0];
           if (!voice) {
+            console.log("TTS: Setting default voice:", defaultVoice?.name);
             setVoiceState(defaultVoice);
           }
         }
@@ -82,23 +84,35 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
   }, []);
 
   const play = useCallback(() => {
-    if (!isSupported || !textRef.current) return;
+    if (!isSupported) {
+      console.warn("TTS: Speech synthesis not supported");
+      return;
+    }
+    if (!textRef.current) {
+      console.warn("TTS: No text to speak");
+      return;
+    }
 
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
+    // Create utterance with the text
     const utterance = new SpeechSynthesisUtterance(textRef.current);
     utterance.rate = rate;
+
+    // Set voice if available
     if (voice) {
       utterance.voice = voice;
     }
 
     utterance.onstart = () => {
+      console.log("TTS: Started speaking");
       setIsPlaying(true);
       setIsPaused(false);
     };
 
     utterance.onend = () => {
+      console.log("TTS: Finished speaking");
       setIsPlaying(false);
       setIsPaused(false);
     };
@@ -106,14 +120,23 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     utterance.onerror = (event) => {
       // Don't log "interrupted" errors as they're expected when stopping/restarting
       if (event.error !== "interrupted") {
-        console.error("Speech synthesis error:", event.error);
+        console.error("TTS: Speech synthesis error:", event.error);
       }
       setIsPlaying(false);
       setIsPaused(false);
     };
 
     utteranceRef.current = utterance;
+
+    // Speak the utterance
     window.speechSynthesis.speak(utterance);
+
+    // Chrome bug workaround: speechSynthesis can get stuck in pending state
+    // Calling resume() helps kick-start it
+    window.speechSynthesis.resume();
+
+    // Set playing state immediately and rely on onstart/onerror to correct it if needed
+    setIsPlaying(true);
   }, [isSupported, rate, voice]);
 
   const pause = useCallback(() => {

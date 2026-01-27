@@ -100,12 +100,16 @@ export default function ArticleScreen(_props: Props) {
   // Initialize TTS hook
   const [ttsState, ttsControls] = useTextToSpeech(articleText);
 
-  // Stop TTS when navigating away
+  // Store stop function in ref to avoid dependency issues
+  const ttsStopRef = useRef(ttsControls.stop);
+  ttsStopRef.current = ttsControls.stop;
+
+  // Stop TTS when navigating away (only on unmount)
   useEffect(() => {
     return () => {
-      ttsControls.stop();
+      ttsStopRef.current();
     };
-  }, [ttsControls]);
+  }, []);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
