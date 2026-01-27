@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AppBar,
@@ -29,6 +29,7 @@ import {
   OpenInNew as OpenInNewIcon,
   Share as ShareIcon,
   Delete as DeleteIcon,
+  Headphones as HeadphonesIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -38,6 +39,8 @@ import { removeArticle, updateArticleMetadata } from "~/utils/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
+import TextToSpeechDrawer from "./TextToSpeechDrawer";
+import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
@@ -71,6 +74,7 @@ export default function ArticleScreen(_props: Props) {
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
   const [headerHidingEnabled, setHeaderHidingEnabled] = useState(true);
+  const [ttsDrawerOpen, setTtsDrawerOpen] = useState(false);
 
   const [html, setHtml] = useState("");
 
@@ -81,6 +85,27 @@ export default function ArticleScreen(_props: Props) {
   } | null>(null);
 
   const [article, setArticle] = useState({} as Article);
+
+  // Extract plain text from HTML content for TTS
+  const articleText = useMemo(() => {
+    if (!content) return "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, "text/html");
+    // Remove script and style elements
+    doc.querySelectorAll("script, style, noscript").forEach((el) => el.remove());
+    // Get text content
+    return doc.body?.textContent?.trim() || "";
+  }, [content]);
+
+  // Initialize TTS hook
+  const [ttsState, ttsControls] = useTextToSpeech(articleText);
+
+  // Stop TTS when navigating away
+  useEffect(() => {
+    return () => {
+      ttsControls.stop();
+    };
+  }, [ttsControls]);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -429,6 +454,16 @@ export default function ArticleScreen(_props: Props) {
 
           <CookieThemeToggle size="small" />
 
+          <Tooltip title="Listen to article">
+            <IconButton
+              color="inherit"
+              onClick={() => setTtsDrawerOpen(true)}
+              data-testid="tts-button"
+            >
+              <HeadphonesIcon />
+            </IconButton>
+          </Tooltip>
+
           {article.state === "archived" ? (
             <Tooltip title="Unarchive">
               <IconButton color="inherit" onClick={handleUnarchive}>
@@ -593,6 +628,14 @@ export default function ArticleScreen(_props: Props) {
           </Stack>
         </Box>
       </Drawer>
+
+      {/* Text to Speech Drawer */}
+      <TextToSpeechDrawer
+        open={ttsDrawerOpen}
+        onClose={() => setTtsDrawerOpen(false)}
+        ttsState={ttsState}
+        ttsControls={ttsControls}
+      />
     </Box>
   );
 }
