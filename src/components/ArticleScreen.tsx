@@ -234,6 +234,14 @@ export default function ArticleScreen(_props: Props) {
       const updatedHtml = doc.documentElement.outerHTML;
       await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
 
+      // Update displayed content immediately
+      setContent(updatedHtml);
+      if (viewMode === "cleaned") {
+        setHtml(`<link rel="stylesheet" href="/static/web.css">${updatedHtml}`);
+      } else {
+        setHtml(updatedHtml);
+      }
+
       setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
     } catch (e) {
