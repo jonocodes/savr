@@ -1,10 +1,12 @@
-import { test, expect, Browser } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
   triggerRemoteStorageSync,
   waitForOutgoingSync,
   getArticleFromDB,
+  getRemoteStorageAddress,
+  getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -21,7 +23,7 @@ try {
 } catch (error) {
   throw new Error(
     `Failed to load test environment from ${testEnvPath}. ` +
-      `Make sure global-setup.ts ran successfully. Error: ${error}`
+      `Make sure global-setup.ts ran successfully. Error: ${error}`,
   );
 }
 
@@ -29,11 +31,24 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
   // These tests involve multiple browser contexts and sync operations, which take longer
   test.setTimeout(120000); // 2 minutes
 
+  // NOTE: This test requires a working headless browser environment with React hydration support.
+  // May fail in resource-constrained environments where the browser crashes during IndexedDB init.
+  // Multi-browser sync depends on RemoteStorage.js properly handling multi-client sync.
   test("should sync article add and delete between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
     const context1 = await browser.newContext();
     const context2 = await browser.newContext();
+
+    // Enable sync via cookie for both contexts
+    // Note: Cookie domain must be "localhost" even in Docker mode, because
+    // host.docker.internal is resolved by the Docker browser to the host's localhost
+    await context1.addCookies([
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
+    ]);
+    await context2.addCookies([
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
+    ]);
 
     const page1 = await context1.newPage();
     const page2 = await context2.newPage();
@@ -47,7 +62,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
 
       const token = testEnv.RS_TOKEN;
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page1, "testuser@localhost:8006", token);
+      await connectToRemoteStorage(page1, getRemoteStorageAddress(), token);
       await waitForRemoteStorageSync(page1);
       console.log("✅ Browser 1: RemoteStorage connected and synced");
 
@@ -58,13 +73,17 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       console.log("✅ Browser 2: App loaded");
 
       console.log("🔗 Browser 2: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page2, "testuser@localhost:8006", token);
+      await connectToRemoteStorage(page2, getRemoteStorageAddress(), token);
       await waitForRemoteStorageSync(page2);
       console.log("✅ Browser 2: RemoteStorage connected and synced");
 
       // Ingest article in Browser 1
       console.log("\n1️⃣  Browser 1: Ingesting article...");
-      const addButton1 = page1.locator('button:has-text("Add Article")');
+      const addButton1 = page1
+        .locator(
+          'button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)',
+        )
+        .first();
       await expect(addButton1).toBeVisible({ timeout: 10000 });
       await addButton1.click();
 
@@ -74,7 +93,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       const urlInput1 = page1
         .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
         .first();
-      const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+      const testUrl = `${getContentServerUrl()}/input/death-by-a-thousand-cuts/`;
       await urlInput1.fill(testUrl);
 
       const saveButton1 = dialog1.locator('button:has-text("Save")').first();
@@ -105,10 +124,11 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       // Trigger manual sync in Browser 2 to pull article from server
       console.log("\n4️⃣  Browser 2: Syncing to pull article from Browser 1...");
       await triggerRemoteStorageSync(page2);
-      await page2.waitForTimeout(2000);
+      // Give the UI time to react to the sync
+      await page2.waitForTimeout(3000);
 
       const articleTitle2 = page2.getByText(/Death/i);
-      await expect(articleTitle2).toBeVisible({ timeout: 10000 });
+      await expect(articleTitle2).toBeVisible({ timeout: 15000 });
       console.log("✅ Browser 2: Article appeared in list after sync!");
 
       // Verify article in Browser 2's IndexedDB

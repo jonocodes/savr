@@ -1,10 +1,22 @@
-import { spawn, ChildProcess } from "child_process";
+import { spawn, ChildProcess, execSync } from "child_process";
 import { FullConfig } from "@playwright/test";
 import fs from "fs";
 import path from "path";
 
 let armadettoProcess: ChildProcess | null = null;
 let contentServerProcess: ChildProcess | null = null;
+
+/**
+ * Kill any process using the specified port
+ */
+function killPortProcess(port: number): void {
+  try {
+    // Use fuser to find and kill processes on the port
+    execSync(`fuser -k ${port}/tcp 2>/dev/null || true`, { stdio: "ignore" });
+  } catch {
+    // Ignore errors - port might not be in use
+  }
+}
 
 /**
  * Poll a URL until it responds successfully
@@ -26,7 +38,7 @@ async function waitForServer(
         // 401 is OK for Armadietto - means server is up but needs auth
         return;
       }
-    } catch (err) {
+    } catch {
       // Server not responding yet, continue polling
     }
     await new Promise((resolve) => setTimeout(resolve, intervalMs));
@@ -35,8 +47,15 @@ async function waitForServer(
   throw new Error(`Server at ${url} did not respond within ${timeoutMs}ms`);
 }
 
-export default async function globalSetup(config: FullConfig) {
+export default async function globalSetup(_config: FullConfig) {
   console.log("\n🚀 Starting test servers...\n");
+
+  // Clean up any stale processes from previous runs
+  console.log("Cleaning up stale processes...");
+  killPortProcess(8006);
+  killPortProcess(8080);
+  // Give processes time to die
+  await new Promise((resolve) => setTimeout(resolve, 1000));
 
   // Start Armadietto RemoteStorage server
   console.log("Starting Armadietto RemoteStorage server...");
@@ -102,11 +121,15 @@ export default async function globalSetup(config: FullConfig) {
     throw new Error("Failed to capture OAuth token from Armadietto");
   }
 
-  // Start content server for test data
+  // Start content server for test data (directly, not via npm, for easier cleanup)
   console.log("Starting content server...");
-  contentServerProcess = spawn("npm", ["run", "demo-server3"], {
-    stdio: "pipe",
-  });
+  contentServerProcess = spawn(
+    "npx",
+    ["http-server", "test_data/", "-p", "8080", "--cors"],
+    {
+      stdio: "pipe",
+    }
+  );
 
   contentServerProcess.stdout?.on("data", (data) => {
     const output = data.toString();
@@ -138,39 +161,14 @@ export default async function globalSetup(config: FullConfig) {
     throw new Error(`Content server failed to respond: ${err}`);
   }
 
-  // Store token for tests
-  const testEnv = { RS_TOKEN: token };
+  // Store token and PIDs for tests and teardown
+  const testEnv = {
+    RS_TOKEN: token,
+    ARMADIETTO_PID: armadettoProcess?.pid,
+    CONTENT_SERVER_PID: contentServerProcess?.pid,
+  };
   const testEnvPath = path.join(process.cwd(), "tests/e2e/.test-env.json");
   fs.writeFileSync(testEnvPath, JSON.stringify(testEnv, null, 2));
   console.log("✅ Test environment saved\n");
   console.log("🎬 All servers ready! Starting tests...\n");
-
-  // Return teardown function
-  return async () => {
-    console.log("\n🧹 Cleaning up test servers...\n");
-
-    if (armadettoProcess) {
-      console.log("Stopping Armadietto server...");
-      armadettoProcess.kill("SIGTERM");
-      // Give it a moment to clean up
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      // Force kill if still running
-      if (!armadettoProcess.killed) {
-        armadettoProcess.kill("SIGKILL");
-      }
-      console.log("✅ Armadietto server stopped");
-    }
-
-    if (contentServerProcess) {
-      console.log("Stopping content server...");
-      contentServerProcess.kill("SIGTERM");
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      if (!contentServerProcess.killed) {
-        contentServerProcess.kill("SIGKILL");
-      }
-      console.log("✅ Content server stopped");
-    }
-
-    console.log("✅ Cleanup complete\n");
-  };
 }

@@ -46,22 +46,24 @@ Here are most of the planned features.
 - [x] browser bookmarklet
 - [x] thumbnail generation
 - [x] mobile share action
-- [ ] info edit - so you can fix a missing title
+- [x] info edit - so you can fix a missing title
 - [x] remember scroll position
+- [x] text to speach read aloud
 - [x] offline sync using remoteStorage.js (experimental)
   - [x] 5apps
   - [x] dropbox
   - [ ] google drive
+- [x] catalog export
+- [x] catalog import
+- [ ] multiline url imports
+- [ ] content summarization
 - [ ] advanced image handling
   - [ ] scrape lazy loaded images
   - [ ] discover uncommon tags (ie - srcset and background images)
   - [ ] allow for deferred image loading at view time
-- [ ] multiline url imports
 - [ ] additional document types (ie - raw html, markdown, plain text, pdf)
 - [ ] media types (images, audio, video)
-- [ ] content summarization
-- [ ] content read aloud
-- [ ] import/export catalog
+
 
 # How to "install" it
 

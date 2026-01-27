@@ -32,7 +32,7 @@ export const createDarkTheme = (): Theme => createAppTheme("dark");
 export const createSystemTheme = (): Theme => createAppTheme("system");
 
 // Theme decorator for Storybook stories
-export const withTheme = (mode: ThemeMode) => (Story: any) => {
+export const withTheme = (mode: ThemeMode) => (Story: React.ComponentType) => {
   const theme = createAppTheme(mode);
 
   const backgroundColor = mode === "dark" ? "#121212" : "#ffffff";

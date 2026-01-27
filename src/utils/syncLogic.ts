@@ -7,14 +7,14 @@
 
 export interface SyncEvent {
   path: string;
-  oldValue: any;
-  newValue: any;
+  oldValue: unknown;
+  newValue: unknown;
 }
 
 export interface Article {
   slug: string;
   archived?: boolean;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export type SyncAction = 'add' | 'update' | 'delete' | 'skip';
@@ -123,7 +123,7 @@ export function identifyMissingArticles(
  * @returns The article slug, or null if path doesn't match pattern
  */
 export function extractSlugFromPath(path: string): string | null {
-  const match = path.match(/saves\/([^\/]+)\/article\.json/);
+  const match = path.match(/saves\/([^/]+)\/article\.json/);
   return match ? match[1] : null;
 }
 

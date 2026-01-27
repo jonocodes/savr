@@ -473,7 +473,7 @@ export function readabilityToArticle(
     publishedDate: pubDate?.toISOString(),
     ingestDate: new Date().toISOString(),
     ingestPlatform: `typescript/web (${version})`,
-    ingestSource: "????",
+    ingestSource: "bookmarklet",
     mimeType: contentType,
     readTimeMinutes: readingTimeMinutes,
     progress: 0,
@@ -532,6 +532,15 @@ export async function ingestHtml(
   const fetchLogPath = getFileFetchLog(article.slug);
   const fetchLogContent = logMessages.join('\n');
   await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Save article metadata to RemoteStorage for cross-device sync
+  // This is critical: without article.json, other devices cannot sync this article
+  // and the directory will appear as "dangling" in diagnostics
+  await storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article)
+  );
 
   return { article, successfulDownloads, totalImages };
 }
@@ -627,7 +636,8 @@ export async function ingestUrl(
     throw new Error("error during ingestion");
   }
 
-  storageClient?.storeFile(
+  // Save article metadata with updated ingestSource="url" (overwrites the one saved by ingestHtml)
+  await storageClient?.storeFile(
     "application/json",
     getFilePathMetadata(article.slug),
     JSON.stringify(article, null, 2)

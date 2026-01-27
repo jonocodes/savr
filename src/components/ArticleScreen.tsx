@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import {
   AppBar,
@@ -11,10 +11,6 @@ import {
   ListItemIcon,
   ListItemText,
   Tooltip,
-  Paper,
-  Container,
-  Slide,
-  useScrollTrigger,
   Drawer,
   TextField,
   Button,
@@ -33,6 +29,7 @@ import {
   OpenInNew as OpenInNewIcon,
   Share as ShareIcon,
   Delete as DeleteIcon,
+  Headphones as HeadphonesIcon,
   Edit as EditIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
@@ -43,9 +40,11 @@ import { removeArticle, updateArticleMetadata } from "~/utils/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
+import TextToSpeechDrawer from "./TextToSpeechDrawer";
+import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
-import { getFilePathContent, getFilePathMetadata, getFilePathRaw } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
 
@@ -59,7 +58,7 @@ interface Props {
   children?: React.ReactElement<unknown>;
 }
 
-export default function ArticleScreen(props: Props) {
+export default function ArticleScreen(_props: Props) {
   // Get slug from URL path parameter
   // const slug = window.location.pathname.split("/").pop();
   const { slug } = Route.useParams();
@@ -76,6 +75,7 @@ export default function ArticleScreen(props: Props) {
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
   const [headerHidingEnabled, setHeaderHidingEnabled] = useState(true);
+  const [ttsDrawerOpen, setTtsDrawerOpen] = useState(false);
 
   const [html, setHtml] = useState("");
 
@@ -86,6 +86,31 @@ export default function ArticleScreen(props: Props) {
   } | null>(null);
 
   const [article, setArticle] = useState({} as Article);
+
+  // Extract plain text from HTML content for TTS
+  const articleText = useMemo(() => {
+    if (!content) return "";
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(content, "text/html");
+    // Remove script and style elements
+    doc.querySelectorAll("script, style, noscript").forEach((el) => el.remove());
+    // Get text content
+    return doc.body?.textContent?.trim() || "";
+  }, [content]);
+
+  // Initialize TTS hook
+  const [ttsState, ttsControls] = useTextToSpeech(articleText);
+
+  // Store stop function in ref to avoid dependency issues
+  const ttsStopRef = useRef(ttsControls.stop);
+  ttsStopRef.current = ttsControls.stop;
+
+  // Stop TTS when navigating away (only on unmount)
+  useEffect(() => {
+    return () => {
+      ttsStopRef.current();
+    };
+  }, []);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     setAnchorEl(event.currentTarget);
@@ -188,26 +213,35 @@ export default function ArticleScreen(props: Props) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(file.data, "text/html");
 
-      // Update metadata in the document
-      const metaDiv = doc.querySelector("#savr-metadata");
-      if (metaDiv) {
-        metaDiv.textContent = JSON.stringify(
-          {
-            title: editTitle,
-            author: editAuthor,
-            // Preserve other metadata
-            ...JSON.parse(metaDiv.textContent || "{}"),
-          },
-          null,
-          2
-        );
+      // Update title in the h1 element
+      const titleEl = doc.querySelector("#savr-metadata h1");
+      if (titleEl) {
+        titleEl.textContent = editTitle;
+      }
 
-        console.log("metaDiv", metaDiv);
+      // Update author in the byline element
+      const bylineEl = doc.querySelector("#savr-byline");
+      if (bylineEl) {
+        bylineEl.textContent = editAuthor;
+      }
+
+      // Also update the page title
+      const pageTitleEl = doc.querySelector("title");
+      if (pageTitleEl) {
+        pageTitleEl.textContent = `Savr - ${editTitle}`;
       }
 
       // Save the updated HTML back to storage
       const updatedHtml = doc.documentElement.outerHTML;
       await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
+
+      // Update displayed content immediately
+      setContent(updatedHtml);
+      if (viewMode === "cleaned") {
+        setHtml(`<link rel="stylesheet" href="/static/web.css">${updatedHtml}`);
+      } else {
+        setHtml(updatedHtml);
+      }
 
       setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
@@ -311,9 +345,10 @@ export default function ArticleScreen(props: Props) {
         if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
-            .then((file: any) => {
-              setContent(file.data);
-              setHtml(`${file.data}`);
+            .then((file) => {
+              const f = file as { data: string };
+              setContent(f.data);
+              setHtml(`${f.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);
@@ -321,9 +356,10 @@ export default function ArticleScreen(props: Props) {
         } else {
           storage.client
             ?.getFile(`saves/${slug}/index.html`, false) // maxAge: false = local-only, no network requests
-            .then((file: any) => {
-              setContent(file.data);
-              setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+            .then((file) => {
+              const f = file as { data: string };
+              setContent(f.data);
+              setHtml(`<link rel="stylesheet" href="/static/web.css">${f.data}`);
             })
             .catch((error) => {
               console.error("Error retrieving article", error);
@@ -432,7 +468,17 @@ export default function ArticleScreen(props: Props) {
 
           <CookieThemeToggle size="small" />
 
-          {article.state === ("archived" as any) ? (
+          <Tooltip title="Listen to article">
+            <IconButton
+              color="inherit"
+              onClick={() => setTtsDrawerOpen(true)}
+              data-testid="tts-button"
+            >
+              <HeadphonesIcon />
+            </IconButton>
+          </Tooltip>
+
+          {article.state === "archived" ? (
             <Tooltip title="Unarchive">
               <IconButton color="inherit" onClick={handleUnarchive}>
                 <UnarchiveIcon />
@@ -519,12 +565,12 @@ export default function ArticleScreen(props: Props) {
               <ListItemText>Visit Original</ListItemText>
             </MenuItem>
 
-            {/* <MenuItem onClick={handleEditInfo}>
+            <MenuItem onClick={handleEditInfo} sx={{ py: 1 }}>
               <ListItemIcon>
                 <EditIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Info</ListItemText>
-            </MenuItem> */}
+              <ListItemText>Edit Info</ListItemText>
+            </MenuItem>
 
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
@@ -596,6 +642,14 @@ export default function ArticleScreen(props: Props) {
           </Stack>
         </Box>
       </Drawer>
+
+      {/* Text to Speech Drawer */}
+      <TextToSpeechDrawer
+        open={ttsDrawerOpen}
+        onClose={() => setTtsDrawerOpen(false)}
+        ttsState={ttsState}
+        ttsControls={ttsControls}
+      />
     </Box>
   );
 }

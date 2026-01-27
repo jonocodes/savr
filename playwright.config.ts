@@ -1,5 +1,12 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// Connect to Playwright server in Docker when PW_SERVER is set
+const connectOptions = process.env.PW_SERVER ? { wsEndpoint: process.env.PW_SERVER } : undefined;
+
+// When using Docker browser, use host.docker.internal instead of localhost
+const baseHost = process.env.PW_SERVER ? "host.docker.internal" : "localhost";
+const defaultBaseURL = `http://${baseHost}:3002`;
+
 /**
  * @see https://playwright.dev/docs/test-configuration
  */
@@ -11,8 +18,8 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Opt out of parallel tests on CI. */
-  workers: process.env.CI ? 1 : undefined,
+  /* Limit workers - tests share RemoteStorage backend */
+  workers: 4,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
   reporter: "html",
   /* Global setup and teardown for test servers */
@@ -21,7 +28,7 @@ export default defineConfig({
   /* Shared settings for all the projects below. See https://playwright.dev/docs/api/class-testoptions. */
   use: {
     /* Base URL to use in actions like `await page.goto('/')`. */
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://localhost:3002",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || defaultBaseURL,
 
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
@@ -37,7 +44,19 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        connectOptions,
+        // Launch args for headless containerized environments
+        launchOptions: {
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-gpu",
+          ],
+        },
+      },
     },
 
     // {

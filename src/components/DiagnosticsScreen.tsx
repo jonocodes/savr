@@ -25,13 +25,13 @@ import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
-import { isPWAMode, isNetworkInfoSupported, isOnWiFi } from "~/utils/network";
+import { isPWAMode } from "~/utils/network";
 import React from "react";
 
 interface RemoteStorageEvent {
   timestamp: string;
   event: string;
-  data?: any;
+  data?: Record<string, unknown>;
 }
 
 export default function DiagnosticsScreen() {
@@ -43,13 +43,13 @@ export default function DiagnosticsScreen() {
     Array<{
       path: string;
       type: "directory";
-      details: any;
+      details: Record<string, unknown>;
     }>
   >([]);
   const [isScanningDangling, setIsScanningDangling] = React.useState(false);
   const [orphanedArticles, setOrphanedArticles] = React.useState<
     Array<{
-      article: any;
+      article: { slug: string; title?: string; state: string; url?: string | null };
       reason: string;
     }>
   >([]);
@@ -89,10 +89,10 @@ export default function DiagnosticsScreen() {
       const dangling: Array<{
         path: string;
         type: "directory";
-        details: any;
+        details: Record<string, unknown>;
       }> = [];
 
-      for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+      for (const [name, _isFolder] of Object.entries(listing as Record<string, boolean>)) {
         if (name.endsWith("/")) {
           // This is a directory in saves/
           const slug = name.slice(0, -1); // Remove trailing slash
@@ -134,7 +134,7 @@ export default function DiagnosticsScreen() {
       const existingDirs = new Set<string>();
 
       // Build set of existing directories
-      for (const [name, isFolder] of Object.entries(listing as Record<string, boolean>)) {
+      for (const [name, _isFolder] of Object.entries(listing as Record<string, boolean>)) {
         if (name.endsWith("/")) {
           existingDirs.add(name.slice(0, -1)); // Remove trailing slash
         }
@@ -142,7 +142,7 @@ export default function DiagnosticsScreen() {
 
       // Check each article
       const orphaned: Array<{
-        article: any;
+        article: { slug: string; title?: string; state: string; url?: string | null };
         reason: string;
       }> = [];
 
@@ -224,7 +224,7 @@ export default function DiagnosticsScreen() {
   React.useEffect(() => {
     if (!remoteStorage) return;
 
-    const addEvent = (event: string, data?: any) => {
+    const addEvent = (event: string, data?: Record<string, unknown>) => {
       setRemoteStorageEvents((prev) => [
         {
           timestamp: new Date().toLocaleTimeString(),
@@ -242,12 +242,12 @@ export default function DiagnosticsScreen() {
     const handleConnected = () => {
       addEvent("connected", {
         userAddress: remoteStorage.remote?.userAddress,
-        backend: (remoteStorage.remote as any)?.backend,
+        backend: (remoteStorage.remote as { backend?: string })?.backend,
       });
       setRemoteStorageState({
         connected: true,
         userAddress: remoteStorage.remote?.userAddress || null,
-        backend: (remoteStorage.remote as any)?.backend || null,
+        backend: (remoteStorage.remote as { backend?: string })?.backend || null,
       });
     };
 
@@ -280,15 +280,18 @@ export default function DiagnosticsScreen() {
       addEvent("network-offline");
     };
 
-    const handleWireError = (error: any) => {
+    const handleWireError = (event: unknown) => {
+      const error = event as Error | { message?: string };
       addEvent("wire-error", { error: error?.message || String(error) });
     };
 
-    const handleWireBusy = (req: any) => {
+    const handleWireBusy = (event: unknown) => {
+      const req = event as { path?: string };
       addEvent("wire-busy", { path: req?.path });
     };
 
-    const handleWireDone = (req: any) => {
+    const handleWireDone = (event: unknown) => {
+      const req = event as { path?: string };
       addEvent("wire-done", { path: req?.path });
     };
 
@@ -310,7 +313,7 @@ export default function DiagnosticsScreen() {
       setRemoteStorageState({
         connected: true,
         userAddress: remoteStorage.remote.userAddress || null,
-        backend: (remoteStorage.remote as any).backend || null,
+        backend: (remoteStorage.remote as { backend?: string }).backend || null,
       });
     }
 
@@ -333,11 +336,11 @@ export default function DiagnosticsScreen() {
   // Show RemoteStorage widget on diagnostics page
   React.useEffect(() => {
     if (widget) {
-      widget.attach();
+      widget.attach("remotestorage-container");
     }
     return () => {
       if (widget) {
-        widget.attach(); // Keep it attached even when leaving page
+        widget.attach("remotestorage-container"); // Keep it attached even when leaving page
       }
     };
   }, [widget]);
@@ -527,7 +530,7 @@ export default function DiagnosticsScreen() {
                     isPWA: (() => {
                       return (
                         window.matchMedia("(display-mode: standalone)").matches ||
-                        (window.navigator as any).standalone === true ||
+                        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
                         document.referrer.includes("android-app://")
                       );
                     })(),
@@ -579,10 +582,23 @@ export default function DiagnosticsScreen() {
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {JSON.stringify(
                 (() => {
+                  type NavigatorWithConnection = Navigator & {
+                    connection?: NetworkInformation;
+                    mozConnection?: NetworkInformation;
+                    webkitConnection?: NetworkInformation;
+                  };
+                  interface NetworkInformation {
+                    effectiveType?: string;
+                    type?: string;
+                    downlink?: number;
+                    rtt?: number;
+                    saveData?: boolean;
+                  }
+                  const navConn = navigator as NavigatorWithConnection;
                   const connection =
-                    (navigator as any).connection ||
-                    (navigator as any).mozConnection ||
-                    (navigator as any).webkitConnection;
+                    navConn.connection ||
+                    navConn.mozConnection ||
+                    navConn.webkitConnection;
 
                   if (!connection) {
                     return {

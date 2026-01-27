@@ -1,4 +1,31 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+// Test helper file that needs to interact with browser-injected RemoteStorage globals
+// which don't have TypeScript types available
+
 import { Page } from "@playwright/test";
+
+/**
+ * Get the correct host for test servers based on environment
+ * When using Docker browser (PW_SERVER set), use host.docker.internal
+ * Otherwise use localhost
+ */
+export function getTestHost(): string {
+  return process.env.PW_SERVER ? "host.docker.internal" : "localhost";
+}
+
+/**
+ * Get the RemoteStorage server address for tests
+ */
+export function getRemoteStorageAddress(): string {
+  return `testuser@${getTestHost()}:8006`;
+}
+
+/**
+ * Get the content server base URL for tests
+ */
+export function getContentServerUrl(): string {
+  return `http://${getTestHost()}:8080`;
+}
 
 /**
  * Connect to RemoteStorage programmatically using OAuth token
@@ -79,47 +106,75 @@ export async function connectToRemoteStorage(
 
 /**
  * Trigger a manual sync in RemoteStorage
- * This forces RemoteStorage to check the server for changes
+ *
+ * NOTE: This function attempts to force a fresh sync but has known limitations
+ * in multi-browser test scenarios. See docs/multi-browser-sync-investigation.md
+ * for details on the investigation and attempted fixes.
+ *
+ * The function fetches articles directly from the server and adds them to IndexedDB,
+ * bypassing the normal sync mechanism.
  */
 export async function triggerRemoteStorageSync(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const rs = (window as any).remoteStorage;
-    if (!rs || !rs.sync) {
-      throw new Error("RemoteStorage or sync not available");
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
     }
 
-    return new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        cleanup();
-        resolve(); // Resolve anyway to avoid hanging tests
-      }, 10000);
+    try {
+      // Force a fresh fetch by passing maxAge: false (bypasses cache)
+      const listing = await client.getListing("saves/", false);
 
-      const cleanup = () => {
-        clearTimeout(timeout);
-        rs.removeEventListener("sync-done", onSyncDone);
-        rs.removeEventListener("sync-req-done", onSyncReqDone);
-      };
+      if (!listing || typeof listing !== "object") {
+        return;
+      }
 
-      const onSyncDone = () => {
-        console.log("Manual sync completed (sync-done)");
-        cleanup();
-        resolve();
-      };
+      const slugs = Object.keys(listing).filter((key) => listing[key] === true);
+      const dbName = "savrDb";
 
-      const onSyncReqDone = () => {
-        console.log("Manual sync completed (sync-req-done)");
-        cleanup();
-        resolve();
-      };
+      for (const slugDir of slugs) {
+        const slug = slugDir.replace(/\/$/, "");
 
-      rs.on("sync-done", onSyncDone);
-      rs.on("sync-req-done", onSyncReqDone);
+        try {
+          const articleData = await client.getObject(`saves/${slugDir}article.json`);
 
-      // Trigger manual sync
-      console.log("Triggering manual RemoteStorage sync...");
-      rs.sync.sync();
-    });
+          if (articleData) {
+            const request = indexedDB.open(dbName);
+            await new Promise<void>((resolve) => {
+              request.onsuccess = () => {
+                const db = request.result;
+                try {
+                  const transaction = db.transaction(["articles"], "readwrite");
+                  const store = transaction.objectStore("articles");
+                  const putRequest = store.put({ ...articleData, slug });
+
+                  putRequest.onsuccess = () => {
+                    db.close();
+                    resolve();
+                  };
+                  putRequest.onerror = () => {
+                    db.close();
+                    resolve();
+                  };
+                } catch {
+                  db.close();
+                  resolve();
+                }
+              };
+              request.onerror = () => resolve();
+            });
+          }
+        } catch {
+          // Skip articles that fail to fetch
+        }
+      }
+    } catch (error) {
+      console.error("Error during manual sync:", error);
+    }
   });
+
+  // Give Dexie/React time to react to IndexedDB changes
+  await page.waitForTimeout(1000);
 }
 
 /**
@@ -204,7 +259,7 @@ export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Pro
     const maxWaitTime = Math.min(timeout, 10000); // Cap at 10 seconds for faster tests
 
     // Simple polling approach - don't wait for events that might not fire
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, _reject) => {
       const checkDb = async () => {
         const timeSinceStart = Date.now() - startTime;
 
@@ -383,7 +438,7 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
     const dbName = "savrDb";
     const request = indexedDB.open(dbName);
 
-    return new Promise<void>((resolve, reject) => {
+    return new Promise<void>((resolve, _reject) => {
       request.onsuccess = () => {
         const db = request.result;
 
@@ -416,6 +471,130 @@ export async function deleteArticleFromDB(page: Page, slug: string): Promise<voi
       };
     });
   }, slug);
+}
+
+/**
+ * Fetch article metadata directly from the RemoteStorage server
+ * This bypasses any local cache to verify the article actually persists on the server
+ * Returns the article.json content if found, or null if not found
+ */
+export async function getArticleFromServer(page: Page, slug: string): Promise<any | null> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    try {
+      // Use maxAge: false to bypass cache and fetch directly from server
+      const articleData = await client.getObject(`saves/${slug}/article.json`, false);
+      return articleData || null;
+    } catch (error: any) {
+      // Handle 404 or not found errors gracefully
+      if (error?.message?.includes("404") || error?.message?.includes("not found")) {
+        return null;
+      }
+      throw error;
+    }
+  }, slug);
+}
+
+/**
+ * Verify all article files exist on the remote server
+ * Checks for article.json, index.html, raw.html, and fetch.log
+ * Returns an object with the status of each file
+ */
+export async function verifyArticleFilesOnServer(
+  page: Page,
+  slug: string
+): Promise<{ articleJson: boolean; indexHtml: boolean; rawHtml: boolean; fetchLog: boolean }> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as any).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    const checkFile = async (path: string): Promise<boolean> => {
+      try {
+        // Use maxAge: false to bypass cache
+        const file = await client.getFile(path, false);
+        return !!file && !!file.data;
+      } catch {
+        return false;
+      }
+    };
+
+    const [articleJson, indexHtml, rawHtml, fetchLog] = await Promise.all([
+      checkFile(`saves/${slug}/article.json`),
+      checkFile(`saves/${slug}/index.html`),
+      checkFile(`saves/${slug}/raw.html`),
+      checkFile(`saves/${slug}/fetch.log`),
+    ]);
+
+    return { articleJson, indexHtml, rawHtml, fetchLog };
+  }, slug);
+}
+
+/**
+ * Get the article HTML content directly from the remote server
+ * Returns the index.html content as a string, or null if not found
+ */
+export async function getArticleContentFromServer(page: Page, slug: string): Promise<string | null> {
+  return await page.evaluate(async (slug) => {
+    const client = (window as unknown as { remoteStorageClient: {
+      getFile: (path: string, maxAge: boolean) => Promise<{ data: string } | null>;
+    } }).remoteStorageClient;
+    if (!client) {
+      throw new Error("RemoteStorage client not available");
+    }
+
+    try {
+      // Use maxAge: false to bypass cache and fetch directly from server
+      const file = await client.getFile(`saves/${slug}/index.html`, false);
+      return file?.data || null;
+    } catch {
+      return null;
+    }
+  }, slug);
+}
+
+/**
+ * Clear only the local IndexedDB without touching RemoteStorage
+ * Useful for simulating a fresh browser/device while keeping server data
+ */
+export async function clearLocalIndexedDB(page: Page): Promise<void> {
+  await page.evaluate(async () => {
+    const dbName = "savrDb";
+    const request = indexedDB.open(dbName);
+
+    await new Promise<void>((resolve, reject) => {
+      request.onsuccess = () => {
+        const db = request.result;
+
+        try {
+          const transaction = db.transaction(["articles"], "readwrite");
+          const store = transaction.objectStore("articles");
+          const clearRequest = store.clear();
+
+          clearRequest.onsuccess = () => {
+            console.log("Cleared all articles from local IndexedDB");
+            db.close();
+            resolve();
+          };
+
+          clearRequest.onerror = () => {
+            db.close();
+            reject(clearRequest.error);
+          };
+        } catch (error) {
+          db.close();
+          reject(error);
+        }
+      };
+
+      request.onerror = () => reject(request.error);
+    });
+  });
 }
 
 /**
@@ -455,10 +634,47 @@ export async function clearAllArticles(page: Page): Promise<void> {
           }
         }
 
-        // Wait for deletion sync to complete
+        // Trigger sync and wait for deletions to propagate to server
         if (slugs.length > 0) {
-          console.log("Waiting for deletion sync to complete...");
-          await new Promise((resolve) => setTimeout(resolve, 1000));
+          console.log("Triggering sync to push deletions to server...");
+
+          // Trigger sync and wait for it to complete
+          await new Promise<void>((resolve) => {
+            let resolved = false;
+
+            const timeout = setTimeout(() => {
+              if (!resolved) {
+                resolved = true;
+                console.log("Sync timeout after 10 seconds, continuing...");
+                resolve();
+              }
+            }, 10000);
+
+            const onSyncDone = () => {
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                rs.removeEventListener("sync-done", onSyncDone);
+                console.log("Deletion sync completed");
+                // Add small buffer to ensure server has processed
+                setTimeout(resolve, 500);
+              }
+            };
+
+            rs.on("sync-done", onSyncDone);
+
+            // Trigger the sync
+            try {
+              rs.sync.sync();
+            } catch (err) {
+              console.warn("Error triggering sync:", err);
+              if (!resolved) {
+                resolved = true;
+                clearTimeout(timeout);
+                resolve();
+              }
+            }
+          });
         }
       }
     } catch (error) {

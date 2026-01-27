@@ -7,6 +7,8 @@ import {
   deleteArticleFromDB,
   disconnectFromRemoteStorage,
   clearAllArticles,
+  getRemoteStorageAddress,
+  getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -28,20 +30,42 @@ try {
 }
 
 test.describe("Local Article Ingestion via RemoteStorage", () => {
+  // These tests involve article ingestion which can take 60+ seconds
+  test.setTimeout(120000); // 2 minutes
+
   test.beforeEach(async ({ page }) => {
     // Navigate to app
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
     // Clear all browser storage to ensure clean state
-    await page.evaluate(() => {
-      // Clear IndexedDB
-      indexedDB.deleteDatabase("savrDb");
-      // Clear localStorage
-      localStorage.clear();
-      // Clear sessionStorage
-      sessionStorage.clear();
-    });
+    // Use a timeout to prevent hanging if IndexedDB operations fail
+    try {
+      await page.evaluate(async () => {
+        // Clear IndexedDB with timeout - must properly await the deletion
+        await Promise.race([
+          new Promise<void>((resolve) => {
+            const request = indexedDB.deleteDatabase("savrDb");
+            request.onsuccess = () => resolve();
+            request.onerror = () => resolve(); // Resolve anyway to avoid hanging
+            request.onblocked = () => {
+              // Database is blocked by open connections, wait and resolve
+              console.log("Database deletion blocked, waiting...");
+              setTimeout(resolve, 500);
+            };
+          }),
+          // Timeout after 5 seconds
+          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
+        ]);
+        // Clear localStorage
+        localStorage.clear();
+        // Clear sessionStorage
+        sessionStorage.clear();
+      });
+    } catch (error) {
+      console.log("Warning: Failed to clear browser storage:", error);
+      // Continue anyway - the test might still work
+    }
 
     // Reload after clearing storage
     await page.reload();
@@ -49,7 +73,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Connect to RemoteStorage programmatically
     const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, "testuser@localhost:8006", token);
+    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -61,7 +85,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should verify content server is serving test article", async ({ page }) => {
     console.log("🔍 Verifying content server accessibility...");
 
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
 
     // Navigate directly to the content server URL
     const response = await page.goto(testUrl);
@@ -72,7 +96,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Verify the page contains expected content
     const pageContent = await page.content();
-    expect(pageContent).toContain("Nix");
+    expect(pageContent).toContain("LocalIngestion");
     console.log("✅ Article content contains expected text");
 
     // Verify we can see the title
@@ -86,7 +110,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should ingest article from local server and display it", async ({ page }) => {
     // 1. Open add article dialog
     console.log("1️⃣  Opening add article dialog...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    // Use a robust locator that works both in empty state (text button) and non-empty state (icon button)
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -99,7 +124,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
     console.log("2️⃣  Entering URL:", testUrl);
     await urlInput.fill(testUrl);
     await expect(urlInput).toHaveValue(testUrl);
@@ -114,40 +139,41 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Dialog closed, ingestion started");
 
     // 6. Wait for article to appear in list
-    // Article title from test_data/input/death-by-a-thousand-cuts/index.html
+    // Article title from test_data/input/test-article-for-local-ingestion/index.html
     console.log("4️⃣  Waiting for article to appear in list (this may take 30-60 seconds)...");
 
     // Wait for any article with "Death" in the title (more flexible matching)
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article appeared in list");
 
     // 7. Verify article was saved to IndexedDB
     console.log("5️⃣  Verifying article in IndexedDB...");
-    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const article = await getArticleFromDB(page, "test-article-for-local-ingestion");
     expect(article).toBeTruthy();
-    expect(article?.slug).toBe("death-by-a-thousand-cuts");
-    expect(article?.title).toMatch(/Death/i);
+    expect(article?.slug).toBe("test-article-for-local-ingestion");
+    expect(article?.title).toMatch(/Test Article|Local Ingestion/i);
     console.log("✅ Article verified in IndexedDB:", article?.title);
 
     // 8. Navigate to article page
     console.log("6️⃣  Navigating to article page...");
-    await page.goto("/article/death-by-a-thousand-cuts");
+    await page.goto("/article/test-article-for-local-ingestion");
     await page.waitForLoadState("networkidle");
 
     // 9. Verify article content is displayed
     console.log("7️⃣  Verifying article page content...");
     // Wait for article text content to appear (excluding RemoteStorage widget)
-    await expect(page.getByText(/Death|Nix/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText(/Test Article|Local Ingestion/i).first()).toBeVisible({ timeout: 10000 });
     console.log("✅ Article content displayed with expected text");
 
     console.log("\n🎉 Test completed successfully!\n");
   });
 
+  // Previously skipped: Flaky locally - investigating timing issue with React/Dexie reactivity
   test("should persist article after disconnect and reconnect", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -157,7 +183,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -167,7 +193,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Dialog closed");
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -191,7 +217,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
     const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, "testuser@localhost:8006", token);
+    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");
 
@@ -199,18 +225,24 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("5️⃣  Navigating to home page to refresh list...");
     await page.goto("/");
     await page.waitForLoadState("networkidle");
+    // Wait for RemoteStorage to be initialized after page reload
+    await page.waitForFunction(() => !!(window as unknown as { remoteStorage: unknown }).remoteStorage, { timeout: 10000 });
+    // Wait for RemoteStorage to sync after page load
+    await waitForRemoteStorageSync(page);
     console.log("✅ Navigated back to home");
 
     // 6. Verify article reappears in list
     console.log("6️⃣  Verifying article reappeared in list...");
-    await expect(articleTitle).toBeVisible({ timeout: 10000 });
+    // Re-query the locator after navigation to ensure fresh lookup
+    const articleTitleAfterReconnect = page.getByText(/Test Article|Local Ingestion/i);
+    await expect(articleTitleAfterReconnect).toBeVisible({ timeout: 15000 });
     console.log("✅ Article reappeared after reconnect");
 
     // 7. Verify article is still in IndexedDB
     console.log("7️⃣  Verifying article in IndexedDB...");
-    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const article = await getArticleFromDB(page, "test-article-for-local-ingestion");
     expect(article).toBeTruthy();
-    expect(article?.slug).toBe("death-by-a-thousand-cuts");
+    expect(article?.slug).toBe("test-article-for-local-ingestion");
     console.log("✅ Article verified in IndexedDB:", article?.title);
 
     console.log("\n🎉 Disconnect/reconnect test completed successfully!\n");
@@ -230,7 +262,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.goto("/");
     await page.waitForLoadState("networkidle");
 
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -240,7 +272,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -249,7 +281,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -291,10 +323,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Check if RemoteStorage cache still has the file
     const cacheCheck = await page.evaluate(async () => {
-      const client = (window as any).remoteStorageClient;
+      const client = (window as unknown as { remoteStorageClient?: { getFile: (path: string) => Promise<{ data?: string }> } }).remoteStorageClient;
       if (!client) return { error: "client is null" };
       try {
-        const file = await client.getFile("saves/death-by-a-thousand-cuts/index.html");
+        const file = await client.getFile("saves/test-article-for-local-ingestion/index.html");
         return {
           hasFile: !!file,
           hasData: !!file?.data,
@@ -318,9 +350,9 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 6. Verify article is still in IndexedDB
     console.log("6️⃣  Verifying article is in IndexedDB...");
-    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const article = await getArticleFromDB(page, "test-article-for-local-ingestion");
     expect(article).toBeTruthy();
-    expect(article?.slug).toBe("death-by-a-thousand-cuts");
+    expect(article?.slug).toBe("test-article-for-local-ingestion");
     console.log("✅ Article verified in IndexedDB");
 
     console.log("\n🎉 Reading after disconnect test completed successfully!\n");
@@ -329,7 +361,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should delete article from listing page", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -339,7 +371,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -348,7 +380,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -380,7 +412,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 5. Verify article is deleted from IndexedDB
     console.log("5️⃣  Verifying article deleted from IndexedDB...");
-    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const article = await getArticleFromDB(page, "test-article-for-local-ingestion");
     expect(article).toBeUndefined();
     console.log("✅ Article deleted from IndexedDB");
 
@@ -390,7 +422,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should delete article from article page and redirect to listing", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -400,7 +432,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -409,13 +441,13 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
     // 2. Navigate to article page
     console.log("2️⃣  Navigating to article page...");
-    await page.goto("/article/death-by-a-thousand-cuts");
+    await page.goto("/article/test-article-for-local-ingestion");
     await page.waitForLoadState("networkidle");
     console.log("✅ Navigated to article page");
 
@@ -446,13 +478,13 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 5. Verify article is not in the listing
     console.log("5️⃣  Verifying article not in listing...");
-    const articleInList = page.getByText(/Death/i);
+    const articleInList = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleInList).not.toBeVisible({ timeout: 5000 });
     console.log("✅ Article not in listing");
 
     // 6. Verify article is deleted from IndexedDB
     console.log("6️⃣  Verifying article deleted from IndexedDB...");
-    const article = await getArticleFromDB(page, "death-by-a-thousand-cuts");
+    const article = await getArticleFromDB(page, "test-article-for-local-ingestion");
     expect(article).toBeUndefined();
     console.log("✅ Article deleted from IndexedDB");
 
@@ -462,7 +494,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
   test("should delete all articles from preferences page", async ({ page }) => {
     // 1. Ingest an article first
     console.log("1️⃣  Ingesting article...");
-    const addButton = page.locator('button:has-text("Add Article")');
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
     await expect(addButton).toBeVisible({ timeout: 10000 });
     await addButton.click();
 
@@ -472,7 +504,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const urlInput = page
       .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
       .first();
-    const testUrl = "http://localhost:8080/input/death-by-a-thousand-cuts/";
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
     await urlInput.fill(testUrl);
 
     const saveButton = dialog.locator('button:has-text("Save")').first();
@@ -481,7 +513,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Death/i);
+    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -563,14 +595,14 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // Navigate back to app if we're on an external page (e.g., content server)
     const currentUrl = page.url();
-    if (!currentUrl.includes("localhost:3002")) {
+    if (!currentUrl.includes(":3002")) {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
     }
 
     try {
-      await deleteArticleFromStorage(page, "death-by-a-thousand-cuts");
-      await deleteArticleFromDB(page, "death-by-a-thousand-cuts");
+      await deleteArticleFromStorage(page, "test-article-for-local-ingestion");
+      await deleteArticleFromDB(page, "test-article-for-local-ingestion");
       console.log("✅ Cleanup completed\n");
     } catch (error) {
       console.log("⚠️ Cleanup error (non-fatal):", error);

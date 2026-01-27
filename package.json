@@ -25,6 +25,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "node scripts/run-e2e.js",
+    "test:e2e:docker": "node scripts/run-e2e-docker.js",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",

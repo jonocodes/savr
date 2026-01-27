@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Article for Incremental Sync</title>
+    <meta name="author" content="Test Author">
+    <meta name="description" content="An article used to test incremental sync behavior">
+</head>
+<body>
+    <article>
+        <h1>Test Article for Incremental Sync</h1>
+        <p class="byline">By Test Author</p>
+        <p>This is a test article used to verify that incremental sync works correctly.</p>
+        <p>When a page is reloaded, existing local articles should be preserved and not re-downloaded from the server.</p>
+        <p>The keyword IncrementalSyncTest is unique to this article for verification purposes.</p>
+        <h2>How Incremental Sync Works</h2>
+        <p>On page reload, the app should:</p>
+        <ol>
+            <li>Check if local articles exist</li>
+            <li>If they do, use incremental sync instead of clearing everything</li>
+            <li>Only fetch changes from the server (new, modified, or deleted articles)</li>
+        </ol>
+        <p>This provides a much better user experience than re-downloading all articles on every page load.</p>
+    </article>
+</body>
+</html>

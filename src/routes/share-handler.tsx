@@ -1,4 +1,4 @@
-import { createFileRoute, redirect, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { getAfterExternalSaveFromCookie, AFTER_EXTERNAL_SAVE_ACTIONS } from "~/utils/cookies";
 import * as React from "react";
 import { isDebugMode } from "~/config/environment";

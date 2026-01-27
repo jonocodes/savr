@@ -36,8 +36,6 @@ import {
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
   ArrowForward,
-  CloudQueue as CloudQueueIcon,
-  CloudOff as CloudOffIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
@@ -53,6 +51,7 @@ import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
+import { formatReadTime } from "./PreferenceScreen";
 
 import { keyframes } from "@mui/system";
 
@@ -218,14 +217,14 @@ function ArticleItem({ article }: { article: Article }) {
         data-testid="article-menu"
       >
         {article.state === "archived" ? (
-          <MenuItem onClick={handleUnarchive}>
+          <MenuItem onClick={handleUnarchive} data-testid="article-menu-unarchive">
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
             Unarchive
           </MenuItem>
         ) : (
-          <MenuItem onClick={handleArchive}>
+          <MenuItem onClick={handleArchive} data-testid="article-menu-archive">
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>
@@ -270,14 +269,24 @@ export default function ArticleListScreen() {
     return db.articles.where("state").equals("archived").count();
   });
 
+  // Read time sum queries
+  const unreadReadTimeSum = useLiveQuery(async () => {
+    const unreadArticles = await db.articles.where("state").equals("unread").toArray();
+    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+  });
+  const archivedReadTimeSum = useLiveQuery(async () => {
+    const archivedArticles = await db.articles.where("state").equals("archived").toArray();
+    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+  });
+
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
 
-  const { remoteStorage, client, widget } = useRemoteStorage();
+  const { client, remoteStorage } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
-  const { status: syncStatus, isNetworkSupported } = useSyncStatus();
+  useSyncStatus();
   const syncProgress = useSyncProgress();
 
   // Track if we've shown the initial load message
@@ -331,6 +340,60 @@ export default function ArticleListScreen() {
     return () => document.removeEventListener("click", handleTap);
   }, []);
 
+  // Helper function to wait for RemoteStorage sync to complete before closing
+  const waitForSyncThenClose = useCallback(async () => {
+    if (!remoteStorage || !remoteStorage.remote?.connected) {
+      // No RemoteStorage connection, just close immediately
+      console.log("No RemoteStorage connection, closing window immediately");
+      window.close();
+      return;
+    }
+
+    console.log("Waiting for RemoteStorage sync to complete before closing...");
+    setIngestStatus("Syncing to server...");
+
+    await new Promise<void>((resolve) => {
+      let resolved = false;
+
+      // Timeout after 15 seconds
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          console.log("Sync timeout after 15 seconds, closing anyway");
+          resolve();
+        }
+      }, 15000);
+
+      const onSyncDone = () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          remoteStorage.removeEventListener("sync-done", onSyncDone);
+          console.log("Sync completed, closing window");
+          // Small buffer to ensure server has processed
+          setTimeout(resolve, 500);
+        }
+      };
+
+      remoteStorage.on("sync-done", onSyncDone);
+
+      // Trigger sync
+      try {
+        remoteStorage.sync.sync();
+      } catch (err) {
+        console.warn("Error triggering sync:", err);
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          resolve();
+        }
+      }
+    });
+
+    setIngestStatus(null);
+    window.close();
+  }, [remoteStorage]);
+
   useEffect(() => {
     const bookmarklet = new URLSearchParams(window.location.search).get("bookmarklet");
 
@@ -364,23 +427,33 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-          }
+          },
         );
 
         await db.articles.put(article);
+        // Force sync to remote storage before closing window
+        // This ensures article.json is actually uploaded to the server,
+        // not just written to local cache (fixes cross-device sync issues)
+        setIngestStatus("Syncing to remote storage...");
+        try {
+          await remoteStorage?.startSync();
+        } catch (error) {
+          console.warn("Sync after bookmarklet save failed:", error);
+          // Continue anyway - the article is saved locally
+        }
 
-        setTimeout(() => {
+        // Wait a bit for UI to update, then wait for sync and close
+        setTimeout(async () => {
           setDialogVisible(false);
-          setIngestStatus(null);
           setIngestPercent(100);
           setUrl("");
-          window.close();
+          await waitForSyncThenClose();
         }, 1500);
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [client]);
+  }, [client, remoteStorage, waitForSyncThenClose]);
 
   const saveUrl = useCallback(
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
@@ -402,7 +475,7 @@ export default function ArticleListScreen() {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
-          }
+          },
         );
 
         console.log("About to save article to IndexedDB:", article);
@@ -421,9 +494,8 @@ export default function ArticleListScreen() {
         // });
 
         // wait a bit before closing the dialog
-        setTimeout(() => {
+        setTimeout(async () => {
           setDialogVisible(false);
-          setIngestStatus(null);
           setIngestPercent(0);
           setUrl("");
 
@@ -431,13 +503,16 @@ export default function ArticleListScreen() {
 
           // Handle different after-save actions based on preference
           if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
-            // Close the tab (used by bookmarklet)
-            window.close();
+            // Wait for sync to complete before closing the tab
+            await waitForSyncThenClose();
           } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
             // Navigate to the article page
+            setIngestStatus(null);
             navigate({ to: `/article/${article.slug}` });
+          } else {
+            // If "show-list", just clear the status
+            setIngestStatus(null);
           }
-          // If "show-list", do nothing - just stay on the current page
         }, 1500);
       } catch (error) {
         console.error(error);
@@ -457,7 +532,8 @@ export default function ArticleListScreen() {
       setUrl,
       enqueueSnackbar,
       navigate,
-    ]
+      waitForSyncThenClose,
+    ],
   );
 
   // Handle saveUrl query parameter
@@ -568,11 +644,11 @@ export default function ArticleListScreen() {
           >
             <ToggleButton value="unread">
               <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Saves{unreadCount !== undefined ? ` (${unreadCount})` : ""}
+              Saves
             </ToggleButton>
             <ToggleButton value="archived">
               <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Archive{archivedCount !== undefined ? ` (${archivedCount})` : ""}
+              Archive
             </ToggleButton>
           </ToggleButtonGroup>
         </Box>
@@ -602,7 +678,11 @@ export default function ArticleListScreen() {
             <Typography variant="body2">
               {syncProgress.totalArticles === 0 ? (
                 // During RemoteStorage sync phase (downloading to cache)
-                syncProgress.phase === "initial" ? "Preparing to sync..." : "Syncing..."
+                syncProgress.phase === "initial" ? (
+                  "Preparing to sync..."
+                ) : (
+                  "Syncing..."
+                )
               ) : (
                 // During article processing phase (we know the count)
                 <>
@@ -634,6 +714,30 @@ export default function ArticleListScreen() {
         maxWidth="sm"
         sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
       >
+        {/* Article count and reading time info */}
+        {filteredArticles.length > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
+            {filter === "unread" ? (
+              unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                <>
+                  Saves: {unreadCount} articles
+                  <br />
+                  Reading time: {formatReadTime(unreadReadTimeSum)}
+                </>
+              ) : (
+                "Loading..."
+              )
+            ) : archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+              <>
+                Archive: {archivedCount} articles
+                <br />
+                Reading time: {formatReadTime(archivedReadTimeSum)}
+              </>
+            ) : (
+              "Loading..."
+            )}
+          </Typography>
+        )}
         {filteredArticles.length > 0 ? (
           // TODO: make this a stack if I want spacing between items
           <List>
