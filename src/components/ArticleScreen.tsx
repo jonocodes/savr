@@ -218,16 +218,14 @@ export default function ArticleScreen(_props: Props) {
       if (metaDiv) {
         metaDiv.textContent = JSON.stringify(
           {
+            // Preserve other metadata first, then override with new values
+            ...JSON.parse(metaDiv.textContent || "{}"),
             title: editTitle,
             author: editAuthor,
-            // Preserve other metadata
-            ...JSON.parse(metaDiv.textContent || "{}"),
           },
           null,
           2
         );
-
-        console.log("metaDiv", metaDiv);
       }
 
       // Save the updated HTML back to storage
