@@ -19,6 +19,7 @@ import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
+  getAfterExternalSaveFromCookie,
 } from "~/utils/cookies";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -188,7 +189,7 @@ export default function SubmitScreen() {
           }
         />
         <Button
-          onClick={() => saveHtml()}
+          onClick={() => saveHtml(getAfterExternalSaveFromCookie())}
           variant="contained"
           disabled={ingestStatus !== null || !html.trim()}
         >

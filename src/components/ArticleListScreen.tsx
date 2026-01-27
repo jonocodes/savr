@@ -799,7 +799,7 @@ export default function ArticleListScreen() {
             onKeyDown={(e) => {
               if (e.key === "Enter" && url.trim() && ingestStatus === null) {
                 e.preventDefault();
-                saveUrl();
+                saveUrl(getAfterExternalSaveFromCookie());
               }
             }}
           />
@@ -841,7 +841,7 @@ export default function ArticleListScreen() {
               />
             )}
             <Button
-              onClick={() => saveUrl()}
+              onClick={() => saveUrl(getAfterExternalSaveFromCookie())}
               variant="contained"
               disabled={ingestStatus !== null || !url.trim()}
             >
