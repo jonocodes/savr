@@ -189,7 +189,7 @@ export default function SubmitScreen() {
           }
         />
         <Button
-          onClick={() => saveHtml(getAfterExternalSaveFromCookie())}
+          onClick={() => saveHtml()}
           variant="contained"
           disabled={ingestStatus !== null || !html.trim()}
         >
