@@ -142,12 +142,26 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
   const pause = useCallback(() => {
     if (!isSupported) return;
     window.speechSynthesis.pause();
-    setIsPaused(true);
+
+    // Firefox bug: pause() doesn't work, check if it actually paused
+    setTimeout(() => {
+      if (window.speechSynthesis.paused) {
+        console.log("TTS: Paused");
+        setIsPaused(true);
+      } else {
+        // Pause didn't work (Firefox), fall back to stop
+        console.warn("TTS: Pause not supported, stopping instead");
+        window.speechSynthesis.cancel();
+        setIsPlaying(false);
+        setIsPaused(false);
+      }
+    }, 50);
   }, [isSupported]);
 
   const resume = useCallback(() => {
     if (!isSupported) return;
     window.speechSynthesis.resume();
+    console.log("TTS: Resumed");
     setIsPaused(false);
   }, [isSupported]);
 
