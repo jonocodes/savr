@@ -30,6 +30,7 @@ import {
   Share as ShareIcon,
   Delete as DeleteIcon,
   Headphones as HeadphonesIcon,
+  Edit as EditIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -180,7 +181,7 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const _handleEditInfo = () => {
+  const handleEditInfo = () => {
     setEditTitle(article.title || "");
     setEditAuthor(article.author || "");
     setInfoDrawerOpen(true);
@@ -212,26 +213,35 @@ export default function ArticleScreen(_props: Props) {
       const parser = new DOMParser();
       const doc = parser.parseFromString(file.data, "text/html");
 
-      // Update metadata in the document
-      const metaDiv = doc.querySelector("#savr-metadata");
-      if (metaDiv) {
-        metaDiv.textContent = JSON.stringify(
-          {
-            title: editTitle,
-            author: editAuthor,
-            // Preserve other metadata
-            ...JSON.parse(metaDiv.textContent || "{}"),
-          },
-          null,
-          2
-        );
+      // Update title in the h1 element
+      const titleEl = doc.querySelector("#savr-metadata h1");
+      if (titleEl) {
+        titleEl.textContent = editTitle;
+      }
 
-        console.log("metaDiv", metaDiv);
+      // Update author in the byline element
+      const bylineEl = doc.querySelector("#savr-byline");
+      if (bylineEl) {
+        bylineEl.textContent = editAuthor;
+      }
+
+      // Also update the page title
+      const pageTitleEl = doc.querySelector("title");
+      if (pageTitleEl) {
+        pageTitleEl.textContent = `Savr - ${editTitle}`;
       }
 
       // Save the updated HTML back to storage
       const updatedHtml = doc.documentElement.outerHTML;
       await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
+
+      // Update displayed content immediately
+      setContent(updatedHtml);
+      if (viewMode === "cleaned") {
+        setHtml(`<link rel="stylesheet" href="/static/web.css">${updatedHtml}`);
+      } else {
+        setHtml(updatedHtml);
+      }
 
       setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
@@ -555,12 +565,12 @@ export default function ArticleScreen(_props: Props) {
               <ListItemText>Visit Original</ListItemText>
             </MenuItem>
 
-            {/* <MenuItem onClick={handleEditInfo}>
+            <MenuItem onClick={handleEditInfo} sx={{ py: 1 }}>
               <ListItemIcon>
                 <EditIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Info</ListItemText>
-            </MenuItem> */}
+              <ListItemText>Edit Info</ListItemText>
+            </MenuItem>
 
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
