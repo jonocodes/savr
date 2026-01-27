@@ -21,7 +21,15 @@ import {
   Button,
   Tooltip,
   Switch,
+  Chip,
+  Slider,
+  Select,
+  MenuItem as MuiMenuItem,
+  FormControl,
+  InputAdornment,
+  CircularProgress,
 } from "@mui/material";
+import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
   ArrowBack as ArrowBackIcon,
   BookmarkAdd as BookmarkAddIcon,
@@ -36,6 +44,7 @@ import {
   Storage as StorageIcon,
   Sync as SyncIcon,
   DragHandle as DragHandleIcon,
+  AutoAwesome as AutoAwesomeIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -49,11 +58,32 @@ import {
   setHeaderHidingInCookie,
   getAfterExternalSaveFromCookie,
   setAfterExternalSaveInCookie,
+  getSummarizationEnabledFromCookie,
+  setSummarizationEnabledInCookie,
+  getSummaryProviderFromCookie,
+  setSummaryProviderInCookie,
+  getSummaryModelFromCookie,
+  setSummaryModelInCookie,
+  getApiKeyForProvider,
+  setApiKeyForProvider,
+  getSummarySettingsFromCookie,
+  setSummarySettingsInCookie,
   // getWiFiOnlySyncFromCookie, // Disabled - feature not working correctly
   // setWiFiOnlySyncInCookie, // Disabled - feature not working correctly
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
 } from "~/utils/cookies";
+import {
+  PROVIDERS,
+  DETAIL_LEVELS,
+  TONE_OPTIONS,
+  FOCUS_OPTIONS,
+  FORMAT_OPTIONS,
+  DEFAULT_SUMMARY_SETTINGS,
+  testApiConnection,
+  type SummaryProvider,
+  type DetailLevel,
+} from "~/utils/summarization";
 import { isPWAMode, isNetworkInfoSupported } from "~/utils/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
@@ -109,6 +139,13 @@ export default function PreferencesScreen() {
     size: number;
     files: number;
   } | null>(null);
+  const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
+  const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
+  const [summaryModel, setSummaryModel] = useState<string>("llama-3.3-70b-versatile");
+  const [apiKey, setApiKey] = useState<string>("");
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [isTestingApi, setIsTestingApi] = useState(false);
+  const [summarySettings, setSummarySettings] = useState(DEFAULT_SUMMARY_SETTINGS);
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [bookmarklet, setBookmarklet] = React.useState<string>("");
@@ -152,6 +189,22 @@ export default function PreferencesScreen() {
 
     // Load after external save setting from cookies
     setAfterExternalSave(getAfterExternalSaveFromCookie());
+
+    // Load summarization settings from cookies
+    setSummarizationEnabled(getSummarizationEnabledFromCookie());
+    const savedProvider = getSummaryProviderFromCookie() as SummaryProvider;
+    setSummaryProvider(savedProvider);
+    setSummaryModel(getSummaryModelFromCookie());
+    const savedKey = getApiKeyForProvider(savedProvider);
+    if (savedKey) setApiKey(savedKey);
+    const savedSettings = getSummarySettingsFromCookie();
+    setSummarySettings({
+      detailLevel: savedSettings.detailLevel as DetailLevel,
+      tone: savedSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+      focus: savedSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+      format: savedSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+      customPrompt: savedSettings.customPrompt,
+    });
 
     const saveRoute = window.location.origin + "/";
     console.log("Absolute path to index for saving:", saveRoute);
@@ -318,6 +371,71 @@ export default function PreferencesScreen() {
     const newValue = event.target.value as AfterExternalSaveAction;
     setAfterExternalSave(newValue);
     setAfterExternalSaveInCookie(newValue);
+  };
+
+  const handleSummarizationToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.checked;
+    setSummarizationEnabled(newValue);
+    setSummarizationEnabledInCookie(newValue);
+    if (newValue) {
+      enqueueSnackbar("AI summarization enabled");
+    } else {
+      enqueueSnackbar("AI summarization disabled");
+    }
+  };
+
+  const handleProviderChange = (provider: SummaryProvider) => {
+    setSummaryProvider(provider);
+    setSummaryProviderInCookie(provider);
+    // Set default model for provider
+    const providerConfig = PROVIDERS.find((p) => p.id === provider);
+    if (providerConfig && providerConfig.models.length > 0) {
+      const defaultModel = providerConfig.models[0].id;
+      setSummaryModel(defaultModel);
+      setSummaryModelInCookie(defaultModel);
+    }
+    // Load API key for this provider
+    const savedKey = getApiKeyForProvider(provider);
+    setApiKey(savedKey || "");
+  };
+
+  const handleModelChange = (model: string) => {
+    setSummaryModel(model);
+    setSummaryModelInCookie(model);
+  };
+
+  const handleApiKeyChange = (key: string) => {
+    setApiKey(key);
+    setApiKeyForProvider(summaryProvider, key || null);
+  };
+
+  const handleTestApiConnection = async () => {
+    if (!apiKey.trim()) {
+      enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      return;
+    }
+    setIsTestingApi(true);
+    try {
+      const result = await testApiConnection(summaryProvider, apiKey, summaryModel);
+      if (result.success) {
+        enqueueSnackbar("API connection successful!", { variant: "success" });
+      } else {
+        enqueueSnackbar(`API error: ${result.error}`, { variant: "error" });
+      }
+    } catch {
+      enqueueSnackbar("Failed to test API connection", { variant: "error" });
+    } finally {
+      setIsTestingApi(false);
+    }
+  };
+
+  const handleSettingChange = <K extends keyof typeof summarySettings>(
+    key: K,
+    value: (typeof summarySettings)[K]
+  ) => {
+    const newSettings = { ...summarySettings, [key]: value };
+    setSummarySettings(newSettings);
+    setSummarySettingsInCookie(newSettings);
   };
 
   const getThemeIcon = () => {
@@ -534,6 +652,244 @@ export default function PreferencesScreen() {
                 onChange={handleHeaderHidingToggle}
               />
             </ListItem>
+          </List>
+
+          {/* AI Summarization Section */}
+          <List>
+            <ListSubheader>AI Summarization</ListSubheader>
+
+            <ListItem>
+              <ListItemIcon>
+                <AutoAwesomeIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary={
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                    Enable AI Summarization
+                    <Tooltip title="Generate summaries when saving articles using cloud AI providers (Groq or OpenAI).">
+                      <HelpIcon fontSize="small" color="action" />
+                    </Tooltip>
+                  </Box>
+                }
+                secondary={summarizationEnabled ? "Summaries will be generated for new articles" : "Summaries are disabled"}
+              />
+              <Switch
+                edge="end"
+                checked={summarizationEnabled}
+                onChange={handleSummarizationToggle}
+              />
+            </ListItem>
+
+            {summarizationEnabled && (
+              <>
+                {/* Provider Selection */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Provider" secondary="Choose your AI provider" />
+                  </Box>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
+                    {PROVIDERS.map((provider) => (
+                      <Chip
+                        key={provider.id}
+                        label={provider.name}
+                        onClick={() => handleProviderChange(provider.id)}
+                        variant={summaryProvider === provider.id ? "filled" : "outlined"}
+                        color={summaryProvider === provider.id ? "primary" : "default"}
+                      />
+                    ))}
+                  </Box>
+                </ListItem>
+
+                {/* Model Selection */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Model" />
+                  </Box>
+                  <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
+                    <FormControl fullWidth size="small">
+                      <Select
+                        value={summaryModel}
+                        onChange={(e) => handleModelChange(e.target.value)}
+                      >
+                        {PROVIDERS.find((p) => p.id === summaryProvider)?.models.map((model) => (
+                          <MuiMenuItem key={model.id} value={model.id}>
+                            {model.name} - {model.description}
+                          </MuiMenuItem>
+                        ))}
+                      </Select>
+                    </FormControl>
+                  </Box>
+                </ListItem>
+
+                {/* API Key */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="API Key"
+                      secondary={
+                        summaryProvider === "groq"
+                          ? "Get a free key at console.groq.com"
+                          : "Get a key at platform.openai.com"
+                      }
+                    />
+                  </Box>
+                  <Box sx={{ ml: 7, pr: 2, display: "flex", gap: 1, width: "calc(100% - 56px)" }}>
+                    <TextField
+                      value={apiKey}
+                      onChange={(e) => handleApiKeyChange(e.target.value)}
+                      fullWidth
+                      size="small"
+                      type={showApiKey ? "text" : "password"}
+                      placeholder="Enter API key..."
+                      InputProps={{
+                        endAdornment: (
+                          <InputAdornment position="end">
+                            <IconButton
+                              onClick={() => setShowApiKey(!showApiKey)}
+                              edge="end"
+                              size="small"
+                            >
+                              {showApiKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                            </IconButton>
+                          </InputAdornment>
+                        ),
+                      }}
+                    />
+                    <Button
+                      variant="outlined"
+                      size="small"
+                      onClick={handleTestApiConnection}
+                      disabled={isTestingApi || !apiKey.trim()}
+                      sx={{ minWidth: 80 }}
+                    >
+                      {isTestingApi ? <CircularProgress size={20} /> : "Test"}
+                    </Button>
+                  </Box>
+                </ListItem>
+
+                {/* Detail Level */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Detail Level"
+                      secondary={DETAIL_LEVELS[summarySettings.detailLevel]}
+                    />
+                  </Box>
+                  <Box sx={{ ml: 7, mr: 2, width: "calc(100% - 56px)" }}>
+                    <Slider
+                      value={summarySettings.detailLevel}
+                      onChange={(_, value) => handleSettingChange("detailLevel", value as DetailLevel)}
+                      min={0}
+                      max={4}
+                      marks={DETAIL_LEVELS.map((label, i) => ({ value: i, label: i === 0 || i === 4 ? label : "" }))}
+                      size="small"
+                    />
+                  </Box>
+                </ListItem>
+
+                {/* Format */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Format" />
+                  </Box>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
+                    {FORMAT_OPTIONS.map((option) => (
+                      <Chip
+                        key={option.value}
+                        label={option.label}
+                        onClick={() => handleSettingChange("format", option.value)}
+                        variant={summarySettings.format === option.value ? "filled" : "outlined"}
+                        color={summarySettings.format === option.value ? "primary" : "default"}
+                        size="small"
+                      />
+                    ))}
+                  </Box>
+                </ListItem>
+
+                {/* Tone */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Tone" />
+                  </Box>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
+                    {TONE_OPTIONS.map((option) => (
+                      <Chip
+                        key={option.value}
+                        label={option.label}
+                        onClick={() => handleSettingChange("tone", option.value)}
+                        variant={summarySettings.tone === option.value ? "filled" : "outlined"}
+                        color={summarySettings.tone === option.value ? "primary" : "default"}
+                        size="small"
+                      />
+                    ))}
+                  </Box>
+                </ListItem>
+
+                {/* Focus */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText primary="Focus" />
+                  </Box>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
+                    {FOCUS_OPTIONS.map((option) => (
+                      <Chip
+                        key={option.value}
+                        label={option.label}
+                        onClick={() => handleSettingChange("focus", option.value)}
+                        variant={summarySettings.focus === option.value ? "filled" : "outlined"}
+                        color={summarySettings.focus === option.value ? "primary" : "default"}
+                        size="small"
+                      />
+                    ))}
+                  </Box>
+                </ListItem>
+
+                {/* Custom Prompt */}
+                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                    <ListItemIcon>
+                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                    </ListItemIcon>
+                    <ListItemText
+                      primary="Custom Prompt (Advanced)"
+                      secondary="Override with your own prompt. Use {text} for article text."
+                    />
+                  </Box>
+                  <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
+                    <TextField
+                      value={summarySettings.customPrompt}
+                      onChange={(e) => handleSettingChange("customPrompt", e.target.value)}
+                      fullWidth
+                      size="small"
+                      multiline
+                      rows={2}
+                      placeholder="Leave empty to use settings above..."
+                    />
+                  </Box>
+                </ListItem>
+              </>
+            )}
           </List>
 
           {/* About Section */}
@@ -759,6 +1115,7 @@ export default function PreferencesScreen() {
           </Button>
         </DialogActions>
       </Dialog>
+
     </Box>
   );
 }

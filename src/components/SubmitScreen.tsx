@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
+import ReactMarkdown from "react-markdown";
 import {
   Box,
   TextField,
@@ -14,12 +15,23 @@ import {
   DialogActions,
   Button,
   LinearProgress,
+  Paper,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
+  getSummaryProviderFromCookie,
+  getSummaryModelFromCookie,
+  getApiKeyForProvider,
+  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
+import {
+  summarizeText,
+  DEFAULT_SUMMARY_SETTINGS,
+  type SummarizationProgress,
+  type SummaryProvider,
+} from "~/utils/summarization";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
@@ -34,6 +46,9 @@ export default function SubmitScreen() {
   const [html, setHtml] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
+  const [testSummary, setTestSummary] = useState<string | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
+  const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
 
   // Add message listener for browser extension
   useEffect(() => {
@@ -148,6 +163,63 @@ export default function SubmitScreen() {
     ]
   );
 
+  const handleTestSummary = async () => {
+    if (!html.trim()) {
+      enqueueSnackbar("Please enter some content first", { variant: "warning" });
+      return;
+    }
+
+    // Get summarization config from cookies
+    const provider = getSummaryProviderFromCookie() as SummaryProvider;
+    const model = getSummaryModelFromCookie();
+    const apiKey = getApiKeyForProvider(provider);
+
+    if (!apiKey) {
+      enqueueSnackbar("Please set up your API key in Preferences", { variant: "warning" });
+      return;
+    }
+
+    setIsSummarizing(true);
+    setTestSummary(null);
+    setSummaryProgress({ status: "summarizing" });
+
+    try {
+      // Extract text from HTML for summarization
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, "text/html");
+      const plainText = doc.body.textContent || "";
+
+      if (plainText.length < 100) {
+        enqueueSnackbar("Content is too short to summarize", { variant: "warning" });
+        setIsSummarizing(false);
+        setSummaryProgress(null);
+        return;
+      }
+
+      const cookieSettings = getSummarySettingsFromCookie();
+      const settings = {
+        ...DEFAULT_SUMMARY_SETTINGS,
+        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
+        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+        customPrompt: cookieSettings.customPrompt,
+      };
+
+      const summary = await summarizeText(plainText, settings, provider, apiKey, model, (progress) => {
+        setSummaryProgress(progress);
+      });
+
+      setTestSummary(summary);
+      setSummaryProgress(null);
+    } catch (error) {
+      console.error("Failed to generate test summary:", error);
+      enqueueSnackbar("Failed to generate summary", { variant: "error" });
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   return (
     <Box sx={{ flexGrow: 1, backgroundColor: "background.default" }}>
       {/* Header */}
@@ -187,13 +259,53 @@ export default function SubmitScreen() {
             "<title>Ipsum</title><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>"
           }
         />
-        <Button
-          onClick={() => saveHtml()}
-          variant="contained"
-          disabled={ingestStatus !== null || !html.trim()}
-        >
-          Save
-        </Button>
+        <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+          <Button
+            onClick={() => saveHtml()}
+            variant="contained"
+            disabled={ingestStatus !== null || !html.trim()}
+          >
+            Save
+          </Button>
+          <Button
+            onClick={handleTestSummary}
+            variant="outlined"
+            disabled={isSummarizing || !html.trim()}
+          >
+            {isSummarizing ? "Summarizing..." : "Test Summary"}
+          </Button>
+        </Box>
+
+        {/* Summary Progress */}
+        {isSummarizing && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Generating summary...
+            </Typography>
+            <LinearProgress />
+          </Box>
+        )}
+
+        {/* Test Summary Result */}
+        {testSummary && (
+          <Paper sx={{ mt: 2, p: 2, bgcolor: "background.paper" }}>
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+              Generated Summary:
+            </Typography>
+            <Box
+              sx={{
+                lineHeight: 1.7,
+                "& p": { margin: "0.5em 0" },
+                "& ul, & ol": { pl: 2, my: 1 },
+                "& li": { mb: 0.5 },
+                "& strong": { fontWeight: 600 },
+                "& h1, & h2, & h3, & h4": { mt: 1.5, mb: 0.5, fontWeight: 600 },
+              }}
+            >
+              <ReactMarkdown>{testSummary}</ReactMarkdown>
+            </Box>
+          </Paper>
+        )}
       </Container>
 
       {/* Add Article Dialog */}
