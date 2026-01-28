@@ -15,6 +15,7 @@ import {
   TextField,
   Button,
   Stack,
+  LinearProgress,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -31,6 +32,7 @@ import {
   Delete as DeleteIcon,
   Headphones as HeadphonesIcon,
   Edit as EditIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -47,6 +49,7 @@ import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
+import { ingestUrl } from "../../lib/src/ingestion";
 
 interface Props {
   /**
@@ -76,6 +79,9 @@ export default function ArticleScreen(_props: Props) {
   const [editAuthor, setEditAuthor] = useState("");
   const [headerHidingEnabled, setHeaderHidingEnabled] = useState(true);
   const [ttsDrawerOpen, setTtsDrawerOpen] = useState(false);
+  const [refetchDrawerOpen, setRefetchDrawerOpen] = useState(false);
+  const [refetchPercent, setRefetchPercent] = useState<number>(0);
+  const [refetchStatus, setRefetchStatus] = useState<string | null>(null);
 
   const [html, setHtml] = useState("");
 
@@ -186,6 +192,76 @@ export default function ArticleScreen(_props: Props) {
     setEditAuthor(article.author || "");
     setInfoDrawerOpen(true);
     closeMenu();
+  };
+
+  const handleRefetch = async () => {
+    if (!article.url) {
+      enqueueSnackbar("No URL available to refetch", { variant: "error" });
+      closeMenu();
+      return;
+    }
+
+    closeMenu();
+    setRefetchDrawerOpen(true);
+    setRefetchStatus("Starting refetch...");
+    setRefetchPercent(0);
+
+    try {
+      const updatedArticle = await ingestUrl(
+        storage.client,
+        article.url,
+        (percent: number | null, message: string | null) => {
+          if (percent !== null) {
+            setRefetchStatus(message);
+            setRefetchPercent(percent);
+          }
+        }
+      );
+
+      // Preserve some metadata from the original article
+      updatedArticle.progress = article.progress;
+      updatedArticle.state = article.state;
+
+      // Save to IndexedDB
+      await db.articles.put(updatedArticle);
+      setArticle(updatedArticle);
+
+      // Reload the displayed content
+      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as { data: string };
+      if (file) {
+        setContent(file.data);
+        if (viewMode === "cleaned") {
+          setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+        } else {
+          setHtml(file.data);
+        }
+      }
+
+      // Recalculate storage size
+      calculateArticleStorageSize(slug)
+        .then((sizeInfo) => {
+          setStorageSize(sizeInfo);
+        })
+        .catch((error) => {
+          console.error("Failed to calculate storage size:", error);
+        });
+
+      setTimeout(() => {
+        setRefetchDrawerOpen(false);
+        setRefetchPercent(0);
+        setRefetchStatus(null);
+        enqueueSnackbar("Article refetched successfully");
+      }, 1000);
+    } catch (error) {
+      console.error("Refetch error:", error);
+      setRefetchStatus("Failed to refetch article");
+      setTimeout(() => {
+        setRefetchDrawerOpen(false);
+        setRefetchPercent(0);
+        setRefetchStatus(null);
+        enqueueSnackbar("Failed to refetch article", { variant: "error" });
+      }, 2000);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -572,6 +648,18 @@ export default function ArticleScreen(_props: Props) {
               <ListItemText>Edit Info</ListItemText>
             </MenuItem>
 
+            <MenuItem
+              onClick={handleRefetch}
+              sx={{ py: 1 }}
+              disabled={!article.url}
+              data-testid="article-page-menu-refetch"
+            >
+              <ListItemIcon>
+                <RefreshIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Refetch</ListItemText>
+            </MenuItem>
+
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
                 <ShareIcon fontSize="small" />
@@ -640,6 +728,32 @@ export default function ArticleScreen(_props: Props) {
               </Button>
             </Box>
           </Stack>
+        </Box>
+      </Drawer>
+
+      {/* Refetch Progress Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={refetchDrawerOpen}
+        onClose={() => {}}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: "30vh",
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Refetching Article
+          </Typography>
+          {refetchStatus && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {refetchStatus}
+            </Typography>
+          )}
+          <LinearProgress variant="determinate" value={refetchPercent} />
         </Box>
       </Drawer>
 
