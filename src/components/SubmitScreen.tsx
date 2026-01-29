@@ -218,6 +218,7 @@ export default function SubmitScreen() {
 
       const fileName = file.name.toLowerCase();
       const isPdf = fileName.endsWith(".pdf");
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(fileName);
 
       if (isPdf) {
         // Handle PDF files directly - ingest them without showing in textarea
@@ -251,6 +252,25 @@ export default function SubmitScreen() {
           setIngestPercent(0);
           setUploadedFileName(null);
         }
+      } else if (isImage) {
+        // Handle image files - read as data URL and wrap in HTML
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const dataUrl = e.target?.result as string;
+          // Create a title from the filename (remove extension)
+          const title = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+          // Wrap the image in HTML
+          const htmlContent = `<title>${title}</title>
+<img src="${dataUrl}" alt="${title}" style="max-width: 100%; height: auto;" />`;
+          setContent(htmlContent);
+          setUploadedFileName(file.name);
+          setContentType("text/html");
+          setDetectedType("text/html");
+        };
+        reader.onerror = () => {
+          enqueueSnackbar("Error reading image file", { variant: "error" });
+        };
+        reader.readAsDataURL(file);
       } else {
         // Handle text files (HTML, MD, TXT) - read and show in textarea
         const reader = new FileReader();
@@ -385,7 +405,7 @@ export default function SubmitScreen() {
         type="file"
         ref={fileInputRef}
         style={{ display: "none" }}
-        accept=".html,.htm,.md,.markdown,.txt,.pdf"
+        accept=".html,.htm,.md,.markdown,.txt,.pdf,.jpg,.jpeg,.png,.gif,.webp"
         onChange={handleFileUpload}
       />
 
@@ -393,7 +413,7 @@ export default function SubmitScreen() {
       <Container maxWidth="md" sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
           <Typography variant="body1">
-            Paste your content here or upload a file (HTML, Markdown, TXT, or PDF)
+            Paste content or upload a file (HTML, Markdown, TXT, PDF, or images)
           </Typography>
           <Button
             variant="outlined"
