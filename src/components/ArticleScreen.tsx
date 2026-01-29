@@ -49,7 +49,7 @@ import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
-import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathRaw, getFilePathPdf } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
 import { ingestUrl } from "../../lib/src/ingestion";
@@ -103,6 +103,7 @@ export default function ArticleScreen(_props: Props) {
   const [isSummarizing, setIsSummarizing] = useState(false);
 
   const [html, setHtml] = useState("");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
   const [content, setContent] = useState("");
   const [storageSize, setStorageSize] = useState<{
@@ -496,17 +497,26 @@ export default function ArticleScreen(_props: Props) {
     const setup = async () => {
       displayDebugMessage("querying database ...");
 
-      db.articles.get(slug).then((article) => {
-        if (!article) {
-          console.error("Article not found");
-          return;
-        }
-        setArticle(article);
-      });
+      const articleData = await db.articles.get(slug);
+      if (!articleData) {
+        console.error("Article not found");
+        return;
+      }
+      setArticle(articleData);
 
       try {
         displayDebugMessage("loading content ...");
-        if (viewMode === "original") {
+
+        // Handle PDF files differently
+        if (articleData.mimeType === "application/pdf") {
+          const file = await storage.client?.getFile(getFilePathPdf(slug), false);
+          if (file) {
+            const f = file as { data: ArrayBuffer; contentType: string };
+            const blob = new Blob([f.data], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            setPdfUrl(url);
+          }
+        } else if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
             .then((file) => {
@@ -545,6 +555,13 @@ export default function ArticleScreen(_props: Props) {
     };
 
     setup();
+
+    // Cleanup: revoke object URL when component unmounts or slug changes
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+    };
   }, [viewMode, slug, storage]);
 
   useEffect(() => {
@@ -775,7 +792,28 @@ export default function ArticleScreen(_props: Props) {
       </AppBar>
 
       <Box sx={{ mt: headerHidingEnabled ? 0 : "64px" }}>
-        <ArticleComponent html={html} fontSize={fontSize} />
+        {article.mimeType === "application/pdf" && pdfUrl ? (
+          <Box
+            sx={{
+              width: "100%",
+              height: "calc(100vh - 64px)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <iframe
+              src={pdfUrl}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+              }}
+              title={article.title || "PDF Document"}
+            />
+          </Box>
+        ) : (
+          <ArticleComponent html={html} fontSize={fontSize} />
+        )}
       </Box>
 
       {/* Info Bottom Drawer */}
