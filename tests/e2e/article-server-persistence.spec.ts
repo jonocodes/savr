@@ -309,7 +309,9 @@ test.describe("Article Server Persistence", () => {
 
     // 4. Delete the article via UI
     console.log("4️⃣  Deleting article via UI...");
-    const menuButton = page.getByTestId("article-menu-button").first();
+    // Find the menu button for the specific article (not just any menu button)
+    const articleListItem = page.locator('.MuiListItem-root', { hasText: 'Test Article for Persistence' });
+    const menuButton = articleListItem.getByTestId("article-menu-button");
     await expect(menuButton).toBeVisible({ timeout: 5000 });
     await menuButton.click();
 
