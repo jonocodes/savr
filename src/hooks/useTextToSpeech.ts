@@ -302,20 +302,16 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
           clearTimeout(startTimeoutRef.current);
           startTimeoutRef.current = null;
         }
-        // Don't log "interrupted" or "canceled" errors as they're expected when stopping
+        // Don't log "interrupted" or "canceled" errors as they're expected when stopping/pausing
         if (event.error !== "interrupted" && event.error !== "canceled") {
           console.error("TTS: Speech synthesis error:", event.error);
-        }
-        // On error, try to continue with next chunk (unless it was a cancel)
-        if (event.error !== "interrupted" && event.error !== "canceled") {
+          // On real error, try to continue with next chunk
           if (!isStoppedRef.current) {
             currentChunkIndexRef.current++;
             playNextChunkRef.current?.();
           }
-        } else {
-          setIsPlaying(false);
-          setIsPaused(false);
         }
+        // For cancel/interrupt errors, do NOT change state here - let pause/stop/restart handle it
       };
 
       utteranceRef.current = utterance;
