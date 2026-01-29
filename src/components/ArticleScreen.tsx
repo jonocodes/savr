@@ -18,6 +18,7 @@ import {
   Stack,
   LinearProgress,
   CircularProgress,
+  Collapse,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -36,6 +37,8 @@ import {
   Edit as EditIcon,
   Refresh as RefreshIcon,
   AutoAwesome as AutoAwesomeIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -49,7 +52,7 @@ import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
-import { getFilePathContent, getFilePathRaw, getFilePathPdf } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
 import { ingestUrl } from "../../lib/src/ingestion";
@@ -93,6 +96,8 @@ export default function ArticleScreen(_props: Props) {
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
+  const [fetchLog, setFetchLog] = useState<string | null>(null);
+  const [logExpanded, setLogExpanded] = useState(false);
   const [headerHidingEnabled, setHeaderHidingEnabled] = useState(true);
   const [ttsDrawerOpen, setTtsDrawerOpen] = useState(false);
   const [refetchDrawerOpen, setRefetchDrawerOpen] = useState(false);
@@ -272,11 +277,24 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleEditInfo = () => {
+  const handleEditInfo = async () => {
     setEditTitle(article.title || "");
     setEditAuthor(article.author || "");
+    setFetchLog(null);
     setInfoDrawerOpen(true);
     closeMenu();
+
+    // Load fetch log asynchronously
+    try {
+      const logFile = (await storage.client?.getFile(getFileFetchLog(slug), false)) as {
+        data: string;
+      } | undefined;
+      if (logFile?.data) {
+        setFetchLog(logFile.data);
+      }
+    } catch (e) {
+      console.error("Failed to load fetch log:", e);
+    }
   };
 
   const handleRefetch = async () => {
@@ -820,23 +838,24 @@ export default function ArticleScreen(_props: Props) {
       <Drawer
         anchor="bottom"
         open={infoDrawerOpen}
-        onClose={() => setInfoDrawerOpen(false)}
+        onClose={() => {
+          setInfoDrawerOpen(false);
+          setLogExpanded(false);
+        }}
         PaperProps={{
           sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
-            maxHeight: "50vh",
+            maxHeight: "70vh",
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 3 }}>
+        <Box sx={{ p: 3, overflowY: "auto" }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
             Article Info
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Size: {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
-          </Typography>
 
+          {/* Editable fields */}
           <Stack spacing={3}>
             <TextField
               label="Title"
@@ -854,8 +873,70 @@ export default function ArticleScreen(_props: Props) {
               variant="outlined"
             />
 
+            {/* Read-only metadata section */}
+            <Box>
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Size:</strong>{" "}
+                  {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Offline resources:</strong>{" "}
+                  {storageSize
+                    ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
+                    : "Calculating..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Saved:</strong>{" "}
+                  {article.ingestDate
+                    ? `${new Date(article.ingestDate).toISOString().replace("T", " ").replace("Z", "")} UTC`
+                    : "Unknown"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Content Type:</strong> {article.mimeType || "Unknown"}
+                </Typography>
+              </Stack>
+            </Box>
+
+            {/* Ingestion Log (collapsible) */}
+            {fetchLog && (
+              <Box>
+                <Button
+                  onClick={() => setLogExpanded(!logExpanded)}
+                  startIcon={logExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  sx={{ mb: 1, textTransform: "none" }}
+                  size="small"
+                >
+                  Ingestion Log
+                </Button>
+                <Collapse in={logExpanded}>
+                  <Box
+                    sx={{
+                      p: 2,
+                      backgroundColor: "action.hover",
+                      borderRadius: 1,
+                      fontFamily: "monospace",
+                      fontSize: "0.75rem",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      maxHeight: "150px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {fetchLog}
+                  </Box>
+                </Collapse>
+              </Box>
+            )}
+
             <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
-              <Button variant="outlined" onClick={() => setInfoDrawerOpen(false)}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setInfoDrawerOpen(false);
+                  setLogExpanded(false);
+                }}
+              >
                 Cancel
               </Button>
               <Button variant="contained" onClick={handleSaveEdit}>
