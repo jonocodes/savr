@@ -126,6 +126,29 @@ If you want to read and save articles on multiple devices you can authorize your
 
 Note that you don't need to sync your articles to a cloud service for them to be available offline. They are automatically saved to your device either way.
 
+# AI Summarization
+
+Savr can automatically generate summaries of your saved articles using cloud-based LLM providers (Groq or OpenAI) to create concise summaries when you save new articles.
+
+**Supported Providers:**
+- **Groq** - Uses Llama models for fast, free summarization
+- **OpenAI** - Uses GPT models for high-quality summaries
+
+**Customization Options:**
+- **Detail Level** - From brief overviews to comprehensive summaries
+- **Format** - Choose between paragraphs or bullet points
+- **Tone** - Neutral, formal, casual, or technical
+- **Focus** - General summary, key facts, action items, main themes, or arguments
+- **Custom Prompt** - Advanced users can define their own summarization prompt
+
+To enable summarization, go to Preferences and toggle on "Enable AI Summarization". You'll need to provide an API key from your chosen provider (Groq offers free API keys).
+
+<div align="center" width="100%">
+
+![summarization-preferences](./public/screenshots/summarization_preferences.png)
+
+</div>
+
 # How it works
 
 Savr is designed to work like a desktop app. It runs locally and minimizes the need for backend web services. This means that there is no Savr server that stores your info or content. It functions as a desktop app like your calculator or image editor in that you don't need to log in to use it. All content is on your device.

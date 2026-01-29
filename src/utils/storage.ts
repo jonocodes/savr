@@ -901,8 +901,8 @@ async function calculateArticleStorageSize(articleSlug: string): Promise<{
     const store = await init();
     if (store && store.client) {
       try {
-        // Get all files for this specific article
-        const pattern = `saves/${articleSlug}/*`;
+        // Get all files for this specific article (including subdirectories like resources/)
+        const pattern = `saves/${articleSlug}/**/*`;
         console.log("calculateArticleStorageSize: Using glob pattern:", pattern);
         const articleFiles = await glob(store.client, pattern);
         console.log("calculateArticleStorageSize: Got article files:", articleFiles);
