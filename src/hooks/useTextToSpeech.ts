@@ -8,6 +8,10 @@ export interface TTSState {
   voice: SpeechSynthesisVoice | null;
   availableVoices: SpeechSynthesisVoice[];
   isSupported: boolean;
+  // Progress tracking
+  currentChunk: number;
+  totalChunks: number;
+  progress: number; // 0-100 percentage
 }
 
 export interface TTSControls {
@@ -17,6 +21,7 @@ export interface TTSControls {
   stop: () => void;
   setRate: (rate: number) => void;
   setVoice: (voice: SpeechSynthesisVoice) => void;
+  seekTo: (progress: number) => void; // 0-100 percentage
 }
 
 // Detect mobile/iOS for platform-specific workarounds
@@ -133,6 +138,8 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
   const [rate, setRateState] = useState(1);
   const [voice, setVoiceState] = useState<SpeechSynthesisVoice | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [currentChunk, setCurrentChunk] = useState(0);
+  const [totalChunks, setTotalChunks] = useState(0);
   const isSupported = isSpeechSynthesisSupported;
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -304,8 +311,12 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
       console.log("TTS: All chunks finished");
       setIsPlaying(false);
       setIsPaused(false);
+      setCurrentChunk(chunks.length); // Mark as complete
       return;
     }
+
+    // Update progress state
+    setCurrentChunk(currentIndex);
 
     console.log(`TTS: Playing chunk ${currentIndex + 1}/${chunks.length}`);
     speakChunk(chunks[currentIndex]);
@@ -339,6 +350,8 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     const chunks = splitTextIntoChunks(textRef.current, MAX_UTTERANCE_LENGTH);
     chunksRef.current = chunks;
     currentChunkIndexRef.current = 0;
+    setTotalChunks(chunks.length);
+    setCurrentChunk(0);
 
     console.log(`TTS: Split text into ${chunks.length} chunks (mobile: ${isMobile}, iOS: ${isIOS})`);
 
@@ -396,6 +409,43 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     setVoiceState(newVoice);
   }, []);
 
+  // Seek to a specific position (0-100 percentage)
+  const seekTo = useCallback((progress: number) => {
+    if (!isSupported) return;
+    if (chunksRef.current.length === 0) return;
+
+    // Calculate target chunk from progress percentage
+    const targetChunk = Math.floor((progress / 100) * chunksRef.current.length);
+    const clampedChunk = Math.max(0, Math.min(targetChunk, chunksRef.current.length - 1));
+
+    console.log(`TTS: Seeking to ${progress}% (chunk ${clampedChunk + 1}/${chunksRef.current.length})`);
+
+    // Cancel current speech
+    window.speechSynthesis.cancel();
+    isStoppedRef.current = false;
+
+    // Update chunk index
+    currentChunkIndexRef.current = clampedChunk;
+    setCurrentChunk(clampedChunk);
+
+    // Unlock audio on mobile (must be called from user gesture)
+    if (isMobile) {
+      unlockAudio();
+    }
+
+    // Start playing from the new position
+    setIsPlaying(true);
+    setIsPaused(false);
+
+    // Small delay to allow cancel to complete
+    setTimeout(() => {
+      playNextChunk();
+    }, isIOS ? 100 : 50);
+  }, [isSupported, playNextChunk]);
+
+  // Calculate progress percentage
+  const progress = totalChunks > 0 ? (currentChunk / totalChunks) * 100 : 0;
+
   const state: TTSState = {
     isPlaying,
     isPaused,
@@ -404,6 +454,9 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     voice,
     availableVoices,
     isSupported,
+    currentChunk,
+    totalChunks,
+    progress,
   };
 
   const controls: TTSControls = {
@@ -413,6 +466,7 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     stop,
     setRate,
     setVoice,
+    seekTo,
   };
 
   return [state, controls];

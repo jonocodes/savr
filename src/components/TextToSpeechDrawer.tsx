@@ -33,8 +33,8 @@ export default function TextToSpeechDrawer({
   ttsState,
   ttsControls,
 }: TextToSpeechDrawerProps) {
-  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported } = ttsState;
-  const { play, pause, resume, stop, setRate, setVoice } = ttsControls;
+  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentChunk, totalChunks } = ttsState;
+  const { play, pause, resume, stop, setRate, setVoice, seekTo } = ttsControls;
 
   const handlePlayPause = () => {
     if (isPlaying && !isPaused) {
@@ -70,6 +70,11 @@ export default function TextToSpeechDrawer({
         setTimeout(() => play(), 50);
       }
     }
+  };
+
+  const handleProgressChange = (_event: Event, newValue: number | number[]) => {
+    const newProgress = newValue as number;
+    seekTo(newProgress);
   };
 
   if (!isSupported) {
@@ -160,6 +165,34 @@ export default function TextToSpeechDrawer({
               </IconButton>
             </Tooltip>
           </Box>
+
+          {/* Progress Slider */}
+          {totalChunks > 0 && (
+            <Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  Position
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {currentChunk + 1} / {totalChunks}
+                </Typography>
+              </Box>
+              <Slider
+                value={progress}
+                onChange={handleProgressChange}
+                min={0}
+                max={100}
+                step={totalChunks > 0 ? 100 / totalChunks : 1}
+                disabled={!isPlaying && !isPaused && totalChunks === 0}
+                sx={{
+                  '& .MuiSlider-thumb': {
+                    width: 16,
+                    height: 16,
+                  },
+                }}
+              />
+            </Box>
+          )}
 
           {/* Speed Control */}
           <Box>
