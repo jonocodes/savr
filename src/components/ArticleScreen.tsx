@@ -48,7 +48,7 @@ import { CookieThemeToggle } from "./CookieThemeToggle";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
-import { getHeaderHidingFromCookie } from "~/utils/cookies";
+import { getHeaderHidingFromCookie, getRotationLockFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
@@ -428,6 +428,44 @@ export default function ArticleScreen(_props: Props) {
   useEffect(() => {
     // Load header hiding preference
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
+  }, []);
+
+  // Apply rotation lock preference
+  useEffect(() => {
+    const rotationLock = getRotationLockFromCookie();
+
+    const applyRotationLock = async () => {
+      // Check if Screen Orientation API is available
+      if (!screen.orientation || !screen.orientation.lock) {
+        return;
+      }
+
+      try {
+        if (rotationLock === "portrait") {
+          await screen.orientation.lock("portrait");
+        } else if (rotationLock === "landscape") {
+          await screen.orientation.lock("landscape");
+        }
+        // If "off", we don't lock anything
+      } catch (error) {
+        // Screen orientation lock may fail in non-fullscreen mode on desktop
+        // or if the browser doesn't support it - this is expected behavior
+        console.debug("Screen orientation lock not available:", error);
+      }
+    };
+
+    applyRotationLock();
+
+    // Cleanup: unlock orientation when leaving the article screen
+    return () => {
+      if (screen.orientation && screen.orientation.unlock) {
+        try {
+          screen.orientation.unlock();
+        } catch {
+          // Ignore unlock errors
+        }
+      }
+    };
   }, []);
 
   useEffect(() => {
