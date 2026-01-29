@@ -122,10 +122,10 @@ Note that you don't need to sync your articles to a cloud service for them to be
 
 # AI Summarization
 
-Savr can automatically generate summaries of your saved articles using AI. This feature uses cloud-based LLM providers (Groq or OpenAI) to create concise summaries when you save new articles.
+Savr can automatically generate summaries of your saved articles using cloud-based LLM providers (Groq or OpenAI) to create concise summaries when you save new articles.
 
 **Supported Providers:**
-- **Groq** (free tier available) - Uses Llama models for fast, free summarization
+- **Groq** - Uses Llama models for fast, free summarization
 - **OpenAI** - Uses GPT models for high-quality summaries
 
 **Customization Options:**
