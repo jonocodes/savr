@@ -434,9 +434,11 @@ export default function ArticleScreen(_props: Props) {
   // Apply rotation lock preference
   useEffect(() => {
     const rotationLock = getRotationLockFromCookie();
+    console.log("[RotationLock] Preference from cookie:", rotationLock);
 
     // Screen Orientation lock only works in PWA mode or fullscreen on mobile
     if (rotationLock === "off") {
+      console.log("[RotationLock] Rotation lock is off, skipping");
       return;
     }
 
@@ -448,29 +450,53 @@ export default function ArticleScreen(_props: Props) {
         unlock?: () => void;
       };
 
+      console.log("[RotationLock] Screen orientation API:", {
+        available: !!orientation,
+        hasLock: !!(orientation && orientation.lock),
+        currentOrientation: orientation?.type,
+      });
+
       if (!orientation || !orientation.lock) {
-        console.debug("Screen Orientation API not available");
+        console.log("[RotationLock] Screen Orientation API not available");
         return;
       }
 
       // Check if we're in PWA mode - orientation lock requires PWA or fullscreen
       const inPWA = isPWAMode();
       const inFullscreen = !!document.fullscreenElement;
+      const displayModeStandalone = window.matchMedia("(display-mode: standalone)").matches;
+      const navigatorStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
+
+      console.log("[RotationLock] PWA detection:", {
+        isPWAMode: inPWA,
+        displayModeStandalone,
+        navigatorStandalone,
+        inFullscreen,
+      });
 
       if (!inPWA && !inFullscreen) {
-        console.debug("Rotation lock requires PWA mode or fullscreen. Currently: PWA=%s, Fullscreen=%s", inPWA, inFullscreen);
+        console.log("[RotationLock] Rotation lock requires PWA mode or fullscreen - not attempting lock");
         return;
       }
 
-      try {
-        // Use primary variants for more consistent behavior
-        const lockType = rotationLock === "portrait" ? "portrait-primary" : "landscape-primary";
-        await orientation.lock(lockType);
-        console.debug("Screen orientation locked to:", lockType);
-      } catch (error) {
-        // Screen orientation lock may fail if the browser doesn't support it
-        console.debug("Screen orientation lock failed:", error);
+      // Try different orientation values for broader compatibility
+      // Android Chrome may prefer "portrait"/"landscape" over "portrait-primary"/"landscape-primary"
+      const lockTypes = rotationLock === "portrait"
+        ? ["portrait", "portrait-primary", "natural"]
+        : ["landscape", "landscape-primary"];
+
+      for (const lockType of lockTypes) {
+        try {
+          console.log("[RotationLock] Attempting to lock to:", lockType);
+          await orientation.lock(lockType);
+          console.log("[RotationLock] Successfully locked to:", lockType);
+          return; // Success, exit the loop
+        } catch (error) {
+          console.log("[RotationLock] Failed to lock to", lockType, ":", error);
+        }
       }
+
+      console.log("[RotationLock] All lock attempts failed");
     };
 
     applyRotationLock();
@@ -483,6 +509,7 @@ export default function ArticleScreen(_props: Props) {
       if (orientation && orientation.unlock) {
         try {
           orientation.unlock();
+          console.log("[RotationLock] Orientation unlocked on cleanup");
         } catch {
           // Ignore unlock errors
         }
