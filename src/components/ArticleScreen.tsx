@@ -52,6 +52,7 @@ import { getHeaderHidingFromCookie, getRotationLockFromCookie } from "~/utils/co
 import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
+import { isPWAMode } from "~/utils/network";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
   summarizeText,
@@ -434,6 +435,11 @@ export default function ArticleScreen(_props: Props) {
   useEffect(() => {
     const rotationLock = getRotationLockFromCookie();
 
+    // Screen Orientation lock only works in PWA mode or fullscreen on mobile
+    if (rotationLock === "off") {
+      return;
+    }
+
     const applyRotationLock = async () => {
       // Check if Screen Orientation API is available
       // The lock/unlock methods are experimental and may not be in TypeScript's types
@@ -443,20 +449,27 @@ export default function ArticleScreen(_props: Props) {
       };
 
       if (!orientation || !orientation.lock) {
+        console.debug("Screen Orientation API not available");
+        return;
+      }
+
+      // Check if we're in PWA mode - orientation lock requires PWA or fullscreen
+      const inPWA = isPWAMode();
+      const inFullscreen = !!document.fullscreenElement;
+
+      if (!inPWA && !inFullscreen) {
+        console.debug("Rotation lock requires PWA mode or fullscreen. Currently: PWA=%s, Fullscreen=%s", inPWA, inFullscreen);
         return;
       }
 
       try {
-        if (rotationLock === "portrait") {
-          await orientation.lock("portrait");
-        } else if (rotationLock === "landscape") {
-          await orientation.lock("landscape");
-        }
-        // If "off", we don't lock anything
+        // Use primary variants for more consistent behavior
+        const lockType = rotationLock === "portrait" ? "portrait-primary" : "landscape-primary";
+        await orientation.lock(lockType);
+        console.debug("Screen orientation locked to:", lockType);
       } catch (error) {
-        // Screen orientation lock may fail in non-fullscreen mode on desktop
-        // or if the browser doesn't support it - this is expected behavior
-        console.debug("Screen orientation lock not available:", error);
+        // Screen orientation lock may fail if the browser doesn't support it
+        console.debug("Screen orientation lock failed:", error);
       }
     };
 

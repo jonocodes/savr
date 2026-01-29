@@ -673,17 +673,23 @@ export default function PreferencesScreen() {
               </ListItemIcon>
               <ListItemText
                 primary="Lock screen rotation"
-                secondary="Prevent screen rotation while reading articles"
+                secondary={
+                  isInstalledPWA
+                    ? "Prevent screen rotation while reading articles"
+                    : "Requires app to be installed as PWA (Add to Home Screen)"
+                }
               />
               <select
                 value={rotationLock}
                 onChange={handleRotationLockChange}
+                disabled={!isInstalledPWA}
                 style={{
                   padding: "8px",
                   borderRadius: "4px",
                   border: "1px solid #ccc",
                   fontSize: "14px",
                   minWidth: "120px",
+                  opacity: isInstalledPWA ? 1 : 0.5,
                 }}
               >
                 <option value="off">Off</option>
