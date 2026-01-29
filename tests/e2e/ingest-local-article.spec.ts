@@ -739,14 +739,15 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 6. Wait for article to appear in list
     console.log("4️⃣  Waiting for markdown article to appear in list...");
-    // The title should be extracted from the markdown content
-    const articleTitle = page.getByText(/README|Stashcast/i);
+    // The title is extracted by Readability from the markdown content
+    // The README.md contains "# Create and activate virtual environment" as a heading
+    const articleTitle = page.getByText(/Create and activate virtual environment|StashCast/i);
     await expect(articleTitle.first()).toBeVisible({ timeout: 60000 });
     console.log("✅ Markdown article appeared in list");
 
     // 7. Verify article was saved to IndexedDB
     console.log("5️⃣  Verifying article in IndexedDB...");
-    const article = await getArticleFromDB(page, "readme");
+    const article = await getArticleFromDB(page, "create-and-activate-virtual-environment");
     expect(article).toBeTruthy();
     console.log("✅ Article verified in IndexedDB:", article?.title, "mimeType:", article?.mimeType);
 
@@ -861,8 +862,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
       await deleteArticleFromStorage(page, "invoicesample");
       await deleteArticleFromDB(page, "invoicesample");
       // Clean up markdown article
-      await deleteArticleFromStorage(page, "readme");
-      await deleteArticleFromDB(page, "readme");
+      await deleteArticleFromStorage(page, "create-and-activate-virtual-environment");
+      await deleteArticleFromDB(page, "create-and-activate-virtual-environment");
       // Clean up image article
       await deleteArticleFromStorage(page, "header-transparent");
       await deleteArticleFromDB(page, "header-transparent");
