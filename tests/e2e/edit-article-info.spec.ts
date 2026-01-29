@@ -86,7 +86,7 @@ test.describe("Edit Article Info", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
   });
 

@@ -145,7 +145,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("4️⃣  Waiting for article to appear in list (this may take 30-60 seconds)...");
 
     // Wait for any article with "Death" in the title (more flexible matching)
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article appeared in list");
 
@@ -154,7 +154,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     const article = await getArticleFromDB(page, "test-article-for-local-ingestion");
     expect(article).toBeTruthy();
     expect(article?.slug).toBe("test-article-for-local-ingestion");
-    expect(article?.title).toMatch(/Test Article|Local Ingestion/i);
+    expect(article?.title).toBe("Test Article for Local Ingestion");
     console.log("✅ Article verified in IndexedDB:", article?.title);
 
     // 8. Navigate to article page
@@ -165,7 +165,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 9. Verify article content is displayed
     console.log("7️⃣  Verifying article page content...");
     // Wait for article text content to appear (excluding RemoteStorage widget)
-    await expect(page.getByText(/Test Article|Local Ingestion/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText("Test Article for Local Ingestion")).toBeVisible({ timeout: 10000 });
     console.log("✅ Article content displayed with expected text");
 
     console.log("\n🎉 Test completed successfully!\n");
@@ -195,7 +195,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Dialog closed");
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -284,7 +284,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -383,7 +383,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -444,7 +444,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
@@ -481,7 +481,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 5. Verify article is not in the listing
     console.log("5️⃣  Verifying article not in listing...");
-    const articleInList = page.getByText(/Test Article|Local Ingestion/i);
+    const articleInList = page.getByText("Test Article for Local Ingestion");
     await expect(articleInList).not.toBeVisible({ timeout: 5000 });
     console.log("✅ Article not in listing");
 
@@ -516,7 +516,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
 
     // Wait for article to appear
-    const articleTitle = page.getByText(/Test Article|Local Ingestion/i);
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitle).toBeVisible({ timeout: 60000 });
     console.log("✅ Article ingested and visible");
 
