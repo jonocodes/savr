@@ -107,5 +107,8 @@
     "typescript-eslint": "^8.53.0",
     "vite": "^6.3.5",
     "vite-tsconfig-paths": "^5.1.4"
+  },
+  "overrides": {
+    "onnxruntime-node": "npm:empty-npm-package@1.0.0"
   }
 }
