@@ -434,26 +434,48 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     // Firefox bug: pause() doesn't work, check if it actually paused
     setTimeout(() => {
       if (window.speechSynthesis.paused) {
-        console.log("TTS: Paused");
+        console.log("TTS: Paused (native)");
         setIsPaused(true);
       } else {
-        // Pause didn't work (Firefox), fall back to stop
-        console.warn("TTS: Pause not supported, stopping instead");
+        // Pause didn't work (Firefox/mobile), fall back to canceling but keep paused state
+        console.warn("TTS: Native pause not supported, using soft pause");
         isStoppedRef.current = true;
         window.speechSynthesis.cancel();
-        setIsPlaying(false);
-        setIsPaused(false);
+        // Keep isPlaying true and set isPaused true so resume works correctly
+        setIsPaused(true);
       }
     }, 50);
   }, [isSupported, stopProgressTimer]);
 
   const resume = useCallback(() => {
     if (!isSupported) return;
-    window.speechSynthesis.resume();
-    startProgressTimer();
-    console.log("TTS: Resumed");
-    setIsPaused(false);
-  }, [isSupported, startProgressTimer]);
+
+    // Check if we have a real pause (speechSynthesis is paused) or soft pause (was cancelled)
+    if (window.speechSynthesis.paused) {
+      // Real pause - just resume
+      window.speechSynthesis.resume();
+      startProgressTimer();
+      console.log("TTS: Resumed (native)");
+      setIsPaused(false);
+    } else {
+      // Soft pause - need to restart from current chunk
+      console.log("TTS: Resuming from soft pause, restarting chunk", currentChunkIndexRef.current);
+
+      // Unlock audio on mobile (must be called from user gesture)
+      if (isMobile) {
+        unlockAudio();
+      }
+
+      setIsPaused(false);
+
+      // Start playing from current chunk (with delay to ensure clean state)
+      setTimeout(() => {
+        isStoppedRef.current = false;
+        startProgressTimer();
+        playNextChunk();
+      }, isIOS ? 150 : 50);
+    }
+  }, [isSupported, startProgressTimer, playNextChunk]);
 
   const stop = useCallback(() => {
     if (!isSupported) return;
