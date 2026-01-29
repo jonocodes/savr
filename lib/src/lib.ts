@@ -197,3 +197,7 @@ export function getFileFetchLog(slug: string): string {
 export function getFilePathThumbnail(slug: string): string {
   return `saves/${slug}/resources/thumbnail.webp.data`;
 }
+
+export function getFilePathPdf(slug: string): string {
+  return `saves/${slug}/document.pdf`;
+}

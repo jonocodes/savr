@@ -12,6 +12,7 @@ import {
   getFilePathContent,
   getFilePathMetadata,
   getFileFetchLog,
+  getFilePathPdf,
   mimeToExt,
 } from "./lib";
 import { saveResource } from "~/utils/storage";
@@ -606,6 +607,95 @@ function generateRandomString() {
 
 console.log(generateRandomString());
 
+/**
+ * Extract a title from a PDF URL, using the filename without extension
+ */
+function getTitleFromPdfUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    const pathname = parsedUrl.pathname;
+    // Get the filename from the path
+    const filename = pathname.split("/").pop() || "";
+    // Remove .pdf extension if present
+    const title = filename.replace(/\.pdf$/i, "");
+    // If we got a valid title, return it decoded
+    if (title) {
+      return decodeURIComponent(title).replace(/[-_]/g, " ");
+    }
+  } catch (e) {
+    // URL parsing failed
+  }
+  // Fallback to timestamp-based title
+  return `pdf ${Date.now()}`;
+}
+
+export async function ingestPdf(
+  storageClient: BaseClient | null,
+  pdfBlob: Blob,
+  url: string,
+  sendMessage: (percent: number | null, message: string | null) => void
+): Promise<Article> {
+  const logMessages: string[] = [];
+
+  const sendMessageWithLog = (percent: number | null, message: string | null) => {
+    if (message) {
+      logMessages.push(message);
+    }
+    sendMessage(percent, message);
+  };
+
+  sendMessageWithLog(20, "processing PDF");
+
+  const title = getTitleFromPdfUrl(url);
+  const slug = stringToSlug(title);
+
+  const article: Article = {
+    slug: slug,
+    title: title,
+    url: url,
+    state: "unread",
+    publication: null,
+    author: null,
+    publishedDate: null,
+    ingestDate: new Date().toISOString(),
+    ingestPlatform: `typescript/web (${version})`,
+    ingestSource: "url",
+    mimeType: "application/pdf",
+    readTimeMinutes: null,
+    progress: 0,
+  };
+
+  sendMessageWithLog(40, "saving PDF");
+
+  // Convert blob to ArrayBuffer for storage
+  const arrayBuffer = await pdfBlob.arrayBuffer();
+
+  // Store the PDF binary
+  await storageClient?.storeFile(
+    "application/pdf",
+    getFilePathPdf(article.slug),
+    arrayBuffer
+  );
+
+  sendMessageWithLog(70, "saving metadata");
+
+  // Write the fetch log
+  const fetchLogPath = getFileFetchLog(article.slug);
+  const fetchLogContent = logMessages.join('\n');
+  await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Save article metadata
+  await storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article, null, 2)
+  );
+
+  sendMessageWithLog(90, "done");
+
+  return article;
+}
+
 export async function ingestUrl(
   storageClient: BaseClient | null,
   url: string,
@@ -655,26 +745,9 @@ export async function ingestUrl(
       article = result.article;
       successfulDownloads = result.successfulDownloads;
       totalImages = result.totalImages;
-
-      // } else if (mimeType.subtype === 'pdf') {
-
-      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
-
-      //   article = await articleFromPdf(checksum, url)
-
-      //   finalizeFileLocation(tempLocalPath, article)
-
-      //   // TODO: thumbnail
-
-      // } else if (mimeType.type === 'image') {
-
-      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
-
-      //   article = articleFromImage(mimeType, checksum, url)
-
-      //   finalizeFileLocation(tempLocalPath, article)
-
-      // createThumbnail([getFilePathContent(article.slug)], getSaveDirPath(article.slug))
+    } else if (mimeType === "application/pdf") {
+      const pdfBlob = await response.blob();
+      article = await ingestPdf(storageClient, pdfBlob, url, sendMessage);
     } else {
       throw new Error(`No handler for content type ${contentTypeHeader}`);
     }

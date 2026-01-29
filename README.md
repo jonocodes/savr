@@ -55,14 +55,14 @@ Here are most of the planned features.
   - [ ] google drive
 - [x] catalog export
 - [x] catalog import
+- [x] handle additional raw document types with type detection (pasted html, markdown, plain text)
 - [ ] multiline url imports
 - [ ] content summarization
 - [ ] advanced image handling
   - [ ] scrape lazy loaded images
   - [ ] discover uncommon tags (ie - srcset and background images)
   - [ ] allow for deferred image loading at view time
-- [ ] additional document types (ie - raw html, markdown, plain text, pdf)
-- [ ] media types (images, audio, video)
+- [ ] media types (images, audio, video, pdf)
 
 
 # How to "install" it

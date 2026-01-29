@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import {
@@ -16,8 +16,14 @@ import {
   Button,
   LinearProgress,
   Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
+  Chip,
+  Collapse,
 } from "@mui/material";
-import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
+import { ArrowBack as ArrowBackIcon, Preview as PreviewIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from "@mui/icons-material";
 import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
@@ -37,18 +43,45 @@ import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
 import { ingestHtml } from "lib/src/ingestion";
 import type { Article } from "lib/src/models";
+import {
+  detectContentType,
+  convertToHtml,
+  CONTENT_TYPE_OPTIONS,
+  type ContentTypeOption,
+} from "lib/src/contentType";
 
 export default function SubmitScreen() {
   const { enqueueSnackbar } = useSnackbar();
 
   const [dialogVisible, setDialogVisible] = useState(false);
 
-  const [html, setHtml] = useState<string>("");
+  const [content, setContent] = useState<string>("");
+  const [contentType, setContentType] = useState<ContentTypeOption>("auto");
+  const [detectedType, setDetectedType] = useState<"text/html" | "text/markdown" | "text/plain" | null>(null);
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
   const [testSummary, setTestSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
+
+  // Compute the effective content type (detected or manually selected)
+  const effectiveContentType = useMemo(() => {
+    if (contentType === "auto") {
+      return detectedType || "text/plain";
+    }
+    return contentType;
+  }, [contentType, detectedType]);
+
+  // Compute the preview HTML
+  const previewHtml = useMemo(() => {
+    if (!content.trim()) return "";
+    try {
+      return convertToHtml(content, effectiveContentType);
+    } catch {
+      return "";
+    }
+  }, [content, effectiveContentType]);
 
   // Add message listener for browser extension
   useEffect(() => {
@@ -86,18 +119,25 @@ export default function SubmitScreen() {
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
       // TODO: pass in headers/cookies for downloading
 
-      // Wait until URL is not empty
-      if (!html.trim()) {
+      // Wait until content is not empty
+      if (!content.trim()) {
         return;
       }
 
       setIngestStatus("Ingesting...");
       try {
+        // Determine the actual content type
+        const actualContentType: "text/html" | "text/markdown" | "text/plain" =
+          contentType === "auto" ? detectContentType(content) : contentType;
+
+        // Convert content to HTML if needed
+        const htmlContent = convertToHtml(content, actualContentType);
+
         const result = await ingestHtml(
           client,
           // corsProxy,
-          html,
-          "text/html",
+          htmlContent,
+          "text/html", // Always save as HTML since we convert
           null,
           (percent: number | null, message: string | null) => {
             if (percent !== null) {
@@ -128,7 +168,8 @@ export default function SubmitScreen() {
           setDialogVisible(false);
           setIngestStatus(null);
           setIngestPercent(0);
-          setHtml("");
+          setContent("");
+          setDetectedType(null);
 
           console.log("afterExternalSave", afterExternalSave);
 
@@ -153,18 +194,20 @@ export default function SubmitScreen() {
     },
     [
       client,
-      html,
+      content,
+      contentType,
       setDialogVisible,
       setIngestStatus,
       setIngestPercent,
-      setHtml,
+      setContent,
+      setDetectedType,
       enqueueSnackbar,
       navigate,
     ],
   );
 
   const handleTestSummary = async () => {
-    if (!html.trim()) {
+    if (!content.trim()) {
       enqueueSnackbar("Please enter some content first", { variant: "warning" });
       return;
     }
@@ -184,9 +227,14 @@ export default function SubmitScreen() {
     setSummaryProgress({ status: "summarizing" });
 
     try {
+      // Determine the actual content type and convert if needed
+      const actualContentType: "text/html" | "text/markdown" | "text/plain" =
+        contentType === "auto" ? detectContentType(content) : contentType;
+      const htmlContent = convertToHtml(content, actualContentType);
+
       // Extract text from HTML for summarization
       const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
+      const doc = parser.parseFromString(htmlContent, "text/html");
       const plainText = doc.body.textContent || "";
 
       if (plainText.length < 100) {
@@ -251,37 +299,191 @@ export default function SubmitScreen() {
 
       {/* Content */}
       <Container maxWidth="md" sx={{ mt: 2 }}>
-        Paste your HTML here
+        <Typography variant="body1" gutterBottom>
+          Paste your content here (HTML, Markdown, or plain text)
+        </Typography>
+
+        {/* Content Type Selector */}
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2, flexWrap: "wrap" }}>
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel id="content-type-label">Content Type</InputLabel>
+            <Select
+              labelId="content-type-label"
+              id="content-type-select"
+              value={contentType}
+              label="Content Type"
+              onChange={(e) => setContentType(e.target.value as ContentTypeOption)}
+              disabled={ingestStatus !== null}
+            >
+              {CONTENT_TYPE_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Show detected/effective type with a prominent chip */}
+          {content.trim() && (
+            <Chip
+              label={`Will save as: ${CONTENT_TYPE_OPTIONS.find((o) => o.value === effectiveContentType)?.label || effectiveContentType}`}
+              color={
+                effectiveContentType === "text/html" ? "primary" :
+                effectiveContentType === "text/markdown" ? "secondary" :
+                "default"
+              }
+              variant="outlined"
+              size="small"
+            />
+          )}
+
+          {/* Auto-detect indicator */}
+          {contentType === "auto" && detectedType && (
+            <Typography variant="body2" color="text.secondary">
+              (auto-detected)
+            </Typography>
+          )}
+        </Box>
+
         <TextField
           multiline
           minRows={10}
-          // inputRef={htmlFieldRef}
-          label="text"
-          onChange={(e) => setHtml(e.target.value)}
+          label="Content"
+          value={content}
+          onChange={(e) => {
+            const newContent = e.target.value;
+            setContent(newContent);
+            // Auto-detect content type as user types
+            if (newContent.trim()) {
+              setDetectedType(detectContentType(newContent));
+            } else {
+              setDetectedType(null);
+            }
+          }}
           fullWidth
           margin="normal"
           autoFocus
           disabled={ingestStatus !== null}
-          defaultValue={
-            "<title>Ipsum</title><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>"
-          }
+          placeholder="Paste HTML, Markdown, or plain text content here..."
         />
-        <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+        <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
           <Button
             onClick={() => saveHtml()}
             variant="contained"
-            disabled={ingestStatus !== null || !html.trim()}
+            disabled={ingestStatus !== null || !content.trim()}
           >
             Save
           </Button>
           <Button
             onClick={handleTestSummary}
             variant="outlined"
-            disabled={isSummarizing || !html.trim()}
+            disabled={isSummarizing || !content.trim()}
           >
             {isSummarizing ? "Summarizing..." : "Test Summary"}
           </Button>
+          <Button
+            onClick={() => setShowPreview(!showPreview)}
+            variant="text"
+            startIcon={<PreviewIcon />}
+            endIcon={showPreview ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            disabled={!content.trim()}
+          >
+            {showPreview ? "Hide Preview" : "Show Preview"}
+          </Button>
         </Box>
+
+        {/* Live Preview Panel */}
+        <Collapse in={showPreview && !!content.trim()}>
+          <Paper
+            sx={{
+              mt: 2,
+              p: 2,
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              maxHeight: "400px",
+              overflow: "auto",
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <PreviewIcon fontSize="small" />
+              Live Preview
+              {effectiveContentType && (
+                <Chip
+                  label={CONTENT_TYPE_OPTIONS.find((o) => o.value === effectiveContentType)?.label}
+                  size="small"
+                  variant="outlined"
+                  sx={{ ml: 1 }}
+                />
+              )}
+            </Typography>
+            <Box
+              sx={{
+                mt: 1,
+                lineHeight: 1.7,
+                "& p": { margin: "0.5em 0" },
+                "& ul, & ol": { pl: 2, my: 1 },
+                "& li": { mb: 0.5 },
+                "& strong": { fontWeight: 600 },
+                "& h1": { fontSize: "1.5em", fontWeight: 600, mt: 1, mb: 0.5 },
+                "& h2": { fontSize: "1.3em", fontWeight: 600, mt: 1, mb: 0.5 },
+                "& h3": { fontSize: "1.15em", fontWeight: 600, mt: 1, mb: 0.5 },
+                "& h4, & h5, & h6": { fontWeight: 600, mt: 1, mb: 0.5 },
+                "& pre": {
+                  bgcolor: "grey.100",
+                  p: 1,
+                  borderRadius: 1,
+                  overflow: "auto",
+                  fontFamily: "monospace",
+                  fontSize: "0.9em",
+                },
+                "& code": {
+                  bgcolor: "grey.100",
+                  px: 0.5,
+                  borderRadius: 0.5,
+                  fontFamily: "monospace",
+                  fontSize: "0.9em",
+                },
+                "& blockquote": {
+                  borderLeft: "3px solid",
+                  borderColor: "grey.400",
+                  pl: 2,
+                  ml: 0,
+                  color: "text.secondary",
+                },
+                "& table": {
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  my: 1,
+                },
+                "& th, & td": {
+                  border: "1px solid",
+                  borderColor: "divider",
+                  p: 1,
+                },
+                "& th": {
+                  bgcolor: "grey.100",
+                  fontWeight: 600,
+                },
+                "& a": {
+                  color: "primary.main",
+                },
+                "& img": {
+                  maxWidth: "100%",
+                  height: "auto",
+                },
+                "& hr": {
+                  border: "none",
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  my: 2,
+                },
+              }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          </Paper>
+        </Collapse>
+
         {/* Summary Progress */}
         {isSummarizing && (
           <Box sx={{ mt: 2 }}>
