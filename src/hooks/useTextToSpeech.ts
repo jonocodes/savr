@@ -30,7 +30,9 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
   const [rate, setRateState] = useState(1);
   const [voice, setVoiceState] = useState<SpeechSynthesisVoice | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [isSupported, setIsSupported] = useState(false);
+  const [isSupported] = useState(
+    () => typeof window !== "undefined" && "speechSynthesis" in window
+  );
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const textRef = useRef(text);
@@ -40,11 +42,9 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     textRef.current = text;
   }, [text]);
 
-  // Check for browser support and load voices
+  // Load voices when supported
   useEffect(() => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      setIsSupported(true);
-
+    if (isSupported) {
       const loadVoices = () => {
         const voices = window.speechSynthesis.getVoices();
         console.log("TTS: Loaded", voices.length, "voices");
@@ -72,7 +72,7 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
         window.speechSynthesis.removeEventListener("voiceschanged", loadVoices);
       };
     }
-  }, [voice]);
+  }, [isSupported, voice]);
 
   // Clean up on unmount
   useEffect(() => {
