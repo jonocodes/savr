@@ -18,7 +18,7 @@ import {
   Stop as StopIcon,
   Speed as SpeedIcon,
 } from "@mui/icons-material";
-import { TTSState, TTSControls } from "~/hooks/useTextToSpeech";
+import { TTSState, TTSControls, formatTime } from "~/hooks/useTextToSpeech";
 
 interface TextToSpeechDrawerProps {
   open: boolean;
@@ -33,8 +33,8 @@ export default function TextToSpeechDrawer({
   ttsState,
   ttsControls,
 }: TextToSpeechDrawerProps) {
-  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported } = ttsState;
-  const { play, pause, resume, stop, setRate, setVoice } = ttsControls;
+  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentTime, totalTime } = ttsState;
+  const { play, pause, resume, stop, restart, setRate, setVoice } = ttsControls;
 
   const handlePlayPause = () => {
     if (isPlaying && !isPaused) {
@@ -53,10 +53,10 @@ export default function TextToSpeechDrawer({
   const handleRateChange = (_event: Event, newValue: number | number[]) => {
     const newRate = newValue as number;
     setRate(newRate);
-    // If currently playing, restart with new rate
+    // If currently playing, restart from current position with new rate
     if (isPlaying) {
-      stop();
-      setTimeout(() => play(), 50);
+      // Small delay to allow state update before restart
+      setTimeout(() => restart(), 50);
     }
   };
 
@@ -64,10 +64,10 @@ export default function TextToSpeechDrawer({
     const selectedVoice = availableVoices.find((v) => v.name === event.target.value);
     if (selectedVoice) {
       setVoice(selectedVoice);
-      // If currently playing, restart with new voice
+      // If currently playing, restart from current position with new voice
       if (isPlaying) {
-        stop();
-        setTimeout(() => play(), 50);
+        // Small delay to allow state update before restart
+        setTimeout(() => restart(), 50);
       }
     }
   };
@@ -160,6 +160,41 @@ export default function TextToSpeechDrawer({
               </IconButton>
             </Tooltip>
           </Box>
+
+          {/* Progress Slider */}
+          {totalTime > 0 && (
+            <Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {formatTime(currentTime)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {formatTime(totalTime)}
+                </Typography>
+              </Box>
+              <Slider
+                value={progress}
+                min={0}
+                max={100}
+                disabled
+                sx={{
+                  '& .MuiSlider-thumb': {
+                    width: 12,
+                    height: 12,
+                  },
+                  '&.Mui-disabled': {
+                    color: 'primary.main',
+                    '& .MuiSlider-thumb': {
+                      backgroundColor: 'primary.main',
+                    },
+                    '& .MuiSlider-track': {
+                      backgroundColor: 'primary.main',
+                    },
+                  },
+                }}
+              />
+            </Box>
+          )}
 
           {/* Speed Control */}
           <Box>
