@@ -13,6 +13,7 @@ import {
   getFilePathMetadata,
   getFileFetchLog,
   getFilePathPdf,
+  getFilePathImage,
   mimeToExt,
 } from "./lib";
 import { saveResource } from "~/utils/storage";
@@ -26,6 +27,7 @@ import {
   getApiKeyForProvider,
   getSummarySettingsFromCookie,
 } from "~/utils/cookies";
+import { convertToHtml } from "./contentType";
 
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
@@ -696,6 +698,116 @@ export async function ingestPdf(
   return article;
 }
 
+/**
+ * Extract a title from an image URL, using the filename without extension
+ */
+function getTitleFromImageUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    const pathname = parsedUrl.pathname;
+    const filename = pathname.split("/").pop() || "";
+    // Remove extension
+    const title = filename.replace(/\.[^/.]+$/, "");
+    if (title) {
+      return decodeURIComponent(title).replace(/[-_]/g, " ");
+    }
+  } catch (e) {
+    // URL parsing failed
+  }
+  return `image ${Date.now()}`;
+}
+
+export async function ingestImage(
+  storageClient: BaseClient | null,
+  imageBlob: Blob,
+  mimeType: string,
+  url: string,
+  sendMessage: (percent: number | null, message: string | null) => void
+): Promise<Article> {
+  const logMessages: string[] = [];
+
+  const sendMessageWithLog = (percent: number | null, message: string | null) => {
+    if (message) {
+      logMessages.push(message);
+    }
+    sendMessage(percent, message);
+  };
+
+  sendMessageWithLog(20, "processing image");
+
+  const title = getTitleFromImageUrl(url);
+  const slug = stringToSlug(title);
+  const extension = mimeToExt[mimeType] || "jpg";
+
+  const article: Article = {
+    slug: slug,
+    title: title,
+    url: url,
+    state: "unread",
+    publication: null,
+    author: null,
+    publishedDate: null,
+    ingestDate: new Date().toISOString(),
+    ingestPlatform: `typescript/web (${version})`,
+    ingestSource: "url",
+    mimeType: mimeType,
+    readTimeMinutes: null,
+    progress: 0,
+  };
+
+  sendMessageWithLog(40, "saving image");
+
+  // Convert blob to ArrayBuffer for storage
+  const arrayBuffer = await imageBlob.arrayBuffer();
+
+  // Store the image binary
+  await storageClient?.storeFile(
+    mimeType,
+    getFilePathImage(article.slug, extension),
+    arrayBuffer
+  );
+
+  // Also create a thumbnail from the image
+  sendMessageWithLog(60, "creating thumbnail");
+  try {
+    const { blob: resizedBlob } = await resizeImage(imageBlob, maxDimensionThumb);
+    const webpBlob = await convertToWebP(resizedBlob);
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          resolve(reader.result as string);
+        } else {
+          reject(new Error("Failed to read blob as data URL"));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(webpBlob);
+    });
+    await saveResource("thumbnail.webp.data", article.slug, dataUrl, webpBlob.type);
+  } catch (e) {
+    console.error("Failed to create thumbnail:", e);
+  }
+
+  sendMessageWithLog(80, "saving metadata");
+
+  // Write the fetch log
+  const fetchLogPath = getFileFetchLog(article.slug);
+  const fetchLogContent = logMessages.join('\n');
+  await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Save article metadata
+  await storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article, null, 2)
+  );
+
+  sendMessageWithLog(90, "done");
+
+  return article;
+}
+
 export async function ingestUrl(
   storageClient: BaseClient | null,
   url: string,
@@ -748,6 +860,24 @@ export async function ingestUrl(
     } else if (mimeType === "application/pdf") {
       const pdfBlob = await response.blob();
       article = await ingestPdf(storageClient, pdfBlob, url, sendMessage);
+    } else if (mimeType === "text/plain" || mimeType === "text/markdown") {
+      // Handle plain text and markdown files - convert to HTML and ingest
+      const textContent = await response.text();
+      const htmlContent = convertToHtml(textContent, mimeType);
+      const result = await ingestHtml(
+        storageClient,
+        htmlContent,
+        "text/html",
+        url,
+        sendMessage
+      );
+      article = result.article;
+      successfulDownloads = result.successfulDownloads;
+      totalImages = result.totalImages;
+    } else if (mimeType.startsWith("image/")) {
+      // Handle image files
+      const imageBlob = await response.blob();
+      article = await ingestImage(storageClient, imageBlob, mimeType, url, sendMessage);
     } else {
       throw new Error(`No handler for content type ${contentTypeHeader}`);
     }

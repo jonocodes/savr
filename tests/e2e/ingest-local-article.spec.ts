@@ -681,6 +681,168 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("\n🎉 PDF ingestion test completed successfully!\n");
   });
 
+  test("should verify content server is serving markdown file", async ({ page }) => {
+    console.log("🔍 Verifying markdown file is accessible on content server...");
+
+    const testUrl = `${getContentServerUrl()}/input/sample-markdown/README.md`;
+
+    // Fetch the markdown to verify it's accessible
+    const response = await page.request.get(testUrl);
+
+    // Verify response is successful
+    expect(response.status()).toBe(200);
+    console.log("✅ Content server responded with 200");
+
+    // Verify content type is text (markdown is served as text/markdown or text/plain)
+    const contentType = response.headers()["content-type"];
+    expect(contentType).toMatch(/text\/(markdown|plain)/);
+    console.log("✅ Content-Type is text:", contentType);
+
+    // Verify we got actual content
+    const body = await response.text();
+    expect(body.length).toBeGreaterThan(100);
+    expect(body).toContain("#"); // Markdown typically has headers
+    console.log("✅ Markdown file has content, size:", body.length, "bytes");
+
+    console.log("\n🎉 Markdown content server verification completed!\n");
+  });
+
+  test("should ingest markdown from local server and display it", async ({ page }) => {
+    // 1. Open add article dialog
+    console.log("1️⃣  Opening add article dialog...");
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    // 2. Wait for dialog
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+    console.log("✅ Dialog opened");
+
+    // 3. Enter local markdown URL
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/sample-markdown/README.md`;
+    console.log("2️⃣  Entering URL:", testUrl);
+    await urlInput.fill(testUrl);
+    await expect(urlInput).toHaveValue(testUrl);
+
+    // 4. Submit form
+    console.log("3️⃣  Submitting form...");
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    // 5. Wait for dialog to close (ingestion started)
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+    console.log("✅ Dialog closed, ingestion started");
+
+    // 6. Wait for article to appear in list
+    console.log("4️⃣  Waiting for markdown article to appear in list...");
+    // The title is extracted by Readability from the markdown content
+    // The README.md contains "# StashCast Deployment Guide" as the first heading
+    const articleTitle = page.getByText(/StashCast Deployment Guide/i);
+    await expect(articleTitle.first()).toBeVisible({ timeout: 60000 });
+    console.log("✅ Markdown article appeared in list");
+
+    // 7. Verify article was saved to IndexedDB
+    console.log("5️⃣  Verifying article in IndexedDB...");
+    const article = await getArticleFromDB(page, "stashcast-deployment-guide");
+    expect(article).toBeTruthy();
+    console.log("✅ Article verified in IndexedDB:", article?.title, "mimeType:", article?.mimeType);
+
+    console.log("\n🎉 Markdown ingestion test completed successfully!\n");
+  });
+
+  test("should verify content server is serving image file", async ({ page }) => {
+    console.log("🔍 Verifying image file is accessible on content server...");
+
+    const testUrl = `${getContentServerUrl()}/input/sample-image/header-transparent.png`;
+
+    // Fetch the image to verify it's accessible
+    const response = await page.request.get(testUrl);
+
+    // Verify response is successful
+    expect(response.status()).toBe(200);
+    console.log("✅ Content server responded with 200");
+
+    // Verify content type is image/png
+    const contentType = response.headers()["content-type"];
+    expect(contentType).toContain("image/png");
+    console.log("✅ Content-Type is image/png");
+
+    // Verify we got actual data
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(1000);
+    console.log("✅ Image file has content, size:", body.length, "bytes");
+
+    console.log("\n🎉 Image content server verification completed!\n");
+  });
+
+  test("should ingest image from local server and display it", async ({ page }) => {
+    // 1. Open add article dialog
+    console.log("1️⃣  Opening add article dialog...");
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    // 2. Wait for dialog
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+    console.log("✅ Dialog opened");
+
+    // 3. Enter local image URL
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/sample-image/header-transparent.png`;
+    console.log("2️⃣  Entering URL:", testUrl);
+    await urlInput.fill(testUrl);
+    await expect(urlInput).toHaveValue(testUrl);
+
+    // 4. Submit form
+    console.log("3️⃣  Submitting form...");
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    // 5. Wait for dialog to close (ingestion started)
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+    console.log("✅ Dialog closed, ingestion started");
+
+    // 6. Wait for article to appear in list
+    console.log("4️⃣  Waiting for image article to appear in list...");
+    // The title should be extracted from the filename: "header transparent"
+    const articleTitle = page.getByText(/header transparent/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ Image article appeared in list");
+
+    // 7. Verify article was saved to IndexedDB with image mimeType
+    console.log("5️⃣  Verifying article in IndexedDB...");
+    const article = await getArticleFromDB(page, "header-transparent");
+    expect(article).toBeTruthy();
+    expect(article?.slug).toBe("header-transparent");
+    expect(article?.mimeType).toBe("image/png");
+    console.log("✅ Article verified in IndexedDB:", article?.title, "mimeType:", article?.mimeType);
+
+    // 8. Navigate to article page
+    console.log("6️⃣  Navigating to article page...");
+    await page.goto("/article/header-transparent");
+    await page.waitForLoadState("networkidle");
+
+    // 9. Verify image is displayed
+    console.log("7️⃣  Verifying image is displayed...");
+    const img = page.locator('img[alt*="header transparent" i]');
+    await expect(img).toBeVisible({ timeout: 10000 });
+    console.log("✅ Image is visible");
+
+    // Verify image has a blob URL src (indicating image was loaded from storage)
+    const imgSrc = await img.getAttribute("src");
+    expect(imgSrc).toMatch(/^blob:/);
+    console.log("✅ Image has blob URL src");
+
+    console.log("\n🎉 Image ingestion test completed successfully!\n");
+  });
+
   test.afterEach(async ({ page }) => {
     // Clean up: delete test article from RemoteStorage and IndexedDB
     console.log("🧹 Cleaning up test articles...");
@@ -699,6 +861,12 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
       // Clean up PDF article
       await deleteArticleFromStorage(page, "invoicesample");
       await deleteArticleFromDB(page, "invoicesample");
+      // Clean up markdown article
+      await deleteArticleFromStorage(page, "stashcast-deployment-guide");
+      await deleteArticleFromDB(page, "stashcast-deployment-guide");
+      // Clean up image article
+      await deleteArticleFromStorage(page, "header-transparent");
+      await deleteArticleFromDB(page, "header-transparent");
       console.log("✅ Cleanup completed\n");
     } catch (error) {
       console.log("⚠️ Cleanup error (non-fatal):", error);

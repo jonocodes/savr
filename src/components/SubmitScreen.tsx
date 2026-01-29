@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState, useMemo } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import {
@@ -22,8 +22,9 @@ import {
   MenuItem,
   Chip,
   Collapse,
+  Tooltip,
 } from "@mui/material";
-import { ArrowBack as ArrowBackIcon, Preview as PreviewIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from "@mui/icons-material";
+import { ArrowBack as ArrowBackIcon, Preview as PreviewIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, UploadFile as UploadFileIcon } from "@mui/icons-material";
 import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
@@ -41,7 +42,7 @@ import {
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { ingestHtml } from "lib/src/ingestion";
+import { ingestHtml, ingestPdf, ingestImage } from "lib/src/ingestion";
 import type { Article } from "lib/src/models";
 import {
   detectContentType,
@@ -64,6 +65,10 @@ export default function SubmitScreen() {
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [showPreview, setShowPreview] = useState(true);
+  const [uploadedFileName, setUploadedFileName] = useState<string | null>(null);
+
+  // File input ref
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Compute the effective content type (detected or manually selected)
   const effectiveContentType = useMemo(() => {
@@ -206,6 +211,131 @@ export default function SubmitScreen() {
     ],
   );
 
+  // Handle file upload
+  const handleFileUpload = useCallback(
+    async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+
+      const fileName = file.name.toLowerCase();
+      const isPdf = fileName.endsWith(".pdf");
+      const isImage = /\.(jpg|jpeg|png|gif|webp)$/.test(fileName);
+
+      if (isPdf) {
+        // Handle PDF files directly - ingest them without showing in textarea
+        setIngestStatus("Ingesting PDF...");
+        setUploadedFileName(file.name);
+        try {
+          const article = await ingestPdf(
+            client,
+            file,
+            `file://${file.name}`,
+            (percent: number | null, message: string | null) => {
+              if (percent !== null) {
+                setIngestStatus(message);
+                setIngestPercent(percent);
+              }
+            }
+          );
+
+          await db.articles.put(article);
+
+          setTimeout(() => {
+            setIngestStatus(null);
+            setIngestPercent(0);
+            setUploadedFileName(null);
+            navigate({ to: "/" });
+          }, 1500);
+        } catch (error) {
+          console.error("Error ingesting PDF:", error);
+          enqueueSnackbar("Error uploading PDF file", { variant: "error" });
+          setIngestStatus(null);
+          setIngestPercent(0);
+          setUploadedFileName(null);
+        }
+      } else if (isImage) {
+        // Handle image files directly - ingest them without showing in textarea (like PDFs)
+        setIngestStatus("Ingesting image...");
+        setUploadedFileName(file.name);
+
+        // Determine MIME type from extension
+        const ext = fileName.split(".").pop() || "";
+        const mimeTypeMap: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
+        };
+        const mimeType = mimeTypeMap[ext] || "image/jpeg";
+
+        try {
+          const article = await ingestImage(
+            client,
+            file,
+            mimeType,
+            `file://${file.name}`,
+            (percent: number | null, message: string | null) => {
+              if (percent !== null) {
+                setIngestStatus(message);
+                setIngestPercent(percent);
+              }
+            }
+          );
+
+          await db.articles.put(article);
+
+          setTimeout(() => {
+            setIngestStatus(null);
+            setIngestPercent(0);
+            setUploadedFileName(null);
+            navigate({ to: "/" });
+          }, 1500);
+        } catch (error) {
+          console.error("Error ingesting image:", error);
+          enqueueSnackbar("Error uploading image file", { variant: "error" });
+          setIngestStatus(null);
+          setIngestPercent(0);
+          setUploadedFileName(null);
+        }
+      } else {
+        // Handle text files (HTML, MD, TXT) - read and show in textarea
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const text = e.target?.result as string;
+          setContent(text);
+          setUploadedFileName(file.name);
+
+          // Auto-detect content type based on file extension
+          if (fileName.endsWith(".html") || fileName.endsWith(".htm")) {
+            setContentType("text/html");
+            setDetectedType("text/html");
+          } else if (fileName.endsWith(".md") || fileName.endsWith(".markdown")) {
+            setContentType("text/markdown");
+            setDetectedType("text/markdown");
+          } else if (fileName.endsWith(".txt")) {
+            setContentType("text/plain");
+            setDetectedType("text/plain");
+          } else {
+            // Fallback to auto-detect from content
+            setContentType("auto");
+            setDetectedType(detectContentType(text));
+          }
+        };
+        reader.onerror = () => {
+          enqueueSnackbar("Error reading file", { variant: "error" });
+        };
+        reader.readAsText(file);
+      }
+
+      // Reset file input so the same file can be uploaded again
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    },
+    [client, enqueueSnackbar, navigate]
+  );
+
   const handleTestSummary = async () => {
     if (!content.trim()) {
       enqueueSnackbar("Please enter some content first", { variant: "warning" });
@@ -297,11 +427,70 @@ export default function SubmitScreen() {
         </Toolbar>
       </AppBar>
 
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: "none" }}
+        accept=".html,.htm,.md,.markdown,.txt,.pdf,.jpg,.jpeg,.png,.gif,.webp"
+        onChange={handleFileUpload}
+      />
+
       {/* Content */}
       <Container maxWidth="md" sx={{ mt: 2 }}>
-        <Typography variant="body1" gutterBottom>
-          Paste your content here (HTML, Markdown, or plain text)
-        </Typography>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
+          <Typography variant="body1">
+            Paste content or upload a file
+          </Typography>
+          <Tooltip
+            title={
+              <Box sx={{ p: 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Supported formats:</Typography>
+                <Typography variant="body2">• HTML (.html, .htm)</Typography>
+                <Typography variant="body2">• Markdown (.md)</Typography>
+                <Typography variant="body2">• Plain text (.txt)</Typography>
+                <Typography variant="body2">• PDF (.pdf)</Typography>
+                <Typography variant="body2">• Images (.jpg, .png, .gif, .webp)</Typography>
+              </Box>
+            }
+            arrow
+            placement="bottom-end"
+          >
+            <Button
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={ingestStatus !== null}
+              size="small"
+            >
+              Upload File
+            </Button>
+          </Tooltip>
+        </Box>
+
+        {/* Show uploaded file name */}
+        {uploadedFileName && !ingestStatus && (
+          <Chip
+            label={`File: ${uploadedFileName}`}
+            onDelete={() => {
+              setUploadedFileName(null);
+              setContent("");
+              setDetectedType(null);
+            }}
+            size="small"
+            sx={{ mb: 1 }}
+          />
+        )}
+
+        {/* Binary file upload progress (PDF, images) */}
+        {ingestStatus && uploadedFileName && (
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              {ingestStatus} - {uploadedFileName}
+            </Typography>
+            <LinearProgress variant="determinate" value={ingestPercent} />
+          </Box>
+        )}
 
         {/* Content Type Selector */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2, flexWrap: "wrap" }}>
