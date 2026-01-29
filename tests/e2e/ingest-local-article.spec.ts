@@ -30,6 +30,8 @@ try {
 }
 
 test.describe("Local Article Ingestion via RemoteStorage", () => {
+  // Run tests serially to avoid conflicts with shared RemoteStorage state
+  test.describe.configure({ mode: "serial" });
   // These tests involve article ingestion which can take 60+ seconds
   test.setTimeout(120000); // 2 minutes
 
@@ -234,7 +236,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 6. Verify article reappears in list
     console.log("6️⃣  Verifying article reappeared in list...");
     // Re-query the locator after navigation to ensure fresh lookup
-    const articleTitleAfterReconnect = page.getByText(/Test Article|Local Ingestion/i);
+    // Use specific text to avoid matching other test articles like "Test Article for Persistence"
+    const articleTitleAfterReconnect = page.getByText("Test Article for Local Ingestion");
     await expect(articleTitleAfterReconnect).toBeVisible({ timeout: 15000 });
     console.log("✅ Article reappeared after reconnect");
 

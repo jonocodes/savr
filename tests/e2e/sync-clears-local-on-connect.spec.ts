@@ -178,6 +178,8 @@ async function storeArticleToRemoteStorage(
 }
 
 test.describe("Sync Clears Local Articles on Connect", () => {
+  // Run tests serially to avoid conflicts with shared RemoteStorage state
+  test.describe.configure({ mode: "serial" });
   test.setTimeout(120000); // 2 minutes
 
   test("should clear local articles and replace with remote articles when connecting", async ({

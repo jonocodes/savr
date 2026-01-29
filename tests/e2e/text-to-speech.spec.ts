@@ -28,6 +28,9 @@ try {
 }
 
 test.describe("Text to Speech Feature", () => {
+  // Run tests serially to avoid conflicts with shared RemoteStorage state
+  test.describe.configure({ mode: "serial" });
+
   test.beforeEach(async ({ page }) => {
     // Navigate to app
     await page.goto("/");
@@ -162,8 +165,8 @@ test.describe("Text to Speech Feature", () => {
     const ttsButton = page.getByTestId("tts-button");
     await ttsButton.click();
 
-    // Verify voice selection is visible
-    const voiceLabel = page.getByText("Voice");
+    // Verify voice selection is visible (use first() since label appears twice in MUI)
+    const voiceLabel = page.getByText("Voice").first();
     await expect(voiceLabel).toBeVisible({ timeout: 5000 });
 
     // Verify select dropdown exists
