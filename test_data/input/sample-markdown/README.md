@@ -1,394 +1,470 @@
-<p align="center">
-  <img src="./docs/header-transparent.png" alt="StashCast header" width="80%">
-</p>
+# StashCast Deployment Guide
 
-<p align="center">
-  <a href="https://github.com/jonocodes/stashcast/actions/workflows/tests.yml">
-    <img src="https://github.com/jonocodes/stashcast/actions/workflows/tests.yml/badge.svg" alt="CI">
-  </a>
-  <a href="http://makeapullrequest.com">
-    <img src="https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square" alt="PRs Welcome">
-  </a>
-  <a href="https://www.gnu.org/licenses/gpl-3.0">
-    <img src="https://img.shields.io/badge/License-GPLv3-blue.svg" alt="License: GPL v3">
-  </a>
-</p>
+## Deploying with cPanel
 
-StashCast is an application for downloading online media (audio/video) for offline consumption and exposing it via podcast feeds, so you can watch it later. It runs as a single user Django web app.
+cPanel provides a "Setup Python App" interface that makes deployment simpler. Here's how to deploy StashCast on cPanel:
 
-## Demo
+### Step 1: Create Python Application in cPanel
 
-Demo instance running here:
-https://demo.stashcast.dgt.is/
+1. **Log into cPanel** and find "Setup Python App" (under Software section)
 
-The user is 'demo' and the password is 'demo' spelled backwards. The demo user can not add/remove/update content.
+2. **Create a new application:**
+   - Python version: 3.13 (or highest available, minimum 3.11)
+   - Application root: `/home/username/stashcast` (or your preferred path)
+   - Application URL: Choose your domain/subdomain
+   - Application startup file: `passenger_wsgi.py`
+   - Application Entry point: `application`
 
+3. **Click "Create"** - cPanel will create a virtual environment automatically
 
-## Motivation
+### Step 2: Upload and Install Application
 
-I created this since friends and family often send me links to listen to a single episode of a podcast via Apple Podcasts, or a single lecture on youtube. I don't want to subscribe to the show to listen to a single eposide, but I do want to listen to it - later.
+1. **Upload the application:**
+   - Use File Manager or FTP to upload all StashCast files to the Application root directory
+   - Or use Git if available: `git clone https://github.com/yourusername/stashcast.git`
 
-## Features
-
-- Download media from any URL supported by yt-dlp, direct media URLs, HTML with embedded media, playlists, multiple embeds
-- **Multi-language support** - UI and video subtitles in your preferred language (see [i18n docs](docs/INTERNATIONALIZATION.md))
-- Async background processing via task queue
-- Automatic media type detection (audio/video)
-- Podcast feed generation (RSS/Atom) for audio and video
-- Optional transcoding via ffmpeg
-- Extractive summarization from subtitles
-- Bookmarklet for one-click media ingestion
-- Admin interface for managing downloads
-- Django commands for management via CLI instead of web
-
-### Non-features
-
-- Downloading non audio/video content. For that you may check out our sister project [Savr](https://github.com/jonocodes/savr).
-- Only downloading youtube videos. yt-dlp supports thousands of of different websites.
-- Subscribing to playlists. For that you could checkout [TubeSync](https://github.com/meeb/tubesync) or [Podsync](https://github.com/mxpv/podsync).
-- Long term archiving. While this may work for you there are other tools perhaps more suited for this. See [ArchiveBox](https://github.com/ArchiveBox/ArchiveBox) or [Tube Archivist](https://github.com/tubearchivist/tubearchivist)
-- A playback tool. The grid and list view are good ways to view your content, but StashCast's best experience would be to use a Podcast app for playback.
-
-
-## Grid view screenshot
-
-![screenshot](./docs/screenshot-grid-view.png)
-
-## Requirements
-
-- Python 3.12+
-- yt-dlp
-- ffmpeg
-
-### For development
-
-- just
-- ruff
-- gettext
-- docker
-
-
-## Run in docker
-
-Start the service.
-
-```bash
-docker compose up
-```
-
-Set up the db and create a super user
-
-```bash
-docker compose run web just setup
-docker compose run web python manage.py createsuperuser
-```
-
-Now visit http://localhost:8000
-
-
-## Installation (without docker)
-
-### 1. Set up environment
-
-First install yt-dlp and ffmpeg to your system however you need to, probably using your package manager.
-
-```bash
-
-# Create and activate virtual environment
-python -m venv venv
-source venv/bin/activate
-```
-
-### 2. Configure environment variables (optional)
-
-```bash
-# Copy example environment file
-cp .env.example .env
-
-# Edit .env and set your values
-# At minimum, set:
-# - STASHCAST_DATA_DIR (base path; media is stored in STASHCAST_DATA_DIR/media)
-# - STASHCAST_USER_TOKEN
-# - LANGUAGE_CODE (optional, default: 'en-us'. Sets UI language and video subtitle language)
-#   Supported: 'en' (English), 'es' (Spanish), 'pt' (Portuguese)
-```
-
-### 3. Download the dependencies and setup the db
-
-```bash
-just setup-with-packages
-```
-
-### 4. Create an admin user (required)
-
-```bash
-./manage.py createsuperuser
-```
-
-### 5. Run the application
-
-**Option A: Quick Start (all services in one terminal)**
-
-```bash
-just dev
-```
-
-This starts Django server (8000), Huey worker, and test server (8001) all at once.
-
-**Option B: Manual (separate terminals)**
-
-You need to run three processes:
-
-```bash
-# Terminal 1: Django development server
-./manage.py runserver
-
-# Terminal 2: Huey worker (for background tasks)
-./manage.py run_huey
-
-# Terminal 3: Test media server (optional, for testing)
-python test_server.py
-```
-
-## Usage
-
-### Admin Interface
-
-Access the admin at `http://localhost:8000/admin/`
-
-- View and manage media items
-- Monitor download status
-- Re-fetch failed downloads
-- Regenerate summaries
-- View logs
-
-### Bookmarklet
-
-1. Go to `http://localhost:8000/admin/tools/bookmarklet/`
-2. Drag the bookmarklet to your bookmarks bar
-3. Click it on any page with media to stash
-
-### API Endpoint
-
-```bash
-# Stash a URL
-curl "http://localhost:8000/stash/?token=YOUR_USER_TOKEN&url=https://example.com/video&type=auto"
-```
-
-Parameters:
-
-- `token` (required): Your user token
-- `url` (required): URL to download
-- `type` (required): `auto`, `audio`, or `video`
-
-### Podcast Feeds
-
-- Audio feed: `http://localhost:8000/feeds/audio.xml`
-- Video feed: `http://localhost:8000/feeds/video.xml`
-- Combined feed: `http://localhost:8000/feeds/combined.xml`
-
-Add these URLs to your podcast app (AntennaPod, Overcast, etc.)
-
-#### Optional: Private Feeds with User Token Protection
-
-By default, RSS feeds are publicly accessible. To require a user token for feed access (keeping your listening activity private):
-
-1. Set the environment variable in your `.env` file:
+2. **Enter the virtual environment** (in cPanel Terminal or SSH):
    ```bash
-   REQUIRE_USER_TOKEN_FOR_FEEDS=true
+   cd ~/stashcast
+   source /home/username/virtualenv/stashcast/3.13/bin/activate  # Path shown in cPanel
    ```
 
-2. Restart the service
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-3. Feed URLs must now include your user token:
-   - Audio feed: `http://localhost:8000/feeds/audio.xml?token=YOUR_USER_TOKEN`
-   - Video feed: `http://localhost:8000/feeds/video.xml?token=YOUR_USER_TOKEN`
-   - Combined feed: `http://localhost:8000/feeds/combined.xml?token=YOUR_USER_TOKEN`
+4. **Install system dependencies:**
+   - Contact your hosting provider to ensure `yt-dlp` and `ffmpeg` are installed system-wide
+   - Or install in your home directory if you have SSH access:
+   ```bash
+   # Install yt-dlp in user space
+   pip install yt-dlp
 
-The home page and bookmarklet page will display the current protection status and automatically show feed URLs with the user token when enabled.
+   # For ffmpeg, you may need to contact support or use a static build
+   ```
 
-**Note:** All major podcast apps support query parameters in feed URLs (this is how services like Patreon and Supercast provide private feeds).
+### Step 3: Configure Environment Variables
 
-### Test Server
+1. **In cPanel Python App interface**, click "Edit" on your application
 
-The test server serves files from `demo_data/` directory on `http://localhost:8001/`
+2. **Add environment variables** in the "Environment variables" section:
+   ```
+   DJANGO_SECRET_KEY=your-secret-key-here
+   STASHCAST_USER_TOKEN=your-user-token-here
+   STASHCAST_DATA_DIR=/home/username/stashcast_data
+   DEBUG=False
+   ALLOWED_HOSTS=yourdomain.com,www.yourdomain.com
+   ```
 
-To add test media files:
+3. **Save changes** and restart the application
 
-```bash
-# Add your test files to demo_data/
-cp /path/to/test.mp3 demo_data/
-cp /path/to/test.mp4 demo_data/
-```
+### Step 4: Set Up the Database
 
-Then test stashing them:
-
-```bash
-# Stash a direct video file
-curl "http://localhost:8000/stash/?token=dev-user-token-change-in-production&url=http://localhost:8001/pecha-kucha-vid/vid.mp4&type=auto"
-
-# Stash from HTML page with embedded video (StashCast will extract the video automatically)
-curl "http://localhost:8000/stash/?token=dev-user-token-change-in-production&url=http://localhost:8001/pecha-kucha-vid/view.html&type=auto"
-```
-
-Your current test files:
-
-- Audio (direct): `http://localhost:8001/pecha-kucha-aud/aud.mp3`
-- Video (direct): `http://localhost:8001/pecha-kucha-vid/vid.mp4`
-- Video (HTML page): `http://localhost:8001/pecha-kucha-vid/view.html` - Example of extracting embedded media from HTML
-
-### Stash Command
-
-Download media and add it to your podcast feed (same as web interface but runs in foreground):
+In cPanel Terminal or SSH:
 
 ```bash
-# Stash a direct media URL
-./manage.py stash https://example.com/video.mp4
+cd ~/stashcast
+source /home/username/virtualenv/stashcast/3.13/bin/activate
 
-# Stash from HTML page with embedded media (auto-extracts video/audio)
-./manage.py stash http://localhost:8001/pecha-kucha-vid/view.html
+# Create data directory
+mkdir -p ~/stashcast_data/media
 
-# Specify media type (default: auto)
-./manage.py stash https://example.com/audio.mp3 --type audio
+# Run migrations
+python manage.py migrate
 
-# Verbose output (shows all processing steps)
-./manage.py stash https://example.com/video.mp4 --verbose
+# Create superuser
+python manage.py createsuperuser
 
-# JSON output (machine-readable)
-./manage.py stash https://example.com/video.mp4 --json
+# Collect static files
+python manage.py collectstatic --noinput
 ```
 
-This command performs the same pipeline as the web app's `/stash/` endpoint but runs synchronously in the foreground. Supports direct media URLs, yt-dlp compatible URLs, and HTML pages with embedded media. Files are saved to the configured media directories and added to your podcast feeds.
+### Step 5: Configure Static and Media Files
 
-### Fetch Command
+1. **In cPanel Python App**, the static files should be automatically served if collected to `staticfiles/`
 
-Fetch media from URLs or local files to a custom output directory:
+2. **For media files**, you may need to create a symlink or configure Apache:
+
+   Option A: Create symlink in public_html (if using subdomain):
+   ```bash
+   cd ~/public_html/stashcast  # or your subdomain directory
+   ln -s ~/stashcast/staticfiles static
+   ln -s ~/stashcast_data/media media
+   ```
+
+   Option B: Use .htaccess (in public_html or subdomain root):
+   ```apache
+   # Serve static files
+   Alias /static /home/username/stashcast/staticfiles
+   <Directory /home/username/stashcast/staticfiles>
+       Require all granted
+   </Directory>
+
+   # Serve media files
+   Alias /media/files /home/username/stashcast_data/media
+   <Directory /home/username/stashcast_data/media>
+       Require all granted
+   </Directory>
+   ```
+
+### Step 6: Set Up Background Worker (Huey)
+
+**IMPORTANT:** Background tasks require a separate process. Contact your hosting provider about:
+
+1. **Cron jobs** - Can run Huey worker via cron (less ideal):
+   ```bash
+   # Add to crontab (cPanel > Cron Jobs)
+   # Run every minute
+   * * * * * cd ~/stashcast && source /home/username/virtualenv/stashcast/3.13/bin/activate && python manage.py run_huey --no-periodic >> ~/huey.log 2>&1
+   ```
+
+2. **Background process** - Some cPanel hosts allow persistent processes:
+   - Contact support to enable
+   - May require VPS or dedicated server
+   - Alternative: Use Django Q or Celery with Redis if available
+
+3. **Limitations:** If background workers aren't available:
+   - Media processing won't happen automatically
+   - You can manually process items using: `./manage.py stash <url>` via SSH
+   - Consider upgrading to VPS for full functionality
+
+### Step 7: Restart the Application
+
+In cPanel Python App interface:
+- Click "Restart" button
+- Or use command: `touch /home/username/stashcast/tmp/restart.txt`
+
+### Troubleshooting cPanel Deployment
+
+1. **Application won't start:**
+   - Check error logs in cPanel > Python App > "View log"
+   - Verify all environment variables are set
+   - Ensure `passenger_wsgi.py` is in the application root
+
+2. **Static files not loading:**
+   - Run `python manage.py collectstatic --noinput`
+   - Check file permissions: `chmod -R 755 ~/stashcast/staticfiles`
+   - Verify symlinks or .htaccess configuration
+
+3. **Media files not serving:**
+   - Check STASHCAST_DATA_DIR path is correct
+   - Verify directory permissions: `chmod -R 755 ~/stashcast_data`
+   - Ensure web server can read the directory
+
+4. **Background tasks not working:**
+   - Check if Huey worker is running (cron or persistent process)
+   - View Huey logs: `tail -f ~/huey.log`
+   - May need to contact hosting provider for support
+
+5. **Permission errors:**
+   - Ensure application files are owned by your user
+   - Check that data directory is writable
+   - Fix permissions: `chmod -R 755 ~/stashcast`
+
+### cPanel Production Checklist
+
+- [ ] Python app created in cPanel
+- [ ] All dependencies installed (`requirements.txt`)
+- [ ] Environment variables configured
+- [ ] Database migrations run (`migrate`)
+- [ ] Superuser created (`createsuperuser`)
+- [ ] Static files collected (`collectstatic`)
+- [ ] Static files accessible via web
+- [ ] Media files accessible via web
+- [ ] Background worker configured (cron or persistent)
+- [ ] Application restarted
+- [ ] HTTPS enabled (SSL certificate in cPanel)
+- [ ] Backups configured
+
+### cPanel Limitations
+
+cPanel shared hosting has some limitations:
+
+1. **Background workers** may not be fully supported
+2. **System commands** (yt-dlp, ffmpeg) may need provider installation
+3. **Resource limits** (CPU, memory) may affect large media files
+4. **Process restrictions** may limit concurrent downloads
+
+**Recommendation:** For full StashCast functionality, consider:
+- VPS or dedicated server
+- Cloud hosting (DigitalOcean, Linode, AWS)
+- PaaS platforms that support background workers
+
+---
+
+## Deploying with Passenger (Apache/Nginx)
+
+### Prerequisites
+
+- Python 3.13+
+- Passenger (mod_passenger for Apache or Passenger for Nginx)
+- yt-dlp installed system-wide
+- ffmpeg installed system-wide
+- Access to your web server configuration
+
+### Step 1: Prepare the Application
+
+1. **Clone the repository to your server:**
+   ```bash
+   cd /var/www/
+   git clone https://github.com/yourusername/stashcast.git
+   cd stashcast
+   ```
+
+2. **Create and activate a virtual environment:**
+   ```bash
+   python3 -m venv venv
+   source venv/bin/activate
+   ```
+
+3. **Install dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+4. **Configure environment variables:**
+   ```bash
+   cp .env.example .env
+   # Edit .env and set:
+   # - STASHCAST_DATA_DIR (e.g., /var/www/stashcast/data)
+   # - STASHCAST_USER_TOKEN (generate a secure random key)
+   # - DJANGO_SECRET_KEY (generate a secure random key)
+   # - DEBUG=False
+   # - ALLOWED_HOSTS (your domain name)
+   ```
+
+5. **Run database migrations:**
+   ```bash
+   ./manage.py migrate
+   ```
+
+6. **Create a superuser:**
+   ```bash
+   ./manage.py createsuperuser
+   ```
+
+7. **Collect static files:**
+   ```bash
+   ./manage.py collectstatic --noinput
+   ```
+   This creates a `staticfiles/` directory with all static assets.
+
+### Step 2: Configure Apache with Passenger
+
+Create an Apache virtual host configuration (e.g., `/etc/apache2/sites-available/stashcast.conf`):
+
+```apache
+<VirtualHost *:80>
+    ServerName stashcast.example.com
+    DocumentRoot /var/www/stashcast/public
+
+    # Point Passenger to the WSGI file
+    PassengerPython /var/www/stashcast/venv/bin/python
+    PassengerAppRoot /var/www/stashcast
+
+    # Serve static files directly (bypass Django)
+    Alias /static /var/www/stashcast/staticfiles
+    <Directory /var/www/stashcast/staticfiles>
+        Require all granted
+    </Directory>
+
+    # Serve media files directly (bypass Django)
+    Alias /media/files /var/www/stashcast/data/media
+    <Directory /var/www/stashcast/data/media>
+        Require all granted
+    </Directory>
+
+    # All other requests go through the WSGI application
+    <Directory /var/www/stashcast>
+        Require all granted
+        Options -MultiViews
+        AllowOverride None
+    </Directory>
+
+    # Environment variables
+    SetEnv DJANGO_SETTINGS_MODULE stashcast.settings
+
+    # Load environment variables from .env file
+    # Note: You may need to set these explicitly or use PassengerEnvVar
+    # PassengerEnvVar STASHCAST_USER_TOKEN "your-user-token-here"
+    # PassengerEnvVar STASHCAST_DATA_DIR "/var/www/stashcast/data"
+
+    # Error and access logs
+    ErrorLog ${APACHE_LOG_DIR}/stashcast-error.log
+    CustomLog ${APACHE_LOG_DIR}/stashcast-access.log combined
+</VirtualHost>
+```
+
+Enable the site:
+```bash
+sudo a2ensite stashcast
+sudo systemctl reload apache2
+```
+
+### Step 3: Configure Nginx with Passenger (Alternative)
+
+If using Nginx, create a server block (e.g., `/etc/nginx/sites-available/stashcast`):
+
+```nginx
+server {
+    listen 80;
+    server_name stashcast.example.com;
+
+    root /var/www/stashcast/public;
+
+    # Passenger configuration
+    passenger_enabled on;
+    passenger_python /var/www/stashcast/venv/bin/python;
+    passenger_app_root /var/www/stashcast;
+    passenger_startup_file passenger_wsgi.py;
+    passenger_app_type wsgi;
+
+    # Environment variables
+    passenger_env_var DJANGO_SETTINGS_MODULE stashcast.settings;
+    # passenger_env_var STASHCAST_USER_TOKEN "your-user-token-here";
+    # passenger_env_var STASHCAST_DATA_DIR "/var/www/stashcast/data";
+
+    # Serve static files directly
+    location /static/ {
+        alias /var/www/stashcast/staticfiles/;
+        expires 30d;
+        access_log off;
+    }
+
+    # Serve media files directly
+    location /media/files/ {
+        alias /var/www/stashcast/data/media/;
+        expires 7d;
+    }
+
+    # Error pages
+    error_page 500 502 503 504 /50x.html;
+    location = /50x.html {
+        root /usr/share/nginx/html;
+    }
+}
+```
+
+Enable the site:
+```bash
+sudo ln -s /etc/nginx/sites-available/stashcast /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl reload nginx
+```
+
+### Step 4: Set Up the Huey Worker
+
+The Huey worker processes background tasks (downloads, transcoding, etc.) and must run separately from the web application.
+
+Create a systemd service file `/etc/systemd/system/stashcast-huey.service`:
+
+```ini
+[Unit]
+Description=StashCast Huey Worker
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/stashcast
+Environment="PATH=/var/www/stashcast/venv/bin"
+EnvironmentFile=/var/www/stashcast/.env
+ExecStart=/var/www/stashcast/venv/bin/python /var/www/stashcast/manage.py run_huey
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable and start the worker:
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable stashcast-huey
+sudo systemctl start stashcast-huey
+sudo systemctl status stashcast-huey
+```
+
+### Step 5: Set File Permissions
 
 ```bash
+# Make sure the web server can write to the data directory
+sudo chown -R www-data:www-data /var/www/stashcast/data
+sudo chmod -R 755 /var/www/stashcast/data
 
-# Fetch from a direct URL
-./manage.py fetch https://example.com/video.mp4 --outdir ./output
-
-# Fetch from HTML page with embedded media
-./manage.py fetch http://localhost:8001/pecha-kucha-vid/view.html --outdir ./output
-
-# Fetch from a local file
-./manage.py fetch /path/to/video.mp4 --outdir ./output
-
-# The output file will be named using a slug generated from the title
-# For example, "My Video.mp4" becomes "my-video.mp4"
-
-# Specify media type (default: auto)
-./manage.py fetch https://example.com/media --type audio
-
-# Verbose output
-./manage.py fetch https://example.com/video.mp4 --verbose
-
-# JSON output
-./manage.py fetch https://example.com/video.mp4 --json
+# Make sure the application files are readable
+sudo chown -R www-data:www-data /var/www/stashcast
 ```
 
-This command is for standalone fetching without adding to podcast feeds. Supports the same URL types as the stash command (direct media, yt-dlp URLs, and HTML pages with embedded media).
+### Step 6: Enable HTTPS (Recommended)
 
-### Summarize Command
-
-Generate summaries from VTT subtitle files:
+Use Let's Encrypt with certbot:
 
 ```bash
-# Summarize a local VTT file
-./manage.py summarize demo_data/carpool/subtitles.vtt
+sudo apt install certbot python3-certbot-apache  # For Apache
+# OR
+sudo apt install certbot python3-certbot-nginx   # For Nginx
 
-# Summarize from a URL
-./manage.py summarize http://example.com/subtitles.vtt
-
-# Custom number of sentences (default: 3)
-./manage.py summarize demo_data/carpool/subtitles.vtt --sentences 5
-
-# Different algorithms: lexrank (default), textrank, luhn
-./manage.py summarize demo_data/carpool/subtitles.vtt --algorithm luhn
+# Generate certificate
+sudo certbot --apache -d stashcast.example.com   # For Apache
+# OR
+sudo certbot --nginx -d stashcast.example.com    # For Nginx
 ```
 
-### Cleanup Command
+### Troubleshooting
 
-Clean up abandoned tmp directories from failed downloads:
+1. **Static files not loading:**
+   - Verify `./manage.py collectstatic` was run
+   - Check Apache/Nginx configuration for the `/static` alias
+   - Check file permissions on `staticfiles/` directory
 
-```bash
-# Show what would be deleted (dry run)
-./manage.py cleanup_tmp --dry-run
+2. **Application errors:**
+   - Check logs: `sudo tail -f /var/log/apache2/stashcast-error.log`
+   - Or for Nginx: `sudo tail -f /var/log/nginx/error.log`
+   - Check Passenger logs: `sudo passenger-status`
 
-# Delete tmp directories older than 60 minutes (default)
-./manage.py cleanup_tmp
+3. **Background tasks not running:**
+   - Check Huey worker status: `sudo systemctl status stashcast-huey`
+   - Check worker logs: `sudo journalctl -u stashcast-huey -f`
 
-# Delete tmp directories older than 24 hours
-./manage.py cleanup_tmp --max-age 1440
+4. **Permission denied errors:**
+   - Ensure www-data user can write to `STASHCAST_DATA_DIR`
+   - Check file ownership and permissions
 
-# Delete without confirmation prompt
-./manage.py cleanup_tmp --force
-```
+### Maintenance
 
-See `EXAMPLES.md` for more usage examples.
+- **Update the application:**
+  ```bash
+  cd /var/www/stashcast
+  git pull
+  source venv/bin/activate
+  pip install -r requirements.txt
+  ./manage.py migrate
+  ./manage.py collectstatic --noinput
+  sudo systemctl restart stashcast-huey
+  sudo passenger-config restart-app /var/www/stashcast
+  ```
 
-## How It Works
+- **View logs:**
+  ```bash
+  # Application logs
+  sudo tail -f /var/log/apache2/stashcast-error.log
 
-STASHCAST downloads media from URLs and makes it available through podcast feeds. When you submit a URL:
+  # Huey worker logs
+  sudo journalctl -u stashcast-huey -f
+  ```
 
-1. Metadata is extracted (title, duration, etc.)
-2. Media is downloaded in the background
-3. Files are processed (thumbnails converted to WebP, subtitles to VTT)
-4. Optional summaries are generated from subtitles
-5. Media becomes available in your podcast feed
+### Production Checklist
 
-For technical details, see [ARCHITECTURE.md](ARCHITECTURE.md)
-
-## Security Model
-
-Use admin to add/remove media or update metadata.
-
-Use the public site to view/subscribe to your feed.
-
-Use the bookmarklet with your api key to add media outside of admin.
-
-Your api key is a single user secret that you can use to identify yourself, and is set via STASHCAST_USER_TOKEN. I recommend using a random string, or generate a uuid using one of these:
-
-`uuidgen`
-
-`python -c 'import uuid; print(uuid.uuid4())'`
-
-
-## Configuration
-
-See `.env.example` for all available configuration options.
-
-### Environment Variables
-
-#### Required
-
-- `STASHCAST_DATA_DIR`: Base directory for application data (media is stored in `STASHCAST_DATA_DIR/media`; default: `./data`)
-- `STASHCAST_USER_TOKEN`: API key for stash endpoint
-
-#### Optional
-
-- `STASHCAST_MEDIA_BASE_URL`: External CDN URL for media files
-- `STASHCAST_DEFAULT_YTDLP_ARGS_AUDIO`: Default yt-dlp arguments for audio
-- `STASHCAST_DEFAULT_YTDLP_ARGS_VIDEO`: Default yt-dlp arguments for video
-- `STASHCAST_DEFAULT_FFMPEG_ARGS_AUDIO`: Default ffmpeg arguments for audio
-- `STASHCAST_DEFAULT_FFMPEG_ARGS_VIDEO`: Default ffmpeg arguments for video
-- `STASHCAST_SLUG_MAX_WORDS`: Max words in slug (default: 6)
-- `STASHCAST_SLUG_MAX_CHARS`: Max characters in slug (default: 40)
-
-## Development
-
-```bash
-# Install dev dependencies (adds coverage)
-pip install -r requirements-dev.txt
-
-# Run all tests
-coverage run -m pytest
-coverage report -m
-
-# Create and apply database migrations
-./manage.py makemigrations
-./manage.py migrate
-```
-
-See [ARCHITECTURE.md](ARCHITECTURE.md) for more details on the codebase structure and testing strategy.
+- [ ] `DEBUG=False` in settings
+- [ ] `ALLOWED_HOSTS` configured
+- [ ] `DJANGO_SECRET_KEY` set to a secure random value
+- [ ] `STASHCAST_USER_TOKEN` set to a secure random value
+- [ ] HTTPS enabled
+- [ ] Static files collected and served by web server
+- [ ] Media files directory writable by web server
+- [ ] Huey worker service running
+- [ ] Database backed up regularly
+- [ ] Log rotation configured
