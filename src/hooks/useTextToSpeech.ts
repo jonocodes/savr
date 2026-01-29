@@ -19,6 +19,7 @@ export interface TTSControls {
   pause: () => void;
   resume: () => void;
   stop: () => void;
+  restart: () => void; // Restart from current position (for rate/voice changes)
   setRate: (rate: number) => void;
   setVoice: (voice: SpeechSynthesisVoice) => void;
   seekTo: (progress: number) => void; // 0-100 percentage
@@ -493,6 +494,42 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     setElapsedTime(0);
   }, [isSupported, stopProgressTimer]);
 
+  // Restart from current position (useful for rate/voice changes while playing)
+  const restart = useCallback(() => {
+    if (!isSupported) return;
+    if (!isPlaying && !isPaused) return; // Nothing to restart
+
+    console.log("TTS: Restarting from current position, chunk", currentChunkIndexRef.current);
+
+    // Save current elapsed time
+    if (progressTimerRef.current) {
+      pausedElapsedTimeRef.current = pausedElapsedTimeRef.current + (Date.now() - playbackStartTimeRef.current) / 1000;
+    }
+
+    // Mark as stopped to prevent onend handlers
+    isStoppedRef.current = true;
+    stopProgressTimer();
+
+    // Cancel current speech
+    window.speechSynthesis.cancel();
+
+    // Unlock audio on mobile (must be called from user gesture)
+    if (isMobile) {
+      unlockAudio();
+    }
+
+    // Keep playing state
+    setIsPlaying(true);
+    setIsPaused(false);
+
+    // Restart from current chunk (with delay to ensure cancel completed)
+    setTimeout(() => {
+      isStoppedRef.current = false;
+      startProgressTimer();
+      playNextChunk();
+    }, isIOS ? 150 : 50);
+  }, [isSupported, isPlaying, isPaused, stopProgressTimer, startProgressTimer, playNextChunk]);
+
   const setRate = useCallback((newRate: number) => {
     setRateState(newRate);
   }, []);
@@ -531,6 +568,7 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     pause,
     resume,
     stop,
+    restart,
     setRate,
     setVoice,
     seekTo,

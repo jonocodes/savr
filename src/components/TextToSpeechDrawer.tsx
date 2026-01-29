@@ -34,7 +34,7 @@ export default function TextToSpeechDrawer({
   ttsControls,
 }: TextToSpeechDrawerProps) {
   const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentTime, totalTime } = ttsState;
-  const { play, pause, resume, stop, setRate, setVoice } = ttsControls;
+  const { play, pause, resume, stop, restart, setRate, setVoice } = ttsControls;
 
   const handlePlayPause = () => {
     if (isPlaying && !isPaused) {
@@ -53,10 +53,10 @@ export default function TextToSpeechDrawer({
   const handleRateChange = (_event: Event, newValue: number | number[]) => {
     const newRate = newValue as number;
     setRate(newRate);
-    // If currently playing, restart with new rate
+    // If currently playing, restart from current position with new rate
     if (isPlaying) {
-      stop();
-      setTimeout(() => play(), 50);
+      // Small delay to allow state update before restart
+      setTimeout(() => restart(), 50);
     }
   };
 
@@ -64,10 +64,10 @@ export default function TextToSpeechDrawer({
     const selectedVoice = availableVoices.find((v) => v.name === event.target.value);
     if (selectedVoice) {
       setVoice(selectedVoice);
-      // If currently playing, restart with new voice
+      // If currently playing, restart from current position with new voice
       if (isPlaying) {
-        stop();
-        setTimeout(() => play(), 50);
+        // Small delay to allow state update before restart
+        setTimeout(() => restart(), 50);
       }
     }
   };
