@@ -11,6 +11,7 @@ export const mimeToExt: Record<string, string> = {
   "text/html": "html",
   "image/jpeg": "jpg", // TODO: add 'jpeg ?
   "image/png": "png",
+  "image/gif": "gif",
   "image/webp": "webp",
   "application/pdf": "pdf",
   "text/plain": "txt",
@@ -200,4 +201,8 @@ export function getFilePathThumbnail(slug: string): string {
 
 export function getFilePathPdf(slug: string): string {
   return `saves/${slug}/document.pdf`;
+}
+
+export function getFilePathImage(slug: string, extension: string): string {
+  return `saves/${slug}/image.${extension}`;
 }
