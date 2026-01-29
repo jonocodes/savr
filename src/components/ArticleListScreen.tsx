@@ -68,6 +68,8 @@ const sampleArticleUrls = [
   "https://leejo.github.io/2024/09/29/holding_out_for_the_heros_to_fuck_off/",
   "https://www.cbc.ca/news/canada/nova-scotia/1985-toyota-tercel-high-mileage-1.7597168",
   "https://www.princexml.com/samples/usenix/example.pdf",
+  "https://raw.githubusercontent.com/jonocodes/stashcast/refs/heads/main/README.md",
+  "https://raw.githubusercontent.com/jonocodes/stashcast/refs/heads/main/docs/header-transparent.png",
 ];
 
 function ArticleItem({ article }: { article: Article }) {
