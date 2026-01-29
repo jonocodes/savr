@@ -45,6 +45,7 @@ import {
   Sync as SyncIcon,
   DragHandle as DragHandleIcon,
   AutoAwesome as AutoAwesomeIcon,
+  ScreenRotation as ScreenRotationIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -68,10 +69,13 @@ import {
   setApiKeyForProvider,
   getSummarySettingsFromCookie,
   setSummarySettingsInCookie,
+  getRotationLockFromCookie,
+  setRotationLockInCookie,
   // getWiFiOnlySyncFromCookie, // Disabled - feature not working correctly
   // setWiFiOnlySyncInCookie, // Disabled - feature not working correctly
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
+  RotationLockMode,
 } from "~/utils/cookies";
 import {
   PROVIDERS,
@@ -131,6 +135,7 @@ export default function PreferencesScreen() {
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
   // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
+  const [rotationLock, setRotationLock] = React.useState<RotationLockMode>("off");
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
   );
@@ -186,6 +191,9 @@ export default function PreferencesScreen() {
 
     // Load header hiding setting from cookies
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
+
+    // Load rotation lock setting from cookies
+    setRotationLock(getRotationLockFromCookie());
 
     // Load after external save setting from cookies
     setAfterExternalSave(getAfterExternalSaveFromCookie());
@@ -365,6 +373,12 @@ export default function PreferencesScreen() {
     const newValue = event.target.checked;
     setHeaderHidingEnabled(newValue);
     setHeaderHidingInCookie(newValue);
+  };
+
+  const handleRotationLockChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const newValue = event.target.value as RotationLockMode;
+    setRotationLock(newValue);
+    setRotationLockInCookie(newValue);
   };
 
   const handleAfterExternalSaveChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -651,6 +665,31 @@ export default function PreferencesScreen() {
                 checked={headerHidingEnabled}
                 onChange={handleHeaderHidingToggle}
               />
+            </ListItem>
+
+            <ListItem>
+              <ListItemIcon>
+                <ScreenRotationIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Lock screen rotation"
+                secondary="Prevent screen rotation while reading articles"
+              />
+              <select
+                value={rotationLock}
+                onChange={handleRotationLockChange}
+                style={{
+                  padding: "8px",
+                  borderRadius: "4px",
+                  border: "1px solid #ccc",
+                  fontSize: "14px",
+                  minWidth: "120px",
+                }}
+              >
+                <option value="off">Off</option>
+                <option value="portrait">Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
             </ListItem>
           </List>
 

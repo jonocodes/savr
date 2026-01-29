@@ -48,7 +48,7 @@ import { CookieThemeToggle } from "./CookieThemeToggle";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
-import { getHeaderHidingFromCookie } from "~/utils/cookies";
+import { getHeaderHidingFromCookie, getRotationLockFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
@@ -428,6 +428,53 @@ export default function ArticleScreen(_props: Props) {
   useEffect(() => {
     // Load header hiding preference
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
+  }, []);
+
+  // Apply rotation lock preference
+  useEffect(() => {
+    const rotationLock = getRotationLockFromCookie();
+
+    const applyRotationLock = async () => {
+      // Check if Screen Orientation API is available
+      // The lock/unlock methods are experimental and may not be in TypeScript's types
+      const orientation = screen.orientation as ScreenOrientation & {
+        lock?: (orientation: string) => Promise<void>;
+        unlock?: () => void;
+      };
+
+      if (!orientation || !orientation.lock) {
+        return;
+      }
+
+      try {
+        if (rotationLock === "portrait") {
+          await orientation.lock("portrait");
+        } else if (rotationLock === "landscape") {
+          await orientation.lock("landscape");
+        }
+        // If "off", we don't lock anything
+      } catch (error) {
+        // Screen orientation lock may fail in non-fullscreen mode on desktop
+        // or if the browser doesn't support it - this is expected behavior
+        console.debug("Screen orientation lock not available:", error);
+      }
+    };
+
+    applyRotationLock();
+
+    // Cleanup: unlock orientation when leaving the article screen
+    return () => {
+      const orientation = screen.orientation as ScreenOrientation & {
+        unlock?: () => void;
+      };
+      if (orientation && orientation.unlock) {
+        try {
+          orientation.unlock();
+        } catch {
+          // Ignore unlock errors
+        }
+      }
+    };
   }, []);
 
   useEffect(() => {

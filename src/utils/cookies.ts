@@ -16,6 +16,10 @@ export const SUMMARY_PROVIDER_COOKIE_NAME = "savr-summary-provider";
 export const SUMMARY_MODEL_COOKIE_NAME = "savr-summary-model";
 export const SUMMARY_API_KEYS_COOKIE_NAME = "savr-summary-api-keys";
 export const SUMMARY_SETTINGS_COOKIE_NAME = "savr-summary-settings";
+export const ROTATION_LOCK_COOKIE_NAME = "savr-rotation-lock";
+
+// Rotation lock type
+export type RotationLockMode = "off" | "portrait" | "landscape";
 
 // After external save action constants
 export const AFTER_EXTERNAL_SAVE_ACTIONS = {
@@ -492,4 +496,34 @@ export const setSummarySettingsInCookie = (settings: Partial<SummarySettingsCook
   const newSettings = { ...currentSettings, ...settings };
 
   document.cookie = `${SUMMARY_SETTINGS_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(newSettings))}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get rotation lock preference from cookie (defaults to "off")
+export const getRotationLockFromCookie = (): RotationLockMode => {
+  if (typeof document === "undefined") return "off";
+
+  const cookies = document.cookie.split(";");
+  const rotationLockCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${ROTATION_LOCK_COOKIE_NAME}=`)
+  );
+
+  if (rotationLockCookie) {
+    const value = rotationLockCookie.split("=")[1];
+    if (value === "off" || value === "portrait" || value === "landscape") {
+      return value;
+    }
+  }
+
+  return "off";
+};
+
+// Set rotation lock preference in cookie
+export const setRotationLockInCookie = (mode: RotationLockMode): void => {
+  if (typeof document === "undefined") return;
+
+  // Set cookie to expire in 1 year
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${ROTATION_LOCK_COOKIE_NAME}=${mode}; expires=${expires.toUTCString()}; path=/`;
 };
