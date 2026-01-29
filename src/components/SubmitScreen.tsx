@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState, useMemo } from "react";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import {
@@ -20,8 +20,10 @@ import {
   InputLabel,
   Select,
   MenuItem,
+  Chip,
+  Collapse,
 } from "@mui/material";
-import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
+import { ArrowBack as ArrowBackIcon, Preview as PreviewIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon } from "@mui/icons-material";
 import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
@@ -61,6 +63,25 @@ export default function SubmitScreen() {
   const [testSummary, setTestSummary] = useState<string | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
+  const [showPreview, setShowPreview] = useState(true);
+
+  // Compute the effective content type (detected or manually selected)
+  const effectiveContentType = useMemo(() => {
+    if (contentType === "auto") {
+      return detectedType || "text/plain";
+    }
+    return contentType;
+  }, [contentType, detectedType]);
+
+  // Compute the preview HTML
+  const previewHtml = useMemo(() => {
+    if (!content.trim()) return "";
+    try {
+      return convertToHtml(content, effectiveContentType);
+    } catch {
+      return "";
+    }
+  }, [content, effectiveContentType]);
 
   // Add message listener for browser extension
   useEffect(() => {
@@ -283,7 +304,7 @@ export default function SubmitScreen() {
         </Typography>
 
         {/* Content Type Selector */}
-        <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2 }}>
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2, flexWrap: "wrap" }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
             <InputLabel id="content-type-label">Content Type</InputLabel>
             <Select
@@ -302,10 +323,24 @@ export default function SubmitScreen() {
             </Select>
           </FormControl>
 
-          {/* Show detected type when auto-detect is selected */}
+          {/* Show detected/effective type with a prominent chip */}
+          {content.trim() && (
+            <Chip
+              label={`Will save as: ${CONTENT_TYPE_OPTIONS.find((o) => o.value === effectiveContentType)?.label || effectiveContentType}`}
+              color={
+                effectiveContentType === "text/html" ? "primary" :
+                effectiveContentType === "text/markdown" ? "secondary" :
+                "default"
+              }
+              variant="outlined"
+              size="small"
+            />
+          )}
+
+          {/* Auto-detect indicator */}
           {contentType === "auto" && detectedType && (
             <Typography variant="body2" color="text.secondary">
-              Detected: {CONTENT_TYPE_OPTIONS.find((o) => o.value === detectedType)?.label || detectedType}
+              (auto-detected)
             </Typography>
           )}
         </Box>
@@ -331,7 +366,7 @@ export default function SubmitScreen() {
           disabled={ingestStatus !== null}
           placeholder="Paste HTML, Markdown, or plain text content here..."
         />
-        <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
+        <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
           <Button
             onClick={() => saveHtml()}
             variant="contained"
@@ -346,7 +381,109 @@ export default function SubmitScreen() {
           >
             {isSummarizing ? "Summarizing..." : "Test Summary"}
           </Button>
+          <Button
+            onClick={() => setShowPreview(!showPreview)}
+            variant="text"
+            startIcon={<PreviewIcon />}
+            endIcon={showPreview ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+            disabled={!content.trim()}
+          >
+            {showPreview ? "Hide Preview" : "Show Preview"}
+          </Button>
         </Box>
+
+        {/* Live Preview Panel */}
+        <Collapse in={showPreview && !!content.trim()}>
+          <Paper
+            sx={{
+              mt: 2,
+              p: 2,
+              bgcolor: "background.paper",
+              border: "1px solid",
+              borderColor: "divider",
+              maxHeight: "400px",
+              overflow: "auto",
+            }}
+          >
+            <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <PreviewIcon fontSize="small" />
+              Live Preview
+              {effectiveContentType && (
+                <Chip
+                  label={CONTENT_TYPE_OPTIONS.find((o) => o.value === effectiveContentType)?.label}
+                  size="small"
+                  variant="outlined"
+                  sx={{ ml: 1 }}
+                />
+              )}
+            </Typography>
+            <Box
+              sx={{
+                mt: 1,
+                lineHeight: 1.7,
+                "& p": { margin: "0.5em 0" },
+                "& ul, & ol": { pl: 2, my: 1 },
+                "& li": { mb: 0.5 },
+                "& strong": { fontWeight: 600 },
+                "& h1": { fontSize: "1.5em", fontWeight: 600, mt: 1, mb: 0.5 },
+                "& h2": { fontSize: "1.3em", fontWeight: 600, mt: 1, mb: 0.5 },
+                "& h3": { fontSize: "1.15em", fontWeight: 600, mt: 1, mb: 0.5 },
+                "& h4, & h5, & h6": { fontWeight: 600, mt: 1, mb: 0.5 },
+                "& pre": {
+                  bgcolor: "grey.100",
+                  p: 1,
+                  borderRadius: 1,
+                  overflow: "auto",
+                  fontFamily: "monospace",
+                  fontSize: "0.9em",
+                },
+                "& code": {
+                  bgcolor: "grey.100",
+                  px: 0.5,
+                  borderRadius: 0.5,
+                  fontFamily: "monospace",
+                  fontSize: "0.9em",
+                },
+                "& blockquote": {
+                  borderLeft: "3px solid",
+                  borderColor: "grey.400",
+                  pl: 2,
+                  ml: 0,
+                  color: "text.secondary",
+                },
+                "& table": {
+                  borderCollapse: "collapse",
+                  width: "100%",
+                  my: 1,
+                },
+                "& th, & td": {
+                  border: "1px solid",
+                  borderColor: "divider",
+                  p: 1,
+                },
+                "& th": {
+                  bgcolor: "grey.100",
+                  fontWeight: 600,
+                },
+                "& a": {
+                  color: "primary.main",
+                },
+                "& img": {
+                  maxWidth: "100%",
+                  height: "auto",
+                },
+                "& hr": {
+                  border: "none",
+                  borderTop: "1px solid",
+                  borderColor: "divider",
+                  my: 2,
+                },
+              }}
+              dangerouslySetInnerHTML={{ __html: previewHtml }}
+            />
+          </Paper>
+        </Collapse>
+
         {/* Summary Progress */}
         {isSummarizing && (
           <Box sx={{ mt: 2 }}>
