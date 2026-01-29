@@ -589,9 +589,98 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("\n🎉 Delete all articles test completed!\n");
   });
 
+  test("should verify content server is serving PDF file", async ({ page }) => {
+    console.log("🔍 Verifying PDF file is accessible on content server...");
+
+    const testUrl = `${getContentServerUrl()}/input/sample-invoice-pdf/invoicesample.pdf`;
+
+    // Fetch the PDF to verify it's accessible
+    const response = await page.request.get(testUrl);
+
+    // Verify response is successful
+    expect(response.status()).toBe(200);
+    console.log("✅ Content server responded with 200");
+
+    // Verify content type is PDF
+    const contentType = response.headers()["content-type"];
+    expect(contentType).toContain("application/pdf");
+    console.log("✅ Content-Type is application/pdf");
+
+    // Verify we got actual data
+    const body = await response.body();
+    expect(body.length).toBeGreaterThan(1000);
+    console.log("✅ PDF file has content, size:", body.length, "bytes");
+
+    console.log("\n🎉 PDF content server verification completed!\n");
+  });
+
+  test("should ingest PDF from local server and display it in iframe", async ({ page }) => {
+    // 1. Open add article dialog
+    console.log("1️⃣  Opening add article dialog...");
+    const addButton = page.locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)').first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    // 2. Wait for dialog
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+    console.log("✅ Dialog opened");
+
+    // 3. Enter local PDF URL
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/sample-invoice-pdf/invoicesample.pdf`;
+    console.log("2️⃣  Entering URL:", testUrl);
+    await urlInput.fill(testUrl);
+    await expect(urlInput).toHaveValue(testUrl);
+
+    // 4. Submit form
+    console.log("3️⃣  Submitting form...");
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+
+    // 5. Wait for dialog to close (ingestion started)
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+    console.log("✅ Dialog closed, ingestion started");
+
+    // 6. Wait for article to appear in list
+    console.log("4️⃣  Waiting for PDF article to appear in list...");
+    // The title should be extracted from the filename: "invoicesample"
+    const articleTitle = page.getByText(/invoicesample/i);
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+    console.log("✅ PDF article appeared in list");
+
+    // 7. Verify article was saved to IndexedDB with PDF mimeType
+    console.log("5️⃣  Verifying article in IndexedDB...");
+    const article = await getArticleFromDB(page, "invoicesample");
+    expect(article).toBeTruthy();
+    expect(article?.slug).toBe("invoicesample");
+    expect(article?.mimeType).toBe("application/pdf");
+    console.log("✅ Article verified in IndexedDB:", article?.title, "mimeType:", article?.mimeType);
+
+    // 8. Navigate to article page
+    console.log("6️⃣  Navigating to article page...");
+    await page.goto("/article/invoicesample");
+    await page.waitForLoadState("networkidle");
+
+    // 9. Verify PDF is displayed in an iframe
+    console.log("7️⃣  Verifying PDF is displayed in iframe...");
+    const iframe = page.locator('iframe[title="invoicesample"], iframe[title="PDF Document"]');
+    await expect(iframe).toBeVisible({ timeout: 10000 });
+    console.log("✅ PDF iframe is visible");
+
+    // Verify iframe has a blob URL src (indicating PDF was loaded from storage)
+    const iframeSrc = await iframe.getAttribute("src");
+    expect(iframeSrc).toMatch(/^blob:/);
+    console.log("✅ PDF iframe has blob URL src");
+
+    console.log("\n🎉 PDF ingestion test completed successfully!\n");
+  });
+
   test.afterEach(async ({ page }) => {
     // Clean up: delete test article from RemoteStorage and IndexedDB
-    console.log("🧹 Cleaning up test article...");
+    console.log("🧹 Cleaning up test articles...");
 
     // Navigate back to app if we're on an external page (e.g., content server)
     const currentUrl = page.url();
@@ -601,8 +690,12 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     }
 
     try {
+      // Clean up HTML article
       await deleteArticleFromStorage(page, "test-article-for-local-ingestion");
       await deleteArticleFromDB(page, "test-article-for-local-ingestion");
+      // Clean up PDF article
+      await deleteArticleFromStorage(page, "invoicesample");
+      await deleteArticleFromDB(page, "invoicesample");
       console.log("✅ Cleanup completed\n");
     } catch (error) {
       console.log("⚠️ Cleanup error (non-fatal):", error);
