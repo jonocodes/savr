@@ -18,7 +18,7 @@ import {
   Stop as StopIcon,
   Speed as SpeedIcon,
 } from "@mui/icons-material";
-import { TTSState, TTSControls } from "~/hooks/useTextToSpeech";
+import { TTSState, TTSControls, formatTime } from "~/hooks/useTextToSpeech";
 
 interface TextToSpeechDrawerProps {
   open: boolean;
@@ -33,7 +33,7 @@ export default function TextToSpeechDrawer({
   ttsState,
   ttsControls,
 }: TextToSpeechDrawerProps) {
-  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported } = ttsState;
+  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentTime, totalTime } = ttsState;
   const { play, pause, resume, stop, setRate, setVoice } = ttsControls;
 
   const handlePlayPause = () => {
@@ -160,6 +160,41 @@ export default function TextToSpeechDrawer({
               </IconButton>
             </Tooltip>
           </Box>
+
+          {/* Progress Slider */}
+          {totalTime > 0 && (
+            <Box>
+              <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {formatTime(currentTime)}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {formatTime(totalTime)}
+                </Typography>
+              </Box>
+              <Slider
+                value={progress}
+                min={0}
+                max={100}
+                disabled
+                sx={{
+                  '& .MuiSlider-thumb': {
+                    width: 12,
+                    height: 12,
+                  },
+                  '&.Mui-disabled': {
+                    color: 'primary.main',
+                    '& .MuiSlider-thumb': {
+                      backgroundColor: 'primary.main',
+                    },
+                    '& .MuiSlider-track': {
+                      backgroundColor: 'primary.main',
+                    },
+                  },
+                }}
+              />
+            </Box>
+          )}
 
           {/* Speed Control */}
           <Box>
