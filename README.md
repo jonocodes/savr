@@ -25,18 +25,22 @@ Savr is:
 
 # Comparison
 
-| Feature                          | Savr        | Pocket 2024 (pre shutdown) | Omnivore | Wallabag | Shiori |
-| -------------------------------- | ----------- | -------------------------- | -------- | -------- | ------ |
-| Open Source                      | ✅          | ❌                         | ✅       | ✅       | ✅     |
-| Requires minimal tech knowledge  | ✅          | ✅                         | ❌       | ❌       | ❌     |
-| Own/Control Your Data            | ✅          | ❌                         | ✅       | ✅       | ✅     |
-| Offline content including images | ✅          | sometimes cached           | ❌       | ❌       | ❌     |
-| Tagging and search               | ❌          | ✅                         | ✅       | ✅       | ✅     |
-| Other Content Types              | in progress | ❌                         | ✅       | ✅       | ❌     |
-| Offline mobile                   | ✅          | sometimes                  | ✅       | ✅       | ❌     |
-| Cross Platform (+mobile/browser) | ✅          | ✅                         | ✅       | ✅       | ✅     |
-| Cross Browser Extension          | ✅          | ❌ (chrome/FF)             | ❌       | ❌       | ❌     |
-| Does not require an account      | ✅          | ❌                         | ❌       | ❌       | ❌     |
+| Feature                          | Savr        | Pocket * | Omnivore * | Wallabag | [Shiori](https://github.com/go-shiori/shiori) |
+| -------------------------------- | ----------- | -------------- | -------- | -------- | ------ |
+| Open Source                      | ✅          | ❌              | ✅       | ✅       | ✅     |
+| Requires minimal tech knowledge  | ✅          | ✅               | ❌       | ❌       | ❌     |
+| Own/Control Your Data            | ✅          | ❌               | ✅       | ✅       | ✅     |
+| Offline content including images | ✅          | sometimes cached  | ❌       | ❌       | ❌     |
+| Tagging and search               | ❌          | ✅                | ✅       | ✅       | ✅     |
+| Other Content Types              | md, txt, pdf, images | ❌       | pdf       | pdf, epub   | ❌   |
+| Offline mobile                   | ✅          | sometimes         | ✅       | ✅       | ❌     |
+| Text To Speach                   | ✅          | ✅                | iOS only | android only | ❌     |
+| Summary generation               | ✅          | ❌                 | ❌       | ❌       | ❌     |
+| Cross Platform (+mobile/browser) | ✅          | ✅                 | ✅       | ✅       | ✅     |
+| Cross Browser Extension          | ✅          | ❌ (chrome/FF)     | ❌       | ❌       | ❌     |
+| Does not require an account      | ✅          | ❌                  | ❌       | ❌       | ❌     |
+
+\* before service shutdown
 
 # Progress
 
@@ -49,20 +53,22 @@ Here are most of the planned features.
 - [x] info edit - so you can fix a missing title
 - [x] remember scroll position
 - [x] text to speach read aloud
+- [x] content summarization
 - [x] offline sync using remoteStorage.js (experimental)
   - [x] 5apps
   - [x] dropbox
   - [ ] google drive
 - [x] catalog export
-- [x] catalog import
-- [x] handle additional raw document types with type detection (pasted html, markdown, plain text)
+- [ ] catalog import
+- [x] optional manual content uploading (via pasting, or file dialog) 
+- [x] supports additional document types with auto-type detection (pasted html, markdown, plain text)
+- [x] supports binary types (pdf, images)
 - [ ] multiline url imports
-- [ ] content summarization
 - [ ] advanced image handling
   - [ ] scrape lazy loaded images
   - [ ] discover uncommon tags (ie - srcset and background images)
   - [ ] allow for deferred image loading at view time
-- [ ] media types (images, audio, video, pdf)
+- [ ] media types (audio, video) - You may want to check out our sister project [StashCast](https://github.com/jonocodes/stashcast)
 
 
 # How to "install" it
