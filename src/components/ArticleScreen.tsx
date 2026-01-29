@@ -843,6 +843,12 @@ export default function ArticleScreen(_props: Props) {
                   {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
+                  <strong>Offline resources:</strong>{" "}
+                  {storageSize
+                    ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
+                    : "Calculating..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
                   <strong>Saved:</strong>{" "}
                   {article.ingestDate
                     ? `${new Date(article.ingestDate).toISOString().replace("T", " ").replace("Z", "")} UTC`
