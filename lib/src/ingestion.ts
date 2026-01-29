@@ -17,9 +17,26 @@ import {
 import { saveResource } from "~/utils/storage";
 import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/tools";
 import { md5 } from "js-md5";
+import { summarizeText, DEFAULT_SUMMARY_SETTINGS, type SummaryProvider } from "~/utils/summarization";
+import {
+  getSummarizationEnabledFromCookie,
+  getSummaryProviderFromCookie,
+  getSummaryModelFromCookie,
+  getApiKeyForProvider,
+  getSummarySettingsFromCookie,
+} from "~/utils/cookies";
 
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
+
+/**
+ * Extract plain text from HTML content
+ */
+function extractTextFromHtml(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  return doc.body?.textContent?.trim() || "";
+}
 
 type ImageData = [string, string, HTMLImageElement, number, number]; // url, path, image, width, height
 
@@ -527,6 +544,39 @@ export async function ingestHtml(
   });
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
+
+  // Generate AI summary (if enabled in preferences and API key is configured)
+  const summarizationEnabled = getSummarizationEnabledFromCookie();
+  const provider = getSummaryProviderFromCookie() as SummaryProvider;
+  const apiKey = getApiKeyForProvider(provider);
+
+  if (summarizationEnabled && apiKey) {
+    sendMessageWithLog(80, "generating summary");
+    try {
+      const plainText = extractTextFromHtml(content);
+      if (plainText.length > 100) {
+        const model = getSummaryModelFromCookie();
+        const cookieSettings = getSummarySettingsFromCookie();
+        const settings = {
+          ...DEFAULT_SUMMARY_SETTINGS,
+          detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
+          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+          customPrompt: cookieSettings.customPrompt,
+        };
+
+        const summary = await summarizeText(plainText, settings, provider, apiKey, model);
+        if (summary) {
+          article.summary = summary;
+          sendMessageWithLog(null, "summary generated");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to generate summary during ingestion:", error);
+      sendMessageWithLog(null, "summary generation skipped (API error)");
+    }
+  }
 
   // Write the fetch log at the end with all collected messages
   const fetchLogPath = getFileFetchLog(article.slug);
