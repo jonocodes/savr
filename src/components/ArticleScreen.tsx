@@ -436,15 +436,21 @@ export default function ArticleScreen(_props: Props) {
 
     const applyRotationLock = async () => {
       // Check if Screen Orientation API is available
-      if (!screen.orientation || !screen.orientation.lock) {
+      // The lock/unlock methods are experimental and may not be in TypeScript's types
+      const orientation = screen.orientation as ScreenOrientation & {
+        lock?: (orientation: string) => Promise<void>;
+        unlock?: () => void;
+      };
+
+      if (!orientation || !orientation.lock) {
         return;
       }
 
       try {
         if (rotationLock === "portrait") {
-          await screen.orientation.lock("portrait");
+          await orientation.lock("portrait");
         } else if (rotationLock === "landscape") {
-          await screen.orientation.lock("landscape");
+          await orientation.lock("landscape");
         }
         // If "off", we don't lock anything
       } catch (error) {
@@ -458,9 +464,12 @@ export default function ArticleScreen(_props: Props) {
 
     // Cleanup: unlock orientation when leaving the article screen
     return () => {
-      if (screen.orientation && screen.orientation.unlock) {
+      const orientation = screen.orientation as ScreenOrientation & {
+        unlock?: () => void;
+      };
+      if (orientation && orientation.unlock) {
         try {
-          screen.orientation.unlock();
+          orientation.unlock();
         } catch {
           // Ignore unlock errors
         }
