@@ -18,7 +18,7 @@ import {
   Stop as StopIcon,
   Speed as SpeedIcon,
 } from "@mui/icons-material";
-import { TTSState, TTSControls } from "~/hooks/useTextToSpeech";
+import { TTSState, TTSControls, formatTime } from "~/hooks/useTextToSpeech";
 
 interface TextToSpeechDrawerProps {
   open: boolean;
@@ -33,7 +33,7 @@ export default function TextToSpeechDrawer({
   ttsState,
   ttsControls,
 }: TextToSpeechDrawerProps) {
-  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentChunk, totalChunks } = ttsState;
+  const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentTime, totalTime } = ttsState;
   const { play, pause, resume, stop, setRate, setVoice, seekTo } = ttsControls;
 
   const handlePlayPause = () => {
@@ -167,14 +167,14 @@ export default function TextToSpeechDrawer({
           </Box>
 
           {/* Progress Slider */}
-          {totalChunks > 0 && (
+          {totalTime > 0 && (
             <Box>
               <Box sx={{ display: "flex", justifyContent: "space-between", mb: 1 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Position
+                  {formatTime(currentTime)}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  {currentChunk + 1} / {totalChunks}
+                  {formatTime(totalTime)}
                 </Typography>
               </Box>
               <Slider
@@ -182,8 +182,7 @@ export default function TextToSpeechDrawer({
                 onChange={handleProgressChange}
                 min={0}
                 max={100}
-                step={totalChunks > 0 ? 100 / totalChunks : 1}
-                disabled={!isPlaying && !isPaused && totalChunks === 0}
+                step={1}
                 sx={{
                   '& .MuiSlider-thumb': {
                     width: 16,

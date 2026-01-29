@@ -2,7 +2,7 @@
  * Unit tests for TTS text chunking logic
  */
 
-import { splitTextIntoChunks } from './useTextToSpeech';
+import { splitTextIntoChunks, formatTime } from './useTextToSpeech';
 
 describe('splitTextIntoChunks', () => {
   describe('short text (no splitting needed)', () => {
@@ -123,5 +123,36 @@ describe('splitTextIntoChunks', () => {
       const result = splitTextIntoChunks(text, 15);
       expect(result.length).toBeGreaterThan(1);
     });
+  });
+});
+
+describe('formatTime', () => {
+  it('should format seconds as m:ss', () => {
+    expect(formatTime(0)).toBe('0:00');
+    expect(formatTime(5)).toBe('0:05');
+    expect(formatTime(30)).toBe('0:30');
+    expect(formatTime(59)).toBe('0:59');
+  });
+
+  it('should format minutes and seconds', () => {
+    expect(formatTime(60)).toBe('1:00');
+    expect(formatTime(65)).toBe('1:05');
+    expect(formatTime(90)).toBe('1:30');
+    expect(formatTime(125)).toBe('2:05');
+    expect(formatTime(599)).toBe('9:59');
+    expect(formatTime(600)).toBe('10:00');
+  });
+
+  it('should format hours, minutes, and seconds', () => {
+    expect(formatTime(3600)).toBe('1:00:00');
+    expect(formatTime(3661)).toBe('1:01:01');
+    expect(formatTime(7200)).toBe('2:00:00');
+    expect(formatTime(3723)).toBe('1:02:03');
+  });
+
+  it('should handle edge cases', () => {
+    expect(formatTime(-1)).toBe('0:00');
+    expect(formatTime(NaN)).toBe('0:00');
+    expect(formatTime(Infinity)).toBe('0:00');
   });
 });

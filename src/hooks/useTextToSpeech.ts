@@ -9,9 +9,9 @@ export interface TTSState {
   availableVoices: SpeechSynthesisVoice[];
   isSupported: boolean;
   // Progress tracking
-  currentChunk: number;
-  totalChunks: number;
   progress: number; // 0-100 percentage
+  currentTime: number; // estimated seconds elapsed
+  totalTime: number; // estimated total seconds
 }
 
 export interface TTSControls {
@@ -30,6 +30,32 @@ const isIOS = typeof navigator !== "undefined" && /iPhone|iPad|iPod/i.test(navig
 
 // Maximum characters per utterance for mobile (mobile browsers struggle with long utterances)
 const MAX_UTTERANCE_LENGTH = isMobile ? 2000 : 10000;
+
+// Average words per minute at 1x speed for TTS (typical range is 150-180)
+const WORDS_PER_MINUTE_BASE = 160;
+
+/**
+ * Count words in text for time estimation
+ */
+function countWords(text: string): number {
+  return text.trim().split(/\s+/).filter(word => word.length > 0).length;
+}
+
+/**
+ * Format seconds as mm:ss or h:mm:ss
+ */
+export function formatTime(seconds: number): string {
+  if (!isFinite(seconds) || seconds < 0) return "0:00";
+
+  const hours = Math.floor(seconds / 3600);
+  const mins = Math.floor((seconds % 3600) / 60);
+  const secs = Math.floor(seconds % 60);
+
+  if (hours > 0) {
+    return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  }
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+}
 
 /**
  * Split text into chunks for better mobile compatibility.
@@ -342,8 +368,13 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
       unlockAudio();
     }
 
+    // Mark as stopped BEFORE canceling to prevent onend handler from advancing chunks
+    isStoppedRef.current = true;
+
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
+
+    // Now reset state for fresh playback
     isStoppedRef.current = false;
 
     // Split text into chunks for better mobile compatibility
@@ -359,8 +390,12 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     setIsPlaying(true);
     setIsPaused(false);
 
-    // Start playing first chunk
-    playNextChunk();
+    // Start playing first chunk (with small delay to ensure cancel completed)
+    setTimeout(() => {
+      if (!isStoppedRef.current) {
+        playNextChunk();
+      }
+    }, isIOS ? 100 : 10);
   }, [isSupported, playNextChunk]);
 
   const pause = useCallback(() => {
@@ -420,8 +455,13 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
 
     console.log(`TTS: Seeking to ${progress}% (chunk ${clampedChunk + 1}/${chunksRef.current.length})`);
 
+    // Mark as stopped BEFORE canceling to prevent onend handler from advancing chunks
+    isStoppedRef.current = true;
+
     // Cancel current speech
     window.speechSynthesis.cancel();
+
+    // Now reset for seeking
     isStoppedRef.current = false;
 
     // Update chunk index
@@ -439,12 +479,17 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
 
     // Small delay to allow cancel to complete
     setTimeout(() => {
-      playNextChunk();
+      if (!isStoppedRef.current) {
+        playNextChunk();
+      }
     }, isIOS ? 100 : 50);
   }, [isSupported, playNextChunk]);
 
-  // Calculate progress percentage
+  // Calculate progress percentage and time estimates
   const progress = totalChunks > 0 ? (currentChunk / totalChunks) * 100 : 0;
+  const wordCount = countWords(text);
+  const totalTime = wordCount > 0 ? (wordCount / WORDS_PER_MINUTE_BASE) * 60 / rate : 0;
+  const currentTime = (progress / 100) * totalTime;
 
   const state: TTSState = {
     isPlaying,
@@ -454,9 +499,9 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     voice,
     availableVoices,
     isSupported,
-    currentChunk,
-    totalChunks,
     progress,
+    currentTime,
+    totalTime,
   };
 
   const controls: TTSControls = {
