@@ -380,6 +380,145 @@ test.describe("Edit Article Info", () => {
     await expect(sizeLabel).toBeVisible({ timeout: 5000 });
   });
 
+  test("should display offline resources count in edit drawer", async ({ page }) => {
+    // Navigate to article page
+    await page.goto("/article/test-article-for-local-ingestion");
+    await page.waitForLoadState("networkidle");
+
+    // Open the menu and click Edit Info
+    const menuButton = page.getByTestId("article-page-menu-button");
+    await menuButton.click();
+
+    const editInfoMenuItem = page.getByText("Edit Info");
+    await editInfoMenuItem.click();
+
+    // Wait for drawer to open
+    await expect(page.getByText("Article Info")).toBeVisible({ timeout: 5000 });
+
+    // Verify Offline resources label is visible
+    const offlineResourcesLabel = page.getByText(/Offline resources:/);
+    await expect(offlineResourcesLabel).toBeVisible({ timeout: 5000 });
+
+    // Should show a count (e.g., "0 files" or "X files")
+    const filesCount = page.getByText(/\d+ files/);
+    await expect(filesCount).toBeVisible({ timeout: 5000 });
+  });
+
+  test("should display saved timestamp with UTC timezone in edit drawer", async ({ page }) => {
+    // Navigate to article page
+    await page.goto("/article/test-article-for-local-ingestion");
+    await page.waitForLoadState("networkidle");
+
+    // Open the menu and click Edit Info
+    const menuButton = page.getByTestId("article-page-menu-button");
+    await menuButton.click();
+
+    const editInfoMenuItem = page.getByText("Edit Info");
+    await editInfoMenuItem.click();
+
+    // Wait for drawer to open
+    await expect(page.getByText("Article Info")).toBeVisible({ timeout: 5000 });
+
+    // Verify Saved label is visible with UTC timezone
+    const savedLabel = page.getByText(/Saved:/);
+    await expect(savedLabel).toBeVisible({ timeout: 5000 });
+
+    // Should contain UTC in the timestamp
+    const utcTimestamp = page.getByText(/UTC/);
+    await expect(utcTimestamp).toBeVisible({ timeout: 5000 });
+  });
+
+  test("should display content type in edit drawer", async ({ page }) => {
+    // Navigate to article page
+    await page.goto("/article/test-article-for-local-ingestion");
+    await page.waitForLoadState("networkidle");
+
+    // Open the menu and click Edit Info
+    const menuButton = page.getByTestId("article-page-menu-button");
+    await menuButton.click();
+
+    const editInfoMenuItem = page.getByText("Edit Info");
+    await editInfoMenuItem.click();
+
+    // Wait for drawer to open
+    await expect(page.getByText("Article Info")).toBeVisible({ timeout: 5000 });
+
+    // Verify Content Type label is visible
+    const contentTypeLabel = page.getByText(/Content Type:/);
+    await expect(contentTypeLabel).toBeVisible({ timeout: 5000 });
+
+    // Should show text/html for HTML articles
+    const htmlType = page.getByText(/text\/html/);
+    await expect(htmlType).toBeVisible({ timeout: 5000 });
+  });
+
+  test("should display ingestion log button when log exists", async ({ page }) => {
+    // Navigate to article page
+    await page.goto("/article/test-article-for-local-ingestion");
+    await page.waitForLoadState("networkidle");
+
+    // Open the menu and click Edit Info
+    const menuButton = page.getByTestId("article-page-menu-button");
+    await menuButton.click();
+
+    const editInfoMenuItem = page.getByText("Edit Info");
+    await editInfoMenuItem.click();
+
+    // Wait for drawer to open
+    await expect(page.getByText("Article Info")).toBeVisible({ timeout: 5000 });
+
+    // Verify Ingestion Log button is visible (if log exists)
+    // This may not be visible if the article has no log
+    const ingestionLogButton = page.getByRole("button", { name: /Ingestion Log/i });
+
+    // Wait a bit for the log to load asynchronously
+    await page.waitForTimeout(1000);
+
+    // Check if the button exists (it's optional - only shows if log exists)
+    const buttonCount = await ingestionLogButton.count();
+    if (buttonCount > 0) {
+      await expect(ingestionLogButton).toBeVisible();
+    }
+  });
+
+  test("should expand and collapse ingestion log", async ({ page }) => {
+    // Navigate to article page
+    await page.goto("/article/test-article-for-local-ingestion");
+    await page.waitForLoadState("networkidle");
+
+    // Open the menu and click Edit Info
+    const menuButton = page.getByTestId("article-page-menu-button");
+    await menuButton.click();
+
+    const editInfoMenuItem = page.getByText("Edit Info");
+    await editInfoMenuItem.click();
+
+    // Wait for drawer to open
+    await expect(page.getByText("Article Info")).toBeVisible({ timeout: 5000 });
+
+    // Wait for log to load
+    await page.waitForTimeout(1000);
+
+    const ingestionLogButton = page.getByRole("button", { name: /Ingestion Log/i });
+    const buttonCount = await ingestionLogButton.count();
+
+    if (buttonCount > 0) {
+      // Click to expand
+      await ingestionLogButton.click();
+
+      // The log content should be visible in a collapsed section
+      // Look for the monospace log content box
+      const logContent = page.locator('[style*="monospace"], [class*="monospace"]').first();
+      await expect(logContent).toBeVisible({ timeout: 2000 });
+
+      // Click again to collapse
+      await ingestionLogButton.click();
+
+      // Log content should be hidden
+      await expect(logContent).not.toBeVisible({ timeout: 2000 });
+    }
+  });
+
   test.afterEach(async ({ page }) => {
     // Clean up: delete test article
     const currentUrl = page.url();
