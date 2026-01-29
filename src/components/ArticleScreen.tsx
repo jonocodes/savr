@@ -18,7 +18,6 @@ import {
   Stack,
   LinearProgress,
   CircularProgress,
-  Divider,
   Collapse,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
@@ -818,33 +817,6 @@ export default function ArticleScreen(_props: Props) {
             Article Info
           </Typography>
 
-          {/* Read-only metadata section */}
-          <Box sx={{ mb: 3 }}>
-            <Stack spacing={1}>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Size:</strong>{" "}
-                {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Saved:</strong>{" "}
-                {article.ingestDate
-                  ? new Date(article.ingestDate).toLocaleString()
-                  : "Unknown"}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Content Type:</strong> {article.mimeType || "Unknown"}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Source:</strong> {article.ingestSource || "Unknown"}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                <strong>Platform:</strong> {article.ingestPlatform || "Unknown"}
-              </Typography>
-            </Stack>
-          </Box>
-
-          <Divider sx={{ mb: 3 }} />
-
           {/* Editable fields */}
           <Stack spacing={3}>
             <TextField
@@ -862,6 +834,25 @@ export default function ArticleScreen(_props: Props) {
               fullWidth
               variant="outlined"
             />
+
+            {/* Read-only metadata section */}
+            <Box>
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Size:</strong>{" "}
+                  {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Saved:</strong>{" "}
+                  {article.ingestDate
+                    ? `${new Date(article.ingestDate).toISOString().replace("T", " ").replace("Z", "")} UTC`
+                    : "Unknown"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Content Type:</strong> {article.mimeType || "Unknown"}
+                </Typography>
+              </Stack>
+            </Box>
 
             {/* Ingestion Log (collapsible) */}
             {fetchLog && (
