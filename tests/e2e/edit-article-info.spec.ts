@@ -29,6 +29,9 @@ try {
 }
 
 test.describe("Edit Article Info", () => {
+  // Run tests serially to avoid conflicts with shared RemoteStorage
+  test.describe.configure({ mode: 'serial' });
+
   test.beforeEach(async ({ page }) => {
     // Navigate to app
     await page.goto("/");
@@ -249,8 +252,8 @@ test.describe("Edit Article Info", () => {
     const saveButton = page.locator('.MuiDrawer-root button:has-text("Save")');
     await saveButton.click();
 
-    // Wait for drawer to close
-    await expect(page.getByText("Article Info")).not.toBeVisible({
+    // Wait for drawer to close (use exact match to avoid matching snackbar "Article info updated")
+    await expect(page.getByText("Article Info", { exact: true })).not.toBeVisible({
       timeout: 5000,
     });
 
@@ -283,8 +286,8 @@ test.describe("Edit Article Info", () => {
     // Wait for drawer to open
     await expect(page.getByText("Article Info")).toBeVisible({ timeout: 5000 });
 
-    // Edit the author (second input field)
-    const authorInput = page.locator('.MuiDrawer-root input').nth(1);
+    // Edit the author - use getByLabel for more robust selection
+    const authorInput = page.getByLabel('Author');
     await authorInput.clear();
     await authorInput.fill("John Doe");
 
@@ -292,10 +295,17 @@ test.describe("Edit Article Info", () => {
     const saveButton = page.locator('.MuiDrawer-root button:has-text("Save")');
     await saveButton.click();
 
-    // Wait for drawer to close
-    await expect(page.getByText("Article Info")).not.toBeVisible({
+    // Wait for drawer to close (use exact match to avoid matching snackbar "Article info updated")
+    await expect(page.getByText("Article Info", { exact: true })).not.toBeVisible({
       timeout: 5000,
     });
+
+    // Wait for snackbar to confirm save completed
+    const snackbar = page.getByText("Article info updated");
+    await expect(snackbar).toBeVisible({ timeout: 5000 });
+
+    // Wait a bit for IndexedDB transaction to fully commit
+    await page.waitForTimeout(500);
 
     // Verify article is updated in IndexedDB
     const updatedArticle = await getArticleFromDB(
