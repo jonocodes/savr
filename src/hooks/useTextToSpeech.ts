@@ -29,8 +29,9 @@ const MAX_UTTERANCE_LENGTH = isMobile ? 2000 : 10000;
 /**
  * Split text into chunks for better mobile compatibility.
  * Tries to split on sentence boundaries to maintain natural speech flow.
+ * Exported for testing.
  */
-function splitTextIntoChunks(text: string, maxLength: number): string[] {
+export function splitTextIntoChunks(text: string, maxLength: number): string[] {
   if (text.length <= maxLength) {
     return [text];
   }
