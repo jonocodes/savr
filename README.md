@@ -57,7 +57,7 @@ Here are most of the planned features.
 - [x] catalog import
 - [x] handle additional raw document types with type detection (pasted html, markdown, plain text)
 - [ ] multiline url imports
-- [ ] content summarization
+- [x] content summarization
 - [ ] advanced image handling
   - [ ] scrape lazy loaded images
   - [ ] discover uncommon tags (ie - srcset and background images)
@@ -119,6 +119,29 @@ If you want to create your own shortcut (particularly if you are hosting Savr yo
 If you want to read and save articles on multiple devices you can authorize your cloud service provider (typically Dropbox or Google), to sync your articles. This is optional, and if you don't want to sync you don't need to create any account to use Savr.
 
 Note that you don't need to sync your articles to a cloud service for them to be available offline. They are automatically saved to your device either way.
+
+# AI Summarization
+
+Savr can automatically generate summaries of your saved articles using AI. This feature uses cloud-based LLM providers (Groq or OpenAI) to create concise summaries when you save new articles.
+
+**Supported Providers:**
+- **Groq** (free tier available) - Uses Llama models for fast, free summarization
+- **OpenAI** - Uses GPT models for high-quality summaries
+
+**Customization Options:**
+- **Detail Level** - From brief overviews to comprehensive summaries
+- **Format** - Choose between paragraphs or bullet points
+- **Tone** - Neutral, formal, casual, or technical
+- **Focus** - General summary, key facts, action items, main themes, or arguments
+- **Custom Prompt** - Advanced users can define their own summarization prompt
+
+To enable summarization, go to Preferences and toggle on "Enable AI Summarization". You'll need to provide an API key from your chosen provider (Groq offers free API keys).
+
+<div align="center" width="100%">
+
+![summarization-preferences](./public/screenshots/summarization_preferences.png)
+
+</div>
 
 # How it works
 
