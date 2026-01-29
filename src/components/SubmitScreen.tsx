@@ -22,6 +22,7 @@ import {
   MenuItem,
   Chip,
   Collapse,
+  Tooltip,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon, Preview as PreviewIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, UploadFile as UploadFileIcon } from "@mui/icons-material";
 import {
@@ -41,7 +42,7 @@ import {
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { ingestHtml, ingestPdf } from "lib/src/ingestion";
+import { ingestHtml, ingestPdf, ingestImage } from "lib/src/ingestion";
 import type { Article } from "lib/src/models";
 import {
   detectContentType,
@@ -253,24 +254,50 @@ export default function SubmitScreen() {
           setUploadedFileName(null);
         }
       } else if (isImage) {
-        // Handle image files - read as data URL and wrap in HTML
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          const dataUrl = e.target?.result as string;
-          // Create a title from the filename (remove extension)
-          const title = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-          // Wrap the image in HTML
-          const htmlContent = `<title>${title}</title>
-<img src="${dataUrl}" alt="${title}" style="max-width: 100%; height: auto;" />`;
-          setContent(htmlContent);
-          setUploadedFileName(file.name);
-          setContentType("text/html");
-          setDetectedType("text/html");
+        // Handle image files directly - ingest them without showing in textarea (like PDFs)
+        setIngestStatus("Ingesting image...");
+        setUploadedFileName(file.name);
+
+        // Determine MIME type from extension
+        const ext = fileName.split(".").pop() || "";
+        const mimeTypeMap: Record<string, string> = {
+          jpg: "image/jpeg",
+          jpeg: "image/jpeg",
+          png: "image/png",
+          gif: "image/gif",
+          webp: "image/webp",
         };
-        reader.onerror = () => {
-          enqueueSnackbar("Error reading image file", { variant: "error" });
-        };
-        reader.readAsDataURL(file);
+        const mimeType = mimeTypeMap[ext] || "image/jpeg";
+
+        try {
+          const article = await ingestImage(
+            client,
+            file,
+            mimeType,
+            `file://${file.name}`,
+            (percent: number | null, message: string | null) => {
+              if (percent !== null) {
+                setIngestStatus(message);
+                setIngestPercent(percent);
+              }
+            }
+          );
+
+          await db.articles.put(article);
+
+          setTimeout(() => {
+            setIngestStatus(null);
+            setIngestPercent(0);
+            setUploadedFileName(null);
+            navigate({ to: "/" });
+          }, 1500);
+        } catch (error) {
+          console.error("Error ingesting image:", error);
+          enqueueSnackbar("Error uploading image file", { variant: "error" });
+          setIngestStatus(null);
+          setIngestPercent(0);
+          setUploadedFileName(null);
+        }
       } else {
         // Handle text files (HTML, MD, TXT) - read and show in textarea
         const reader = new FileReader();
@@ -413,17 +440,32 @@ export default function SubmitScreen() {
       <Container maxWidth="md" sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
           <Typography variant="body1">
-            Paste content or upload a file (HTML, Markdown, TXT, PDF, or images)
+            Paste content or upload a file
           </Typography>
-          <Button
-            variant="outlined"
-            startIcon={<UploadFileIcon />}
-            onClick={() => fileInputRef.current?.click()}
-            disabled={ingestStatus !== null}
-            size="small"
+          <Tooltip
+            title={
+              <Box sx={{ p: 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Supported formats:</Typography>
+                <Typography variant="body2">• HTML (.html, .htm)</Typography>
+                <Typography variant="body2">• Markdown (.md)</Typography>
+                <Typography variant="body2">• Plain text (.txt)</Typography>
+                <Typography variant="body2">• PDF (.pdf)</Typography>
+                <Typography variant="body2">• Images (.jpg, .png, .gif, .webp)</Typography>
+              </Box>
+            }
+            arrow
+            placement="bottom-end"
           >
-            Upload File
-          </Button>
+            <Button
+              variant="outlined"
+              startIcon={<UploadFileIcon />}
+              onClick={() => fileInputRef.current?.click()}
+              disabled={ingestStatus !== null}
+              size="small"
+            >
+              Upload File
+            </Button>
+          </Tooltip>
         </Box>
 
         {/* Show uploaded file name */}
@@ -440,8 +482,8 @@ export default function SubmitScreen() {
           />
         )}
 
-        {/* PDF Upload Progress (shown inline) */}
-        {ingestStatus && uploadedFileName?.toLowerCase().endsWith(".pdf") && (
+        {/* Binary file upload progress (PDF, images) */}
+        {ingestStatus && uploadedFileName && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" color="text.secondary" gutterBottom>
               {ingestStatus} - {uploadedFileName}

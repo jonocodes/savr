@@ -49,7 +49,7 @@ import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
-import { getFilePathContent, getFilePathRaw, getFilePathPdf } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathRaw, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
 import { ingestUrl } from "../../lib/src/ingestion";
@@ -104,6 +104,7 @@ export default function ArticleScreen(_props: Props) {
 
   const [html, setHtml] = useState("");
   const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const [content, setContent] = useState("");
   const [storageSize, setStorageSize] = useState<{
@@ -516,6 +517,16 @@ export default function ArticleScreen(_props: Props) {
             const url = URL.createObjectURL(blob);
             setPdfUrl(url);
           }
+        } else if (articleData.mimeType?.startsWith("image/")) {
+          // Handle image files
+          const extension = mimeToExt[articleData.mimeType] || "jpg";
+          const file = await storage.client?.getFile(getFilePathImage(slug, extension), false);
+          if (file) {
+            const f = file as { data: ArrayBuffer; contentType: string };
+            const blob = new Blob([f.data], { type: articleData.mimeType });
+            const url = URL.createObjectURL(blob);
+            setImageUrl(url);
+          }
         } else if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
@@ -556,10 +567,13 @@ export default function ArticleScreen(_props: Props) {
 
     setup();
 
-    // Cleanup: revoke object URL when component unmounts or slug changes
+    // Cleanup: revoke object URLs when component unmounts or slug changes
     return () => {
       if (pdfUrl) {
         URL.revokeObjectURL(pdfUrl);
+      }
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
       }
     };
   }, [viewMode, slug, storage]);
@@ -809,6 +823,28 @@ export default function ArticleScreen(_props: Props) {
                 border: "none",
               }}
               title={article.title || "PDF Document"}
+            />
+          </Box>
+        ) : article.mimeType?.startsWith("image/") && imageUrl ? (
+          <Box
+            sx={{
+              width: "100%",
+              minHeight: "calc(100vh - 64px)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "flex-start",
+              p: 2,
+              bgcolor: "background.default",
+            }}
+          >
+            <img
+              src={imageUrl}
+              alt={article.title || "Image"}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "calc(100vh - 96px)",
+                objectFit: "contain",
+              }}
             />
           </Box>
         ) : (
