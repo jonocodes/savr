@@ -164,17 +164,20 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
   const [rate, setRateState] = useState(1);
   const [voice, setVoiceState] = useState<SpeechSynthesisVoice | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [currentChunk, setCurrentChunk] = useState(0);
-  const [totalChunks, setTotalChunks] = useState(0);
+  const [elapsedTime, setElapsedTime] = useState(0);
   const isSupported = isSpeechSynthesisSupported;
 
   const utteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const textRef = useRef(text);
   const chunksRef = useRef<string[]>([]);
   const currentChunkIndexRef = useRef(0);
-  const isStoppedRef = useRef(false);
+  const totalChunksRef = useRef(0);
+  const isStoppedRef = useRef(true); // Start as stopped
   const startTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const playNextChunkRef = useRef<(() => void) | null>(null);
+  const playbackStartTimeRef = useRef<number>(0);
+  const pausedElapsedTimeRef = useRef<number>(0);
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Update text ref when text changes
   useEffect(() => {
@@ -213,12 +216,35 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     };
   }, [isSupported, voice]);
 
+  // Start the progress timer
+  const startProgressTimer = useCallback(() => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+    }
+    playbackStartTimeRef.current = Date.now();
+    progressTimerRef.current = setInterval(() => {
+      const elapsed = pausedElapsedTimeRef.current + (Date.now() - playbackStartTimeRef.current) / 1000;
+      setElapsedTime(elapsed);
+    }, 500); // Update every 500ms for smoother display
+  }, []);
+
+  // Stop the progress timer
+  const stopProgressTimer = useCallback(() => {
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+      progressTimerRef.current = null;
+    }
+  }, []);
+
   // Clean up on unmount
   useEffect(() => {
     return () => {
       isStoppedRef.current = true;
       if (startTimeoutRef.current) {
         clearTimeout(startTimeoutRef.current);
+      }
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
       }
       if (typeof window !== "undefined" && "speechSynthesis" in window) {
         window.speechSynthesis.cancel();
@@ -335,18 +361,15 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
 
     if (currentIndex >= chunks.length) {
       console.log("TTS: All chunks finished");
+      stopProgressTimer();
       setIsPlaying(false);
       setIsPaused(false);
-      setCurrentChunk(chunks.length); // Mark as complete
       return;
     }
 
-    // Update progress state
-    setCurrentChunk(currentIndex);
-
     console.log(`TTS: Playing chunk ${currentIndex + 1}/${chunks.length}`);
     speakChunk(chunks[currentIndex]);
-  }, [speakChunk]);
+  }, [speakChunk, stopProgressTimer]);
 
   // Keep ref updated with latest playNextChunk
   useEffect(() => {
@@ -368,21 +391,22 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
       unlockAudio();
     }
 
-    // Mark as stopped BEFORE canceling to prevent onend handler from advancing chunks
+    // Mark as stopped to prevent any pending onend handlers from advancing
     isStoppedRef.current = true;
+    stopProgressTimer();
 
     // Cancel any ongoing speech
     window.speechSynthesis.cancel();
 
-    // Now reset state for fresh playback
-    isStoppedRef.current = false;
-
     // Split text into chunks for better mobile compatibility
     const chunks = splitTextIntoChunks(textRef.current, MAX_UTTERANCE_LENGTH);
     chunksRef.current = chunks;
+    totalChunksRef.current = chunks.length;
     currentChunkIndexRef.current = 0;
-    setTotalChunks(chunks.length);
-    setCurrentChunk(0);
+
+    // Reset elapsed time for fresh playback
+    pausedElapsedTimeRef.current = 0;
+    setElapsedTime(0);
 
     console.log(`TTS: Split text into ${chunks.length} chunks (mobile: ${isMobile}, iOS: ${isIOS})`);
 
@@ -390,17 +414,22 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     setIsPlaying(true);
     setIsPaused(false);
 
-    // Start playing first chunk (with small delay to ensure cancel completed)
+    // Start playing first chunk (with delay to ensure cancel completed and onend handlers finished)
     setTimeout(() => {
-      if (!isStoppedRef.current) {
-        playNextChunk();
-      }
-    }, isIOS ? 100 : 10);
-  }, [isSupported, playNextChunk]);
+      // NOW we can mark as not stopped, after the async cancel events have fired
+      isStoppedRef.current = false;
+      startProgressTimer();
+      playNextChunk();
+    }, isIOS ? 150 : 50);
+  }, [isSupported, playNextChunk, startProgressTimer, stopProgressTimer]);
 
   const pause = useCallback(() => {
     if (!isSupported) return;
     window.speechSynthesis.pause();
+
+    // Save elapsed time when pausing
+    pausedElapsedTimeRef.current = pausedElapsedTimeRef.current + (Date.now() - playbackStartTimeRef.current) / 1000;
+    stopProgressTimer();
 
     // Firefox bug: pause() doesn't work, check if it actually paused
     setTimeout(() => {
@@ -410,23 +439,26 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
       } else {
         // Pause didn't work (Firefox), fall back to stop
         console.warn("TTS: Pause not supported, stopping instead");
+        isStoppedRef.current = true;
         window.speechSynthesis.cancel();
         setIsPlaying(false);
         setIsPaused(false);
       }
     }, 50);
-  }, [isSupported]);
+  }, [isSupported, stopProgressTimer]);
 
   const resume = useCallback(() => {
     if (!isSupported) return;
     window.speechSynthesis.resume();
+    startProgressTimer();
     console.log("TTS: Resumed");
     setIsPaused(false);
-  }, [isSupported]);
+  }, [isSupported, startProgressTimer]);
 
   const stop = useCallback(() => {
     if (!isSupported) return;
     isStoppedRef.current = true;
+    stopProgressTimer();
     if (startTimeoutRef.current) {
       clearTimeout(startTimeoutRef.current);
       startTimeoutRef.current = null;
@@ -434,7 +466,10 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     window.speechSynthesis.cancel();
     setIsPlaying(false);
     setIsPaused(false);
-  }, [isSupported]);
+    // Reset elapsed time
+    pausedElapsedTimeRef.current = 0;
+    setElapsedTime(0);
+  }, [isSupported, stopProgressTimer]);
 
   const setRate = useCallback((newRate: number) => {
     setRateState(newRate);
@@ -444,52 +479,17 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
     setVoiceState(newVoice);
   }, []);
 
-  // Seek to a specific position (0-100 percentage)
-  const seekTo = useCallback((progress: number) => {
-    if (!isSupported) return;
-    if (chunksRef.current.length === 0) return;
-
-    // Calculate target chunk from progress percentage
-    const targetChunk = Math.floor((progress / 100) * chunksRef.current.length);
-    const clampedChunk = Math.max(0, Math.min(targetChunk, chunksRef.current.length - 1));
-
-    console.log(`TTS: Seeking to ${progress}% (chunk ${clampedChunk + 1}/${chunksRef.current.length})`);
-
-    // Mark as stopped BEFORE canceling to prevent onend handler from advancing chunks
-    isStoppedRef.current = true;
-
-    // Cancel current speech
-    window.speechSynthesis.cancel();
-
-    // Now reset for seeking
-    isStoppedRef.current = false;
-
-    // Update chunk index
-    currentChunkIndexRef.current = clampedChunk;
-    setCurrentChunk(clampedChunk);
-
-    // Unlock audio on mobile (must be called from user gesture)
-    if (isMobile) {
-      unlockAudio();
-    }
-
-    // Start playing from the new position
-    setIsPlaying(true);
-    setIsPaused(false);
-
-    // Small delay to allow cancel to complete
-    setTimeout(() => {
-      if (!isStoppedRef.current) {
-        playNextChunk();
-      }
-    }, isIOS ? 100 : 50);
-  }, [isSupported, playNextChunk]);
+  // Seek to a specific position (0-100 percentage) - currently disabled/no-op
+  const seekTo = useCallback((_progress: number) => {
+    // Seeking is disabled for now - slider is read-only
+    console.log("TTS: Seeking is currently disabled");
+  }, []);
 
   // Calculate progress percentage and time estimates
-  const progress = totalChunks > 0 ? (currentChunk / totalChunks) * 100 : 0;
   const wordCount = countWords(text);
   const totalTime = wordCount > 0 ? (wordCount / WORDS_PER_MINUTE_BASE) * 60 / rate : 0;
-  const currentTime = (progress / 100) * totalTime;
+  const currentTime = Math.min(elapsedTime, totalTime);
+  const progress = totalTime > 0 ? (currentTime / totalTime) * 100 : 0;
 
   const state: TTSState = {
     isPlaying,

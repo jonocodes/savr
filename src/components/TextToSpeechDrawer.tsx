@@ -34,7 +34,7 @@ export default function TextToSpeechDrawer({
   ttsControls,
 }: TextToSpeechDrawerProps) {
   const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentTime, totalTime } = ttsState;
-  const { play, pause, resume, stop, setRate, setVoice, seekTo } = ttsControls;
+  const { play, pause, resume, stop, setRate, setVoice } = ttsControls;
 
   const handlePlayPause = () => {
     if (isPlaying && !isPaused) {
@@ -70,11 +70,6 @@ export default function TextToSpeechDrawer({
         setTimeout(() => play(), 50);
       }
     }
-  };
-
-  const handleProgressChange = (_event: Event, newValue: number | number[]) => {
-    const newProgress = newValue as number;
-    seekTo(newProgress);
   };
 
   if (!isSupported) {
@@ -179,14 +174,22 @@ export default function TextToSpeechDrawer({
               </Box>
               <Slider
                 value={progress}
-                onChange={handleProgressChange}
                 min={0}
                 max={100}
-                step={1}
+                disabled
                 sx={{
                   '& .MuiSlider-thumb': {
-                    width: 16,
-                    height: 16,
+                    width: 12,
+                    height: 12,
+                  },
+                  '&.Mui-disabled': {
+                    color: 'primary.main',
+                    '& .MuiSlider-thumb': {
+                      backgroundColor: 'primary.main',
+                    },
+                    '& .MuiSlider-track': {
+                      backgroundColor: 'primary.main',
+                    },
                   },
                 }}
               />
