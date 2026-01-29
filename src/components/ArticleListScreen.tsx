@@ -46,7 +46,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
-import { generateInfoForCard, getFilePathContent } from "../../lib/src/lib";
+import { generateInfoForCard, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -103,8 +103,17 @@ function ArticleItem({ article }: { article: Article }) {
       if (!storage.client) return;
 
       try {
-        const contentPath = getFilePathContent(article.slug);
-        const file = (await storage.client.getFile(contentPath)) as { data: string } | null;
+        // Check the appropriate file based on mimeType
+        let contentPath: string;
+        if (article.mimeType === "application/pdf") {
+          contentPath = getFilePathPdf(article.slug);
+        } else if (article.mimeType?.startsWith("image/")) {
+          const extension = mimeToExt[article.mimeType] || "jpg";
+          contentPath = getFilePathImage(article.slug, extension);
+        } else {
+          contentPath = getFilePathContent(article.slug);
+        }
+        const file = (await storage.client.getFile(contentPath)) as { data: string | ArrayBuffer } | null;
         setContentExists(!!(file && file.data));
       } catch (error) {
         console.warn(`Failed to check content for ${article.slug}:`, error);
@@ -113,7 +122,7 @@ function ArticleItem({ article }: { article: Article }) {
     };
 
     checkContentExists();
-  }, [article.slug, storage.client]);
+  }, [article.slug, article.mimeType, storage.client]);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation(); // Prevent the ListItem click from firing
@@ -206,7 +215,13 @@ function ArticleItem({ article }: { article: Article }) {
         }
         secondary={
           <Typography variant="caption" color="text.secondary">
-            {contentExists ? generateInfoForCard(article) : "(content missing)"}
+            {contentExists
+              ? article.mimeType === "application/pdf"
+                ? "PDF document"
+                : article.mimeType?.startsWith("image/")
+                  ? "Image"
+                  : generateInfoForCard(article)
+              : "(content missing)"}
           </Typography>
         }
       />
