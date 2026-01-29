@@ -90,6 +90,7 @@
     "@types/node": "^22.5.4",
     "@types/react": "^19.0.8",
     "@types/react-dom": "^19.0.3",
+    "@types/showdown": "^2.0.6",
     "@vitejs/plugin-basic-ssl": "^2.1.0",
     "@vitejs/plugin-react": "^4.6.0",
     "autoprefixer": "^10.4.20",

@@ -16,6 +16,10 @@ import {
   Button,
   LinearProgress,
   Paper,
+  FormControl,
+  InputLabel,
+  Select,
+  MenuItem,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon } from "@mui/icons-material";
 import {
@@ -37,13 +41,133 @@ import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
 import { ingestHtml } from "lib/src/ingestion";
 import type { Article } from "lib/src/models";
+import Showdown from "showdown";
+
+// Content type options for the dropdown
+type ContentTypeOption = "auto" | "text/html" | "text/markdown" | "text/plain";
+
+const CONTENT_TYPE_OPTIONS: { value: ContentTypeOption; label: string }[] = [
+  { value: "auto", label: "Auto-detect" },
+  { value: "text/html", label: "HTML" },
+  { value: "text/markdown", label: "Markdown" },
+  { value: "text/plain", label: "Plain Text" },
+];
+
+/**
+ * Auto-detect content type based on content patterns
+ */
+function detectContentType(content: string): "text/html" | "text/markdown" | "text/plain" {
+  const trimmed = content.trim();
+
+  // Check for HTML: look for DOCTYPE, or any HTML tags
+  const htmlPatterns = [
+    /^<!DOCTYPE\s+html/i,
+    /<html[\s>]/i,
+    /<head[\s>]/i,
+    /<body[\s>]/i,
+    /<(div|span|p|h[1-6]|ul|ol|li|table|form|a|img|script|style|link|meta|title)[\s>]/i,
+  ];
+
+  for (const pattern of htmlPatterns) {
+    if (pattern.test(trimmed)) {
+      return "text/html";
+    }
+  }
+
+  // Check for Markdown patterns
+  const markdownPatterns = [
+    /^#{1,6}\s+\S/m,           // Headers: # Header
+    /^\s*[-*+]\s+\S/m,         // Unordered lists: - item, * item, + item
+    /^\s*\d+\.\s+\S/m,         // Ordered lists: 1. item
+    /\[.+?\]\(.+?\)/,          // Links: [text](url)
+    /!\[.*?\]\(.+?\)/,         // Images: ![alt](url)
+    /^>\s+\S/m,                // Blockquotes: > quote
+    /`{1,3}[^`]+`{1,3}/,       // Inline code or code blocks
+    /^\s*```/m,                // Fenced code blocks
+    /\*\*[^*]+\*\*/,           // Bold: **text**
+    /\*[^*]+\*/,               // Italic: *text*
+    /__[^_]+__/,               // Bold: __text__
+    /_[^_]+_/,                 // Italic: _text_
+    /~~[^~]+~~/,               // Strikethrough: ~~text~~
+    /^\s*[-*_]{3,}\s*$/m,      // Horizontal rules: ---, ***, ___
+  ];
+
+  let markdownScore = 0;
+  for (const pattern of markdownPatterns) {
+    if (pattern.test(trimmed)) {
+      markdownScore++;
+    }
+  }
+
+  // If multiple markdown patterns match, likely markdown
+  if (markdownScore >= 2) {
+    return "text/markdown";
+  }
+
+  // Default to plain text
+  return "text/plain";
+}
+
+/**
+ * Convert content to HTML based on its type
+ */
+function convertToHtml(content: string, contentType: "text/html" | "text/markdown" | "text/plain"): string {
+  switch (contentType) {
+    case "text/html":
+      return content;
+
+    case "text/markdown": {
+      const converter = new Showdown.Converter({
+        tables: true,
+        tasklists: true,
+        strikethrough: true,
+        ghCodeBlocks: true,
+        emoji: true,
+        simplifiedAutoLink: true,
+      });
+      const htmlContent = converter.makeHtml(content);
+      // Wrap in basic HTML structure if not already present
+      if (!htmlContent.includes("<title>")) {
+        // Try to extract title from first h1 or first line
+        const titleMatch = content.match(/^#\s+(.+)$/m);
+        const title = titleMatch ? titleMatch[1] : "Imported Markdown";
+        return `<title>${title}</title>${htmlContent}`;
+      }
+      return htmlContent;
+    }
+
+    case "text/plain": {
+      // Extract title from first line if it's short enough
+      const lines = content.split("\n");
+      const firstLine = lines[0]?.trim() || "";
+      const title = firstLine.length > 0 && firstLine.length < 100
+        ? firstLine
+        : "Imported Text";
+
+      // Wrap plain text in pre tags to preserve formatting, escape HTML
+      const escaped = content
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+      return `<title>${title}</title><pre style="white-space: pre-wrap; word-wrap: break-word; font-family: inherit;">${escaped}</pre>`;
+    }
+
+    default:
+      return content;
+  }
+}
 
 export default function SubmitScreen() {
   const { enqueueSnackbar } = useSnackbar();
 
   const [dialogVisible, setDialogVisible] = useState(false);
 
-  const [html, setHtml] = useState<string>("");
+  const [content, setContent] = useState<string>("");
+  const [contentType, setContentType] = useState<ContentTypeOption>("auto");
+  const [detectedType, setDetectedType] = useState<"text/html" | "text/markdown" | "text/plain" | null>(null);
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
   const [testSummary, setTestSummary] = useState<string | null>(null);
@@ -86,18 +210,25 @@ export default function SubmitScreen() {
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
       // TODO: pass in headers/cookies for downloading
 
-      // Wait until URL is not empty
-      if (!html.trim()) {
+      // Wait until content is not empty
+      if (!content.trim()) {
         return;
       }
 
       setIngestStatus("Ingesting...");
       try {
+        // Determine the actual content type
+        const actualContentType: "text/html" | "text/markdown" | "text/plain" =
+          contentType === "auto" ? detectContentType(content) : contentType;
+
+        // Convert content to HTML if needed
+        const htmlContent = convertToHtml(content, actualContentType);
+
         const result = await ingestHtml(
           client,
           // corsProxy,
-          html,
-          "text/html",
+          htmlContent,
+          "text/html", // Always save as HTML since we convert
           null,
           (percent: number | null, message: string | null) => {
             if (percent !== null) {
@@ -128,7 +259,8 @@ export default function SubmitScreen() {
           setDialogVisible(false);
           setIngestStatus(null);
           setIngestPercent(0);
-          setHtml("");
+          setContent("");
+          setDetectedType(null);
 
           console.log("afterExternalSave", afterExternalSave);
 
@@ -153,18 +285,20 @@ export default function SubmitScreen() {
     },
     [
       client,
-      html,
+      content,
+      contentType,
       setDialogVisible,
       setIngestStatus,
       setIngestPercent,
-      setHtml,
+      setContent,
+      setDetectedType,
       enqueueSnackbar,
       navigate,
     ],
   );
 
   const handleTestSummary = async () => {
-    if (!html.trim()) {
+    if (!content.trim()) {
       enqueueSnackbar("Please enter some content first", { variant: "warning" });
       return;
     }
@@ -184,9 +318,14 @@ export default function SubmitScreen() {
     setSummaryProgress({ status: "summarizing" });
 
     try {
+      // Determine the actual content type and convert if needed
+      const actualContentType: "text/html" | "text/markdown" | "text/plain" =
+        contentType === "auto" ? detectContentType(content) : contentType;
+      const htmlContent = convertToHtml(content, actualContentType);
+
       // Extract text from HTML for summarization
       const parser = new DOMParser();
-      const doc = parser.parseFromString(html, "text/html");
+      const doc = parser.parseFromString(htmlContent, "text/html");
       const plainText = doc.body.textContent || "";
 
       if (plainText.length < 100) {
@@ -251,33 +390,71 @@ export default function SubmitScreen() {
 
       {/* Content */}
       <Container maxWidth="md" sx={{ mt: 2 }}>
-        Paste your HTML here
+        <Typography variant="body1" gutterBottom>
+          Paste your content here (HTML, Markdown, or plain text)
+        </Typography>
+
+        {/* Content Type Selector */}
+        <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2 }}>
+          <FormControl size="small" sx={{ minWidth: 180 }}>
+            <InputLabel id="content-type-label">Content Type</InputLabel>
+            <Select
+              labelId="content-type-label"
+              id="content-type-select"
+              value={contentType}
+              label="Content Type"
+              onChange={(e) => setContentType(e.target.value as ContentTypeOption)}
+              disabled={ingestStatus !== null}
+            >
+              {CONTENT_TYPE_OPTIONS.map((option) => (
+                <MenuItem key={option.value} value={option.value}>
+                  {option.label}
+                </MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {/* Show detected type when auto-detect is selected */}
+          {contentType === "auto" && detectedType && (
+            <Typography variant="body2" color="text.secondary">
+              Detected: {CONTENT_TYPE_OPTIONS.find((o) => o.value === detectedType)?.label || detectedType}
+            </Typography>
+          )}
+        </Box>
+
         <TextField
           multiline
           minRows={10}
-          // inputRef={htmlFieldRef}
-          label="text"
-          onChange={(e) => setHtml(e.target.value)}
+          label="Content"
+          value={content}
+          onChange={(e) => {
+            const newContent = e.target.value;
+            setContent(newContent);
+            // Auto-detect content type as user types
+            if (newContent.trim()) {
+              setDetectedType(detectContentType(newContent));
+            } else {
+              setDetectedType(null);
+            }
+          }}
           fullWidth
           margin="normal"
           autoFocus
           disabled={ingestStatus !== null}
-          defaultValue={
-            "<title>Ipsum</title><p>Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum</p>"
-          }
+          placeholder="Paste HTML, Markdown, or plain text content here..."
         />
         <Box sx={{ display: "flex", gap: 2, mt: 2 }}>
           <Button
             onClick={() => saveHtml()}
             variant="contained"
-            disabled={ingestStatus !== null || !html.trim()}
+            disabled={ingestStatus !== null || !content.trim()}
           >
             Save
           </Button>
           <Button
             onClick={handleTestSummary}
             variant="outlined"
-            disabled={isSummarizing || !html.trim()}
+            disabled={isSummarizing || !content.trim()}
           >
             {isSummarizing ? "Summarizing..." : "Test Summary"}
           </Button>
