@@ -612,6 +612,34 @@ export default function ArticleScreen(_props: Props) {
     }
   }, [hasSetInitialScroll, article.progress, content]);
 
+  // Handle click on summary link (injected into HTML content)
+  useEffect(() => {
+    const handleSummaryLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.id === "savr-summary-link-anchor" || target.closest("#savr-summary-link-anchor")) {
+        e.preventDefault();
+        setSummaryDrawerOpen(true);
+      }
+    };
+
+    document.addEventListener("click", handleSummaryLinkClick);
+    return () => document.removeEventListener("click", handleSummaryLinkClick);
+  }, []);
+
+  // Compute HTML with summary link injected if summary exists
+  const htmlWithSummaryLink = useMemo(() => {
+    if (!html || !article.summary) return html;
+
+    // Inject summary link after the reading time div
+    const summaryLinkHtml = ` · <a id="savr-summary-link-anchor" href="#" style="color: inherit; text-decoration: underline; cursor: pointer;">View Summary</a>`;
+
+    // Find the savr-readTime div and append the link inside it
+    return html.replace(
+      /(<div id="savr-readTime"[^>]*>)(.*?)(<\/div>)/,
+      `$1$2${summaryLinkHtml}$3`
+    );
+  }, [html, article.summary]);
+
   return (
     <Box
       sx={{
@@ -866,7 +894,7 @@ export default function ArticleScreen(_props: Props) {
             />
           </Box>
         ) : (
-          <ArticleComponent html={html} fontSize={fontSize} />
+          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} />
         )}
       </Box>
 
@@ -1027,12 +1055,17 @@ export default function ArticleScreen(_props: Props) {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: "60vh",
+            bgcolor: "background.paper",
+            color: "text.primary",
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-            <AutoAwesomeIcon />
+        <Box sx={{ p: 3, bgcolor: "background.paper", color: "text.primary" }}>
+          <Typography
+            variant="h6"
+            sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1, color: "text.primary" }}
+          >
+            <AutoAwesomeIcon color="primary" />
             Summary
           </Typography>
 
@@ -1049,11 +1082,33 @@ export default function ArticleScreen(_props: Props) {
             <Box
               sx={{
                 lineHeight: 1.7,
-                "& p": { margin: "0.5em 0" },
-                "& ul, & ol": { pl: 2, my: 1 },
-                "& li": { mb: 0.5 },
-                "& strong": { fontWeight: 600 },
-                "& h1, & h2, & h3, & h4": { mt: 1.5, mb: 0.5, fontWeight: 600 },
+                color: "text.primary",
+                "& p": { margin: "0.5em 0", color: "text.primary" },
+                "& ul, & ol": { pl: 2, my: 1, color: "text.primary" },
+                "& li": { mb: 0.5, color: "text.primary" },
+                "& strong": { fontWeight: 600, color: "text.primary" },
+                "& h1, & h2, & h3, & h4": {
+                  mt: 1.5,
+                  mb: 0.5,
+                  fontWeight: 600,
+                  color: "text.primary",
+                },
+                "& a": { color: "primary.main" },
+                "& code": {
+                  bgcolor: "action.hover",
+                  px: 0.5,
+                  py: 0.25,
+                  borderRadius: 0.5,
+                  fontSize: "0.9em",
+                },
+                "& blockquote": {
+                  borderLeft: 3,
+                  borderColor: "divider",
+                  pl: 2,
+                  ml: 0,
+                  color: "text.secondary",
+                  fontStyle: "italic",
+                },
               }}
             >
               <ReactMarkdown>{article.summary}</ReactMarkdown>
