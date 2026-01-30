@@ -612,28 +612,33 @@ export default function ArticleScreen(_props: Props) {
     }
   }, [hasSetInitialScroll, article.progress, content]);
 
-  // Inject summary link next to reading time when a summary exists
+  // Handle click on summary link (injected into HTML content)
   useEffect(() => {
-    if (!content || !article.summary) return;
-
-    // Wait for DOM to render
-    const timeoutId = setTimeout(() => {
-      const readTimeEl = document.getElementById("savr-readTime");
-      if (readTimeEl && !document.getElementById("savr-summary-link")) {
-        // Create the summary link
-        const summaryLink = document.createElement("span");
-        summaryLink.id = "savr-summary-link";
-        summaryLink.innerHTML = " · <a href=\"#\" style=\"color: inherit; text-decoration: underline; cursor: pointer;\">View Summary</a>";
-        summaryLink.querySelector("a")?.addEventListener("click", (e) => {
-          e.preventDefault();
-          setSummaryDrawerOpen(true);
-        });
-        readTimeEl.appendChild(summaryLink);
+    const handleSummaryLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.id === "savr-summary-link-anchor" || target.closest("#savr-summary-link-anchor")) {
+        e.preventDefault();
+        setSummaryDrawerOpen(true);
       }
-    }, 100);
+    };
 
-    return () => clearTimeout(timeoutId);
-  }, [content, article.summary]);
+    document.addEventListener("click", handleSummaryLinkClick);
+    return () => document.removeEventListener("click", handleSummaryLinkClick);
+  }, []);
+
+  // Compute HTML with summary link injected if summary exists
+  const htmlWithSummaryLink = useMemo(() => {
+    if (!html || !article.summary) return html;
+
+    // Inject summary link after the reading time div
+    const summaryLinkHtml = ` · <a id="savr-summary-link-anchor" href="#" style="color: inherit; text-decoration: underline; cursor: pointer;">View Summary</a>`;
+
+    // Find the savr-readTime div and append the link inside it
+    return html.replace(
+      /(<div id="savr-readTime"[^>]*>)(.*?)(<\/div>)/,
+      `$1$2${summaryLinkHtml}$3`
+    );
+  }, [html, article.summary]);
 
   return (
     <Box
@@ -889,7 +894,7 @@ export default function ArticleScreen(_props: Props) {
             />
           </Box>
         ) : (
-          <ArticleComponent html={html} fontSize={fontSize} />
+          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} />
         )}
       </Box>
 
