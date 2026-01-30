@@ -12,14 +12,34 @@ import {
   getFilePathContent,
   getFilePathMetadata,
   getFileFetchLog,
+  getFilePathPdf,
+  getFilePathImage,
   mimeToExt,
 } from "./lib";
 import { saveResource } from "~/utils/storage";
 import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/tools";
 import { md5 } from "js-md5";
+import { summarizeText, DEFAULT_SUMMARY_SETTINGS, type SummaryProvider } from "~/utils/summarization";
+import {
+  getSummarizationEnabledFromCookie,
+  getSummaryProviderFromCookie,
+  getSummaryModelFromCookie,
+  getApiKeyForProvider,
+  getSummarySettingsFromCookie,
+} from "~/utils/cookies";
+import { convertToHtml } from "./contentType";
 
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
+
+/**
+ * Extract plain text from HTML content
+ */
+function extractTextFromHtml(html: string): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(html, "text/html");
+  return doc.body?.textContent?.trim() || "";
+}
 
 type ImageData = [string, string, HTMLImageElement, number, number]; // url, path, image, width, height
 
@@ -528,6 +548,39 @@ export async function ingestHtml(
 
   storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
 
+  // Generate AI summary (if enabled in preferences and API key is configured)
+  const summarizationEnabled = getSummarizationEnabledFromCookie();
+  const provider = getSummaryProviderFromCookie() as SummaryProvider;
+  const apiKey = getApiKeyForProvider(provider);
+
+  if (summarizationEnabled && apiKey) {
+    sendMessageWithLog(80, "generating summary");
+    try {
+      const plainText = extractTextFromHtml(content);
+      if (plainText.length > 100) {
+        const model = getSummaryModelFromCookie();
+        const cookieSettings = getSummarySettingsFromCookie();
+        const settings = {
+          ...DEFAULT_SUMMARY_SETTINGS,
+          detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
+          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+          customPrompt: cookieSettings.customPrompt,
+        };
+
+        const summary = await summarizeText(plainText, settings, provider, apiKey, model);
+        if (summary) {
+          article.summary = summary;
+          sendMessageWithLog(null, "summary generated");
+        }
+      }
+    } catch (error) {
+      console.error("Failed to generate summary during ingestion:", error);
+      sendMessageWithLog(null, "summary generation skipped (API error)");
+    }
+  }
+
   // Write the fetch log at the end with all collected messages
   const fetchLogPath = getFileFetchLog(article.slug);
   const fetchLogContent = logMessages.join('\n');
@@ -555,6 +608,205 @@ function generateRandomString() {
 }
 
 console.log(generateRandomString());
+
+/**
+ * Extract a title from a PDF URL, using the filename without extension
+ */
+function getTitleFromPdfUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    const pathname = parsedUrl.pathname;
+    // Get the filename from the path
+    const filename = pathname.split("/").pop() || "";
+    // Remove .pdf extension if present
+    const title = filename.replace(/\.pdf$/i, "");
+    // If we got a valid title, return it decoded
+    if (title) {
+      return decodeURIComponent(title).replace(/[-_]/g, " ");
+    }
+  } catch (e) {
+    // URL parsing failed
+  }
+  // Fallback to timestamp-based title
+  return `pdf ${Date.now()}`;
+}
+
+export async function ingestPdf(
+  storageClient: BaseClient | null,
+  pdfBlob: Blob,
+  url: string,
+  sendMessage: (percent: number | null, message: string | null) => void
+): Promise<Article> {
+  const logMessages: string[] = [];
+
+  const sendMessageWithLog = (percent: number | null, message: string | null) => {
+    if (message) {
+      logMessages.push(message);
+    }
+    sendMessage(percent, message);
+  };
+
+  sendMessageWithLog(20, "processing PDF");
+
+  const title = getTitleFromPdfUrl(url);
+  const slug = stringToSlug(title);
+
+  const article: Article = {
+    slug: slug,
+    title: title,
+    url: url,
+    state: "unread",
+    publication: null,
+    author: null,
+    publishedDate: null,
+    ingestDate: new Date().toISOString(),
+    ingestPlatform: `typescript/web (${version})`,
+    ingestSource: "url",
+    mimeType: "application/pdf",
+    readTimeMinutes: null,
+    progress: 0,
+  };
+
+  sendMessageWithLog(40, "saving PDF");
+
+  // Convert blob to ArrayBuffer for storage
+  const arrayBuffer = await pdfBlob.arrayBuffer();
+
+  // Store the PDF binary
+  await storageClient?.storeFile(
+    "application/pdf",
+    getFilePathPdf(article.slug),
+    arrayBuffer
+  );
+
+  sendMessageWithLog(70, "saving metadata");
+
+  // Write the fetch log
+  const fetchLogPath = getFileFetchLog(article.slug);
+  const fetchLogContent = logMessages.join('\n');
+  await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Save article metadata
+  await storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article, null, 2)
+  );
+
+  sendMessageWithLog(90, "done");
+
+  return article;
+}
+
+/**
+ * Extract a title from an image URL, using the filename without extension
+ */
+function getTitleFromImageUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    const pathname = parsedUrl.pathname;
+    const filename = pathname.split("/").pop() || "";
+    // Remove extension
+    const title = filename.replace(/\.[^/.]+$/, "");
+    if (title) {
+      return decodeURIComponent(title).replace(/[-_]/g, " ");
+    }
+  } catch (e) {
+    // URL parsing failed
+  }
+  return `image ${Date.now()}`;
+}
+
+export async function ingestImage(
+  storageClient: BaseClient | null,
+  imageBlob: Blob,
+  mimeType: string,
+  url: string,
+  sendMessage: (percent: number | null, message: string | null) => void
+): Promise<Article> {
+  const logMessages: string[] = [];
+
+  const sendMessageWithLog = (percent: number | null, message: string | null) => {
+    if (message) {
+      logMessages.push(message);
+    }
+    sendMessage(percent, message);
+  };
+
+  sendMessageWithLog(20, "processing image");
+
+  const title = getTitleFromImageUrl(url);
+  const slug = stringToSlug(title);
+  const extension = mimeToExt[mimeType] || "jpg";
+
+  const article: Article = {
+    slug: slug,
+    title: title,
+    url: url,
+    state: "unread",
+    publication: null,
+    author: null,
+    publishedDate: null,
+    ingestDate: new Date().toISOString(),
+    ingestPlatform: `typescript/web (${version})`,
+    ingestSource: "url",
+    mimeType: mimeType,
+    readTimeMinutes: null,
+    progress: 0,
+  };
+
+  sendMessageWithLog(40, "saving image");
+
+  // Convert blob to ArrayBuffer for storage
+  const arrayBuffer = await imageBlob.arrayBuffer();
+
+  // Store the image binary
+  await storageClient?.storeFile(
+    mimeType,
+    getFilePathImage(article.slug, extension),
+    arrayBuffer
+  );
+
+  // Also create a thumbnail from the image
+  sendMessageWithLog(60, "creating thumbnail");
+  try {
+    const { blob: resizedBlob } = await resizeImage(imageBlob, maxDimensionThumb);
+    const webpBlob = await convertToWebP(resizedBlob);
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (reader.result) {
+          resolve(reader.result as string);
+        } else {
+          reject(new Error("Failed to read blob as data URL"));
+        }
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(webpBlob);
+    });
+    await saveResource("thumbnail.webp.data", article.slug, dataUrl, webpBlob.type);
+  } catch (e) {
+    console.error("Failed to create thumbnail:", e);
+  }
+
+  sendMessageWithLog(80, "saving metadata");
+
+  // Write the fetch log
+  const fetchLogPath = getFileFetchLog(article.slug);
+  const fetchLogContent = logMessages.join('\n');
+  await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Save article metadata
+  await storageClient?.storeFile(
+    "application/json",
+    getFilePathMetadata(article.slug),
+    JSON.stringify(article, null, 2)
+  );
+
+  sendMessageWithLog(90, "done");
+
+  return article;
+}
 
 export async function ingestUrl(
   storageClient: BaseClient | null,
@@ -605,26 +857,27 @@ export async function ingestUrl(
       article = result.article;
       successfulDownloads = result.successfulDownloads;
       totalImages = result.totalImages;
-
-      // } else if (mimeType.subtype === 'pdf') {
-
-      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
-
-      //   article = await articleFromPdf(checksum, url)
-
-      //   finalizeFileLocation(tempLocalPath, article)
-
-      //   // TODO: thumbnail
-
-      // } else if (mimeType.type === 'image') {
-
-      //   let [tempLocalPath, checksum] = await storeBinary(mimeType, getReadableStream(response))
-
-      //   article = articleFromImage(mimeType, checksum, url)
-
-      //   finalizeFileLocation(tempLocalPath, article)
-
-      // createThumbnail([getFilePathContent(article.slug)], getSaveDirPath(article.slug))
+    } else if (mimeType === "application/pdf") {
+      const pdfBlob = await response.blob();
+      article = await ingestPdf(storageClient, pdfBlob, url, sendMessage);
+    } else if (mimeType === "text/plain" || mimeType === "text/markdown") {
+      // Handle plain text and markdown files - convert to HTML and ingest
+      const textContent = await response.text();
+      const htmlContent = convertToHtml(textContent, mimeType);
+      const result = await ingestHtml(
+        storageClient,
+        htmlContent,
+        "text/html",
+        url,
+        sendMessage
+      );
+      article = result.article;
+      successfulDownloads = result.successfulDownloads;
+      totalImages = result.totalImages;
+    } else if (mimeType.startsWith("image/")) {
+      // Handle image files
+      const imageBlob = await response.blob();
+      article = await ingestImage(storageClient, imageBlob, mimeType, url, sendMessage);
     } else {
       throw new Error(`No handler for content type ${contentTypeHeader}`);
     }

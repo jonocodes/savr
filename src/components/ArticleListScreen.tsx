@@ -46,7 +46,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
-import { generateInfoForCard, getFilePathContent } from "../../lib/src/lib";
+import { generateInfoForCard, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -67,6 +67,9 @@ const sampleArticleUrls = [
   "https://medium.com/airbnb-engineering/rethinking-text-resizing-on-web-1047b12d2881",
   "https://leejo.github.io/2024/09/29/holding_out_for_the_heros_to_fuck_off/",
   "https://www.cbc.ca/news/canada/nova-scotia/1985-toyota-tercel-high-mileage-1.7597168",
+  "https://www.princexml.com/samples/usenix/example.pdf",
+  "https://cdn.jsdelivr.net/gh/jonocodes/stashcast@main/DEPLOYMENT.md",
+  "https://cdn.jsdelivr.net/gh/jonocodes/stashcast@main/docs/header-transparent.png",
 ];
 
 function ArticleItem({ article }: { article: Article }) {
@@ -100,8 +103,17 @@ function ArticleItem({ article }: { article: Article }) {
       if (!storage.client) return;
 
       try {
-        const contentPath = getFilePathContent(article.slug);
-        const file = (await storage.client.getFile(contentPath)) as { data: string } | null;
+        // Check the appropriate file based on mimeType
+        let contentPath: string;
+        if (article.mimeType === "application/pdf") {
+          contentPath = getFilePathPdf(article.slug);
+        } else if (article.mimeType?.startsWith("image/")) {
+          const extension = mimeToExt[article.mimeType] || "jpg";
+          contentPath = getFilePathImage(article.slug, extension);
+        } else {
+          contentPath = getFilePathContent(article.slug);
+        }
+        const file = (await storage.client.getFile(contentPath)) as { data: string | ArrayBuffer } | null;
         setContentExists(!!(file && file.data));
       } catch (error) {
         console.warn(`Failed to check content for ${article.slug}:`, error);
@@ -110,7 +122,7 @@ function ArticleItem({ article }: { article: Article }) {
     };
 
     checkContentExists();
-  }, [article.slug, storage.client]);
+  }, [article.slug, article.mimeType, storage.client]);
 
   const openMenu = (event: React.MouseEvent<HTMLElement>) => {
     event.stopPropagation(); // Prevent the ListItem click from firing
@@ -203,7 +215,13 @@ function ArticleItem({ article }: { article: Article }) {
         }
         secondary={
           <Typography variant="caption" color="text.secondary">
-            {contentExists ? generateInfoForCard(article) : "(content missing)"}
+            {contentExists
+              ? article.mimeType === "application/pdf"
+                ? "PDF document"
+                : article.mimeType?.startsWith("image/")
+                  ? "Image"
+                  : generateInfoForCard(article)
+              : "(content missing)"}
           </Typography>
         }
       />
@@ -442,12 +460,22 @@ export default function ArticleListScreen() {
           // Continue anyway - the article is saved locally
         }
 
-        // Wait a bit for UI to update, then wait for sync and close
+        // Wait a bit for UI to update, then handle based on preference
         setTimeout(async () => {
           setDialogVisible(false);
           setIngestPercent(100);
           setUrl("");
-          await waitForSyncThenClose();
+
+          const afterExternalSave = getAfterExternalSaveFromCookie();
+          if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
+            await waitForSyncThenClose();
+          } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
+            setIngestStatus(null);
+            navigate({ to: `/article/${article.slug}` });
+          } else {
+            // SHOW_LIST - just clear the status
+            setIngestStatus(null);
+          }
         }, 1500);
       }
     };
@@ -814,6 +842,10 @@ export default function ArticleListScreen() {
           )}
         </DialogContent>
         <DialogActions>
+          <Button onClick={() => { setDialogVisible(false); navigate({ to: "/submit" }); }}>
+            Advanced
+          </Button>
+          <Box sx={{ flexGrow: 1 }} />
           {articles && articles.length > 0 && (
             <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
           )}

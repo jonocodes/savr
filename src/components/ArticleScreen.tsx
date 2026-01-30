@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import ReactMarkdown from "react-markdown";
 import {
   AppBar,
   Toolbar,
@@ -15,6 +16,9 @@ import {
   TextField,
   Button,
   Stack,
+  LinearProgress,
+  CircularProgress,
+  Collapse,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -31,6 +35,10 @@ import {
   Delete as DeleteIcon,
   Headphones as HeadphonesIcon,
   Edit as EditIcon,
+  Refresh as RefreshIcon,
+  AutoAwesome as AutoAwesomeIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -44,9 +52,23 @@ import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
-import { getFilePathContent, getFilePathRaw } from "../../lib/src/lib";
+import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
 import { isDebugMode } from "~/config/environment";
+import { ingestUrl } from "../../lib/src/ingestion";
+import {
+  summarizeText,
+  DEFAULT_SUMMARY_SETTINGS,
+  type SummarizationProgress,
+  type SummaryProvider,
+} from "~/utils/summarization";
+import {
+  getSummarizationEnabledFromCookie,
+  getSummaryProviderFromCookie,
+  getSummaryModelFromCookie,
+  getApiKeyForProvider,
+  getSummarySettingsFromCookie,
+} from "~/utils/cookies";
 
 interface Props {
   /**
@@ -74,10 +96,20 @@ export default function ArticleScreen(_props: Props) {
   const [infoDrawerOpen, setInfoDrawerOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editAuthor, setEditAuthor] = useState("");
+  const [fetchLog, setFetchLog] = useState<string | null>(null);
+  const [logExpanded, setLogExpanded] = useState(false);
   const [headerHidingEnabled, setHeaderHidingEnabled] = useState(true);
   const [ttsDrawerOpen, setTtsDrawerOpen] = useState(false);
+  const [refetchDrawerOpen, setRefetchDrawerOpen] = useState(false);
+  const [refetchPercent, setRefetchPercent] = useState<number>(0);
+  const [refetchStatus, setRefetchStatus] = useState<string | null>(null);
+  const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
+  const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   const [html, setHtml] = useState("");
+  const [pdfUrl, setPdfUrl] = useState<string | null>(null);
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
 
   const [content, setContent] = useState("");
   const [storageSize, setStorageSize] = useState<{
@@ -152,6 +184,71 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
+  const handleSummarize = async () => {
+    closeMenu();
+    setSummaryDrawerOpen(true);
+
+    // If we already have a summary, just show it
+    if (article.summary) {
+      return;
+    }
+
+    if (!articleText) {
+      enqueueSnackbar("No article content to summarize", { variant: "error" });
+      return;
+    }
+
+    // Get summarization config from cookies
+    const provider = getSummaryProviderFromCookie() as SummaryProvider;
+    const model = getSummaryModelFromCookie();
+    const apiKey = getApiKeyForProvider(provider);
+
+    if (!apiKey) {
+      enqueueSnackbar("Please set up your API key in Preferences", { variant: "warning" });
+      return;
+    }
+
+    setIsSummarizing(true);
+    setSummaryProgress({ status: "summarizing" });
+
+    try {
+      // Get settings from preferences
+      const cookieSettings = getSummarySettingsFromCookie();
+      const settings = {
+        ...DEFAULT_SUMMARY_SETTINGS,
+        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
+        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+        customPrompt: cookieSettings.customPrompt,
+      };
+
+      const summary = await summarizeText(
+        articleText,
+        settings,
+        provider,
+        apiKey,
+        model,
+        (progress) => {
+          setSummaryProgress(progress);
+        },
+      );
+
+      // Save summary to article metadata
+      const updatedArticle = { ...article, summary };
+      await updateArticleMetadata(storage.client!, updatedArticle);
+      setArticle(updatedArticle);
+
+      enqueueSnackbar("Summary generated");
+    } catch (error) {
+      console.error("Summarization failed:", error);
+      enqueueSnackbar("Failed to generate summary", { variant: "error" });
+    } finally {
+      setIsSummarizing(false);
+      setSummaryProgress(null);
+    }
+  };
+
   const handleArchive = () => {
     try {
       // updateArticleState(storage.client!, article.slug, "archived");
@@ -181,11 +278,96 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleEditInfo = () => {
+  const handleEditInfo = async () => {
     setEditTitle(article.title || "");
     setEditAuthor(article.author || "");
+    setFetchLog(null);
     setInfoDrawerOpen(true);
     closeMenu();
+
+    // Load fetch log asynchronously
+    try {
+      const logFile = (await storage.client?.getFile(getFileFetchLog(slug), false)) as {
+        data: string;
+      } | undefined;
+      if (logFile?.data) {
+        setFetchLog(logFile.data);
+      }
+    } catch (e) {
+      console.error("Failed to load fetch log:", e);
+    }
+  };
+
+  const handleRefetch = async () => {
+    if (!article.url) {
+      enqueueSnackbar("No URL available to refetch", { variant: "error" });
+      closeMenu();
+      return;
+    }
+
+    closeMenu();
+    setRefetchDrawerOpen(true);
+    setRefetchStatus("Starting refetch...");
+    setRefetchPercent(0);
+
+    try {
+      const updatedArticle = await ingestUrl(
+        storage.client,
+        article.url,
+        (percent: number | null, message: string | null) => {
+          if (percent !== null) {
+            setRefetchStatus(message);
+            setRefetchPercent(percent);
+          }
+        },
+      );
+
+      // Preserve some metadata from the original article
+      updatedArticle.progress = article.progress;
+      updatedArticle.state = article.state;
+
+      // Save to IndexedDB
+      await db.articles.put(updatedArticle);
+      setArticle(updatedArticle);
+
+      // Reload the displayed content
+      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as {
+        data: string;
+      };
+      if (file) {
+        setContent(file.data);
+        if (viewMode === "cleaned") {
+          setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+        } else {
+          setHtml(file.data);
+        }
+      }
+
+      // Recalculate storage size
+      calculateArticleStorageSize(slug)
+        .then((sizeInfo) => {
+          setStorageSize(sizeInfo);
+        })
+        .catch((error) => {
+          console.error("Failed to calculate storage size:", error);
+        });
+
+      setTimeout(() => {
+        setRefetchDrawerOpen(false);
+        setRefetchPercent(0);
+        setRefetchStatus(null);
+        enqueueSnackbar("Article refetched successfully");
+      }, 1000);
+    } catch (error) {
+      console.error("Refetch error:", error);
+      setRefetchStatus("Failed to refetch article");
+      setTimeout(() => {
+        setRefetchDrawerOpen(false);
+        setRefetchPercent(0);
+        setRefetchStatus(null);
+        enqueueSnackbar("Failed to refetch article", { variant: "error" });
+      }, 2000);
+    }
   };
 
   const handleSaveEdit = async () => {
@@ -204,7 +386,9 @@ export default function ArticleScreen(_props: Props) {
       // const raw = await storage.client?.getFile(getFilePathRaw(slug));
 
       // Load the current HTML from storage (local-only for fast read)
-      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as { data: string };
+      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as {
+        data: string;
+      };
       if (!file) {
         throw new Error("Could not load HTML from storage");
       }
@@ -332,17 +516,36 @@ export default function ArticleScreen(_props: Props) {
     const setup = async () => {
       displayDebugMessage("querying database ...");
 
-      db.articles.get(slug).then((article) => {
-        if (!article) {
-          console.error("Article not found");
-          return;
-        }
-        setArticle(article);
-      });
+      const articleData = await db.articles.get(slug);
+      if (!articleData) {
+        console.error("Article not found");
+        return;
+      }
+      setArticle(articleData);
 
       try {
         displayDebugMessage("loading content ...");
-        if (viewMode === "original") {
+
+        // Handle PDF files differently
+        if (articleData.mimeType === "application/pdf") {
+          const file = await storage.client?.getFile(getFilePathPdf(slug), false);
+          if (file) {
+            const f = file as { data: ArrayBuffer; contentType: string };
+            const blob = new Blob([f.data], { type: "application/pdf" });
+            const url = URL.createObjectURL(blob);
+            setPdfUrl(url);
+          }
+        } else if (articleData.mimeType?.startsWith("image/")) {
+          // Handle image files
+          const extension = mimeToExt[articleData.mimeType] || "jpg";
+          const file = await storage.client?.getFile(getFilePathImage(slug, extension), false);
+          if (file) {
+            const f = file as { data: ArrayBuffer; contentType: string };
+            const blob = new Blob([f.data], { type: articleData.mimeType });
+            const url = URL.createObjectURL(blob);
+            setImageUrl(url);
+          }
+        } else if (viewMode === "original") {
           storage.client
             ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
             .then((file) => {
@@ -381,6 +584,16 @@ export default function ArticleScreen(_props: Props) {
     };
 
     setup();
+
+    // Cleanup: revoke object URLs when component unmounts or slug changes
+    return () => {
+      if (pdfUrl) {
+        URL.revokeObjectURL(pdfUrl);
+      }
+      if (imageUrl) {
+        URL.revokeObjectURL(imageUrl);
+      }
+    };
   }, [viewMode, slug, storage]);
 
   useEffect(() => {
@@ -572,6 +785,27 @@ export default function ArticleScreen(_props: Props) {
               <ListItemText>Edit Info</ListItemText>
             </MenuItem>
 
+            <MenuItem
+              onClick={handleRefetch}
+              sx={{ py: 1 }}
+              disabled={!article.url}
+              data-testid="article-page-menu-refetch"
+            >
+              <ListItemIcon>
+                <RefreshIcon fontSize="small" />
+              </ListItemIcon>
+              <ListItemText>Refetch</ListItemText>
+            </MenuItem>
+            {/* Only show Summarize option if summarization is enabled */}
+            {getSummarizationEnabledFromCookie() && (
+              <MenuItem onClick={handleSummarize} sx={{ py: 1 }}>
+                <ListItemIcon>
+                  <AutoAwesomeIcon fontSize="small" />
+                </ListItemIcon>
+                <ListItemText>{article.summary ? "View Summary" : "Summarize"}</ListItemText>
+              </MenuItem>
+            )}
+
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
                 <ShareIcon fontSize="small" />
@@ -590,30 +824,74 @@ export default function ArticleScreen(_props: Props) {
       </AppBar>
 
       <Box sx={{ mt: headerHidingEnabled ? 0 : "64px" }}>
-        <ArticleComponent html={html} fontSize={fontSize} />
+        {article.mimeType === "application/pdf" && pdfUrl ? (
+          <Box
+            sx={{
+              width: "100%",
+              height: "calc(100vh - 64px)",
+              display: "flex",
+              flexDirection: "column",
+            }}
+          >
+            <iframe
+              src={pdfUrl}
+              style={{
+                width: "100%",
+                height: "100%",
+                border: "none",
+              }}
+              title={article.title || "PDF Document"}
+            />
+          </Box>
+        ) : article.mimeType?.startsWith("image/") && imageUrl ? (
+          <Box
+            sx={{
+              width: "100%",
+              minHeight: "calc(100vh - 64px)",
+              display: "flex",
+              justifyContent: "center",
+              alignItems: "flex-start",
+              p: 2,
+              bgcolor: "background.default",
+            }}
+          >
+            <img
+              src={imageUrl}
+              alt={article.title || "Image"}
+              style={{
+                maxWidth: "100%",
+                maxHeight: "calc(100vh - 96px)",
+                objectFit: "contain",
+              }}
+            />
+          </Box>
+        ) : (
+          <ArticleComponent html={html} fontSize={fontSize} />
+        )}
       </Box>
 
       {/* Info Bottom Drawer */}
       <Drawer
         anchor="bottom"
         open={infoDrawerOpen}
-        onClose={() => setInfoDrawerOpen(false)}
+        onClose={() => {
+          setInfoDrawerOpen(false);
+          setLogExpanded(false);
+        }}
         PaperProps={{
           sx: {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
-            maxHeight: "50vh",
+            maxHeight: "70vh",
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 3 }}>
+        <Box sx={{ p: 3, overflowY: "auto" }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
             Article Info
           </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            Size: {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
-          </Typography>
 
+          {/* Editable fields */}
           <Stack spacing={3}>
             <TextField
               label="Title"
@@ -631,8 +909,70 @@ export default function ArticleScreen(_props: Props) {
               variant="outlined"
             />
 
+            {/* Read-only metadata section */}
+            <Box>
+              <Stack spacing={1}>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Size:</strong>{" "}
+                  {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Offline resources:</strong>{" "}
+                  {storageSize
+                    ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
+                    : "Calculating..."}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Saved:</strong>{" "}
+                  {article.ingestDate
+                    ? `${new Date(article.ingestDate).toISOString().replace("T", " ").replace("Z", "")} UTC`
+                    : "Unknown"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  <strong>Content Type:</strong> {article.mimeType || "Unknown"}
+                </Typography>
+              </Stack>
+            </Box>
+
+            {/* Ingestion Log (collapsible) */}
+            {fetchLog && (
+              <Box>
+                <Button
+                  onClick={() => setLogExpanded(!logExpanded)}
+                  startIcon={logExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                  sx={{ mb: 1, textTransform: "none" }}
+                  size="small"
+                >
+                  Ingestion Log
+                </Button>
+                <Collapse in={logExpanded}>
+                  <Box
+                    sx={{
+                      p: 2,
+                      backgroundColor: "action.hover",
+                      borderRadius: 1,
+                      fontFamily: "monospace",
+                      fontSize: "0.75rem",
+                      whiteSpace: "pre-wrap",
+                      wordBreak: "break-word",
+                      maxHeight: "150px",
+                      overflowY: "auto",
+                    }}
+                  >
+                    {fetchLog}
+                  </Box>
+                </Collapse>
+              </Box>
+            )}
+
             <Box sx={{ display: "flex", gap: 2, justifyContent: "flex-end" }}>
-              <Button variant="outlined" onClick={() => setInfoDrawerOpen(false)}>
+              <Button
+                variant="outlined"
+                onClick={() => {
+                  setInfoDrawerOpen(false);
+                  setLogExpanded(false);
+                }}
+              >
                 Cancel
               </Button>
               <Button variant="contained" onClick={handleSaveEdit}>
@@ -643,6 +983,32 @@ export default function ArticleScreen(_props: Props) {
         </Box>
       </Drawer>
 
+      {/* Refetch Progress Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={refetchDrawerOpen}
+        onClose={() => {}}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: "30vh",
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2 }}>
+            Refetching Article
+          </Typography>
+          {refetchStatus && (
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+              {refetchStatus}
+            </Typography>
+          )}
+          <LinearProgress variant="determinate" value={refetchPercent} />
+        </Box>
+      </Drawer>
+
       {/* Text to Speech Drawer */}
       <TextToSpeechDrawer
         open={ttsDrawerOpen}
@@ -650,6 +1016,207 @@ export default function ArticleScreen(_props: Props) {
         ttsState={ttsState}
         ttsControls={ttsControls}
       />
+
+      {/* Summary Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={summaryDrawerOpen}
+        onClose={() => setSummaryDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            maxHeight: "60vh",
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
+            <AutoAwesomeIcon />
+            Summary
+          </Typography>
+
+          {isSummarizing && (
+            <Box sx={{ mb: 2, display: "flex", alignItems: "center", gap: 2 }}>
+              <CircularProgress size={20} />
+              <Typography variant="body2" color="text.secondary">
+                Generating summary...
+              </Typography>
+            </Box>
+          )}
+
+          {article.summary && (
+            <Box
+              sx={{
+                lineHeight: 1.7,
+                "& p": { margin: "0.5em 0" },
+                "& ul, & ol": { pl: 2, my: 1 },
+                "& li": { mb: 0.5 },
+                "& strong": { fontWeight: 600 },
+                "& h1, & h2, & h3, & h4": { mt: 1.5, mb: 0.5, fontWeight: 600 },
+              }}
+            >
+              <ReactMarkdown>{article.summary}</ReactMarkdown>
+            </Box>
+          )}
+
+          {!isSummarizing && !article.summary && (
+            <Typography variant="body2" color="text.secondary">
+              No summary available. Click "Generate" to create one.
+            </Typography>
+          )}
+
+          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
+            <Box sx={{ display: "flex", gap: 1 }}>
+              {article.summary && !isSummarizing && (
+                <>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    size="small"
+                    onClick={async () => {
+                      const updatedArticle = { ...article, summary: undefined };
+                      await updateArticleMetadata(storage.client!, updatedArticle);
+                      setArticle(updatedArticle);
+                      enqueueSnackbar("Summary cleared");
+                    }}
+                  >
+                    Clear
+                  </Button>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    onClick={async () => {
+                      // Clear existing summary first
+                      const clearedArticle = { ...article, summary: undefined };
+                      setArticle(clearedArticle);
+
+                      // Then regenerate
+                      if (!articleText) {
+                        enqueueSnackbar("No article content to summarize", { variant: "error" });
+                        return;
+                      }
+
+                      const provider = getSummaryProviderFromCookie() as SummaryProvider;
+                      const model = getSummaryModelFromCookie();
+                      const apiKey = getApiKeyForProvider(provider);
+
+                      if (!apiKey) {
+                        enqueueSnackbar("Please set up your API key in Preferences", {
+                          variant: "warning",
+                        });
+                        return;
+                      }
+
+                      setIsSummarizing(true);
+                      setSummaryProgress({ status: "summarizing" });
+
+                      try {
+                        const cookieSettings = getSummarySettingsFromCookie();
+                        const settings = {
+                          ...DEFAULT_SUMMARY_SETTINGS,
+                          detailLevel:
+                            cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
+                          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+                          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+                          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+                          customPrompt: cookieSettings.customPrompt,
+                        };
+
+                        const summary = await summarizeText(
+                          articleText,
+                          settings,
+                          provider,
+                          apiKey,
+                          model,
+                          (progress) => setSummaryProgress(progress),
+                        );
+
+                        const updatedArticle = { ...clearedArticle, summary };
+                        await updateArticleMetadata(storage.client!, updatedArticle);
+                        setArticle(updatedArticle);
+                        enqueueSnackbar("Summary regenerated");
+                      } catch (error) {
+                        console.error("Summarization failed:", error);
+                        enqueueSnackbar("Failed to generate summary", { variant: "error" });
+                      } finally {
+                        setIsSummarizing(false);
+                        setSummaryProgress(null);
+                      }
+                    }}
+                  >
+                    Regenerate
+                  </Button>
+                </>
+              )}
+              {!article.summary && !isSummarizing && (
+                <Button
+                  variant="contained"
+                  size="small"
+                  onClick={async () => {
+                    if (!articleText) {
+                      enqueueSnackbar("No article content to summarize", { variant: "error" });
+                      return;
+                    }
+
+                    const provider = getSummaryProviderFromCookie() as SummaryProvider;
+                    const model = getSummaryModelFromCookie();
+                    const apiKey = getApiKeyForProvider(provider);
+
+                    if (!apiKey) {
+                      enqueueSnackbar("Please set up your API key in Preferences", {
+                        variant: "warning",
+                      });
+                      return;
+                    }
+
+                    setIsSummarizing(true);
+                    setSummaryProgress({ status: "summarizing" });
+
+                    try {
+                      const cookieSettings = getSummarySettingsFromCookie();
+                      const settings = {
+                        ...DEFAULT_SUMMARY_SETTINGS,
+                        detailLevel:
+                          cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
+                        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
+                        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
+                        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
+                        customPrompt: cookieSettings.customPrompt,
+                      };
+
+                      const summary = await summarizeText(
+                        articleText,
+                        settings,
+                        provider,
+                        apiKey,
+                        model,
+                        (progress) => setSummaryProgress(progress),
+                      );
+
+                      const updatedArticle = { ...article, summary };
+                      await updateArticleMetadata(storage.client!, updatedArticle);
+                      setArticle(updatedArticle);
+                      enqueueSnackbar("Summary generated");
+                    } catch (error) {
+                      console.error("Summarization failed:", error);
+                      enqueueSnackbar("Failed to generate summary", { variant: "error" });
+                    } finally {
+                      setIsSummarizing(false);
+                      setSummaryProgress(null);
+                    }
+                  }}
+                >
+                  Generate Summary
+                </Button>
+              )}
+            </Box>
+            <Button variant="outlined" onClick={() => setSummaryDrawerOpen(false)}>
+              Close
+            </Button>
+          </Box>
+        </Box>
+      </Drawer>
     </Box>
   );
 }
