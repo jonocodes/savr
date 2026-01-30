@@ -612,6 +612,29 @@ export default function ArticleScreen(_props: Props) {
     }
   }, [hasSetInitialScroll, article.progress, content]);
 
+  // Inject summary link next to reading time when a summary exists
+  useEffect(() => {
+    if (!content || !article.summary) return;
+
+    // Wait for DOM to render
+    const timeoutId = setTimeout(() => {
+      const readTimeEl = document.getElementById("savr-readTime");
+      if (readTimeEl && !document.getElementById("savr-summary-link")) {
+        // Create the summary link
+        const summaryLink = document.createElement("span");
+        summaryLink.id = "savr-summary-link";
+        summaryLink.innerHTML = " · <a href=\"#\" style=\"color: inherit; text-decoration: underline; cursor: pointer;\">View Summary</a>";
+        summaryLink.querySelector("a")?.addEventListener("click", (e) => {
+          e.preventDefault();
+          setSummaryDrawerOpen(true);
+        });
+        readTimeEl.appendChild(summaryLink);
+      }
+    }, 100);
+
+    return () => clearTimeout(timeoutId);
+  }, [content, article.summary]);
+
   return (
     <Box
       sx={{
@@ -1027,12 +1050,17 @@ export default function ArticleScreen(_props: Props) {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: "60vh",
+            bgcolor: "background.paper",
+            color: "text.primary",
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-            <AutoAwesomeIcon />
+        <Box sx={{ p: 3, bgcolor: "background.paper", color: "text.primary" }}>
+          <Typography
+            variant="h6"
+            sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1, color: "text.primary" }}
+          >
+            <AutoAwesomeIcon color="primary" />
             Summary
           </Typography>
 
@@ -1049,11 +1077,33 @@ export default function ArticleScreen(_props: Props) {
             <Box
               sx={{
                 lineHeight: 1.7,
-                "& p": { margin: "0.5em 0" },
-                "& ul, & ol": { pl: 2, my: 1 },
-                "& li": { mb: 0.5 },
-                "& strong": { fontWeight: 600 },
-                "& h1, & h2, & h3, & h4": { mt: 1.5, mb: 0.5, fontWeight: 600 },
+                color: "text.primary",
+                "& p": { margin: "0.5em 0", color: "text.primary" },
+                "& ul, & ol": { pl: 2, my: 1, color: "text.primary" },
+                "& li": { mb: 0.5, color: "text.primary" },
+                "& strong": { fontWeight: 600, color: "text.primary" },
+                "& h1, & h2, & h3, & h4": {
+                  mt: 1.5,
+                  mb: 0.5,
+                  fontWeight: 600,
+                  color: "text.primary",
+                },
+                "& a": { color: "primary.main" },
+                "& code": {
+                  bgcolor: "action.hover",
+                  px: 0.5,
+                  py: 0.25,
+                  borderRadius: 0.5,
+                  fontSize: "0.9em",
+                },
+                "& blockquote": {
+                  borderLeft: 3,
+                  borderColor: "divider",
+                  pl: 2,
+                  ml: 0,
+                  color: "text.secondary",
+                  fontStyle: "italic",
+                },
               }}
             >
               <ReactMarkdown>{article.summary}</ReactMarkdown>
