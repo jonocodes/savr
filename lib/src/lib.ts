@@ -76,7 +76,14 @@ export function generateInfoForCard(article: Article): string {
   }
 
   if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
-    let read = `${article.readTimeMinutes} minute read`;
+    const hours = Math.floor(article.readTimeMinutes / 60);
+    const mins = article.readTimeMinutes % 60;
+    let read =
+      hours > 0
+        ? mins > 0
+          ? `${hours}h ${mins}m`
+          : `${hours}h`
+        : `${mins}m`;
 
     if (article.progress != null && article.progress != 0) {
       read = `${read} • ${article.progress}%`;
