@@ -351,7 +351,7 @@ export default function DiagnosticsScreen() {
         <Container maxWidth="lg">
           <Paper elevation={2} sx={{ p: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom>
-              Diagnostics
+              Diagnostics X
             </Typography>
             <Typography variant="body1" color="text.secondary">
               Loading articles...
@@ -367,7 +367,7 @@ export default function DiagnosticsScreen() {
       <Container maxWidth="lg">
         <Paper elevation={2} sx={{ p: 4 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Diagnostics
+            Diagnostics Y
           </Typography>
 
           {/* RemoteStorage Status Section */}
@@ -530,7 +530,8 @@ export default function DiagnosticsScreen() {
                     isPWA: (() => {
                       return (
                         window.matchMedia("(display-mode: standalone)").matches ||
-                        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+                        (window.navigator as unknown as { standalone?: boolean }).standalone ===
+                          true ||
                         document.referrer.includes("android-app://")
                       );
                     })(),
@@ -567,7 +568,7 @@ export default function DiagnosticsScreen() {
                   })(),
                 },
                 null,
-                2
+                2,
               )}
             </Typography>
           </Box>
@@ -596,9 +597,7 @@ export default function DiagnosticsScreen() {
                   }
                   const navConn = navigator as NavigatorWithConnection;
                   const connection =
-                    navConn.connection ||
-                    navConn.mozConnection ||
-                    navConn.webkitConnection;
+                    navConn.connection || navConn.mozConnection || navConn.webkitConnection;
 
                   if (!connection) {
                     return {
@@ -629,7 +628,7 @@ export default function DiagnosticsScreen() {
                   };
                 })(),
                 null,
-                2
+                2,
               )}
             </Typography>
           </Box>
@@ -854,7 +853,7 @@ export default function DiagnosticsScreen() {
                   },
                 },
                 null,
-                2
+                2,
               )}
             </Typography>
           </Box>
@@ -876,7 +875,7 @@ export default function DiagnosticsScreen() {
                   },
                 },
                 null,
-                2
+                2,
               )}
             </Typography>
           </Box>
@@ -909,7 +908,7 @@ export default function DiagnosticsScreen() {
                       },
                     },
                     null,
-                    2
+                    2,
                   )
                 : "Calculating..."}
             </Typography>
@@ -970,7 +969,11 @@ export default function DiagnosticsScreen() {
             Articles ({articles.length})
           </Typography>
 
-          <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, maxHeight: 400, overflowY: "auto" }}>
+          <TableContainer
+            component={Paper}
+            variant="outlined"
+            sx={{ mt: 2, maxHeight: 400, overflowY: "auto" }}
+          >
             <Table stickyHeader>
               <TableHead>
                 <TableRow>
