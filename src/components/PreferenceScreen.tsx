@@ -97,10 +97,10 @@ import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 /**
  * Formats minutes as a human-readable time string.
  * Examples:
- *   - 22 min -> "22 min"
- *   - 683 min -> "11:23"
- *   - 1500 min -> "1 day 1:00"
- *   - 3000 min -> "2 days 2:00"
+ *   - 22 min -> "22m"
+ *   - 150 min -> "2h 30m"
+ *   - 1500 min -> "1d 1h"
+ *   - 3000 min -> "2d 2h"
  */
 export function formatReadTime(minutes: number): string {
   const totalHours = Math.floor(minutes / 60);
@@ -108,19 +108,18 @@ export function formatReadTime(minutes: number): string {
 
   // Under 1 hour: show just minutes
   if (totalHours === 0) {
-    return `${mins} min`;
+    return `${mins}m`;
   }
 
-  // 24+ hours: show days and hours:minutes
+  // 24+ hours: show days and hours
   if (totalHours >= 24) {
     const days = Math.floor(totalHours / 24);
     const hours = totalHours % 24;
-    const dayLabel = days === 1 ? "day" : "days";
-    return `${days} ${dayLabel} ${hours}:${mins.toString().padStart(2, "0")}`;
+    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
   }
 
-  // 1-24 hours: show hours:minutes
-  return `${totalHours}:${mins.toString().padStart(2, "0")}`;
+  // 1-24 hours: show hours and minutes
+  return mins > 0 ? `${totalHours}h ${mins}m` : `${totalHours}h`;
 }
 
 export default function PreferencesScreen() {
@@ -132,7 +131,7 @@ export default function PreferencesScreen() {
   // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
-    AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
+    AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
   );
   const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{

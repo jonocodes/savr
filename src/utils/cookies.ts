@@ -212,7 +212,7 @@ export const setHeaderHidingInCookie = (enabled: boolean): void => {
 
 // Get after external save preference from cookie
 export const getAfterExternalSaveFromCookie = (): AfterExternalSaveAction => {
-  if (typeof document === "undefined") return AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB; // Default to close tab
+  if (typeof document === "undefined") return AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST; // Default to show list
 
   const cookies = document.cookie.split(";");
   const afterExternalSaveCookie = cookies.find((cookie) =>
@@ -230,7 +230,7 @@ export const getAfterExternalSaveFromCookie = (): AfterExternalSaveAction => {
     }
   }
 
-  return AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB; // Default to close tab
+  return AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST; // Default to show list
 };
 
 // Set after external save preference in cookie
