@@ -1,0 +1,5 @@
+services:
+  savr:
+    build: .
+    ports:
+      - "8080:80"
