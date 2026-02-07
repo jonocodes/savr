@@ -131,7 +131,7 @@ export default function PreferencesScreen() {
   // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
-    AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
+    AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
   );
   const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
