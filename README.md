@@ -30,15 +30,15 @@ Savr is:
 | Open Source                      | ✅          | ❌              | ✅       | ✅       | ✅     |
 | Requires minimal tech knowledge  | ✅          | ✅               | ❌       | ❌       | ❌     |
 | Own/Control Your Data            | ✅          | ❌               | ✅       | ✅       | ✅     |
-| Offline content including images | ✅          | sometimes cached  | ❌       | ❌       | ❌     |
-| Tagging and search               | ❌          | ✅                | ✅       | ✅       | ✅     |
-| Other Content Types              | md, txt, pdf, images | ❌       | pdf       | pdf, epub   | ❌   |
-| Offline mobile                   | ✅          | sometimes         | ✅       | ✅       | ❌     |
-| Text To Speach                   | ✅          | ✅                | iOS only | android only | ❌     |
-| Summary generation               | ✅          | ❌                 | ❌       | ❌       | ❌     |
-| Cross Platform (+mobile/browser) | ✅          | ✅                 | ✅       | ✅       | ✅     |
-| Cross Browser Extension          | ✅          | ❌ (chrome/FF)     | ❌       | ❌       | ❌     |
-| Does not require an account      | ✅          | ❌                  | ❌       | ❌       | ❌     |
+| Offline content including images | ✅          | sometimes cached | ❌       | ❌       | ❌     |
+| Tagging and search               | ❌          | ✅               | ✅       | ✅       | ✅     |
+| Other Content Types              | md, txt, pdf, images | ❌      | pdf       | pdf, epub   | ❌   |
+| Offline mobile                   | ✅          | sometimes        | ✅       | ✅       | ❌     |
+| Text To Speach                   | ✅          | ✅               | iOS only | android only | ❌     |
+| Summary generation               | ✅          | ❌               | ❌       | ❌       | ❌     |
+| Cross Platform (+mobile/browser) | ✅          | ✅               | ✅       | ✅       | ✅     |
+| Cross Browser Extension          | ✅          | ❌ (chrome/FF)   | ❌       | ❌       | ❌     |
+| Requires no account              | ✅          | ❌               | ❌       | ❌       | ❌     |
 
 \* before service shutdown
 
