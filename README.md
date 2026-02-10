@@ -4,6 +4,7 @@ Savr is an app for saving online content to read later. It is [file-centric, off
 
 When reading an article in a browser, share it to Savr. Then open Savr later to read it. Savr is a free, hosted or self hosted, progressive web app that works on-line, off-line, and on your phone.
 
+
 Savr is:
 
 - [0data](https://0data.app/) since it does not store your data. You do.
