@@ -13,6 +13,8 @@ export type Article = {
   readTimeMinutes: number | null;
   progress: number;
   summary?: string; // AI-generated summary of the article
+  assetCount?: number; // Number of files stored for this article
+  sizeBytes?: number; // Total storage size in bytes across all files
   // publishedTime: string | null;
 };
 
