@@ -142,7 +142,7 @@ describe("lib.ts", () => {
         readTimeMinutes: 5,
       } as Article;
 
-      expect(generateInfoForCard(article)).toBe("5m");
+      expect(generateInfoForCard(article)).toBe("5 min");
     });
 
     it("should generate info with author and published date", () => {
@@ -172,7 +172,7 @@ describe("lib.ts", () => {
         progress: 75,
       } as Article;
 
-      expect(generateInfoForCard(article)).toBe("10m • 75%");
+      expect(generateInfoForCard(article)).toBe("10 min • 75%");
     });
 
     it("should generate complete info with all fields", () => {
@@ -191,7 +191,7 @@ describe("lib.ts", () => {
       const result = generateInfoForCard(article);
       expect(result).toContain("Bob Wilson");
       expect(result).toContain("Jan 15 2023");
-      expect(result).toContain("8m • 50%");
+      expect(result).toContain("8 min • 50%");
     });
 
     it("should handle empty author", () => {

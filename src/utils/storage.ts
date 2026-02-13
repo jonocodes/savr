@@ -842,43 +842,44 @@ export async function syncMissingArticles(): Promise<string> {
 
 async function calculateTotalStorage(): Promise<{
   size: number;
+  articles: number;
   files: number;
 }> {
   let size = 0;
+  let articles = 0;
   let files = 0;
 
   try {
-    // Calculate RemoteStorage usage if available
-    const store = await init();
-    if (store && store.client) {
-      try {
-        const allFiles = await recursiveList(store.client, "");
-        files = allFiles.length;
+    const { db } = await import("./db");
+    const allArticles = await db.articles.toArray();
+    articles = allArticles.length;
 
-        // TODO: this is not working as expected. its not seeing all the files???  ???
-
-        console.log("calculateTotalStorage", allFiles);
-
-        // Calculate size of files in RemoteStorage (use local cache only)
-        for (const filePath of allFiles) {
-          try {
-            const file = (await store.client.getFile(filePath, false)) as { data: string };
-            if (file && file.data) {
-              size += new Blob([file.data]).size;
-            }
-          } catch (error) {
-            console.warn(`Failed to get file size for ${filePath}:`, error);
+    for (const article of allArticles) {
+      if (article.sizeBytes != null && article.assetCount != null) {
+        size += article.sizeBytes;
+        files += article.assetCount;
+      } else {
+        // Backfill: compute size on the fly and persist it
+        try {
+          const sizeInfo = await calculateArticleStorageSize(article.slug);
+          size += sizeInfo.totalSize;
+          files += sizeInfo.files.length;
+          if (sizeInfo.totalSize > 0) {
+            await db.articles.update(article.slug, {
+              sizeBytes: sizeInfo.totalSize,
+              assetCount: sizeInfo.files.length,
+            });
           }
+        } catch (error) {
+          console.warn(`Failed to backfill size for ${article.slug}:`, error);
         }
-      } catch (error) {
-        console.warn("Failed to calculate RemoteStorage usage:", error);
       }
     }
   } catch (error) {
     console.error("Error calculating storage usage:", error);
   }
 
-  return { size, files };
+  return { size, articles, files };
 }
 
 function formatBytes(bytes: number): string {

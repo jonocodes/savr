@@ -58,6 +58,33 @@ export function humanReadableSize(bytes: number): string {
   return `${bytes.toFixed(2)} ${units[index]}`;
 }
 
+/**
+ * Formats minutes as a human-readable reading time string.
+ * Examples:
+ *   22 -> "22 min"
+ *   60 -> "1 hr"
+ *   150 -> "2 hr 30 min"
+ *   1500 -> "1 day 1 hr"
+ *   3000 -> "2 days 2 hr"
+ */
+export function formatReadTime(minutes: number): string {
+  const totalHours = Math.floor(minutes / 60);
+  const mins = minutes % 60;
+
+  if (totalHours === 0) {
+    return `${mins} min`;
+  }
+
+  if (totalHours >= 24) {
+    const days = Math.floor(totalHours / 24);
+    const hours = totalHours % 24;
+    const dayLabel = days === 1 ? "day" : "days";
+    return hours > 0 ? `${days} ${dayLabel} ${hours} hr` : `${days} ${dayLabel}`;
+  }
+
+  return mins > 0 ? `${totalHours} hr ${mins} min` : `${totalHours} hr`;
+}
+
 export function generateInfoForCard(article: Article): string {
   var result = "";
 
@@ -76,14 +103,7 @@ export function generateInfoForCard(article: Article): string {
   }
 
   if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
-    const hours = Math.floor(article.readTimeMinutes / 60);
-    const mins = article.readTimeMinutes % 60;
-    let read =
-      hours > 0
-        ? mins > 0
-          ? `${hours}h ${mins}m`
-          : `${hours}h`
-        : `${mins}m`;
+    let read = formatReadTime(article.readTimeMinutes);
 
     if (article.progress != null && article.progress != 0) {
       read = `${read} • ${article.progress}%`;

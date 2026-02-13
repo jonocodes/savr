@@ -93,34 +93,7 @@ import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/ut
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
-
-/**
- * Formats minutes as a human-readable time string.
- * Examples:
- *   - 22 min -> "22m"
- *   - 150 min -> "2h 30m"
- *   - 1500 min -> "1d 1h"
- *   - 3000 min -> "2d 2h"
- */
-export function formatReadTime(minutes: number): string {
-  const totalHours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  // Under 1 hour: show just minutes
-  if (totalHours === 0) {
-    return `${mins}m`;
-  }
-
-  // 24+ hours: show days and hours
-  if (totalHours >= 24) {
-    const days = Math.floor(totalHours / 24);
-    const hours = totalHours % 24;
-    return hours > 0 ? `${days}d ${hours}h` : `${days}d`;
-  }
-
-  // 1-24 hours: show hours and minutes
-  return mins > 0 ? `${totalHours}h ${mins}m` : `${totalHours}h`;
-}
+import { formatReadTime } from "../../lib/src/lib";
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
@@ -136,6 +109,7 @@ export default function PreferencesScreen() {
   const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
+    articles: number;
     files: number;
   } | null>(null);
   const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
@@ -943,7 +917,7 @@ export default function PreferencesScreen() {
                 primary="Catalog size"
                 secondary={
                   storageUsage
-                    ? `${formatBytes(storageUsage.size)} (${storageUsage.files} files)`
+                    ? `${formatBytes(storageUsage.size)} (${storageUsage.articles} articles, ${storageUsage.files} files)`
                     : "Calculating..."
                 }
               />
