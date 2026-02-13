@@ -343,14 +343,16 @@ export default function ArticleScreen(_props: Props) {
         }
       }
 
-      // Recalculate storage size
-      calculateArticleStorageSize(slug)
-        .then((sizeInfo) => {
-          setStorageSize(sizeInfo);
-        })
-        .catch((error) => {
-          console.error("Failed to calculate storage size:", error);
-        });
+      // Use persisted size info from re-ingested article, fallback to on-demand calculation
+      if (updatedArticle.sizeBytes == null || updatedArticle.assetCount == null) {
+        calculateArticleStorageSize(slug)
+          .then((sizeInfo) => {
+            setStorageSize(sizeInfo);
+          })
+          .catch((error) => {
+            console.error("Failed to calculate storage size:", error);
+          });
+      }
 
       setTimeout(() => {
         setRefetchDrawerOpen(false);
@@ -569,15 +571,16 @@ export default function ArticleScreen(_props: Props) {
             });
         }
 
-        // Calculate storage size asynchronously without blocking HTML display
-        // This runs in parallel and doesn't affect the article rendering
-        calculateArticleStorageSize(slug)
-          .then((sizeInfo) => {
-            setStorageSize(sizeInfo);
-          })
-          .catch((error) => {
-            console.error("Failed to calculate storage size:", error);
-          });
+        // Use persisted size info if available, otherwise calculate on-demand
+        if (articleData.sizeBytes == null || articleData.assetCount == null) {
+          calculateArticleStorageSize(slug)
+            .then((sizeInfo) => {
+              setStorageSize(sizeInfo);
+            })
+            .catch((error) => {
+              console.error("Failed to calculate storage size:", error);
+            });
+        }
       } catch (e) {
         console.error(e);
       }
@@ -942,13 +945,19 @@ export default function ArticleScreen(_props: Props) {
               <Stack spacing={1}>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Size:</strong>{" "}
-                  {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
+                  {article.sizeBytes != null
+                    ? formatBytes(article.sizeBytes)
+                    : storageSize
+                      ? formatBytes(storageSize.totalSize)
+                      : "Calculating..."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Offline resources:</strong>{" "}
-                  {storageSize
-                    ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
-                    : "Calculating..."}
+                  {article.assetCount != null
+                    ? `${article.assetCount} files`
+                    : storageSize
+                      ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
+                      : "Calculating..."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Saved:</strong>{" "}
