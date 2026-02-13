@@ -848,32 +848,10 @@ async function calculateTotalStorage(): Promise<{
   let files = 0;
 
   try {
-    // Calculate RemoteStorage usage if available
-    const store = await init();
-    if (store && store.client) {
-      try {
-        const allFiles = await recursiveList(store.client, "");
-        files = allFiles.length;
-
-        // TODO: this is not working as expected. its not seeing all the files???  ???
-
-        console.log("calculateTotalStorage", allFiles);
-
-        // Calculate size of files in RemoteStorage (use local cache only)
-        for (const filePath of allFiles) {
-          try {
-            const file = (await store.client.getFile(filePath, false)) as { data: string };
-            if (file && file.data) {
-              size += new Blob([file.data]).size;
-            }
-          } catch (error) {
-            console.warn(`Failed to get file size for ${filePath}:`, error);
-          }
-        }
-      } catch (error) {
-        console.warn("Failed to calculate RemoteStorage usage:", error);
-      }
-    }
+    const { db } = await import("./db");
+    const articles = await db.articles.toArray();
+    files = articles.length;
+    size = articles.reduce((sum, article) => sum + (article.sizeBytes ?? 0), 0);
   } catch (error) {
     console.error("Error calculating storage usage:", error);
   }

@@ -46,12 +46,11 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
-import { generateInfoForCard, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
+import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
-import { formatReadTime } from "./PreferenceScreen";
 
 import { keyframes } from "@mui/system";
 
