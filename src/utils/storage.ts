@@ -851,7 +851,26 @@ async function calculateTotalStorage(): Promise<{
     const { db } = await import("./db");
     const articles = await db.articles.toArray();
     files = articles.length;
-    size = articles.reduce((sum, article) => sum + (article.sizeBytes ?? 0), 0);
+
+    for (const article of articles) {
+      if (article.sizeBytes != null) {
+        size += article.sizeBytes;
+      } else {
+        // Backfill: compute size on the fly and persist it
+        try {
+          const sizeInfo = await calculateArticleStorageSize(article.slug);
+          size += sizeInfo.totalSize;
+          if (sizeInfo.totalSize > 0) {
+            await db.articles.update(article.slug, {
+              sizeBytes: sizeInfo.totalSize,
+              assetCount: sizeInfo.files.length,
+            });
+          }
+        } catch (error) {
+          console.warn(`Failed to backfill size for ${article.slug}:`, error);
+        }
+      }
+    }
   } catch (error) {
     console.error("Error calculating storage usage:", error);
   }
