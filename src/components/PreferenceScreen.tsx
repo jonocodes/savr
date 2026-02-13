@@ -109,6 +109,7 @@ export default function PreferencesScreen() {
   const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
+    articles: number;
     files: number;
   } | null>(null);
   const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
@@ -916,7 +917,7 @@ export default function PreferencesScreen() {
                 primary="Catalog size"
                 secondary={
                   storageUsage
-                    ? `${formatBytes(storageUsage.size)} (${storageUsage.files} files)`
+                    ? `${formatBytes(storageUsage.size)} (${storageUsage.articles} articles, ${storageUsage.files} files)`
                     : "Calculating..."
                 }
               />

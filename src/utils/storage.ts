@@ -842,24 +842,28 @@ export async function syncMissingArticles(): Promise<string> {
 
 async function calculateTotalStorage(): Promise<{
   size: number;
+  articles: number;
   files: number;
 }> {
   let size = 0;
+  let articles = 0;
   let files = 0;
 
   try {
     const { db } = await import("./db");
-    const articles = await db.articles.toArray();
-    files = articles.length;
+    const allArticles = await db.articles.toArray();
+    articles = allArticles.length;
 
-    for (const article of articles) {
-      if (article.sizeBytes != null) {
+    for (const article of allArticles) {
+      if (article.sizeBytes != null && article.assetCount != null) {
         size += article.sizeBytes;
+        files += article.assetCount;
       } else {
         // Backfill: compute size on the fly and persist it
         try {
           const sizeInfo = await calculateArticleStorageSize(article.slug);
           size += sizeInfo.totalSize;
+          files += sizeInfo.files.length;
           if (sizeInfo.totalSize > 0) {
             await db.articles.update(article.slug, {
               sizeBytes: sizeInfo.totalSize,
@@ -875,7 +879,7 @@ async function calculateTotalStorage(): Promise<{
     console.error("Error calculating storage usage:", error);
   }
 
-  return { size, files };
+  return { size, articles, files };
 }
 
 function formatBytes(bytes: number): string {
