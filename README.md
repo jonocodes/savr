@@ -1,5 +1,9 @@
 # Savr
 
+Savr is an app for saving online content to read later.
+
+**Use Savr here (hosted app): https://savr.link**
+
 Savr is an app for saving online content to read later. It is [file-centric, offline first, future proof](#offline-use), and [favors decentralization](#how-to-use-it). Read about the design and motivation in the [FAQ](#faq).
 
 When reading an article in a browser, share it to Savr. Then open Savr later to read it. Savr is a free, hosted or self hosted, progressive web app that works on-line, off-line, and on your phone.
@@ -72,6 +76,8 @@ Here are most of the planned features.
 
 
 # How to "install" it
+
+**Hosted app (recommended): https://savr.link**
 
 Savr is a PWA (progressive web app) which means it primarily runs in a browser, but it can also be "installed" as an app on your phone. There it will work offline like your other mobile apps.
 
@@ -224,13 +230,13 @@ There are some great projects like [Wallabag](https://wallabag.org/) and [Omnivo
 
 CORS (Cross-Origin Resource Sharing) is a security feature implemented by web browsers that prevents websites from making requests to different domains. This is a security measure to protect users from malicious websites that might try to access data from other sites.
 
-**Why does Savr need it?**
+**Why does Savr need it?**  
 When you save an article, Savr needs to fetch the content from the original website. However, due to CORS restrictions, many websites tell thew browser they want content blocked if loaded from a different domain. This often prevents Savr from fetching content and images.
 
-**How does Savr solve this?**
+**How does Savr solve this?**  
 Savr uses a CORS proxy server that acts as a middleman. Instead of your browser directly requesting content from the original website, it requests it through the proxy server, which then fetches the content and sends it back to Savr.
 
-**Why bring your own proxy?**
+**Why bring your own proxy?**  
 While Savr provides a default proxy, you can configure your own CORS proxy server for:
 
 - **Better reliability**: Public proxies can be unstable or go down
