@@ -185,6 +185,21 @@ If you want to test PWA/production then do
 
 Also note that if you host this on a static server, it should support SPA routing and you should serve this app from the root. This is needed to handle dealing with the single path parameter as a URL.
 
+## E2E testing
+
+Playwright e2e tests can be run through the repo scripts:
+
+> npm run test:e2e
+
+To quickly verify that Playwright is wired up without running the full suite:
+
+> npm run test:e2e:smoke
+
+To run one spec or forward Playwright filters:
+
+> npm run test:e2e:single -- tests/e2e/smoke.spec.ts
+> npm run test:e2e:single -- tests/e2e/main-page.spec.ts -g "should display"
+
 # Security
 
 All content is stored locally on your device. Savr has no server side storage. This makes it so we don't need to host any data, and so it can more simply be hosted by you if you want.

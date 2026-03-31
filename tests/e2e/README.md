@@ -35,7 +35,20 @@ End-to-end tests simulate real user interactions with your application by runnin
    npm run test:e2e
    ```
 
-2. **Run tests in a specific browser:**
+2. **Run the smoke check to verify Playwright wiring:**
+
+   ```bash
+   npm run test:e2e:smoke
+   ```
+
+3. **Run a single spec or forward Playwright filters:**
+
+   ```bash
+   npm run test:e2e:single -- tests/e2e/smoke.spec.ts
+   npm run test:e2e:single -- tests/e2e/main-page.spec.ts -g "should display"
+   ```
+
+4. **Run tests in a specific browser:**
 
    ```bash
    npx playwright test --project=chromium
@@ -43,27 +56,27 @@ End-to-end tests simulate real user interactions with your application by runnin
    npx playwright test --project=webkit
    ```
 
-3. **Run tests in headed mode (see the browser):**
+5. **Run tests in headed mode (see the browser):**
 
    ```bash
    npx playwright test --headed
    ```
 
-4. **Run tests in debug mode:**
+6. **Run tests in debug mode:**
 
    ```bash
    npx playwright test --debug
    ```
 
-5. **Run a specific test file:**
+7. **Run a specific test file:**
 
    ```bash
-   npx playwright test main-page.spec.ts
+   npm run test:e2e:single -- tests/e2e/main-page.spec.ts
    ```
 
-6. **Run tests with specific test name:**
+8. **Run tests with specific test name:**
    ```bash
-   npx playwright test -g "should display the main page"
+   npm run test:e2e:single -- -g "should display the main page"
    ```
 
 ### Test Commands
@@ -73,7 +86,9 @@ Add these scripts to your `package.json`:
 ```json
 {
   "scripts": {
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-e2e.js",
+    "test:e2e:single": "node scripts/run-e2e.js",
+    "test:e2e:smoke": "node scripts/run-e2e.js tests/e2e/smoke.spec.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",
@@ -88,7 +103,7 @@ The tests are configured in `playwright.config.ts` at the project root. Key sett
 
 - **Base URL**: `http://localhost:3002` (Vite dev server)
 - **Web Server**: Automatically starts `npm run dev` before tests
-- **Browsers**: Tests run in Chromium, Firefox, and WebKit
+- **Browsers**: Tests currently run in Chromium by default
 - **Screenshots**: Taken on test failure
 - **Videos**: Recorded on test failure
 - **Traces**: Collected on test retry
