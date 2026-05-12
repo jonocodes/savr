@@ -39,6 +39,8 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -163,6 +165,17 @@ export default function ArticleScreen(_props: Props) {
     if (isDebugMode()) {
       setHtml(message);
     }
+  };
+
+  const handleToggleFavorite = () => {
+    try {
+      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to update favorite", { variant: "error" });
+    }
+    closeMenu();
   };
 
   const handleShare = () => {
@@ -343,14 +356,16 @@ export default function ArticleScreen(_props: Props) {
         }
       }
 
-      // Recalculate storage size
-      calculateArticleStorageSize(slug)
-        .then((sizeInfo) => {
-          setStorageSize(sizeInfo);
-        })
-        .catch((error) => {
-          console.error("Failed to calculate storage size:", error);
-        });
+      // Use persisted size info from re-ingested article, fallback to on-demand calculation
+      if (updatedArticle.sizeBytes == null || updatedArticle.assetCount == null) {
+        calculateArticleStorageSize(slug)
+          .then((sizeInfo) => {
+            setStorageSize(sizeInfo);
+          })
+          .catch((error) => {
+            console.error("Failed to calculate storage size:", error);
+          });
+      }
 
       setTimeout(() => {
         setRefetchDrawerOpen(false);
@@ -569,15 +584,16 @@ export default function ArticleScreen(_props: Props) {
             });
         }
 
-        // Calculate storage size asynchronously without blocking HTML display
-        // This runs in parallel and doesn't affect the article rendering
-        calculateArticleStorageSize(slug)
-          .then((sizeInfo) => {
-            setStorageSize(sizeInfo);
-          })
-          .catch((error) => {
-            console.error("Failed to calculate storage size:", error);
-          });
+        // Use persisted size info if available, otherwise calculate on-demand
+        if (articleData.sizeBytes == null || articleData.assetCount == null) {
+          calculateArticleStorageSize(slug)
+            .then((sizeInfo) => {
+              setStorageSize(sizeInfo);
+            })
+            .catch((error) => {
+              console.error("Failed to calculate storage size:", error);
+            });
+        }
       } catch (e) {
         console.error(e);
       }
@@ -611,6 +627,34 @@ export default function ArticleScreen(_props: Props) {
       }, 100);
     }
   }, [hasSetInitialScroll, article.progress, content]);
+
+  // Handle click on summary link (injected into HTML content)
+  useEffect(() => {
+    const handleSummaryLinkClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.id === "savr-summary-link-anchor" || target.closest("#savr-summary-link-anchor")) {
+        e.preventDefault();
+        setSummaryDrawerOpen(true);
+      }
+    };
+
+    document.addEventListener("click", handleSummaryLinkClick);
+    return () => document.removeEventListener("click", handleSummaryLinkClick);
+  }, []);
+
+  // Compute HTML with summary link injected if summary exists
+  const htmlWithSummaryLink = useMemo(() => {
+    if (!html || !article.summary) return html;
+
+    // Inject summary link after the reading time div
+    const summaryLinkHtml = ` · <a id="savr-summary-link-anchor" href="#" style="color: inherit; text-decoration: underline; cursor: pointer;">View Summary</a>`;
+
+    // Find the savr-readTime div and append the link inside it
+    return html.replace(
+      /(<div id="savr-readTime"[^>]*>)(.*?)(<\/div>)/,
+      `$1$2${summaryLinkHtml}$3`
+    );
+  }, [html, article.summary]);
 
   return (
     <Box
@@ -806,6 +850,17 @@ export default function ArticleScreen(_props: Props) {
               </MenuItem>
             )}
 
+            <MenuItem onClick={handleToggleFavorite} sx={{ py: 1 }} data-testid="article-page-menu-favorite">
+              <ListItemIcon>
+                {article.favorite ? (
+                  <StarIcon fontSize="small" />
+                ) : (
+                  <StarBorderIcon fontSize="small" />
+                )}
+              </ListItemIcon>
+              <ListItemText>{article.favorite ? "Unmark favorite" : "Mark favorite"}</ListItemText>
+            </MenuItem>
+
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
                 <ShareIcon fontSize="small" />
@@ -866,7 +921,7 @@ export default function ArticleScreen(_props: Props) {
             />
           </Box>
         ) : (
-          <ArticleComponent html={html} fontSize={fontSize} />
+          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} />
         )}
       </Box>
 
@@ -914,13 +969,19 @@ export default function ArticleScreen(_props: Props) {
               <Stack spacing={1}>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Size:</strong>{" "}
-                  {storageSize ? formatBytes(storageSize.totalSize) : "Calculating..."}
+                  {article.sizeBytes != null
+                    ? formatBytes(article.sizeBytes)
+                    : storageSize
+                      ? formatBytes(storageSize.totalSize)
+                      : "Calculating..."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Offline resources:</strong>{" "}
-                  {storageSize
-                    ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
-                    : "Calculating..."}
+                  {article.assetCount != null
+                    ? `${article.assetCount} files`
+                    : storageSize
+                      ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
+                      : "Calculating..."}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
                   <strong>Saved:</strong>{" "}
@@ -1027,12 +1088,17 @@ export default function ArticleScreen(_props: Props) {
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             maxHeight: "60vh",
+            bgcolor: "background.paper",
+            color: "text.primary",
           },
         }}
       >
-        <Box sx={{ p: 3 }}>
-          <Typography variant="h6" sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1 }}>
-            <AutoAwesomeIcon />
+        <Box sx={{ p: 3, bgcolor: "background.paper", color: "text.primary" }}>
+          <Typography
+            variant="h6"
+            sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1, color: "text.primary" }}
+          >
+            <AutoAwesomeIcon color="primary" />
             Summary
           </Typography>
 
@@ -1049,11 +1115,33 @@ export default function ArticleScreen(_props: Props) {
             <Box
               sx={{
                 lineHeight: 1.7,
-                "& p": { margin: "0.5em 0" },
-                "& ul, & ol": { pl: 2, my: 1 },
-                "& li": { mb: 0.5 },
-                "& strong": { fontWeight: 600 },
-                "& h1, & h2, & h3, & h4": { mt: 1.5, mb: 0.5, fontWeight: 600 },
+                color: "text.primary",
+                "& p": { margin: "0.5em 0", color: "text.primary" },
+                "& ul, & ol": { pl: 2, my: 1, color: "text.primary" },
+                "& li": { mb: 0.5, color: "text.primary" },
+                "& strong": { fontWeight: 600, color: "text.primary" },
+                "& h1, & h2, & h3, & h4": {
+                  mt: 1.5,
+                  mb: 0.5,
+                  fontWeight: 600,
+                  color: "text.primary",
+                },
+                "& a": { color: "primary.main" },
+                "& code": {
+                  bgcolor: "action.hover",
+                  px: 0.5,
+                  py: 0.25,
+                  borderRadius: 0.5,
+                  fontSize: "0.9em",
+                },
+                "& blockquote": {
+                  borderLeft: 3,
+                  borderColor: "divider",
+                  pl: 2,
+                  ml: 0,
+                  color: "text.secondary",
+                  fontStyle: "italic",
+                },
               }}
             >
               <ReactMarkdown>{article.summary}</ReactMarkdown>

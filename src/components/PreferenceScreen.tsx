@@ -45,6 +45,7 @@ import {
   Sync as SyncIcon,
   DragHandle as DragHandleIcon,
   AutoAwesome as AutoAwesomeIcon,
+  Public as PublicIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -93,35 +94,15 @@ import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/ut
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
-
-/**
- * Formats minutes as a human-readable time string.
- * Examples:
- *   - 22 min -> "22 min"
- *   - 683 min -> "11:23"
- *   - 1500 min -> "1 day 1:00"
- *   - 3000 min -> "2 days 2:00"
- */
-export function formatReadTime(minutes: number): string {
-  const totalHours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  // Under 1 hour: show just minutes
-  if (totalHours === 0) {
-    return `${mins} min`;
-  }
-
-  // 24+ hours: show days and hours:minutes
-  if (totalHours >= 24) {
-    const days = Math.floor(totalHours / 24);
-    const hours = totalHours % 24;
-    const dayLabel = days === 1 ? "day" : "days";
-    return `${days} ${dayLabel} ${hours}:${mins.toString().padStart(2, "0")}`;
-  }
-
-  // 1-24 hours: show hours:minutes
-  return `${totalHours}:${mins.toString().padStart(2, "0")}`;
-}
+import { formatReadTime } from "../../lib/src/lib";
+import {
+  getPublicExportState,
+  subscribePublicExport,
+  enablePublicExport,
+  disablePublicExport,
+  publishNow,
+  type PublicExportState,
+} from "~/utils/publicExport";
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
@@ -132,13 +113,17 @@ export default function PreferencesScreen() {
   // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
-    AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB
+    AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
   );
   const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
+    articles: number;
     files: number;
   } | null>(null);
+  const [publicExportState, setPublicExportState] = useState<PublicExportState>(
+    getPublicExportState
+  );
   const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
   const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
   const [summaryModel, setSummaryModel] = useState<string>("llama-3.3-70b-versatile");
@@ -159,6 +144,10 @@ export default function PreferencesScreen() {
 
   const buildDate =
     new Date(BUILD_TIMESTAMP).toDateString() + " " + new Date(BUILD_TIMESTAMP).toLocaleTimeString();
+
+  React.useEffect(() => {
+    return subscribePublicExport(setPublicExportState);
+  }, []);
 
   React.useEffect(() => {
     const customValue = getCorsProxyFromCookie();
@@ -944,7 +933,7 @@ export default function PreferencesScreen() {
                 primary="Catalog size"
                 secondary={
                   storageUsage
-                    ? `${formatBytes(storageUsage.size)} (${storageUsage.files} files)`
+                    ? `${formatBytes(storageUsage.size)} (${storageUsage.articles} articles, ${storageUsage.files} files)`
                     : "Calculating..."
                 }
               />
@@ -1036,6 +1025,108 @@ export default function PreferencesScreen() {
                 </Button>
               </Box>
             </ListItem>
+          </List>
+
+          {/* Public Export Section */}
+          <List>
+            <ListSubheader>Public Export</ListSubheader>
+
+            <ListItem>
+              <ListItemIcon>
+                <PublicIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Publish public database export"
+                secondary="Publishes a public read-only copy of your Savr database JSON through your RemoteStorage provider. This file may include deleted records if they exist in your database."
+              />
+              <Switch
+                checked={publicExportState.enabled}
+                onChange={async (e) => {
+                  if (e.target.checked) {
+                    try {
+                      await enablePublicExport();
+                      enqueueSnackbar("Public export enabled", { variant: "success" });
+                    } catch {
+                      enqueueSnackbar("Failed to publish export", { variant: "error" });
+                    }
+                  } else {
+                    const result = await disablePublicExport();
+                    if (result.success) {
+                      enqueueSnackbar("Public export disabled");
+                    } else {
+                      enqueueSnackbar(`Export disabled but failed to delete remote file: ${result.error}`, {
+                        variant: "warning",
+                      });
+                    }
+                  }
+                }}
+              />
+            </ListItem>
+
+            {publicExportState.enabled && (
+              <>
+                <ListItem>
+                  <ListItemText
+                    primary="Public export is enabled"
+                    secondary={
+                      <>
+                        {publicExportState.publicUrl ? (
+                          <>
+                            URL:{" "}
+                            <span style={{ wordBreak: "break-all" }}>
+                              {publicExportState.publicUrl}
+                            </span>
+                            <br />
+                          </>
+                        ) : publicExportState.lastPublishedAt ? (
+                          <>URL: not available for this provider<br /></>
+                        ) : (
+                          <>URL: pending first publish…<br /></>
+                        )}
+                        Status:{" "}
+                        {publicExportState.publishing
+                          ? "Publishing…"
+                          : publicExportState.lastError
+                          ? "Failed"
+                          : publicExportState.dirty
+                          ? "Pending changes"
+                          : "Up to date"}
+                        {publicExportState.lastPublishedAt && (
+                          <>
+                            <br />
+                            Last published:{" "}
+                            {new Date(publicExportState.lastPublishedAt).toLocaleString()}
+                          </>
+                        )}
+                        {publicExportState.lastError && (
+                          <>
+                            <br />
+                            Error: {publicExportState.lastError}
+                          </>
+                        )}
+                      </>
+                    }
+                  />
+                </ListItem>
+                <ListItem>
+                  <Button
+                    variant="outlined"
+                    size="small"
+                    disabled={publicExportState.publishing}
+                    onClick={async () => {
+                      try {
+                        await publishNow();
+                        enqueueSnackbar("Published successfully", { variant: "success" });
+                      } catch {
+                        enqueueSnackbar("Publish failed", { variant: "error" });
+                      }
+                    }}
+                  >
+                    Publish now
+                  </Button>
+                </ListItem>
+              </>
+            )}
           </List>
 
           <List>

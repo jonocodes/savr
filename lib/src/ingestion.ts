@@ -127,8 +127,10 @@ async function downloadAndResizeImages(
   imageData: ImageData[],
   article: Article,
   sendMessage: (percent: number | null, message: string | null) => void
-): Promise<number> {
+): Promise<{ successfulDownloads: number; savedBytes: number; savedFileCount: number }> {
   let successfulDownloads = 0;
+  let savedBytes = 0;
+  let savedFileCount = 0;
   let percent = 25;
   const endPercent = 93;
 
@@ -159,6 +161,9 @@ async function downloadAndResizeImages(
 
       console.log("outputFilePath", outputFilePath);
       console.log("dataurl", dataUrl);
+
+      savedBytes += dataUrl.length;
+      savedFileCount += 1;
 
       const relativePath = outputFilePath.replace("saves/" + article.slug + "/", "");
 
@@ -236,17 +241,20 @@ async function downloadAndResizeImages(
       webpBlob.type
     );
 
+    savedBytes += dataUrl.length;
+    savedFileCount += 1;
+
     console.log("outputFilePath", outputFilePath);
   }
 
-  return successfulDownloads;
+  return { successfulDownloads, savedBytes, savedFileCount };
 }
 
 async function processHtmlAndImages(
   article: Article,
   htmlText: string,
   sendMessage: (percent: number | null, message: string | null) => void
-): Promise<{ html: string; successfulDownloads: number; totalImages: number }> {
+): Promise<{ html: string; successfulDownloads: number; totalImages: number; savedImageBytes: number; savedImageFileCount: number }> {
   const parser = new DOMParser();
   const document = parser.parseFromString(htmlText, "text/html");
   // console.log(doc.querySelector('title').textContent);
@@ -263,7 +271,7 @@ async function processHtmlAndImages(
 
   sendMessage(25, "downloading images");
 
-  const successfulDownloads = await downloadAndResizeImages(imageData, article, sendMessage);
+  const { successfulDownloads, savedBytes, savedFileCount } = await downloadAndResizeImages(imageData, article, sendMessage);
 
   sendMessage(95, "creating thumbnail");
 
@@ -273,6 +281,8 @@ async function processHtmlAndImages(
     html: document.documentElement.outerHTML,
     successfulDownloads,
     totalImages: imageData.length,
+    savedImageBytes: savedBytes,
+    savedImageFileCount: savedFileCount,
   };
 }
 
@@ -530,7 +540,7 @@ export async function ingestHtml(
 
   console.log("content", content);
 
-  const { html: processedHtml, successfulDownloads, totalImages } = await processHtmlAndImages(
+  const { html: processedHtml, successfulDownloads, totalImages, savedImageBytes, savedImageFileCount } = await processHtmlAndImages(
     article,
     content,
     sendMessageWithLog
@@ -585,6 +595,13 @@ export async function ingestHtml(
   const fetchLogPath = getFileFetchLog(article.slug);
   const fetchLogContent = logMessages.join('\n');
   await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Track asset count and total size
+  // Files: raw.html, index.html (rendered), fetch.log, article.json, plus image resources
+  const baseFileCount = 4; // raw.html, index.html, fetch.log, article.json
+  article.assetCount = baseFileCount + savedImageFileCount;
+  const articleJson = JSON.stringify(article);
+  article.sizeBytes = html.length + rendered.length + fetchLogContent.length + articleJson.length + savedImageBytes;
 
   // Save article metadata to RemoteStorage for cross-device sync
   // This is critical: without article.json, other devices cannot sync this article
@@ -686,6 +703,12 @@ export async function ingestPdf(
   const fetchLogContent = logMessages.join('\n');
   await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
 
+  // Track asset count and total size
+  // Files: document.pdf, fetch.log, article.json
+  article.assetCount = 3;
+  const articleJson = JSON.stringify(article, null, 2);
+  article.sizeBytes = arrayBuffer.byteLength + fetchLogContent.length + articleJson.length;
+
   // Save article metadata
   await storageClient?.storeFile(
     "application/json",
@@ -769,6 +792,8 @@ export async function ingestImage(
 
   // Also create a thumbnail from the image
   sendMessageWithLog(60, "creating thumbnail");
+  let thumbnailBytes = 0;
+  let thumbnailFileCount = 0;
   try {
     const { blob: resizedBlob } = await resizeImage(imageBlob, maxDimensionThumb);
     const webpBlob = await convertToWebP(resizedBlob);
@@ -785,6 +810,8 @@ export async function ingestImage(
       reader.readAsDataURL(webpBlob);
     });
     await saveResource("thumbnail.webp.data", article.slug, dataUrl, webpBlob.type);
+    thumbnailBytes = dataUrl.length;
+    thumbnailFileCount = 1;
   } catch (e) {
     console.error("Failed to create thumbnail:", e);
   }
@@ -795,6 +822,12 @@ export async function ingestImage(
   const fetchLogPath = getFileFetchLog(article.slug);
   const fetchLogContent = logMessages.join('\n');
   await storageClient?.storeFile("text/plain", fetchLogPath, fetchLogContent);
+
+  // Track asset count and total size
+  // Files: image.ext, fetch.log, article.json, plus optionally thumbnail.webp.data
+  article.assetCount = 3 + thumbnailFileCount;
+  const articleJson = JSON.stringify(article, null, 2);
+  article.sizeBytes = arrayBuffer.byteLength + thumbnailBytes + fetchLogContent.length + articleJson.length;
 
   // Save article metadata
   await storageClient?.storeFile(

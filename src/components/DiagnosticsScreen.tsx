@@ -970,8 +970,8 @@ export default function DiagnosticsScreen() {
             Articles ({articles.length})
           </Typography>
 
-          <TableContainer component={Paper} variant="outlined" sx={{ mt: 2 }}>
-            <Table>
+          <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, maxHeight: 400, overflowY: "auto" }}>
+            <Table stickyHeader>
               <TableHead>
                 <TableRow>
                   <TableCell>

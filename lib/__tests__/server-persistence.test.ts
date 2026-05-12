@@ -534,4 +534,70 @@ describe("Server Persistence Tests", () => {
       expect(savedArticle).toHaveProperty("ingestDate");
     });
   });
+
+  describe("Asset tracking fields", () => {
+    it("should set assetCount and sizeBytes on the returned article", async () => {
+      const html =
+        "<html><body><h1>Test</h1><p>Asset tracking test</p></body></html>";
+      const url = "https://example.com/asset-tracking";
+      const sendMessage = jest.fn();
+
+      const result = await ingestHtml(
+        mockStorageClient as any,
+        html,
+        "text/html",
+        url,
+        sendMessage
+      );
+
+      // For an HTML article with no images, assetCount should be 4 base files
+      expect(result.article.assetCount).toBe(4);
+      expect(result.article.sizeBytes).toBeGreaterThan(0);
+    });
+
+    it("should persist assetCount and sizeBytes in article.json", async () => {
+      const html =
+        "<html><body><h1>Test</h1><p>Persisted asset fields</p></body></html>";
+      const url = "https://example.com/asset-persistence";
+      const sendMessage = jest.fn();
+
+      await ingestHtml(
+        mockStorageClient as any,
+        html,
+        "text/html",
+        url,
+        sendMessage
+      );
+
+      const articleJsonCall = mockStorageClient.storeFile.mock.calls.find(
+        (call) => call[1].endsWith("/article.json")
+      );
+
+      const savedArticle = JSON.parse(articleJsonCall[2]);
+
+      expect(savedArticle).toHaveProperty("assetCount");
+      expect(savedArticle).toHaveProperty("sizeBytes");
+      expect(savedArticle.assetCount).toBe(4);
+      expect(savedArticle.sizeBytes).toBeGreaterThan(0);
+    });
+
+    it("should include all content sizes in sizeBytes", async () => {
+      const html =
+        "<html><body><h1>Test</h1><p>Size calculation test</p></body></html>";
+      const url = "https://example.com/size-calculation";
+      const sendMessage = jest.fn();
+
+      const result = await ingestHtml(
+        mockStorageClient as any,
+        html,
+        "text/html",
+        url,
+        sendMessage
+      );
+
+      // sizeBytes should account for raw html, rendered html, fetch log, and article.json
+      // At minimum it should be larger than just the raw html
+      expect(result.article.sizeBytes).toBeGreaterThan(html.length);
+    });
+  });
 });
