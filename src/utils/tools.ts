@@ -6,6 +6,7 @@ import { deleteArticleStorage, init } from "./storage";
 import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../lib/src/lib";
 import { resizeImage } from "../../lib/src/ingestion";
+import { markDirty } from "./publicExport";
 
 // Cookie-based CORS proxy functions
 export const getCorsProxyValue = (): string => {
@@ -21,6 +22,7 @@ export const setCorsProxyValue = (value: string | null): void => {
 // deleteArticleStorage already handles deleting from both IndexedDB and RemoteStorage
 export async function removeArticle(storeClient: BaseClient, slug: string): Promise<void> {
   await deleteArticleStorage(slug);
+  markDirty();
 }
 
 export async function updateArticleMetadata(
@@ -38,6 +40,8 @@ export async function updateArticleMetadata(
   // update the state in the db
 
   await db.articles.put(updatedArticle);
+
+  markDirty();
 
   return updatedArticle;
 }

@@ -36,6 +36,8 @@ import {
   Article as ArticleIcon,
   Archive as ArchiveIcon2,
   ArrowForward,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
@@ -169,6 +171,18 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
+  const handleToggleFavorite = (event: React.MouseEvent) => {
+    event.stopPropagation();
+    try {
+      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to update favorite", { variant: "error" });
+    }
+    closeMenu();
+  };
+
   const handleDelete = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
@@ -196,12 +210,24 @@ function ArticleItem({ article }: { article: Article }) {
       }}
       onClick={() => navigate({ to: "/article/$slug", params: { slug: article.slug } })}
     >
-      <ListItemAvatar>
+      <ListItemAvatar sx={{ position: "relative" }}>
         <img
           src={thumbnailSrc}
           alt="Article"
           style={{ width: 100, height: 100, objectFit: "cover" }}
         />
+        {article.favorite && (
+          <StarIcon
+            sx={{
+              position: "absolute",
+              top: 4,
+              right: 4,
+              fontSize: 16,
+              color: "warning.main",
+              pointerEvents: "none",
+            }}
+          />
+        )}
       </ListItemAvatar>
       <ListItemText
         sx={{
@@ -248,6 +274,16 @@ function ArticleItem({ article }: { article: Article }) {
             Archive
           </MenuItem>
         )}
+        <MenuItem onClick={handleToggleFavorite} data-testid="article-menu-favorite">
+          <ListItemIcon>
+            {article.favorite ? (
+              <StarIcon fontSize="small" />
+            ) : (
+              <StarBorderIcon fontSize="small" />
+            )}
+          </ListItemIcon>
+          {article.favorite ? "Unmark favorite" : "Mark favorite"}
+        </MenuItem>
         <MenuItem onClick={handleShare}>
           <ListItemIcon>
             <ShareIcon fontSize="small" />

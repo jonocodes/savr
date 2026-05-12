@@ -12,6 +12,7 @@ export type Article = {
   mimeType: string;
   readTimeMinutes: number | null;
   progress: number;
+  favorite?: boolean;
   summary?: string; // AI-generated summary of the article
   assetCount?: number; // Number of files stored for this article
   sizeBytes?: number; // Total storage size in bytes across all files

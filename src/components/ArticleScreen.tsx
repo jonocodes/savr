@@ -39,6 +39,8 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -163,6 +165,17 @@ export default function ArticleScreen(_props: Props) {
     if (isDebugMode()) {
       setHtml(message);
     }
+  };
+
+  const handleToggleFavorite = () => {
+    try {
+      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
+    } catch (e) {
+      console.error(e);
+      enqueueSnackbar("Failed to update favorite", { variant: "error" });
+    }
+    closeMenu();
   };
 
   const handleShare = () => {
@@ -836,6 +849,17 @@ export default function ArticleScreen(_props: Props) {
                 <ListItemText>{article.summary ? "View Summary" : "Summarize"}</ListItemText>
               </MenuItem>
             )}
+
+            <MenuItem onClick={handleToggleFavorite} sx={{ py: 1 }} data-testid="article-page-menu-favorite">
+              <ListItemIcon>
+                {article.favorite ? (
+                  <StarIcon fontSize="small" />
+                ) : (
+                  <StarBorderIcon fontSize="small" />
+                )}
+              </ListItemIcon>
+              <ListItemText>{article.favorite ? "Unmark favorite" : "Mark favorite"}</ListItemText>
+            </MenuItem>
 
             <MenuItem onClick={handleShare} sx={{ py: 1 }}>
               <ListItemIcon>
