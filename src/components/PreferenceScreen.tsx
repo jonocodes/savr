@@ -90,10 +90,17 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/utils/storage";
+import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes, updateSyncInterval } from "~/utils/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
-import { setSyncEnabledCookie, SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
+import {
+  setSyncEnabledCookie,
+  SYNC_ENABLED_COOKIE_NAME,
+  getSyncIntervalFromCookie,
+  setSyncIntervalInCookie,
+  SYNC_INTERVAL_OPTIONS,
+  DEFAULT_SYNC_INTERVAL_MS,
+} from "~/utils/cookies";
 import { formatReadTime } from "../../lib/src/lib";
 import {
   getPublicExportState,
@@ -110,6 +117,7 @@ export default function PreferencesScreen() {
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
+  const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
   // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
@@ -172,6 +180,8 @@ export default function PreferencesScreen() {
 
     // Load WiFi-only sync setting from cookies - DISABLED
     // setWifiOnlySync(getWiFiOnlySyncFromCookie());
+
+    setSyncInterval(getSyncIntervalFromCookie());
 
     // Load header hiding setting from cookies
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
@@ -329,6 +339,13 @@ export default function PreferencesScreen() {
     if (!isCustomCorsProxy) {
       setCorsProxy(getDefaultCorsProxy());
     }
+  };
+
+  const handleSyncIntervalChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
+    const ms = parseInt(event.target.value);
+    setSyncInterval(ms);
+    setSyncIntervalInCookie(ms);
+    updateSyncInterval(ms);
   };
 
   const handleSyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -591,6 +608,35 @@ export default function PreferencesScreen() {
               />
               <Switch edge="end" checked={syncEnabled} onChange={handleSyncToggle} />
             </ListItem>
+
+            {syncEnabled && (
+              <ListItem>
+                <ListItemIcon>
+                  <SyncIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Sync interval"
+                  secondary="How often to poll for remote changes"
+                />
+                <select
+                  value={syncInterval}
+                  onChange={handleSyncIntervalChange}
+                  style={{
+                    padding: "8px",
+                    borderRadius: "4px",
+                    border: "1px solid #ccc",
+                    fontSize: "14px",
+                    minWidth: "120px",
+                  }}
+                >
+                  {SYNC_INTERVAL_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              </ListItem>
+            )}
 
             {/* DISABLED - WiFi-only sync feature not working correctly */}
             {/* {syncEnabled && networkSupported && (

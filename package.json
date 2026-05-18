@@ -67,7 +67,7 @@
     "react-dom": "^19.0.0",
     "react-markdown": "^10.1.0",
     "remotestorage-widget": "^1.7.0",
-    "remotestoragejs": "^2.0.0-beta.7",
+    "remotestoragejs": "^2.0.0-beta.9",
     "showdown": "^2.1.0",
     "tailwind-merge": "^2.6.0",
     "ts-node": "^10.9.2",

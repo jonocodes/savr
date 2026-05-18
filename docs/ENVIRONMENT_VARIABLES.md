@@ -28,6 +28,12 @@ This document describes the environment variables used by Savr.
 - **Description**: API key for Dropbox integration
 - **Usage**: `VITE_DROPBOX_API_KEY=your_key npm run dev`
 
+### `VITE_CORS_PROXY`
+
+- **Default**: `https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=`
+- **Description**: URL prefix for the CORS proxy used when fetching external articles. Set to empty string to fetch directly (useful for local dev against localhost content servers).
+- **Usage**: `VITE_CORS_PROXY="" npm run dev`
+
 ### `VITE_BUILD_TIMESTAMP`
 
 - **Default**: Current timestamp

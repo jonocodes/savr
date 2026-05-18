@@ -6,6 +6,7 @@ import { Article } from "../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
 import { parseListing, reconcile, opFromChange, type Op } from "./reconciler";
+import { getSyncIntervalFromCookie } from "./cookies";
 
 // Sync progress tracking
 export interface SyncProgress {
@@ -38,12 +39,7 @@ export function subscribeSyncProgress(listener: SyncProgressListener): () => voi
 function notifySyncProgress(progress: Partial<SyncProgress>) {
   currentSyncProgress = { ...currentSyncProgress, ...progress };
   syncProgressListeners.forEach((listener) => listener(currentSyncProgress));
-  emitDiagnostic("progress", {
-    isSyncing: currentSyncProgress.isSyncing,
-    phase: currentSyncProgress.phase,
-    processed: currentSyncProgress.processedArticles,
-    total: currentSyncProgress.totalArticles,
-  });
+  emitDiagnostic("progress", { ...currentSyncProgress });
 }
 
 // Diagnostic event channel — for surfacing internal sync activity on the diagnostics page.
@@ -100,40 +96,15 @@ let triggerReconcile: (() => Promise<void>) | null = null;
 
 async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
   try {
-    // Defensive checks
-    if (!client) {
-      console.error("recursiveList: No client provided");
-      return [];
-    }
-
-    if (typeof path !== "string") {
-      console.error("recursiveList: Invalid path type", { path, type: typeof path });
-      return [];
-    }
-
-    // Ensure path is properly formatted
-    const safePath = path || "";
-    // console.log("recursiveList: Getting listing for path:", safePath, "type:", typeof safePath);
-
-    const listing = await client.getListing(safePath);
-    // console.log("recursiveList: Got listing for", safePath, listing);
-
-    let files: string[] = [];
-    for (const [name, _isFolder] of Object.entries(listing as Record<string, boolean>)) {
-      // console.log("recursiveList: Processing item", { name, _isFolder, path: safePath });
-      // Type assertion here
+    const listing = await client.getListing(path);
+    const files: string[] = [];
+    for (const name of Object.keys(listing as Record<string, boolean>)) {
       if (name.endsWith("/")) {
-        // Recursively list subfolder
-        // console.log("recursiveList: Recursing into subfolder:", safePath + name);
-        const subFiles = await recursiveList(client, safePath + name);
-        // console.log("recursiveList: Got subfiles for", safePath + name, subFiles);
-        files = files.concat(subFiles);
+        files.push(...await recursiveList(client, path + name));
       } else {
-        // console.log("recursiveList: Adding file:", safePath + name);
-        files.push(safePath + name);
+        files.push(path + name);
       }
     }
-    // console.log("recursiveList: Returning files for", safePath, files);
     return files;
   } catch (error) {
     console.error("recursiveList: Failed to get listing for", path, error);
@@ -143,36 +114,10 @@ async function recursiveList(client: BaseClient, path = ""): Promise<string[]> {
 
 async function glob(client: BaseClient, pattern: string, basePath = ""): Promise<string[]> {
   try {
-    // Defensive checks
-    if (!client) {
-      console.error("glob: No client provided");
-      return [];
-    }
-
-    if (typeof pattern !== "string") {
-      console.error("glob: Invalid pattern type", { pattern, type: typeof pattern });
-      return [];
-    }
-
-    if (typeof basePath !== "string") {
-      console.error("glob: Invalid basePath type", { basePath, type: typeof basePath });
-      return [];
-    }
-
-    // console.log("glob: Starting with pattern:", pattern, "basePath:", basePath);
     const allFiles = await recursiveList(client, basePath);
-    // console.log("glob: Got all files:", allFiles);
-
-    const filteredFiles = allFiles.filter((filePath: string) => {
-      const matches = minimatch(filePath, pattern);
-      // console.log("glob: Checking file", filePath, "against pattern", pattern, "matches:", matches);
-      return matches;
-    });
-
-    // console.log("glob: Final filtered files:", filteredFiles);
-    return filteredFiles;
+    return allFiles.filter((filePath) => minimatch(filePath, pattern));
   } catch (error) {
-    console.error("glob: Failed to process pattern", pattern, "basePath", basePath, error);
+    console.error("glob: Failed for pattern", pattern, error);
     return [];
   }
 }
@@ -184,55 +129,45 @@ async function processArticleFile(
   retryCount = 0,
   source: string = "change-event"
 ): Promise<void> {
-  const maxRetries = 5;
-  const retryDelay = 500; // ms
+  const maxRetries = 4;
 
-  try {
-    console.log(
-      `📖 Processing article file: ${filePath}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ""}`
-    );
-    const file = (await client.getFile(filePath)) as { data: string };
+  const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+  const backoff = (n: number) => delay(200 * Math.pow(2, n)); // 200, 400, 800, 1600 ms
 
-    if (!file || !file.data) {
-      // File might not be cached yet, retry if we haven't exceeded max retries
-      if (retryCount < maxRetries) {
-        console.log(`  ⏳ File not cached yet, retrying in ${retryDelay}ms...`);
-        await new Promise((resolve) => setTimeout(resolve, retryDelay));
-        return processArticleFile(client, filePath, retryCount + 1, source);
-      }
-      console.error(`  ✗ File is empty or invalid after ${maxRetries} retries: ${filePath}`);
-      throw new Error(`File is empty or invalid after ${maxRetries} retries: ${filePath}`);
-    }
+  console.log(
+    `📖 Processing article file: ${filePath}${retryCount > 0 ? ` (retry ${retryCount}/${maxRetries})` : ""}`
+  );
 
-    let article: Article;
-    if (typeof file.data === "object") {
-      article = file.data as Article;
-    } else {
-      article = JSON.parse(file.data);
-    }
+  const file = (await client.getFile(filePath)) as { data: string } | null;
 
-    if (!article || !article.slug) {
-      console.error(`  ✗ Invalid article data: missing slug in ${filePath}`);
-      throw new Error(`Invalid article data: missing slug in ${filePath}`);
-    }
-
-    // Insert immediately into IndexedDB
-    await db.articles.put(article);
-    emitDiagnostic("db-put", { slug: article.slug, source });
-    console.log(`  ✅ Inserted: ${article.slug}`);
-  } catch (error) {
-    // If it's a parsing error and we haven't retried, try again (file might be partially cached)
-    if (retryCount < maxRetries && error instanceof SyntaxError) {
-      console.log(
-        `  ⏳ JSON parse error, file might be partially cached, retrying in ${retryDelay}ms...`
-      );
-      await new Promise((resolve) => setTimeout(resolve, retryDelay));
+  if (!file || !file.data) {
+    if (retryCount < maxRetries) {
+      console.log(`  ⏳ File not cached yet, retrying...`);
+      await backoff(retryCount);
       return processArticleFile(client, filePath, retryCount + 1, source);
     }
-    console.error(`  ✗ Error processing article file ${filePath}:`, error);
-    // Re-throw to allow callers to handle the error
-    throw error;
+    throw new Error(`File empty after ${maxRetries} retries: ${filePath}`);
   }
+
+  let article: Article;
+  try {
+    article = typeof file.data === "object" ? (file.data as Article) : JSON.parse(file.data);
+  } catch (err) {
+    if (retryCount < maxRetries) {
+      console.log(`  ⏳ JSON parse error, file may be partially cached, retrying...`);
+      await backoff(retryCount);
+      return processArticleFile(client, filePath, retryCount + 1, source);
+    }
+    throw err;
+  }
+
+  if (!article?.slug) {
+    throw new Error(`Invalid article data: missing slug in ${filePath}`);
+  }
+
+  await db.articles.put(article);
+  emitDiagnostic("db-put", { slug: article.slug, source });
+  console.log(`  ✅ Inserted: ${article.slug}`);
 }
 
 
@@ -249,6 +184,7 @@ function initRemote() {
       // causing spurious 1-op cycles on every reload. Remote and conflict events are kept.
       changeEvents: { local: false, window: false, remote: true, conflict: true },
     });
+    remoteStorage.setSyncInterval(getSyncIntervalFromCookie());
     remoteStorage.setApiKeys({
       googledrive: environmentConfig.apiKeys.googleDrive,
       dropbox: environmentConfig.apiKeys.dropbox,
@@ -311,8 +247,13 @@ function initRemote() {
         const folders = parseListing(listing);
         const articleChecks = await Promise.all(
           folders.map(async (slug) => {
-            const sub = await client.getListing(`saves/${slug}/`) as Record<string, boolean> | null;
-            return (sub && "article.json" in sub) ? slug : null;
+            try {
+              const sub = await client.getListing(`saves/${slug}/`) as Record<string, boolean> | null;
+              return (sub && "article.json" in sub) ? slug : null;
+            } catch (err) {
+              console.warn(`Failed to check folder ${slug}, treating as missing:`, err);
+              return null;
+            }
           })
         );
         const remoteSlugs = articleChecks.filter((s): s is string => s !== null);
@@ -341,10 +282,10 @@ function initRemote() {
           while ((op = queue.shift()) !== undefined) {
             try {
               await applyOp(op);
+              notifySyncProgress({ processedArticles: ++completed });
             } catch (opErr) {
-              console.error(`applyOp failed for ${op.slug}:`, opErr);
+              console.error(`applyOp failed for ${op.slug} (${op.type}):`, opErr);
             }
-            notifySyncProgress({ processedArticles: ++completed });
           }
         }
         await Promise.all(
@@ -387,7 +328,6 @@ function initRemote() {
 
     remoteStorage.on("connected", () => {
       console.info(`🟢 remoteStorage connected to "${remoteStorage.remote.userAddress}"`);
-      notifySyncProgress({ isSyncing: true, phase: "ongoing", totalArticles: 0, processedArticles: 0 });
       hasTriggeredInitialReconcile = false;
       // Reconcile is intentionally NOT triggered here. Running it immediately on "connected"
       // is unsafe: RS's local listing cache hasn't been refreshed from the server yet, so
@@ -541,6 +481,11 @@ export async function saveResource(
   console.log(`Saved resource: ${localPath}`);
 
   return localPath;
+}
+
+export async function updateSyncInterval(ms: number): Promise<void> {
+  const s = await init();
+  if (s) s.remoteStorage.setSyncInterval(ms);
 }
 
 // Manually trigger a full reconcile (for diagnostics button)
