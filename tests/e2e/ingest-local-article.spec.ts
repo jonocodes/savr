@@ -7,7 +7,7 @@ import {
   deleteArticleFromDB,
   disconnectFromRemoteStorage,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -18,7 +18,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -74,8 +74,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage programmatically
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -218,8 +218,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");
 

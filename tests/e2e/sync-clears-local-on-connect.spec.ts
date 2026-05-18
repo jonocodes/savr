@@ -3,7 +3,7 @@ import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   clearAllArticles,
   disconnectFromRemoteStorage,
   triggerRemoteStorageSync,
@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -201,8 +201,8 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const token = testEnv.RS_TOKEN;
-      await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+      const token = testEnv.RS_TOKENS[test.info().workerIndex];
+      await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Connected to RemoteStorage");
 
@@ -279,7 +279,7 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       // ========================================
       console.log("\n📱 Reconnecting to RemoteStorage (should clear local articles)...");
 
-      await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Reconnected and initial sync done");
 

@@ -5,7 +5,7 @@ import {
   triggerRemoteStorageSync,
   waitForOutgoingSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -60,9 +60,9 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       await page1.waitForLoadState("networkidle");
       console.log("✅ Browser 1: App loaded");
 
-      const token = testEnv.RS_TOKEN;
+      const token = testEnv.RS_TOKENS[test.info().workerIndex];
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page1, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page1, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page1);
       console.log("✅ Browser 1: RemoteStorage connected and synced");
 
@@ -73,7 +73,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       console.log("✅ Browser 2: App loaded");
 
       console.log("🔗 Browser 2: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page2, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page2, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page2);
       console.log("✅ Browser 2: RemoteStorage connected and synced");
 

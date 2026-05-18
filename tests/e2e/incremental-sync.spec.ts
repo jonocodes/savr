@@ -3,7 +3,7 @@ import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   clearAllArticles,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -14,7 +14,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -172,8 +172,8 @@ test.describe("Incremental Sync", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const token = testEnv.RS_TOKEN;
-      await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+      const token = testEnv.RS_TOKENS[test.info().workerIndex];
+      await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Connected to RemoteStorage");
 
@@ -234,20 +234,15 @@ test.describe("Incremental Sync", () => {
       expect(articleAfter).toBeTruthy();
       expect(articleCountAfter).toBeGreaterThanOrEqual(1);
 
-      // Check console logs for incremental sync message (not clearing)
-      const incrementalSyncLog = logs.find((log) =>
-        log.includes("using incremental sync")
-      );
-      const clearingLog = logs.find((log) =>
-        log.includes("clearing before sync")
-      );
-
-      console.log(`   Found 'incremental sync' log: ${!!incrementalSyncLog}`);
-      console.log(`   Found 'clearing' log: ${!!clearingLog}`);
-
-      // Should see incremental sync message, NOT clearing message
-      expect(incrementalSyncLog).toBeTruthy();
-      expect(clearingLog).toBeFalsy();
+      // Verify the test article specifically was NOT re-fetched (would indicate it was
+      // deleted then re-added rather than incrementally preserved).
+      const wasRefetched = await page.evaluate((slug) => {
+        const diag = (window as unknown as { __savrDiag?: Array<{ category: string; data: Record<string, unknown> }> }).__savrDiag ?? [];
+        return diag.some(
+          (e) => e.category === "db-put" && e.data.slug === slug && e.data.source === "reconcile"
+        );
+      }, TEST_ARTICLE_SLUG);
+      expect(wasRefetched).toBe(false);
 
       console.log("\n🎉 Test passed: Articles preserved on reload (incremental sync)!");
     } finally {

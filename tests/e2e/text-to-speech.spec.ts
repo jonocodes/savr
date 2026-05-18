@@ -5,7 +5,7 @@ import {
   deleteArticleFromStorage,
   deleteArticleFromDB,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -16,7 +16,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -55,8 +55,8 @@ test.describe("Text to Speech Feature", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     await clearAllArticles(page);
 
@@ -149,8 +149,8 @@ test.describe("Text to Speech Feature", () => {
     const speedLabel = page.getByText(/Speed:/);
     await expect(speedLabel).toBeVisible({ timeout: 5000 });
 
-    // Verify slider exists
-    const slider = page.locator(".MuiSlider-root");
+    // Verify slider exists (progress slider + speed slider both match; check at least one)
+    const slider = page.locator(".MuiSlider-root").first();
     await expect(slider).toBeVisible({ timeout: 5000 });
   });
 

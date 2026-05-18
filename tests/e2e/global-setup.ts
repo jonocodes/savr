@@ -66,22 +66,23 @@ export default async function globalSetup(_config: FullConfig) {
       ...process.env,
       NODE_ENV: "test", // Signals to armadietto.cjs to use port 8006
       STORAGE_PORT: "8006", // Explicitly set storage port
+      MAX_TEST_WORKERS: process.env.CI ? "2" : "4", // Must match workers in playwright.config.ts
     },
   });
 
-  // Capture token from stdout
-  let token = "";
+  // Capture per-worker tokens from stdout: "Token[N]: <token>"
+  const tokens: string[] = [];
   let serverStarted = false;
 
   armadettoProcess.stdout?.on("data", (data) => {
     const output = data.toString();
     console.log("[Armadietto]", output.trim());
 
-    // Parse token: "Token:      <token>"
-    const tokenMatch = output.match(/Token:\s+(.+)/);
+    const tokenMatch = output.match(/Token\[(\d+)\]:\s+(.+)/);
     if (tokenMatch) {
-      token = tokenMatch[1].trim();
-      console.log("✅ Captured OAuth token");
+      const idx = parseInt(tokenMatch[1], 10);
+      tokens[idx] = tokenMatch[2].trim();
+      console.log(`✅ Captured OAuth token for testuser${idx}`);
     }
 
     if (output.includes("RemoteStorage Test Server Running")) {
@@ -113,12 +114,12 @@ export default async function globalSetup(_config: FullConfig) {
   } catch (err) {
     throw new Error(
       `Armadietto server failed to respond: ${err}. ` +
-        `Server started: ${serverStarted}, Token captured: ${!!token}`
+        `Server started: ${serverStarted}, Tokens captured: ${tokens.length}`
     );
   }
 
-  if (!token) {
-    throw new Error("Failed to capture OAuth token from Armadietto");
+  if (tokens.length === 0) {
+    throw new Error("Failed to capture any OAuth tokens from Armadietto");
   }
 
   // Start content server for test data (directly, not via npm, for easier cleanup)
@@ -161,9 +162,12 @@ export default async function globalSetup(_config: FullConfig) {
     throw new Error(`Content server failed to respond: ${err}`);
   }
 
-  // Store token and PIDs for tests and teardown
+  // Store tokens and PIDs for tests and teardown.
+  // RS_TOKENS[workerIndex] is the token for testuser{workerIndex}.
+  // RS_TOKEN is kept as an alias for RS_TOKENS[0] (backward compat).
   const testEnv = {
-    RS_TOKEN: token,
+    RS_TOKEN: tokens[0],
+    RS_TOKENS: tokens,
     ARMADIETTO_PID: armadettoProcess?.pid,
     CONTENT_SERVER_PID: contentServerProcess?.pid,
   };

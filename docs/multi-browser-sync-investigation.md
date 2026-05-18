@@ -1,7 +1,7 @@
 # Multi-Browser Sync Test Investigation
 
-**Date:** January 2026
-**Status:** Unresolved - Tests skipped
+**Date:** January 2026 (resolved May 2026)
+**Status:** Resolved
 **Tests Affected:**
 - `tests/e2e/multi-browser-sync.spec.ts`
 - `tests/e2e/multi-browser-archive-sync.spec.ts`
