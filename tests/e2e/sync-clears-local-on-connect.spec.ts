@@ -4,6 +4,7 @@ import {
   waitForRemoteStorageSync,
   getArticleFromDB,
   getWorkerStorageAddress,
+  getWorkerToken,
   clearAllArticles,
   disconnectFromRemoteStorage,
   triggerRemoteStorageSync,
@@ -201,14 +202,22 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const token = testEnv.RS_TOKENS[test.info().workerIndex];
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
       await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Connected to RemoteStorage");
 
       // Clear any existing articles first
       await clearAllArticles(page);
-      await page.waitForTimeout(1000);
+      await page.waitForFunction(
+        async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.count()) === 0; } catch { return false; }
+        },
+        { timeout: 10000 },
+      );
       console.log("✅ Cleared existing articles");
 
       // Add remote articles
@@ -226,7 +235,15 @@ test.describe("Sync Clears Local Articles on Connect", () => {
 
       // Trigger sync to pull remote articles into IndexedDB
       await triggerRemoteStorageSync(page);
-      await page.waitForTimeout(1000);
+      await page.waitForFunction(
+        async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.get("remote-article-1")) !== undefined; } catch { return false; }
+        },
+        { timeout: 15000 },
+      );
       console.log("✅ Synced remote articles to local DB");
 
       // Verify remote articles exist in local DB
@@ -238,7 +255,6 @@ test.describe("Sync Clears Local Articles on Connect", () => {
 
       // Disconnect from RemoteStorage
       await disconnectFromRemoteStorage(page);
-      await page.waitForTimeout(1000);
       console.log("✅ Disconnected from RemoteStorage");
 
       // ========================================
@@ -286,7 +302,16 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       // Use manual sync helper to fetch remote articles (works around RemoteStorage.js limitation)
       console.log("   Triggering manual sync to fetch remote articles...");
       await triggerRemoteStorageSync(page);
-      await page.waitForTimeout(2000);
+      // Poll until local articles have been cleared by the reconciler
+      await page.waitForFunction(
+        async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.get("local-article-1")) === undefined; } catch { return false; }
+        },
+        { timeout: 20000 },
+      );
       console.log("✅ Manual sync completed");
 
       // ========================================

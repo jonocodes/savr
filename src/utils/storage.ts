@@ -303,7 +303,19 @@ function initRemote() {
       let hadWork = false;
       try {
         const listing = (await client.getListing("saves/")) as Record<string, boolean>;
-        const remoteSlugs = parseListing(listing);
+        // Filter out zombie folders: RS (specifically Armadietto) keeps the directory entry in
+        // the parent listing after all content files are deleted because a .~meta file lingers.
+        // To detect this, check each slug's sub-listing for article.json rather than checking
+        // the file cache (getFile(false) can transiently return null for valid articles during
+        // cache transitions, causing false delete ops).
+        const folders = parseListing(listing);
+        const articleChecks = await Promise.all(
+          folders.map(async (slug) => {
+            const sub = await client.getListing(`saves/${slug}/`) as Record<string, boolean> | null;
+            return (sub && "article.json" in sub) ? slug : null;
+          })
+        );
+        const remoteSlugs = articleChecks.filter((s): s is string => s !== null);
         const localSlugs = (await db.articles.toArray()).map((a) => a.slug);
         const ops = reconcile(localSlugs, remoteSlugs);
 
@@ -462,10 +474,6 @@ function initRemote() {
 
       try {
         if (op.type === "fetch") {
-          // If the article is already in Dexie and this looks like a first-time announcement
-          // (hasOld=false), skip the immediate fetch — the reconcile will confirm it's current.
-          if (event.oldValue === undefined && (await db.articles.get(op.slug))) return;
-
           // Prefer event.newValue over client.getFile() — RS fires change events before its
           // local cache is committed, so getFile() can return stale data (e.g. old "unread"
           // state when the server has "archived"). newValue is the ground-truth data direct
@@ -490,26 +498,10 @@ function initRemote() {
 
           await processArticleFile(client, `saves/${op.slug}/article.json`, 0, "change-event");
         } else {
-          // origin "local" means we called client.remove() and already deleted from Dexie —
-          // skip the redundant guard and the no-op delete.
-          // For remote/window/conflict origins, a spurious delete can fire while a storeFile
-          // upload is in flight (RS GET 404s the file before it reaches the server). We can't
-          // use origin alone to distinguish that from a real remote delete, so we fall back to
-          // the cache check: if the file is still in RS's local cache it's a pending upload,
-          // not a real deletion.
-          if (event.origin !== "local") {
-            // RS fires change events before its local cache commit settles, so
-            // getFile(false) here can return stale pre-delete data even for a
-            // legitimate remote delete. We can't act on the delete right now, but
-            // we must schedule a reconcile so it gets picked up once the cache
-            // settles (~5s). Without this the return below skips scheduleReconcile
-            // and the article stays in Dexie indefinitely.
-            const cached = await client.getFile(`saves/${op.slug}/article.json`, false) as { data?: unknown } | null;
-            if (cached && cached.data) {
-              scheduleReconcile(5000);
-              return;
-            }
-          }
+          // changeEvents: { local: false } suppresses events we fired ourselves, so every
+          // delete event here is a genuine remote deletion. Trust newValue === undefined
+          // directly — no cache check. (The old getFile(false) guard was firing on stale
+          // pre-delete cache data and blocking every legitimate remote delete.)
           await db.articles.delete(op.slug);
           emitDiagnostic("db-delete", { slug: op.slug, source: "change-event" });
         }

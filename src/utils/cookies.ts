@@ -9,6 +9,15 @@ export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
 export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
+export const SYNC_SETTING_EVENT = "savr:sync-setting-changed";
+
+export const setSyncEnabledCookie = (enabled: boolean): void => {
+  if (typeof document === "undefined") return;
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+  document.cookie = `${SYNC_ENABLED_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
+  window.dispatchEvent(new CustomEvent(SYNC_SETTING_EVENT, { detail: { enabled } }));
+};
 export const WIFI_ONLY_SYNC_COOKIE_NAME = "savr-wifi-only-sync";
 export const SUMMARY_PROMPT_COOKIE_NAME = "savr-summary-prompt";
 export const SUMMARIZATION_ENABLED_COOKIE_NAME = "savr-summarization-enabled";

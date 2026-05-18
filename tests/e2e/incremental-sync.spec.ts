@@ -5,6 +5,7 @@ import {
   getArticleFromDB,
   getWorkerStorageAddress,
   clearAllArticles,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -172,7 +173,7 @@ test.describe("Incremental Sync", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const token = testEnv.RS_TOKENS[test.info().workerIndex];
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
       await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Connected to RemoteStorage");

@@ -18,6 +18,7 @@ import {
   connectToRemoteStorage,
   getWorkerStorageAddress,
   clearAllArticles,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -82,7 +83,7 @@ test.describe("Sync loop regression", () => {
     await page.goto("/", { waitUntil: "domcontentloaded" });
 
     // Connect to test Armadietto server
-    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), testEnv.RS_TOKENS[test.info().workerIndex]);
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex));
 
     // Clean Armadietto state so we are not racing with articles left by prior tests.
     await clearAllArticles(page);

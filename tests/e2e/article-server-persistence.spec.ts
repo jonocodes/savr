@@ -15,6 +15,7 @@ import {
   clearAllArticles,
   getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -70,7 +71,7 @@ test.describe("Article Server Persistence", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage programmatically
-    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
     await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
 
     // Wait for initial sync
@@ -124,8 +125,6 @@ test.describe("Article Server Persistence", () => {
     // 4. Wait for sync to complete (push to server)
     console.log("4️⃣  Waiting for article to sync to remote server...");
     await waitForOutgoingSync(page);
-    // Extra buffer for server processing
-    await page.waitForTimeout(2000);
     console.log("✅ Sync completed");
 
     // 5. Verify article exists on remote server (bypassing cache)
@@ -228,7 +227,6 @@ test.describe("Article Server Persistence", () => {
     // 3. Wait for sync to server
     console.log("3️⃣  Waiting for sync to server...");
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(2000);
     console.log("✅ Synced to server");
 
     // 4. Clear local and restore from server
@@ -295,7 +293,6 @@ test.describe("Article Server Persistence", () => {
     // 2. Wait for sync to server
     console.log("2️⃣  Waiting for sync to server...");
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(2000);
     console.log("✅ Synced to server");
 
     // 3. Verify article exists on server
@@ -329,7 +326,6 @@ test.describe("Article Server Persistence", () => {
     // 5. Wait for deletion to sync to server
     console.log("5️⃣  Waiting for deletion to sync to server...");
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(2000);
     console.log("✅ Deletion synced");
 
     // 6. Verify article is deleted from server
@@ -388,7 +384,6 @@ test.describe("Article Server Persistence", () => {
 
     // 3. Wait for initial sync
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(2000);
 
     // 4. Archive the article via UI
     console.log("3️⃣  Archiving article via UI...");
@@ -402,7 +397,18 @@ test.describe("Article Server Persistence", () => {
     console.log("✅ Archive clicked");
 
     // Wait for article to be archived (it should disappear from unread list or show archived state)
-    await page.waitForTimeout(1000);
+    await page.waitForFunction(
+      async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = (window as any).savrDb;
+        if (!db) return false;
+        try {
+          const a = await db.articles.get("test-article-for-persistence");
+          return a?.state === "archived";
+        } catch { return false; }
+      },
+      { timeout: 10000 },
+    );
 
     // 5. Verify article state changed to archived locally
     console.log("4️⃣  Verifying article archived locally...");
@@ -413,7 +419,6 @@ test.describe("Article Server Persistence", () => {
     // 6. Wait for archive state to sync to server
     console.log("5️⃣  Waiting for archive state to sync to server...");
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(2000);
     console.log("✅ Archive state synced");
 
     // 7. Verify archive state on server
@@ -470,7 +475,6 @@ test.describe("Article Server Persistence", () => {
     // 2. Wait for sync to server
     console.log("2️⃣  Waiting for sync to server...");
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(2000);
     console.log("✅ Synced to server");
 
     // 3. Get the original HTML content from server
@@ -504,7 +508,6 @@ test.describe("Article Server Persistence", () => {
     // 8. Navigate to article page and verify content renders
     console.log("8️⃣  Navigating to article page to verify rendering...");
     await triggerRemoteStorageSync(page);
-    await page.waitForTimeout(2000);
     await page.goto("/article/test-article-for-persistence");
     await page.waitForLoadState("networkidle");
 
@@ -598,7 +601,6 @@ test.describe("Article Server Persistence", () => {
     // 3. Wait for both articles to sync to server
     console.log("3️⃣  Waiting for both articles to sync to server...");
     await waitForOutgoingSync(page);
-    await page.waitForTimeout(3000);
     console.log("✅ Both articles synced");
 
     // 4. Verify both articles exist on server

@@ -7,6 +7,7 @@ import {
   getArticleFromDB,
   getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -60,7 +61,7 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       await page1.waitForLoadState("networkidle");
       console.log("✅ Browser 1: App loaded");
 
-      const token = testEnv.RS_TOKENS[test.info().workerIndex];
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
       await connectToRemoteStorage(page1, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page1);
@@ -118,14 +119,11 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       // Wait for Browser 1 to sync article to server
       console.log("   Browser 1: Waiting for sync to server...");
       await waitForOutgoingSync(page1);
-      await page1.waitForTimeout(2000);
       console.log("   ✅ Browser 1: Sync completed");
 
       // Trigger manual sync in Browser 2 to pull article from server
       console.log("\n4️⃣  Browser 2: Syncing to pull article from Browser 1...");
       await triggerRemoteStorageSync(page2);
-      // Give the UI time to react to the sync
-      await page2.waitForTimeout(3000);
 
       const articleTitle2 = page2.getByText(/Death/i);
       await expect(articleTitle2).toBeVisible({ timeout: 15000 });
@@ -170,10 +168,18 @@ test.describe("Multi-Browser RemoteStorage Sync", () => {
       console.log("9️⃣  Browser 2: Syncing to pull deletion...");
       await triggerRemoteStorageSync(page2);
 
-      // Give change events time to process
-      await page2.waitForTimeout(2000);
-
-      await expect(articleTitle2).not.toBeVisible({ timeout: 10000 });
+      // Poll Dexie until the article is gone — faster and more reliable than a fixed wait
+      await page2.waitForFunction(
+        async (slug: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.get(slug)) === undefined; } catch { return false; }
+        },
+        "death-by-a-thousand-cuts",
+        { timeout: 20000 },
+      );
+      await expect(articleTitle2).not.toBeVisible({ timeout: 5000 });
       console.log("✅ Browser 2: Article disappeared after deletion sync!");
 
       // Verify article is gone from Browser 2's IndexedDB

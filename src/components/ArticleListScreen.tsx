@@ -143,11 +143,10 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleArchive = (event: React.MouseEvent) => {
+  const handleArchive = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      // updateArticleState(storage.client!, article.slug, "archived");
-      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await updateArticleMetadata(storage.client!, { ...article, state: "archived" });
       enqueueSnackbar("Article archived");
     } catch (e) {
       console.error(e);
@@ -156,13 +155,12 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleUnarchive = (event: React.MouseEvent) => {
+  const handleUnarchive = async (event: React.MouseEvent) => {
     event.stopPropagation();
     if (!article) throw new Error("Article is undefined");
 
     try {
-      // updateArticleState(storage.client!, article.slug, "unread");
-      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await updateArticleMetadata(storage.client!, { ...article, state: "unread" });
       enqueueSnackbar("Article unarchived");
     } catch (e) {
       console.error(e);
@@ -171,10 +169,10 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleToggleFavorite = (event: React.MouseEvent) => {
+  const handleToggleFavorite = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);

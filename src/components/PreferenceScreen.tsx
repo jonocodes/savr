@@ -93,7 +93,7 @@ import { useSnackbar } from "notistack";
 import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes } from "~/utils/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
-import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
+import { setSyncEnabledCookie, SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
 import { formatReadTime } from "../../lib/src/lib";
 import {
   getPublicExportState,
@@ -334,8 +334,7 @@ export default function PreferencesScreen() {
   const handleSyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.checked;
     setSyncEnabled(newValue);
-    // Save to cookies
-    document.cookie = `${SYNC_ENABLED_COOKIE_NAME}=${newValue}; path=/; max-age=31536000`; // 1 year expiry
+    setSyncEnabledCookie(newValue);
 
     // Only refresh when enabling sync to properly initialize the widget
     if (newValue) {
@@ -1171,6 +1170,7 @@ export default function PreferencesScreen() {
                 onClick={() => setDeleteDialogOpen(true)}
                 disabled={totalArticleCount === 0}
                 sx={{ mb: 2 }}
+                data-testid="delete-all-articles-button"
               >
                 Delete All
               </Button>

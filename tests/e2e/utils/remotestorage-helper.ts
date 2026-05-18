@@ -13,12 +13,23 @@ export function getTestHost(): string {
   return process.env.PW_SERVER ? "host.docker.internal" : "localhost";
 }
 
+// Armadietto creates this many users; must match MAX_TEST_WORKERS in global-setup.ts
+const MAX_TEST_WORKERS = parseInt(process.env.MAX_TEST_WORKERS ?? "4", 10);
+
 /**
  * Get the RemoteStorage server address for a specific worker (testuser0, testuser1, …).
  * Each worker has its own Armadietto user so parallel workers don't share storage.
+ * Wraps around if Playwright restarts a worker with a new index beyond MAX_TEST_WORKERS.
  */
 export function getWorkerStorageAddress(workerIndex: number): string {
-  return `testuser${workerIndex}@${getTestHost()}:8006`;
+  return `testuser${workerIndex % MAX_TEST_WORKERS}@${getTestHost()}:8006`;
+}
+
+/**
+ * Get the RS token for a worker, wrapping around if Playwright has restarted workers.
+ */
+export function getWorkerToken(tokens: string[], workerIndex: number): string {
+  return tokens[workerIndex % MAX_TEST_WORKERS];
 }
 
 /**

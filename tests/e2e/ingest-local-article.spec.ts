@@ -9,6 +9,7 @@ import {
   clearAllArticles,
   getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -74,7 +75,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage programmatically
-    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
     await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
 
     // Wait for initial sync
@@ -218,7 +219,7 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
-    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
     await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");

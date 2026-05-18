@@ -7,6 +7,7 @@ import {
   clearAllArticles,
   getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -55,7 +56,7 @@ test.describe("Text to Speech Feature", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage
-    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
     await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     await clearAllArticles(page);
