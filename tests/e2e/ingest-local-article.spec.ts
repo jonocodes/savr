@@ -238,13 +238,12 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("\n🎉 Disconnect/reconnect test completed successfully!\n");
   });
 
-  // TODO: This test currently fails because RemoteStorage.js clears cached file data on disconnect
-  // See https://github.com/remotestorage/remotestorage.js/issues/1170
-
+  // Regression test for https://github.com/remotestorage/remotestorage.js/issues/1170:
+  // RS used to wipe its IndexedDB cache on disconnect, making cached articles unreadable.
+  // rsPatchDisconnect.ts now suppresses that wipe.
   test("should allow reading articles after disconnecting from RemoteStorage provider", async ({
     page,
   }) => {
-    test.fixme();
     // 1. Ingest an article while connected
     console.log("1️⃣  Ingesting article while connected to RemoteStorage...");
 
@@ -346,6 +345,62 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Article verified in IndexedDB");
 
     console.log("\n🎉 Reading after disconnect test completed successfully!\n");
+  });
+
+  // Regression test for the original bug where disconnecting from RemoteStorage left every
+  // article on the list flagged "(content missing)". Root cause: remotestoragejs deletes
+  // its entire IndexedDB cache on disconnect (https://github.com/remotestorage/remotestorage.js/issues/1170),
+  // wiping every file written via storeFile() — index.html, PDFs, images, thumbnails.
+  // Mitigation: rsPatchDisconnect.ts replaces the IndexedDB feature's `_rs_cleanup` so
+  // disconnect only closes the DB handle and leaves cached files in place.
+  test("article list should not show '(content missing)' after disconnect", async ({ page }) => {
+    console.log("1️⃣  Ingesting article while connected to RemoteStorage...");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const addButton = page
+      .locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)')
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+
+    // Pre-condition: while connected, the list must NOT show "(content missing)".
+    // If it does, the test setup is broken — not the bug we're checking for.
+    await expect(page.getByText("(content missing)")).toHaveCount(0);
+    console.log("✅ Article ingested, no '(content missing)' badge while connected");
+
+    console.log("2️⃣  Disconnecting from RemoteStorage...");
+    await disconnectFromRemoteStorage(page);
+
+    // Reload so the list re-runs its content-exists checks against the post-disconnect
+    // state of RS's local cache.
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    // The metadata row should still be present (Dexie survives disconnect)...
+    await expect(articleTitle).toBeVisible({ timeout: 5000 });
+
+    // ...but it should NOT be flagged as content-missing. Today this fails because
+    // RS wiped its IDB on disconnect, taking the saved index.html with it.
+    console.log("3️⃣  Checking that '(content missing)' badge is not shown after disconnect...");
+    await expect(page.getByText("(content missing)")).toHaveCount(0);
+    console.log("✅ List does not show '(content missing)' after disconnect");
   });
 
   test("should delete article from listing page", async ({ page }) => {

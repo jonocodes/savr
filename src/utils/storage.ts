@@ -7,6 +7,7 @@ import { Article } from "../../lib/src/models";
 import { environmentConfig } from "~/config/environment";
 import { parseListing, reconcile, opFromChange, type Op } from "./reconciler";
 import { getSyncIntervalFromCookie } from "./cookies";
+import { patchDisconnectKeepsLocalCache } from "./rsPatchDisconnect";
 
 // Sync progress tracking
 export interface SyncProgress {
@@ -184,6 +185,9 @@ function initRemote() {
       // causing spurious 1-op cycles on every reload. Remote and conflict events are kept.
       changeEvents: { local: false, window: false, remote: true, conflict: true },
     });
+    // Stop disconnect() from wiping RS's local IndexedDB cache (which would erase every
+    // cached article body, PDF, image, and thumbnail). See rsPatchDisconnect for details.
+    patchDisconnectKeepsLocalCache(remoteStorage);
     remoteStorage.setSyncInterval(getSyncIntervalFromCookie());
     remoteStorage.setApiKeys({
       googledrive: environmentConfig.apiKeys.googleDrive,
