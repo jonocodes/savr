@@ -261,8 +261,8 @@ function initRemote() {
     // articles (e.g. from the bookmarklet flow) whose uploads haven't reached the server yet.
     let hasTriggeredInitialReconcile = false;
 
-    // Apply a single reconciler Op and update progress
-    async function applyOp(op: Op, done: number): Promise<void> {
+    // Apply a single reconciler Op (progress is tracked by the caller).
+    async function applyOp(op: Op): Promise<void> {
       if (op.type === "fetch") {
         await processArticleFile(client, `saves/${op.slug}/article.json`, 0, "reconcile");
       } else {
@@ -279,10 +279,13 @@ function initRemote() {
         await db.articles.delete(op.slug);
         emitDiagnostic("db-delete", { slug: op.slug, source: "reconcile" });
       }
-      notifySyncProgress({ processedArticles: done });
     }
 
-    // Diff local vs remote and apply all ops. Serialised — won't run concurrently.
+    // Diff local vs remote and apply all ops.
+    // Ops are run with up to CONCURRENCY parallel workers so a cold RS cache
+    // (many sequential IDB reads) doesn't serialize the whole initial sync.
+    const RECONCILE_CONCURRENCY = 10;
+
     async function runReconcile(): Promise<void> {
       if (isSyncing) return;
       // Skip if RS isn't connected — getListing would return an empty/stale listing
@@ -290,12 +293,21 @@ function initRemote() {
       // bookmarklet flow which writes locally before any RS connection.
       if (!remoteStorage.remote.connected) return;
       isSyncing = true;
+      let hadWork = false;
       try {
         const listing = (await client.getListing("saves/")) as Record<string, boolean>;
         const remoteSlugs = parseListing(listing);
         const localSlugs = (await db.articles.toArray()).map((a) => a.slug);
         const ops = reconcile(localSlugs, remoteSlugs);
 
+        // Nothing to do — skip the spinner flash entirely.
+        if (ops.length === 0) {
+          hasEverSynced = true;
+          return;
+        }
+
+        hadWork = true;
+        let completed = 0;
         notifySyncProgress({
           isSyncing: true,
           phase: localSlugs.length === 0 ? "initial" : "ongoing",
@@ -303,26 +315,36 @@ function initRemote() {
           processedArticles: 0,
         });
 
-        for (let i = 0; i < ops.length; i++) {
-          try {
-            await applyOp(ops[i], i + 1);
-          } catch (opErr) {
-            console.error(`applyOp failed for ${ops[i].slug}:`, opErr);
+        const queue = [...ops];
+        async function worker(): Promise<void> {
+          let op: Op | undefined;
+          while ((op = queue.shift()) !== undefined) {
+            try {
+              await applyOp(op);
+            } catch (opErr) {
+              console.error(`applyOp failed for ${op.slug}:`, opErr);
+            }
+            notifySyncProgress({ processedArticles: ++completed });
           }
         }
+        await Promise.all(
+          Array.from({ length: Math.min(RECONCILE_CONCURRENCY, ops.length) }, worker)
+        );
 
         hasEverSynced = true;
       } catch (err) {
         console.error("runReconcile error:", err);
       } finally {
         isSyncing = false;
-        const finalCount = await db.articles.count();
-        notifySyncProgress({
-          isSyncing: false,
-          phase: "idle",
-          totalArticles: finalCount,
-          processedArticles: finalCount,
-        });
+        if (hadWork) {
+          const finalCount = await db.articles.count();
+          notifySyncProgress({
+            isSyncing: false,
+            phase: "idle",
+            totalArticles: finalCount,
+            processedArticles: finalCount,
+          });
+        }
       }
     }
 
@@ -417,7 +439,7 @@ function initRemote() {
     // Change events: apply the specific op immediately for responsiveness, then schedule
     // a safety-net reconcile (5s debounce) to catch anything the stream missed.
     client.on("change", async (evt: unknown) => {
-      const event = evt as { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown };
+      const event = evt as { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown; origin?: string };
       const rawPath = event.path || event.relativePath || "";
       const path = rawPath.startsWith("/savr/") ? rawPath.slice(6) : rawPath;
 
@@ -460,13 +482,16 @@ function initRemote() {
 
           await processArticleFile(client, `saves/${op.slug}/article.json`, 0, "change-event");
         } else {
-          // Same guard as applyOp: a spurious delete change event can fire during a sync
-          // cycle (e.g. RS GET 404s for a file that's been storeFile'd locally but not
-          // yet PUT to the server). maxAge:false reads ONLY the local cache and skips the
-          // delete if the article is still queued for upload.
-          const cached = await client.getFile(`saves/${op.slug}/article.json`, false) as { data?: unknown } | null;
-          if (cached && cached.data) {
-            return;
+          // origin "local" means we called client.remove() and already deleted from Dexie —
+          // skip the redundant guard and the no-op delete.
+          // For remote/window/conflict origins, a spurious delete can fire while a storeFile
+          // upload is in flight (RS GET 404s the file before it reaches the server). We can't
+          // use origin alone to distinguish that from a real remote delete, so we fall back to
+          // the cache check: if the file is still in RS's local cache it's a pending upload,
+          // not a real deletion.
+          if (event.origin !== "local") {
+            const cached = await client.getFile(`saves/${op.slug}/article.json`, false) as { data?: unknown } | null;
+            if (cached && cached.data) return;
           }
           await db.articles.delete(op.slug);
           emitDiagnostic("db-delete", { slug: op.slug, source: "change-event" });
