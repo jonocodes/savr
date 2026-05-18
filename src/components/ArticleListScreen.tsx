@@ -130,7 +130,8 @@ function ArticleItem({ article }: { article: Article }) {
     setAnchorEl(event.currentTarget);
   };
 
-  const closeMenu = () => {
+  const closeMenu = (event?: object) => {
+    (event as MouseEvent | undefined)?.stopPropagation?.();
     setAnchorEl(null);
   };
 
@@ -143,11 +144,10 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleArchive = (event: React.MouseEvent) => {
+  const handleArchive = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      // updateArticleState(storage.client!, article.slug, "archived");
-      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await updateArticleMetadata(storage.client!, { ...article, state: "archived" });
       enqueueSnackbar("Article archived");
     } catch (e) {
       console.error(e);
@@ -156,13 +156,12 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleUnarchive = (event: React.MouseEvent) => {
+  const handleUnarchive = async (event: React.MouseEvent) => {
     event.stopPropagation();
     if (!article) throw new Error("Article is undefined");
 
     try {
-      // updateArticleState(storage.client!, article.slug, "unread");
-      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await updateArticleMetadata(storage.client!, { ...article, state: "unread" });
       enqueueSnackbar("Article unarchived");
     } catch (e) {
       console.error(e);
@@ -171,10 +170,10 @@ function ArticleItem({ article }: { article: Article }) {
     closeMenu();
   };
 
-  const handleToggleFavorite = (event: React.MouseEvent) => {
+  const handleToggleFavorite = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);
@@ -306,6 +305,9 @@ export default function ArticleListScreen() {
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const urlFieldRef = useRef<HTMLInputElement>(null);
+  // Bookmarklet messages that arrive before the RS client is ready are queued here
+  // and processed once client becomes non-null (see bookmarklet useEffect below).
+  const pendingBookmarkletMsg = useRef<{ html: string; url: string } | null>(null);
 
   const articles = useLiveQuery(() => {
     console.log("useLiveQuery triggered - fetching articles from IndexedDB");
@@ -460,58 +462,74 @@ export default function ArticleListScreen() {
     setIngestStatus("Waiting for page to load...");
     setIngestPercent(0);
 
+    // Ingest a bookmarklet HTML payload. Extracted so it can be called both from the
+    // message handler (normal path) and from the pending-queue drain (when client was
+    // null the first time the message arrived).
+    const processMessage = async (html: string, msgUrl: string) => {
+      setIngestStatus("Ingesting...");
+      setIngestPercent(10);
+      const { article } = await ingestHtml(
+        client,
+        html,
+        "text/html",
+        msgUrl,
+        (percent: number | null, message: string | null) => {
+          if (percent !== null) {
+            setIngestStatus(message);
+            setIngestPercent(percent);
+          }
+        },
+      );
+
+      await db.articles.put(article);
+      setIngestStatus("Syncing to remote storage...");
+      try {
+        await remoteStorage?.startSync();
+      } catch (error) {
+        console.warn("Sync after bookmarklet save failed:", error);
+      }
+
+      setTimeout(async () => {
+        setDialogVisible(false);
+        setIngestPercent(100);
+        setUrl("");
+
+        const afterExternalSave = getAfterExternalSaveFromCookie();
+        if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
+          await waitForSyncThenClose();
+        } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
+          setIngestStatus(null);
+          navigate({ to: `/article/${article.slug}` });
+        } else {
+          setIngestStatus(null);
+        }
+      }, 1500);
+    };
+
+    // If a message arrived while client was still null (previous effect run), process it now.
+    if (client && pendingBookmarkletMsg.current) {
+      const { html, url: msgUrl } = pendingBookmarkletMsg.current;
+      pendingBookmarkletMsg.current = null;
+      processMessage(html, msgUrl);
+      return;
+    }
+
     let ingesting = false;
 
     const handler = async (event: MessageEvent) => {
       if (event.data.action === "savr-html") {
-        if (ingesting) {
+        if (ingesting) return;
+
+        if (!client) {
+          // RS client not ready yet — queue the payload and bail. The effect will
+          // re-run once client is non-null (it's in the dependency array) and the
+          // pending-queue check above will pick it up.
+          pendingBookmarkletMsg.current = { html: event.data.html, url: event.data.url };
           return;
         }
+
         ingesting = true;
-        setIngestStatus("Ingesting...");
-        setIngestPercent(10);
-        const { article } = await ingestHtml(
-          client,
-          event.data.html,
-          "text/html",
-          event.data.url,
-          (percent: number | null, message: string | null) => {
-            if (percent !== null) {
-              setIngestStatus(message);
-              setIngestPercent(percent);
-            }
-          },
-        );
-
-        await db.articles.put(article);
-        // Force sync to remote storage before closing window
-        // This ensures article.json is actually uploaded to the server,
-        // not just written to local cache (fixes cross-device sync issues)
-        setIngestStatus("Syncing to remote storage...");
-        try {
-          await remoteStorage?.startSync();
-        } catch (error) {
-          console.warn("Sync after bookmarklet save failed:", error);
-          // Continue anyway - the article is saved locally
-        }
-
-        // Wait a bit for UI to update, then handle based on preference
-        setTimeout(async () => {
-          setDialogVisible(false);
-          setIngestPercent(100);
-          setUrl("");
-
-          const afterExternalSave = getAfterExternalSaveFromCookie();
-          if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
-            await waitForSyncThenClose();
-          } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
-            setIngestStatus(null);
-            navigate({ to: `/article/${article.slug}` });
-          } else {
-            // SHOW_LIST - just clear the status
-            setIngestStatus(null);
-          }
-        }, 1500);
+        await processMessage(event.data.html, event.data.url);
       }
     };
     window.addEventListener("message", handler);

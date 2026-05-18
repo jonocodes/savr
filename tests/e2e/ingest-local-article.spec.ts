@@ -7,8 +7,9 @@ import {
   deleteArticleFromDB,
   disconnectFromRemoteStorage,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -18,7 +19,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -44,24 +45,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // Use a timeout to prevent hanging if IndexedDB operations fail
     try {
       await page.evaluate(async () => {
-        // Clear IndexedDB with timeout - must properly await the deletion
-        await Promise.race([
-          new Promise<void>((resolve) => {
-            const request = indexedDB.deleteDatabase("savrDb");
-            request.onsuccess = () => resolve();
-            request.onerror = () => resolve(); // Resolve anyway to avoid hanging
-            request.onblocked = () => {
-              // Database is blocked by open connections, wait and resolve
-              console.log("Database deletion blocked, waiting...");
-              setTimeout(resolve, 500);
-            };
-          }),
-          // Timeout after 5 seconds
-          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-        ]);
-        // Clear localStorage
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = (window as any).savrDb;
+        if (db) await db.delete();
         localStorage.clear();
-        // Clear sessionStorage
         sessionStorage.clear();
       });
     } catch (error) {
@@ -74,8 +61,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage programmatically
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -218,8 +205,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");
 
@@ -571,20 +558,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 8. Verify articles deleted from IndexedDB
     console.log("8️⃣  Verifying IndexedDB is empty...");
     const articleCount = await page.evaluate(async () => {
-      const dbName = "savrDb";
-      const request = indexedDB.open(dbName);
-      return new Promise<number>((resolve) => {
-        request.onsuccess = () => {
-          const db = request.result;
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const countRequest = store.count();
-          countRequest.onsuccess = () => {
-            db.close();
-            resolve(countRequest.result);
-          };
-        };
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (!db) return 0;
+      return await db.articles.count();
     });
     expect(articleCount).toBe(0);
     console.log("✅ IndexedDB is empty");

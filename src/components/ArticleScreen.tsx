@@ -1008,6 +1008,7 @@ export default function ArticleScreen(_props: Props) {
                 </Button>
                 <Collapse in={logExpanded}>
                   <Box
+                    data-testid="ingestion-log-content"
                     sx={{
                       p: 2,
                       backgroundColor: "action.hover",

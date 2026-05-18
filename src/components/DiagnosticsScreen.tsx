@@ -24,6 +24,7 @@ import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
+import { subscribeDiagnostic } from "~/utils/storage";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import { isPWAMode } from "~/utils/network";
 import React from "react";
@@ -71,7 +72,7 @@ export default function DiagnosticsScreen() {
     backend: null,
   });
 
-  const { client: remoteStorageClient, remoteStorage, widget } = useRemoteStorage();
+  const { client: remoteStorageClient, remoteStorage } = useRemoteStorage();
 
   // Scan for dangling remote storage items (directories without corresponding database entries)
   const scanDanglingItems = React.useCallback(async () => {
@@ -227,11 +228,11 @@ export default function DiagnosticsScreen() {
     const addEvent = (event: string, data?: Record<string, unknown>) => {
       setRemoteStorageEvents((prev) => [
         {
-          timestamp: new Date().toLocaleTimeString(),
+          timestamp: new Date().toLocaleTimeString() + "." + String(Date.now() % 1000).padStart(3, "0"),
           event,
           data,
         },
-        ...prev.slice(0, 49), // Keep last 50 events
+        ...prev.slice(0, 999), // Keep last 1000 events
       ]);
     };
 
@@ -333,17 +334,50 @@ export default function DiagnosticsScreen() {
     };
   }, [remoteStorage]);
 
-  // Show RemoteStorage widget on diagnostics page
+  // Subscribe to client-level "change" events (what RS reports as changed paths)
   React.useEffect(() => {
-    if (widget) {
-      widget.attach("remotestorage-container");
-    }
-    return () => {
-      if (widget) {
-        widget.attach("remotestorage-container"); // Keep it attached even when leaving page
-      }
+    if (!remoteStorageClient) return;
+
+    const handleChange = (evt: unknown) => {
+      const e = evt as { path?: string; relativePath?: string; oldValue?: unknown; newValue?: unknown };
+      setRemoteStorageEvents((prev) => [
+        {
+          timestamp:
+            new Date().toLocaleTimeString() + "." + String(Date.now() % 1000).padStart(3, "0"),
+          event: "change",
+          data: {
+            path: e.path || e.relativePath,
+            hasNew: e.newValue !== undefined,
+            hasOld: e.oldValue !== undefined,
+          },
+        },
+        ...prev.slice(0, 999),
+      ]);
     };
-  }, [widget]);
+
+    remoteStorageClient.on("change", handleChange);
+    return () => {
+      // BaseClient doesn't expose removeEventListener for "change" reliably;
+      // unmount of the diagnostics screen is rare enough that we accept the leak.
+    };
+  }, [remoteStorageClient]);
+
+  // Subscribe to app-side diagnostic events (db-put, db-delete, progress, handler entries)
+  React.useEffect(() => {
+    const unsubscribe = subscribeDiagnostic((event) => {
+      setRemoteStorageEvents((prev) => [
+        {
+          timestamp:
+            new Date().toLocaleTimeString() + "." + String(Date.now() % 1000).padStart(3, "0"),
+          event: event.category,
+          data: event.data,
+        },
+        ...prev.slice(0, 999),
+      ]);
+    });
+    return unsubscribe;
+  }, []);
+
 
   if (!articles) {
     return (
@@ -438,7 +472,7 @@ export default function DiagnosticsScreen() {
                   }}
                 >
                   <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
-                    RemoteStorage Events (Last 50)
+                    RemoteStorage Events (Last 1000)
                   </Typography>
                   <Button
                     size="small"

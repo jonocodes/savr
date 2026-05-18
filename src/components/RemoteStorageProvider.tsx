@@ -1,9 +1,10 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import RemoteStorage from "remotestoragejs";
-import { init } from "~/utils/storage";
+import { init, syncMissingArticles } from "~/utils/storage";
+import { db } from "~/utils/db";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { useLocation } from "@tanstack/react-router";
-import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
+import { SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies";
 // import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network"; // Disabled - WiFi-only sync feature not working correctly
 
 // Widget type from remotestorage-widget (no TypeScript types available)
@@ -62,10 +63,14 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       setRemoteStorage(store);
       setClient(client);
 
-      // Add test hook (debug mode only)
+      // Add test hooks (debug mode only)
       if (typeof window !== "undefined" && import.meta.env.VITE_DEBUG) {
         (window as unknown as { remoteStorage: RemoteStorage }).remoteStorage = store;
         (window as unknown as { remoteStorageClient: BaseClient }).remoteStorageClient = client;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).savrDb = db;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).syncMissingArticles = syncMissingArticles;
       }
 
       if (typeof window !== "undefined") {
@@ -89,18 +94,14 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
     initializeStorage();
   }, []);
 
-  // Monitor cookie changes for sync setting
+  // React to sync-setting changes dispatched by PreferenceScreen
   useEffect(() => {
-    const checkSyncSetting = () => {
-      const isSyncEnabled = getSyncEnabled();
-      if (isSyncEnabled !== syncEnabled) {
-        setSyncEnabled(isSyncEnabled);
-      }
+    const handleSyncSettingChanged = (e: Event) => {
+      setSyncEnabled((e as CustomEvent<{ enabled: boolean }>).detail.enabled);
     };
-
-    const interval = setInterval(checkSyncSetting, 1000);
-    return () => clearInterval(interval);
-  }, [syncEnabled]);
+    window.addEventListener(SYNC_SETTING_EVENT, handleSyncSettingChanged);
+    return () => window.removeEventListener(SYNC_SETTING_EVENT, handleSyncSettingChanged);
+  }, []);
 
   // Update widget visibility based on route and sync state
   // This effect re-runs when widget is created, route changes, or sync setting changes
