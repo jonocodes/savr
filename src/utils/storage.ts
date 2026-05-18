@@ -241,6 +241,13 @@ function initRemote() {
   remotePrms = new Promise<RemoteStorage>((resolve) => {
     const remoteStorage = new RemoteStorage({
       logging: false,
+      // Disable local (fireInitial) change events. By default RS fires a change event
+      // for every locally-cached file on every `ready` event so the app can hydrate
+      // itself from RS's cache. We use Dexie + useLiveQuery instead, so these are pure
+      // noise. More importantly, fireInitial perturbs the listing cache in a way that can
+      // make getListing("saves/") return stale data when reconcile runs right after sync-done,
+      // causing spurious 1-op cycles on every reload. Remote and conflict events are kept.
+      changeEvents: { local: false, window: false, remote: true, conflict: true },
     });
     remoteStorage.setApiKeys({
       googledrive: environmentConfig.apiKeys.googleDrive,
@@ -300,9 +307,10 @@ function initRemote() {
         const localSlugs = (await db.articles.toArray()).map((a) => a.slug);
         const ops = reconcile(localSlugs, remoteSlugs);
 
-        // Nothing to do — skip the spinner flash entirely.
+        // Nothing to do — clear the "connected" spinner and bail.
         if (ops.length === 0) {
           hasEverSynced = true;
+          notifySyncProgress({ isSyncing: false, phase: "idle" });
           return;
         }
 
