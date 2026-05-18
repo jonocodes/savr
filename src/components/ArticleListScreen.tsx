@@ -130,7 +130,8 @@ function ArticleItem({ article }: { article: Article }) {
     setAnchorEl(event.currentTarget);
   };
 
-  const closeMenu = () => {
+  const closeMenu = (event?: object) => {
+    (event as MouseEvent | undefined)?.stopPropagation?.();
     setAnchorEl(null);
   };
 

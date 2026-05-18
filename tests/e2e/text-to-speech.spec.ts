@@ -39,14 +39,9 @@ test.describe("Text to Speech Feature", () => {
 
     // Clear all browser storage to ensure clean state
     await page.evaluate(async () => {
-      await new Promise<void>((resolve) => {
-        const request = indexedDB.deleteDatabase("savrDb");
-        request.onsuccess = () => resolve();
-        request.onerror = () => resolve();
-        request.onblocked = () => {
-          setTimeout(resolve, 500);
-        };
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (db) await db.delete();
       localStorage.clear();
       sessionStorage.clear();
     });

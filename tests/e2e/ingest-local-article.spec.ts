@@ -45,24 +45,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // Use a timeout to prevent hanging if IndexedDB operations fail
     try {
       await page.evaluate(async () => {
-        // Clear IndexedDB with timeout - must properly await the deletion
-        await Promise.race([
-          new Promise<void>((resolve) => {
-            const request = indexedDB.deleteDatabase("savrDb");
-            request.onsuccess = () => resolve();
-            request.onerror = () => resolve(); // Resolve anyway to avoid hanging
-            request.onblocked = () => {
-              // Database is blocked by open connections, wait and resolve
-              console.log("Database deletion blocked, waiting...");
-              setTimeout(resolve, 500);
-            };
-          }),
-          // Timeout after 5 seconds
-          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-        ]);
-        // Clear localStorage
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = (window as any).savrDb;
+        if (db) await db.delete();
         localStorage.clear();
-        // Clear sessionStorage
         sessionStorage.clear();
       });
     } catch (error) {
@@ -572,20 +558,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 8. Verify articles deleted from IndexedDB
     console.log("8️⃣  Verifying IndexedDB is empty...");
     const articleCount = await page.evaluate(async () => {
-      const dbName = "savrDb";
-      const request = indexedDB.open(dbName);
-      return new Promise<number>((resolve) => {
-        request.onsuccess = () => {
-          const db = request.result;
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const countRequest = store.count();
-          countRequest.onsuccess = () => {
-            db.close();
-            resolve(countRequest.result);
-          };
-        };
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (!db) return 0;
+      return await db.articles.count();
     });
     expect(articleCount).toBe(0);
     console.log("✅ IndexedDB is empty");

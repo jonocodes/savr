@@ -169,6 +169,17 @@ export async function triggerRemoteStorageSync(page: Page): Promise<void> {
 }
 
 /**
+ * Set RS background sync interval (default 10000ms).
+ * Call after connectToRemoteStorage to speed up natural-sync tests.
+ */
+export async function setRSSyncInterval(page: Page, intervalMs: number): Promise<void> {
+  await page.evaluate((ms) => {
+    const rs = (window as any).remoteStorage;
+    if (rs && rs.setSyncInterval) rs.setSyncInterval(ms);
+  }, intervalMs);
+}
+
+/**
  * Wait for RemoteStorage to finish pushing outgoing changes to the server
  * This explicitly triggers a sync and waits for sync-done event
  * This is useful after delete/update operations to ensure changes are pushed to server
@@ -246,7 +257,6 @@ export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Pro
     }
 
     const startTime = Date.now();
-    const dbName = "savrDb";
     const maxWaitTime = Math.min(timeout, 10000); // Cap at 10 seconds for faster tests
 
     // Simple polling approach - don't wait for events that might not fire
@@ -255,57 +265,33 @@ export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Pro
         const timeSinceStart = Date.now() - startTime;
 
         if (timeSinceStart > maxWaitTime) {
-          // After max wait time, resolve (empty state is valid)
           console.log(`RemoteStorage sync check complete (timeout) after ${timeSinceStart}ms`);
           resolve();
           return;
         }
 
         try {
-          const request = indexedDB.open(dbName);
-          request.onsuccess = () => {
-            const db = request.result;
-            const transaction = db.transaction(["articles"], "readonly");
-            const store = transaction.objectStore("articles");
-            const countRequest = store.count();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) { setTimeout(checkDb, 200); return; }
+          const count = await db.articles.count();
 
-            countRequest.onsuccess = () => {
-              db.close();
-              const count = countRequest.result;
-
-              // If we have articles, or we've waited 3+ seconds, resolve
-              if (count > 0 || timeSinceStart > 3000) {
-                console.log(
-                  `RemoteStorage sync completed with ${count} articles after ${timeSinceStart}ms`
-                );
-                resolve();
-              } else {
-                // Check again in 200ms
-                setTimeout(checkDb, 200);
-              }
-            };
-
-            countRequest.onerror = () => {
-              db.close();
-              setTimeout(checkDb, 200);
-            };
-          };
-
-          request.onerror = () => {
+          if (count > 0 || timeSinceStart > 3000) {
+            console.log(`RemoteStorage sync completed with ${count} articles after ${timeSinceStart}ms`);
+            resolve();
+          } else {
             setTimeout(checkDb, 200);
-          };
+          }
         } catch (error) {
           console.warn("Error checking database:", error);
-          // On error, wait a bit and try again, but resolve after maxWaitTime
           if (timeSinceStart < maxWaitTime) {
             setTimeout(checkDb, 200);
           } else {
-            resolve(); // Resolve anyway to avoid hanging
+            resolve();
           }
         }
       };
 
-      // Start checking after a short delay to let things initialize
       setTimeout(checkDb, 500);
     });
   }, timeout);
@@ -317,36 +303,10 @@ export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Pro
  */
 export async function getArticleFromDB(page: Page, slug: string): Promise<any> {
   return await page.evaluate(async (slug) => {
-    // Access Dexie database directly
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const getRequest = store.get(slug);
-
-          getRequest.onsuccess = () => {
-            db.close();
-            resolve(getRequest.result);
-          };
-
-          getRequest.onerror = () => {
-            db.close();
-            reject(getRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) return undefined;
+    return await db.articles.get(slug);
   }, slug);
 }
 
@@ -458,41 +418,15 @@ export async function disconnectFromRemoteStorage(page: Page): Promise<void> {
  */
 export async function deleteArticleFromDB(page: Page, slug: string): Promise<void> {
   await page.evaluate(async (slug) => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<void>((resolve, _reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          const deleteRequest = store.delete(slug);
-
-          deleteRequest.onsuccess = () => {
-            db.close();
-            console.log(`Deleted article ${slug} from IndexedDB`);
-            resolve();
-          };
-
-          deleteRequest.onerror = () => {
-            db.close();
-            console.warn(`Failed to delete article ${slug} from IndexedDB`);
-            resolve(); // Don't fail on cleanup errors
-          };
-        } catch (error) {
-          db.close();
-          console.warn(`Error during article deletion:`, error);
-          resolve(); // Don't fail on cleanup errors
-        }
-      };
-
-      request.onerror = () => {
-        console.warn(`Failed to open database for cleanup`);
-        resolve(); // Don't fail on cleanup errors
-      };
-    });
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (!db) { console.warn("savrDb not available for cleanup"); return; }
+      await db.articles.delete(slug);
+      console.log(`Deleted article ${slug} from IndexedDB`);
+    } catch (error) {
+      console.warn(`Error during article deletion:`, error);
+    }
   }, slug);
 }
 
@@ -587,36 +521,11 @@ export async function getArticleContentFromServer(page: Page, slug: string): Pro
  */
 export async function clearLocalIndexedDB(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    await new Promise<void>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          const clearRequest = store.clear();
-
-          clearRequest.onsuccess = () => {
-            console.log("Cleared all articles from local IndexedDB");
-            db.close();
-            resolve();
-          };
-
-          clearRequest.onerror = () => {
-            db.close();
-            reject(clearRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) return;
+    await db.articles.clear();
+    console.log("Cleared all articles from local IndexedDB");
   });
 }
 
@@ -706,36 +615,12 @@ export async function clearAllArticles(page: Page): Promise<void> {
 
     // Clear IndexedDB
     try {
-      const dbName = "savrDb";
-      const request = indexedDB.open(dbName);
-
-      await new Promise<void>((resolve, reject) => {
-        request.onsuccess = () => {
-          const db = request.result;
-
-          try {
-            const transaction = db.transaction(["articles"], "readwrite");
-            const store = transaction.objectStore("articles");
-            const clearRequest = store.clear();
-
-            clearRequest.onsuccess = () => {
-              console.log("Cleared all articles from IndexedDB");
-              db.close();
-              resolve();
-            };
-
-            clearRequest.onerror = () => {
-              db.close();
-              reject(clearRequest.error);
-            };
-          } catch (error) {
-            db.close();
-            reject(error);
-          }
-        };
-
-        request.onerror = () => reject(request.error);
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (db) {
+        await db.articles.clear();
+        console.log("Cleared all articles from IndexedDB");
+      }
     } catch (error) {
       console.warn("Error clearing IndexedDB:", error);
     }

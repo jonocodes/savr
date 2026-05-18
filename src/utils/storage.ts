@@ -488,7 +488,6 @@ function initRemote() {
                 await db.articles.put(article);
                 emitDiagnostic("db-put", { slug: article.slug, source: "change-event" });
                 console.log(`  ✅ Inserted: ${article.slug}`);
-                scheduleReconcile(5000);
                 return;
               }
             } catch {
@@ -497,6 +496,12 @@ function initRemote() {
           }
 
           await processArticleFile(client, `saves/${op.slug}/article.json`, 0, "change-event");
+          // Do NOT schedule a reconcile after a fetch op. RS fires change events before the
+          // directory listing cache is fully committed, so a reconcile triggered shortly
+          // after would call getListing("saves/") and fail to see the new slug — then delete
+          // the article we just added. The change event is the authoritative signal for adds;
+          // the initial sync-done reconcile and the delete-op safety-net below cover the rest.
+          return;
         } else {
           // changeEvents: { local: false } suppresses events we fired ourselves, so every
           // delete event here is a genuine remote deletion. Trust newValue === undefined
@@ -509,6 +514,8 @@ function initRemote() {
         console.error("change handler error:", err);
       }
 
+      // Safety-net reconcile only for delete ops — ensures the deletion was legitimate
+      // and catches any missed ops. Never run after a fetch op (see comment above).
       scheduleReconcile(5000);
     });
   });

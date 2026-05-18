@@ -36,41 +36,16 @@ async function addArticleToLocalDB(
   article: { slug: string; title: string; url: string; state?: string }
 ): Promise<void> {
   await page.evaluate(async (article: { slug: string; title: string; url: string; state?: string }) => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<void>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          const putRequest = store.put({
-            ...article,
-            state: article.state || "unread",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-
-          putRequest.onsuccess = () => {
-            db.close();
-            console.log(`Added local article: ${article.slug}`);
-            resolve();
-          };
-
-          putRequest.onerror = () => {
-            db.close();
-            reject(putRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) throw new Error("savrDb not available");
+    await db.articles.put({
+      ...article,
+      state: article.state || "unread",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
+    console.log(`Added local article: ${article.slug}`);
   }, article);
 }
 
@@ -108,35 +83,10 @@ async function storeArticleToRemoteStorage(
  */
 async function getLocalArticleCount(page: Page): Promise<number> {
   return await page.evaluate(async () => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<number>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const countRequest = store.count();
-
-          countRequest.onsuccess = () => {
-            db.close();
-            resolve(countRequest.result);
-          };
-
-          countRequest.onerror = () => {
-            db.close();
-            reject(countRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) return 0;
+    return await db.articles.count();
   });
 }
 

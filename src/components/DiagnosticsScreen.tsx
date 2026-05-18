@@ -72,7 +72,7 @@ export default function DiagnosticsScreen() {
     backend: null,
   });
 
-  const { client: remoteStorageClient, remoteStorage, widget } = useRemoteStorage();
+  const { client: remoteStorageClient, remoteStorage } = useRemoteStorage();
 
   // Scan for dangling remote storage items (directories without corresponding database entries)
   const scanDanglingItems = React.useCallback(async () => {
@@ -378,17 +378,6 @@ export default function DiagnosticsScreen() {
     return unsubscribe;
   }, []);
 
-  // Show RemoteStorage widget on diagnostics page
-  React.useEffect(() => {
-    if (widget) {
-      widget.attach("remotestorage-container");
-    }
-    return () => {
-      if (widget) {
-        widget.attach("remotestorage-container"); // Keep it attached even when leaving page
-      }
-    };
-  }, [widget]);
 
   if (!articles) {
     return (

@@ -50,19 +50,10 @@ test.describe("Article Server Persistence", () => {
 
     // Clear all browser storage to ensure clean state
     await page.evaluate(async () => {
-      // Clear IndexedDB - must properly await the deletion
-      await new Promise<void>((resolve) => {
-        const request = indexedDB.deleteDatabase("savrDb");
-        request.onsuccess = () => resolve();
-        request.onerror = () => resolve(); // Resolve anyway to avoid hanging
-        request.onblocked = () => {
-          console.log("Database deletion blocked, waiting...");
-          setTimeout(resolve, 500);
-        };
-      });
-      // Clear localStorage
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (db) await db.delete();
       localStorage.clear();
-      // Clear sessionStorage
       sessionStorage.clear();
     });
 

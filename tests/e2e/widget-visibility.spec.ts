@@ -38,36 +38,17 @@ test.describe("RemoteStorage Widget Visibility", () => {
     await page.waitForLoadState("networkidle");
 
     // Add a test article to the database so we can navigate to it
-    await page.evaluate(() => {
-      return new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("savrDb");
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          try {
-            const transaction = db.transaction(["articles"], "readwrite");
-            const store = transaction.objectStore("articles");
-            store.put({
-              slug: "test-article",
-              title: "Test Article",
-              url: "https://example.com/test",
-              state: "unread",
-              ingestDate: new Date().toISOString(),
-              readTimeMinutes: 5,
-            });
-            transaction.oncomplete = () => {
-              db.close();
-              resolve();
-            };
-            transaction.onerror = () => {
-              db.close();
-              reject(transaction.error);
-            };
-          } catch (e) {
-            db.close();
-            reject(e);
-          }
-        };
+    await page.waitForFunction(() => !!(window as any).savrDb, { timeout: 10000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
+    await page.evaluate(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      await db.articles.put({
+        slug: "test-article",
+        title: "Test Article",
+        url: "https://example.com/test",
+        state: "unread",
+        ingestDate: new Date().toISOString(),
+        readTimeMinutes: 5,
       });
     });
 
@@ -114,37 +95,18 @@ test.describe("RemoteStorage Widget Visibility", () => {
     // First add a test article
     await page.goto("/");
     await page.waitForLoadState("networkidle");
+    await page.waitForFunction(() => !!(window as any).savrDb, { timeout: 10000 }); // eslint-disable-line @typescript-eslint/no-explicit-any
 
-    await page.evaluate(() => {
-      return new Promise<void>((resolve, reject) => {
-        const request = indexedDB.open("savrDb");
-        request.onerror = () => reject(request.error);
-        request.onsuccess = () => {
-          const db = request.result;
-          try {
-            const transaction = db.transaction(["articles"], "readwrite");
-            const store = transaction.objectStore("articles");
-            store.put({
-              slug: "test-article-nav",
-              title: "Test Article Navigation",
-              url: "https://example.com/test-nav",
-              state: "unread",
-              ingestDate: new Date().toISOString(),
-              readTimeMinutes: 5,
-            });
-            transaction.oncomplete = () => {
-              db.close();
-              resolve();
-            };
-            transaction.onerror = () => {
-              db.close();
-              reject(transaction.error);
-            };
-          } catch (e) {
-            db.close();
-            reject(e);
-          }
-        };
+    await page.evaluate(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      await db.articles.put({
+        slug: "test-article-nav",
+        title: "Test Article Navigation",
+        url: "https://example.com/test-nav",
+        state: "unread",
+        ingestDate: new Date().toISOString(),
+        readTimeMinutes: 5,
       });
     });
 
