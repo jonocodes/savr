@@ -303,9 +303,12 @@ The state machine in `storage.ts` was rewritten using the reconciler approach (O
 - `processMissingArticles` and `processDeletedArticles` deleted (~115 lines gone).
 - All state flags deleted: `hasProcessedAfterFirstCycle`, `hasProcessedAfterSyncDone`, `hasSetTotalArticles`, `hasFinalizedTotal`, `isInitialSync`, `isPreparingForSync`, `processedArticles` Set.
 - `sync-done` and `sync-req-done` handlers are now diagnostic-only — no reconcile triggered.
-- `runReconcile()` fetches listing, diffs against Dexie, applies ops one at a time with progress counter derived from `ops.length` upfront (guaranteed monotonic).
+- `runReconcile()` fetches listing, diffs against Dexie, applies ops with up to 10 parallel workers; progress counter is derived from `ops.length` upfront (guaranteed monotonic).
+- When `ops.length === 0`, `runReconcile` emits idle immediately and returns — no spinner flash.
 - Change handler applies its op immediately for responsiveness, then schedules a 5s safety-net reconcile.
+- Change handler delete path uses `event.origin` to short-circuit: skips the `getFile` cache check for `origin: "local"` deletes (we called `client.remove()`, Dexie already updated); keeps the check for `origin: "remote"` / `"window"` to guard against storeFile-in-flight races.
 - Reconcile triggered only on `connected` and via the change handler's 5s debounce.
+- `changeEvents: { local: false }` on the `RemoteStorage` constructor: suppresses `fireInitial()` on `ready`, eliminating both the hundreds of no-op change events on reload and the listing-cache perturbation that caused spurious 1-op reconcile cycles.
 
 ### What improved (confirmed by observation)
 
@@ -325,9 +328,7 @@ The state machine in `storage.ts` was rewritten using the reconciler approach (O
 
 ### Remaining known issues
 
-4. **`processArticleFile` retry overhead on cold cache.** On a fresh browser with 100+ articles, RS needs time to warm its cache before `client.getFile()` returns data. Current retry logic (5 retries × 500ms = 2.5s max per article) is serialised in the reconcile loop — cold-cache initial sync is slow. Needs either parallel fetching or a smarter defer-and-retry strategy.
-
-5. **`total` shows 0 on a no-op reload.** When the reconcile finds 0 ops the progress emits `total: 0, processed: 0`. The UI spinner briefly flashes "0/0" then idle. Could suppress the notification entirely when `ops.length === 0`.
+_(none currently open — all known issues resolved)_
 
 ---
 
@@ -338,8 +339,8 @@ The state machine in `storage.ts` was rewritten using the reconciler approach (O
 3. ~~**Reconciler rewrite (Option B).**~~ **DONE** — `src/utils/reconciler.ts` + rewritten `initRemote`.
 4. ~~**Write loop regression test.**~~ **DONE** — `tests/e2e/sync-no-loop.spec.ts`.
 5. ~~**Investigate RS in-memory cache rebuild on every reload.**~~ **DONE — resolved.** See §12 open question 2 for full findings and fix applied.
-6. **Fix cold-cache initial sync performance.** `processArticleFile` retries serially; slow on a fresh browser with many articles. Options: parallel fetching with concurrency limit, or defer missing articles to a background pass triggered by `wire-done` events (when RS signals it has finished caching a file).
-7. **Suppress no-op reconcile progress notifications.** When `ops.length === 0`, skip `notifySyncProgress` so the UI spinner doesn't flash on every reload.
+6. ~~**Fix cold-cache initial sync performance.**~~ **DONE** — `runReconcile` now runs up to 10 ops concurrently; eliminates the N×IDB-read serialisation bottleneck.
+7. ~~**Suppress no-op reconcile progress notifications.**~~ **DONE** — `runReconcile` emits idle and returns immediately when `ops.length === 0`; also fixed `changeEvents: { local: false }` which was the root cause of spurious 1-op cycles on reload.
 
 ---
 
@@ -372,7 +373,7 @@ The state machine in `storage.ts` was rewritten using the reconciler approach (O
 
    The `cache: false` constructor option is a global kill switch that removes the entire local storage module (no IndexedDB, no sync, no offline support) — far too heavy a trade-off.
 
-   **Fix applied:** pass `changeEvents: { local: false }` to the `RemoteStorage` constructor. This makes `fireInitial()` return immediately without emitting anything. Remote change events (`origin: 'remote'`) are unaffected. Savr uses Dexie + `useLiveQuery` for hydration, not RS local events, so nothing is lost.
+   **Fix applied:** pass `changeEvents: { local: false, window: false, remote: true, conflict: true }` to the `RemoteStorage` constructor. This makes `fireInitial()` return immediately without emitting anything. Remote and conflict events are unaffected. Savr uses Dexie + `useLiveQuery` for hydration, not RS local events, so nothing is lost. (Note: the RS docs warn that you must specify all four keys explicitly — omitting any disables it.)
 
    Reference: [remotestoragejs source — cachinglayer.ts `fireInitial()`](https://github.com/remotestorage/remotestorage.js), issue [#1287](https://github.com/remotestorage/remotestorage.js/issues/1287).
 3. Does RemoteStorage.js work in a Web Worker? (Deferred — lower priority now that the state machine is clean.)
