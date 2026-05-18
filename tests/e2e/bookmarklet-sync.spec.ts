@@ -9,7 +9,7 @@ import {
   deleteArticleFromStorage,
   deleteArticleFromDB,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -20,7 +20,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -62,8 +62,8 @@ test.describe("Bookmarklet Server Sync", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
 
     // Clear all articles from server
@@ -112,20 +112,30 @@ test.describe("Bookmarklet Server Sync", () => {
     );
     console.log("✅ postMessage sent");
 
-    // 5. Wait for ingestion to complete (dialog should close or show syncing status)
-    console.log("5️⃣  Waiting for ingestion to complete...");
+    // 5+6. Poll Dexie for the article and return it directly. Combining the wait and
+    // the read in a single page.evaluate avoids a race where the article briefly
+    // appears in Dexie (caught by a separate waitForFunction) but is then deleted
+    // by an in-flight reconcile before a follow-up read can fetch it.
+    console.log("5️⃣  Waiting for article in Dexie and reading it...");
+    const localArticle = await page.evaluate(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (!db) return null;
+      const deadline = Date.now() + 60000;
+      while (Date.now() < deadline) {
+        try {
+          const article = await db.articles.get("dune-part-two");
+          if (article) return article;
+        } catch { /* keep polling */ }
+        await new Promise((r) => setTimeout(r, 100));
+      }
+      return null;
+    });
+    console.log("✅ Article fetched from Dexie:", localArticle ? `slug=${localArticle.slug}, ingestSource=${localArticle.ingestSource}` : "null");
 
-    // Wait for "Syncing" status to appear (indicates ingestion is done, sync is starting)
-    await expect(page.getByText(/Syncing/i)).toBeVisible({ timeout: 60000 });
-    console.log("✅ Ingestion complete, sync started");
-
-    // 6. Verify article is in local IndexedDB
-    console.log("6️⃣  Verifying article in local IndexedDB...");
-    const localArticle = await getArticleFromDB(page, "dune-part-two");
     expect(localArticle).toBeTruthy();
     expect(localArticle?.slug).toBe("dune-part-two");
     expect(localArticle?.ingestSource).toBe("bookmarklet");
-    console.log("✅ Article in IndexedDB with ingestSource:", localArticle?.ingestSource);
 
     // 7. Wait for sync to complete (this is what waitForSyncThenClose does)
     console.log("7️⃣  Waiting for sync to complete (simulating waitForSyncThenClose)...");

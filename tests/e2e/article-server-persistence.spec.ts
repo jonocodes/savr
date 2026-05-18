@@ -9,10 +9,11 @@ import {
   verifyArticleFilesOnServer,
   clearLocalIndexedDB,
   triggerRemoteStorageSync,
+  waitForArticleRestored,
   deleteArticleFromStorage,
   deleteArticleFromDB,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -23,7 +24,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -69,8 +70,8 @@ test.describe("Article Server Persistence", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage programmatically
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = testEnv.RS_TOKENS[test.info().workerIndex];
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -153,20 +154,17 @@ test.describe("Article Server Persistence", () => {
     expect(articleAfterClear).toBeFalsy();
     console.log("✅ Local IndexedDB cleared");
 
-    // 8. Trigger sync from server to restore article
-    console.log("8️⃣  Triggering sync to restore article from server...");
+    // 8+9. Trigger sync then wait for reconcile to restore article from RS cache → Dexie
+    console.log("8️⃣  Triggering sync and reconcile to restore article from server...");
     await triggerRemoteStorageSync(page);
-    // Give UI time to update
-    await page.waitForTimeout(2000);
-    console.log("✅ Sync triggered");
+    const restoredArticle = await waitForArticleRestored(page, "test-article-for-persistence");
+    console.log("✅ Article restored from server:", restoredArticle?.title);
 
     // 9. Verify article is restored in local IndexedDB
     console.log("9️⃣  Verifying article restored from server...");
-    const restoredArticle = await getArticleFromDB(page, "test-article-for-persistence");
     expect(restoredArticle).toBeTruthy();
     expect(restoredArticle?.slug).toBe("test-article-for-persistence");
     expect(restoredArticle?.title).toMatch(/Test Article for Persistence/i);
-    console.log("✅ Article restored from server:", restoredArticle?.title);
 
     // 10. Reload page and verify article appears in UI
     console.log("🔟 Reloading page to verify UI displays restored article...");
@@ -237,12 +235,11 @@ test.describe("Article Server Persistence", () => {
     console.log("4️⃣  Clearing local and restoring from server...");
     await clearLocalIndexedDB(page);
     await triggerRemoteStorageSync(page);
-    await page.waitForTimeout(2000);
-    console.log("✅ Restored from server");
 
     // 5. Compare metadata integrity
     console.log("5️⃣  Verifying metadata integrity after round-trip...");
-    const restoredArticle = await getArticleFromDB(page, "test-article-for-persistence");
+    const restoredArticle = await waitForArticleRestored(page, "test-article-for-persistence");
+    console.log("✅ Article restored from server");
     expect(restoredArticle).toBeTruthy();
 
     // Verify key metadata fields are preserved
@@ -429,12 +426,11 @@ test.describe("Article Server Persistence", () => {
     console.log("7️⃣  Clearing local and restoring from server...");
     await clearLocalIndexedDB(page);
     await triggerRemoteStorageSync(page);
-    await page.waitForTimeout(2000);
-    console.log("✅ Restored from server");
 
     // 9. Verify archive state persisted after restore
     console.log("8️⃣  Verifying archive state persisted after restore...");
-    const restoredArticle = await getArticleFromDB(page, "test-article-for-persistence");
+    const restoredArticle = await waitForArticleRestored(page, "test-article-for-persistence");
+    console.log("✅ Restored from server");
     expect(restoredArticle?.state).toBe("archived");
     console.log("✅ Archive state persisted:", restoredArticle?.state);
 
@@ -626,16 +622,14 @@ test.describe("Article Server Persistence", () => {
     }
     console.log("✅ Local IndexedDB cleared");
 
-    // 6. Trigger sync to restore both articles
-    console.log("6️⃣  Triggering sync to restore articles from server...");
+    // 6. Trigger sync + reconcile to restore both articles
+    console.log("6️⃣  Triggering sync and reconcile to restore articles from server...");
     await triggerRemoteStorageSync(page);
-    await page.waitForTimeout(3000);
-    console.log("✅ Sync triggered");
 
     // 7. Verify both articles restored locally
     console.log("7️⃣  Verifying both articles restored from server...");
     for (const article of testArticles) {
-      const restoredArticle = await getArticleFromDB(page, article.slug);
+      const restoredArticle = await waitForArticleRestored(page, article.slug);
       expect(restoredArticle).toBeTruthy();
       expect(restoredArticle?.slug).toBe(article.slug);
       console.log(`   ✅ ${article.slug} restored from server`);

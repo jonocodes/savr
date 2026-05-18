@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from "react";
 import RemoteStorage from "remotestoragejs";
-import { init } from "~/utils/storage";
+import { init, syncMissingArticles } from "~/utils/storage";
+import { db } from "~/utils/db";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { useLocation } from "@tanstack/react-router";
 import { SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies";
@@ -62,10 +63,14 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       setRemoteStorage(store);
       setClient(client);
 
-      // Add test hook (debug mode only)
+      // Add test hooks (debug mode only)
       if (typeof window !== "undefined" && import.meta.env.VITE_DEBUG) {
         (window as unknown as { remoteStorage: RemoteStorage }).remoteStorage = store;
         (window as unknown as { remoteStorageClient: BaseClient }).remoteStorageClient = client;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).savrDb = db;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (window as any).syncMissingArticles = syncMissingArticles;
       }
 
       if (typeof window !== "undefined") {

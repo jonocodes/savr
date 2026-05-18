@@ -14,10 +14,19 @@ export function getTestHost(): string {
 }
 
 /**
- * Get the RemoteStorage server address for tests
+ * Get the RemoteStorage server address for a specific worker (testuser0, testuser1, …).
+ * Each worker has its own Armadietto user so parallel workers don't share storage.
+ */
+export function getWorkerStorageAddress(workerIndex: number): string {
+  return `testuser${workerIndex}@${getTestHost()}:8006`;
+}
+
+/**
+ * Get the RemoteStorage server address for tests (worker 0 / single-worker compat)
+ * @deprecated Use getWorkerStorageAddress(test.info().workerIndex) for parallel tests
  */
 export function getRemoteStorageAddress(): string {
-  return `testuser@${getTestHost()}:8006`;
+  return getWorkerStorageAddress(0);
 }
 
 /**
@@ -105,76 +114,47 @@ export async function connectToRemoteStorage(
 }
 
 /**
- * Trigger a manual sync in RemoteStorage
+ * Trigger a RemoteStorage sync and wait for it to complete.
  *
- * NOTE: This function attempts to force a fresh sync but has known limitations
- * in multi-browser test scenarios. See docs/multi-browser-sync-investigation.md
- * for details on the investigation and attempted fixes.
- *
- * The function fetches articles directly from the server and adds them to IndexedDB,
- * bypassing the normal sync mechanism.
+ * Uses RS's native sync mechanism (rs.sync.sync()) which fires change events for
+ * updated files. The app's change handler writes to Dexie, which triggers useLiveQuery
+ * to re-render. A 2s buffer after sync-done gives async change handlers time to finish.
  */
 export async function triggerRemoteStorageSync(page: Page): Promise<void> {
   await page.evaluate(async () => {
-    const client = (window as any).remoteStorageClient;
-    if (!client) {
-      throw new Error("RemoteStorage client not available");
+    const rs = (window as any).remoteStorage;
+    if (!rs || !rs.sync) {
+      throw new Error("RemoteStorage not available for sync");
     }
 
-    try {
-      // Force a fresh fetch by passing maxAge: false (bypasses cache)
-      const listing = await client.getListing("saves/", false);
+    await new Promise<void>((resolve) => {
+      let resolved = false;
 
-      if (!listing || typeof listing !== "object") {
-        return;
-      }
-
-      const slugs = Object.keys(listing).filter((key) => listing[key] === true);
-      const dbName = "savrDb";
-
-      for (const slugDir of slugs) {
-        const slug = slugDir.replace(/\/$/, "");
-
-        try {
-          const articleData = await client.getObject(`saves/${slugDir}article.json`);
-
-          if (articleData) {
-            const request = indexedDB.open(dbName);
-            await new Promise<void>((resolve) => {
-              request.onsuccess = () => {
-                const db = request.result;
-                try {
-                  const transaction = db.transaction(["articles"], "readwrite");
-                  const store = transaction.objectStore("articles");
-                  const putRequest = store.put({ ...articleData, slug });
-
-                  putRequest.onsuccess = () => {
-                    db.close();
-                    resolve();
-                  };
-                  putRequest.onerror = () => {
-                    db.close();
-                    resolve();
-                  };
-                } catch {
-                  db.close();
-                  resolve();
-                }
-              };
-              request.onerror = () => resolve();
-            });
-          }
-        } catch {
-          // Skip articles that fail to fetch
+      const timeout = setTimeout(() => {
+        if (!resolved) {
+          resolved = true;
+          rs.removeEventListener("sync-done", onSyncDone);
+          console.log("[triggerRemoteStorageSync] timed out waiting for sync-done");
+          resolve();
         }
-      }
-    } catch (error) {
-      console.error("Error during manual sync:", error);
-    }
-  });
+      }, 15000);
 
-  // Give Dexie/React time to react to IndexedDB changes
-  await page.waitForTimeout(1000);
+      const onSyncDone = () => {
+        if (!resolved) {
+          resolved = true;
+          clearTimeout(timeout);
+          rs.removeEventListener("sync-done", onSyncDone);
+          console.log("[triggerRemoteStorageSync] sync-done received, waiting for change handlers");
+          // Buffer for async change handlers (processArticleFile + Dexie put) to complete
+          // before the caller checks the UI.
+          setTimeout(resolve, 2000);
+        }
+      };
+
+      rs.on("sync-done", onSyncDone);
+      rs.sync.sync();
+    });
+  });
 }
 
 /**
@@ -357,6 +337,38 @@ export async function getArticleFromDB(page: Page, slug: string): Promise<any> {
       request.onerror = () => reject(request.error);
     });
   }, slug);
+}
+
+/**
+ * Trigger a reconcile (RS cache → Dexie) then poll Dexie until the article appears.
+ * Use this after clearLocalIndexedDB + triggerRemoteStorageSync, because a sync cycle
+ * alone won't restore articles when the RS cache already matches the server (no change
+ * events fire). Requires window.syncMissingArticles to be exposed in VITE_DEBUG mode.
+ */
+export async function waitForArticleRestored(
+  page: Page,
+  slug: string,
+  timeout = 30000
+): Promise<any | null> {
+  await page.evaluate(async () => {
+    const fn = (window as any).syncMissingArticles; // eslint-disable-line @typescript-eslint/no-explicit-any
+    if (fn) await fn();
+  });
+  return page.evaluate(
+    async ({ slug, deadline }) => {
+      const db = (window as any).savrDb; // eslint-disable-line @typescript-eslint/no-explicit-any
+      if (!db) return null;
+      while (Date.now() < deadline) {
+        try {
+          const article = await db.articles.get(slug);
+          if (article) return article;
+        } catch { /* keep polling */ }
+        await new Promise((r) => setTimeout(r, 200));
+      }
+      return null;
+    },
+    { slug, deadline: Date.now() + timeout }
+  );
 }
 
 /**

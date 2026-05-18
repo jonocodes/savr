@@ -12,16 +12,16 @@ const defaultBaseURL = `http://${baseHost}:3002`;
  */
 export default defineConfig({
   testDir: "./tests/e2e",
-  /* Run tests in files in parallel */
+  /* Each worker connects as a distinct Armadietto user (testuser0, testuser1, …),
+   * so parallel workers are fully isolated and can run concurrently. */
   fullyParallel: true,
   /* Fail the build on CI if you accidentally left test.only in the source code. */
   forbidOnly: !!process.env.CI,
   /* Retry on CI only */
   retries: process.env.CI ? 2 : 0,
-  /* Limit workers - tests share RemoteStorage backend */
-  workers: 4,
+  workers: process.env.CI ? 2 : 4,
   /* Reporter to use. See https://playwright.dev/docs/test-reporters */
-  reporter: "html",
+  reporter: [["html", { open: "never" }], ["list"]],
   /* Global setup and teardown for test servers */
   globalSetup: "./tests/e2e/global-setup.ts",
   globalTeardown: "./tests/e2e/global-teardown.ts",

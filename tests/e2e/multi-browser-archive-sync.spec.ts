@@ -2,9 +2,10 @@ import { test, expect } from "@playwright/test";
 import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
+  waitForOutgoingSync,
   triggerRemoteStorageSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -15,7 +16,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -59,9 +60,9 @@ test.describe("Multi-Browser Archive Sync", () => {
       await page1.waitForLoadState("networkidle");
       console.log("✅ Browser 1: App loaded");
 
-      const token = testEnv.RS_TOKEN;
+      const token = testEnv.RS_TOKENS[test.info().workerIndex];
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page1, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page1, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page1);
       console.log("✅ Browser 1: RemoteStorage connected and synced");
 
@@ -72,7 +73,7 @@ test.describe("Multi-Browser Archive Sync", () => {
       console.log("✅ Browser 2: App loaded");
 
       console.log("🔗 Browser 2: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page2, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page2, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page2);
       console.log("✅ Browser 2: RemoteStorage connected and synced");
 
@@ -167,13 +168,34 @@ test.describe("Multi-Browser Archive Sync", () => {
       expect(article1After?.state).toBe("archived");
       console.log("✅ Browser 1: Article state confirmed as 'archived' in IndexedDB");
 
-      // Wait for archive state to sync to server
-      console.log("\n8️⃣  Browser 2: Syncing to pull archive state from Browser 1...");
-      await page1.waitForTimeout(2000);
+      // Wait for Browser 1 to finish pushing the archive state to the server before
+      // Browser 2 tries to pull it. waitForOutgoingSync triggers rs.sync.sync() and
+      // waits for the sync-done event, which is more reliable than a fixed timeout.
+      console.log("\n8️⃣  Browser 1: Waiting for archive state to reach server...");
+      await waitForOutgoingSync(page1);
+      console.log("✅ Browser 1: Archive state synced to server");
+
+      console.log("   Browser 2: Pulling archive state...");
+
 
       // Trigger sync in Browser 2
       await triggerRemoteStorageSync(page2);
-      await page2.waitForTimeout(2000);
+
+      // Wait for Dexie to reflect the archived state — more reliable than a fixed timeout.
+      // The change handler (storage.ts) writes the new article state to Dexie via event.newValue.
+      await page2.waitForFunction(
+        async () => {
+          const db = (window as unknown as { savrDb?: { articles: { get: (k: string) => Promise<{ state?: string } | undefined> } } }).savrDb;
+          if (!db) return false;
+          try {
+            const article = await db.articles.get("death-by-a-thousand-cuts");
+            return article?.state === "archived";
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 15000 }
+      );
 
       // Article should disappear from Saves tab in Browser 2
       await expect(articleTitle2).not.toBeVisible({ timeout: 10000 });
