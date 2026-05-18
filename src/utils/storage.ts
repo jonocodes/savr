@@ -498,8 +498,17 @@ function initRemote() {
           // the cache check: if the file is still in RS's local cache it's a pending upload,
           // not a real deletion.
           if (event.origin !== "local") {
+            // RS fires change events before its local cache commit settles, so
+            // getFile(false) here can return stale pre-delete data even for a
+            // legitimate remote delete. We can't act on the delete right now, but
+            // we must schedule a reconcile so it gets picked up once the cache
+            // settles (~5s). Without this the return below skips scheduleReconcile
+            // and the article stays in Dexie indefinitely.
             const cached = await client.getFile(`saves/${op.slug}/article.json`, false) as { data?: unknown } | null;
-            if (cached && cached.data) return;
+            if (cached && cached.data) {
+              scheduleReconcile(5000);
+              return;
+            }
           }
           await db.articles.delete(op.slug);
           emitDiagnostic("db-delete", { slug: op.slug, source: "change-event" });

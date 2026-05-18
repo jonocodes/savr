@@ -31,9 +31,135 @@ test.describe("Multi-Browser Archive Sync", () => {
   // These tests involve multiple browser contexts and sync operations, which take longer
   test.setTimeout(120000); // 2 minutes
 
-  // NOTE: This test requires a working headless browser environment with React hydration support.
+  // NOTE: These tests require a working headless browser environment with React hydration support.
   // May fail in resource-constrained environments where the browser crashes during IndexedDB init.
   // Multi-browser sync depends on RemoteStorage.js properly handling multi-client sync.
+  test("should sync article deletion between two browser contexts", async ({ browser }) => {
+    console.log("🌐 Creating two browser contexts for deletion sync test...");
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
+    await context1.addCookies([
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
+    ]);
+    await context2.addCookies([
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
+    ]);
+
+    const page1 = await context1.newPage();
+    const page2 = await context2.newPage();
+
+    const slug = "death-by-a-thousand-cuts";
+
+    try {
+      const token = testEnv.RS_TOKENS[test.info().workerIndex];
+      const storageAddress = getWorkerStorageAddress(test.info().workerIndex);
+
+      // Setup both browsers
+      console.log("📱 Browser 1: Setting up...");
+      await page1.goto("/");
+      await page1.waitForLoadState("networkidle");
+      await connectToRemoteStorage(page1, storageAddress, token);
+      await waitForRemoteStorageSync(page1);
+      console.log("✅ Browser 1: Connected and synced");
+
+      console.log("📱 Browser 2: Setting up...");
+      await page2.goto("/");
+      await page2.waitForLoadState("networkidle");
+      await connectToRemoteStorage(page2, storageAddress, token);
+      await waitForRemoteStorageSync(page2);
+      console.log("✅ Browser 2: Connected and synced");
+
+      // Ingest article in Browser 1
+      console.log("1️⃣  Browser 1: Ingesting article...");
+      const addButton = page1
+        .locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)')
+        .first();
+      await expect(addButton).toBeVisible({ timeout: 10000 });
+      await addButton.click();
+
+      const dialog1 = page1.locator('.MuiDialog-root, [role="dialog"]');
+      await expect(dialog1.first()).toBeVisible({ timeout: 5000 });
+
+      const urlInput = page1
+        .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+        .first();
+      await urlInput.fill(`${getContentServerUrl()}/input/death-by-a-thousand-cuts/`);
+
+      await dialog1.locator('button:has-text("Save")').first().click();
+      await expect(dialog1.first()).not.toBeVisible({ timeout: 10000 });
+
+      // Wait for article in Browser 1
+      await expect(page1.getByText(/Death/i)).toBeVisible({ timeout: 60000 });
+      console.log("✅ Browser 1: Article ingested");
+
+      // Sync to Browser 2
+      await waitForRemoteStorageSync(page1);
+      await page1.waitForTimeout(2000);
+      await triggerRemoteStorageSync(page2);
+      await expect(page2.getByText(/Death/i)).toBeVisible({ timeout: 30000 });
+      console.log("✅ Browser 2: Article synced");
+
+      // Verify article exists in both Dexie stores
+      const articleBefore1 = await getArticleFromDB(page1, slug);
+      expect(articleBefore1?.slug).toBe(slug);
+      const articleBefore2 = await getArticleFromDB(page2, slug);
+      expect(articleBefore2?.slug).toBe(slug);
+
+      // Delete the article in Browser 1
+      console.log("2️⃣  Browser 1: Deleting article...");
+      const articleListItem = page1.locator(".MuiListItem-root").filter({ hasText: /Death/i });
+      const menuButton = articleListItem.locator(".MuiIconButton-root").last();
+      await menuButton.click();
+
+      const deleteMenuItem = page1.locator('[data-testid="article-menu-delete"]');
+      await expect(deleteMenuItem).toBeVisible({ timeout: 5000 });
+      await deleteMenuItem.click();
+
+      // Article should disappear from Browser 1's UI
+      await expect(page1.getByText(/Death/i)).not.toBeVisible({ timeout: 10000 });
+      const articleAfter1 = await getArticleFromDB(page1, slug);
+      expect(articleAfter1).toBeFalsy();
+      console.log("✅ Browser 1: Article deleted");
+
+      // Wait for Browser 1 to push deletion to server
+      console.log("3️⃣  Browser 1: Syncing deletion to server...");
+      await waitForOutgoingSync(page1);
+      console.log("✅ Browser 1: Deletion synced to server");
+
+      // Trigger sync in Browser 2 and wait for deletion to propagate.
+      // RS fires change events before the local cache commit settles, so the
+      // change handler schedules a reconcile (5s delay) instead of deleting
+      // immediately. We poll Dexie with a generous timeout to catch it.
+      console.log("4️⃣  Browser 2: Waiting for deletion to propagate...");
+      await triggerRemoteStorageSync(page2);
+
+      await page2.waitForFunction(
+        async (s: string) => {
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try {
+            const article = await db.articles.get(s);
+            return article === undefined;
+          } catch {
+            return false;
+          }
+        },
+        slug,
+        { timeout: 30000 },
+      );
+
+      await expect(page2.getByText(/Death/i)).not.toBeVisible({ timeout: 5000 });
+      console.log("✅ Browser 2: Article deleted from UI and IndexedDB");
+
+      console.log("\n🎉 Cross-browser deletion test passed!");
+    } finally {
+      console.log("🧹 Cleaning up...");
+      try { await context1.close(); } catch { /* ignore */ }
+      try { await context2.close(); } catch { /* ignore */ }
+    }
+  });
+
   test("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
