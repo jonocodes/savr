@@ -747,6 +747,37 @@ async function recursiveDeleteDirectory(
   };
 }
 
+async function clearLocalRemoteStorageCache(): Promise<void> {
+  // Close any open handle so deleteDatabase doesn't block on this tab.
+  if (store) {
+    try {
+      const s = await store;
+      const local = (s.remoteStorage as unknown as { local?: { closeDB?: () => void } }).local;
+      if (local && typeof local.closeDB === "function") {
+        local.closeDB();
+      }
+    } catch (err) {
+      console.warn("Failed to close RS local DB before cache wipe:", err);
+    }
+  }
+
+  await new Promise<void>((resolve) => {
+    const req = indexedDB.deleteDatabase("remotestorage");
+    req.onsuccess = () => {
+      console.log("✅ Cleared remotestorage IndexedDB cache");
+      resolve();
+    };
+    req.onerror = () => {
+      console.warn("Failed to delete remotestorage IndexedDB:", req.error);
+      resolve();
+    };
+    req.onblocked = () => {
+      console.warn("remotestorage IndexedDB deletion blocked by open connections");
+      resolve();
+    };
+  });
+}
+
 async function deleteAllRemoteStorage(): Promise<{
   success: boolean;
   deletedFiles: string[];
@@ -836,6 +867,7 @@ export {
   calculateArticleStorageSize,
   deleteArticleStorage,
   deleteAllRemoteStorage,
+  clearLocalRemoteStorageCache,
   recursiveDeleteDirectory,
   formatBytes,
   resetSyncStateAndReplaceWithServer,

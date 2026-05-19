@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import {
   connectToRemoteStorage,
+  disconnectFromRemoteStorage,
   waitForRemoteStorageSync,
   getWorkerStorageAddress,
   getContentServerUrl,
@@ -27,7 +28,7 @@ try {
 test.describe("Bulk Delete", () => {
   test.setTimeout(120000);
 
-  test("should delete all articles from Dexie and RemoteStorage", async ({ page }) => {
+  test("should delete all articles and wipe RS local cache after disconnect", async ({ page }) => {
     await page.context().addCookies([
       { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
     ]);
@@ -70,13 +71,21 @@ test.describe("Bulk Delete", () => {
     expect(countBefore).toBeGreaterThanOrEqual(2);
     console.log(`✅ ${countBefore} articles in Dexie before delete`);
 
-    // Navigate to Preferences and trigger Delete All
+    // Navigate to Preferences and confirm Delete All is gated on disconnect
     console.log("Navigating to Preferences...");
     await page.goto("/prefs");
     await page.waitForLoadState("networkidle");
 
     const deleteAllButton = page.getByTestId("delete-all-articles-button");
     await expect(deleteAllButton).toBeVisible({ timeout: 10000 });
+    await expect(deleteAllButton).toBeDisabled();
+    console.log("✅ Delete All disabled while connected");
+
+    // Disconnect; button should become enabled
+    await disconnectFromRemoteStorage(page);
+    await expect(deleteAllButton).toBeEnabled({ timeout: 10000 });
+    console.log("✅ Delete All enabled after disconnect");
+
     await deleteAllButton.click();
 
     // Confirm the dialog
@@ -95,6 +104,40 @@ test.describe("Bulk Delete", () => {
       { timeout: 30000 },
     );
     console.log("✅ Dexie is empty after Delete All");
+
+    // Verify the remotestorage IndexedDB is gone (or empty)
+    const rsCacheState = await page.evaluate(async () => {
+      const databases = await indexedDB.databases();
+      const rsDb = databases.find((d) => d.name === "remotestorage");
+      if (!rsDb) return { exists: false, nodeCount: -1 };
+
+      return await new Promise<{ exists: boolean; nodeCount: number }>((resolve) => {
+        const req = indexedDB.open("remotestorage");
+        req.onsuccess = () => {
+          const db = req.result;
+          if (!db.objectStoreNames.contains("nodes")) {
+            db.close();
+            resolve({ exists: true, nodeCount: 0 });
+            return;
+          }
+          const tx = db.transaction("nodes", "readonly");
+          const countReq = tx.objectStore("nodes").count();
+          countReq.onsuccess = () => {
+            db.close();
+            resolve({ exists: true, nodeCount: countReq.result });
+          };
+          countReq.onerror = () => {
+            db.close();
+            resolve({ exists: true, nodeCount: -1 });
+          };
+        };
+        req.onerror = () => resolve({ exists: true, nodeCount: -1 });
+      });
+    });
+    console.log(`remotestorage IDB after delete: ${JSON.stringify(rsCacheState)}`);
+    // Either the DB was wiped entirely, or it was recreated empty
+    expect(rsCacheState.nodeCount).toBeLessThanOrEqual(0);
+    console.log("✅ remotestorage IndexedDB cache cleared");
 
     // Navigate back to main page and verify no articles shown
     await page.goto("/");

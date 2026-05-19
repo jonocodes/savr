@@ -14,12 +14,14 @@ type RemoteStorageContextType = {
   remoteStorage: RemoteStorage | null;
   client: BaseClient | null;
   widget: RemoteStorageWidget | null;
+  connected: boolean;
 };
 
 const RemoteStorageContext = createContext<RemoteStorageContextType>({
   remoteStorage: null,
   client: null,
   widget: null,
+  connected: false,
 });
 
 // Module-level flag to prevent double initialization across StrictMode remounts
@@ -41,6 +43,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   const [remoteStorage, setRemoteStorage] = useState<RemoteStorage | null>(null);
   const [client, setClient] = useState<BaseClient | null>(null);
   const [widget, setWidget] = useState<RemoteStorageWidget | null>(null);
+  const [connected, setConnected] = useState<boolean>(false);
   const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
   const location = useLocation();
 
@@ -62,6 +65,9 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       const { remoteStorage: store, client } = await init();
       setRemoteStorage(store);
       setClient(client);
+      setConnected(Boolean(store.remote?.connected));
+      store.on("connected", () => setConnected(true));
+      store.on("disconnected", () => setConnected(false));
 
       // Add test hooks (debug mode only)
       if (typeof window !== "undefined" && import.meta.env.VITE_DEBUG) {
@@ -164,7 +170,7 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   // }, [remoteStorage]);
 
   return (
-    <RemoteStorageContext.Provider value={{ remoteStorage, client, widget }}>
+    <RemoteStorageContext.Provider value={{ remoteStorage, client, widget, connected }}>
       <div
         id="remotestorage-container"
         style={{

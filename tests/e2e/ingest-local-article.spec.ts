@@ -571,10 +571,13 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForURL(/\/prefs/);
     console.log("✅ Navigated to preferences page");
 
-    // 3. Click "Delete All Articles" button
+    // 3. Click "Delete All Articles" button (gated on disconnect)
     console.log("3️⃣  Clicking Delete All Articles...");
-    const deleteAllButton = page.locator('button:has-text("Delete All")');
+    const deleteAllButton = page.getByTestId("delete-all-articles-button");
     await expect(deleteAllButton).toBeVisible({ timeout: 5000 });
+    await expect(deleteAllButton).toBeDisabled();
+    await disconnectFromRemoteStorage(page);
+    await expect(deleteAllButton).toBeEnabled({ timeout: 10000 });
     await deleteAllButton.click();
     console.log("✅ Delete All button clicked");
 

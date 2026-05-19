@@ -90,7 +90,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { calculateStorageUsage, deleteAllRemoteStorage, formatBytes, updateSyncInterval } from "~/utils/storage";
+import { calculateStorageUsage, clearLocalRemoteStorageCache, formatBytes, updateSyncInterval } from "~/utils/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import {
@@ -147,7 +147,7 @@ export default function PreferencesScreen() {
   // Check if running as installed PWA
   const isInstalledPWA = isPWAMode();
 
-  const { client: storageClient } = useRemoteStorage();
+  const { connected: rsConnected } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
 
   const buildDate =
@@ -272,10 +272,7 @@ export default function PreferencesScreen() {
   const handleDeleteAllArticles = async () => {
     try {
       await db.articles.clear();
-
-      if (storageClient) {
-        await deleteAllRemoteStorage();
-      }
+      await clearLocalRemoteStorageCache();
 
       setDeleteDialogOpen(false);
 
@@ -1208,18 +1205,32 @@ export default function PreferencesScreen() {
               </ListItemIcon>
               <ListItemText
                 primary="Delete All Articles"
-                secondary="Permanently remove all articles from the database"
+                secondary={
+                  rsConnected
+                    ? "Disconnect from remote storage first to delete all articles"
+                    : "Permanently remove all articles from the database"
+                }
               />
-              <Button
-                variant="outlined"
-                color="error"
-                onClick={() => setDeleteDialogOpen(true)}
-                disabled={totalArticleCount === 0}
-                sx={{ mb: 2 }}
-                data-testid="delete-all-articles-button"
+              <Tooltip
+                title={
+                  rsConnected
+                    ? "Disconnect from remote storage first"
+                    : ""
+                }
               >
-                Delete All
-              </Button>
+                <span>
+                  <Button
+                    variant="outlined"
+                    color="error"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    disabled={totalArticleCount === 0 || rsConnected}
+                    sx={{ mb: 2 }}
+                    data-testid="delete-all-articles-button"
+                  >
+                    Delete All
+                  </Button>
+                </span>
+              </Tooltip>
             </ListItem>
           </List>
         </Paper>
