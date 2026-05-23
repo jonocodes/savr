@@ -121,6 +121,7 @@ pre {
 /* Code blocks (for markdown code) */
 code {
     background-color: #f5f5f5;
+    color: #1a1a1a;
     padding: 0.2em 0.4em;
     border-radius: 3px;
     font-family: 'Courier New', Consolas, monospace;
@@ -132,6 +133,7 @@ pre code {
     padding: 1em;
     overflow-x: auto;
     background-color: #f5f5f5;
+    color: #1a1a1a;
     border-radius: 5px;
 }
 
@@ -159,5 +161,33 @@ th, td {
 
 th {
     background-color: #f5f5f5;
+    color: #1a1a1a;
     font-weight: bold;
+}
+
+/* Dark mode overrides */
+@media (prefers-color-scheme: dark) {
+    code {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+    }
+
+    pre code {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+    }
+
+    blockquote {
+        border-left-color: #555;
+        color: #aaa;
+    }
+
+    th, td {
+        border-color: #555;
+    }
+
+    th {
+        background-color: #2d2d2d;
+        color: #e0e0e0;
+    }
 }
