@@ -7,8 +7,9 @@ import {
   deleteArticleFromDB,
   disconnectFromRemoteStorage,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -18,7 +19,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -44,24 +45,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // Use a timeout to prevent hanging if IndexedDB operations fail
     try {
       await page.evaluate(async () => {
-        // Clear IndexedDB with timeout - must properly await the deletion
-        await Promise.race([
-          new Promise<void>((resolve) => {
-            const request = indexedDB.deleteDatabase("savrDb");
-            request.onsuccess = () => resolve();
-            request.onerror = () => resolve(); // Resolve anyway to avoid hanging
-            request.onblocked = () => {
-              // Database is blocked by open connections, wait and resolve
-              console.log("Database deletion blocked, waiting...");
-              setTimeout(resolve, 500);
-            };
-          }),
-          // Timeout after 5 seconds
-          new Promise<void>((resolve) => setTimeout(resolve, 5000)),
-        ]);
-        // Clear localStorage
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const db = (window as any).savrDb;
+        if (db) await db.delete();
         localStorage.clear();
-        // Clear sessionStorage
         sessionStorage.clear();
       });
     } catch (error) {
@@ -74,8 +61,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage programmatically
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
 
     // Wait for initial sync
     await waitForRemoteStorageSync(page);
@@ -218,8 +205,8 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
 
     // 4. Reconnect to RemoteStorage
     console.log("4️⃣  Reconnecting to RemoteStorage...");
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     console.log("✅ Reconnected to RemoteStorage");
 
@@ -251,13 +238,12 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("\n🎉 Disconnect/reconnect test completed successfully!\n");
   });
 
-  // TODO: This test currently fails because RemoteStorage.js clears cached file data on disconnect
-  // See https://github.com/remotestorage/remotestorage.js/issues/1170
-
+  // Regression test for https://github.com/remotestorage/remotestorage.js/issues/1170:
+  // RS used to wipe its IndexedDB cache on disconnect, making cached articles unreadable.
+  // rsPatchDisconnect.ts now suppresses that wipe.
   test("should allow reading articles after disconnecting from RemoteStorage provider", async ({
     page,
   }) => {
-    test.fixme();
     // 1. Ingest an article while connected
     console.log("1️⃣  Ingesting article while connected to RemoteStorage...");
 
@@ -359,6 +345,62 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     console.log("✅ Article verified in IndexedDB");
 
     console.log("\n🎉 Reading after disconnect test completed successfully!\n");
+  });
+
+  // Regression test for the original bug where disconnecting from RemoteStorage left every
+  // article on the list flagged "(content missing)". Root cause: remotestoragejs deletes
+  // its entire IndexedDB cache on disconnect (https://github.com/remotestorage/remotestorage.js/issues/1170),
+  // wiping every file written via storeFile() — index.html, PDFs, images, thumbnails.
+  // Mitigation: rsPatchDisconnect.ts replaces the IndexedDB feature's `_rs_cleanup` so
+  // disconnect only closes the DB handle and leaves cached files in place.
+  test("article list should not show '(content missing)' after disconnect", async ({ page }) => {
+    console.log("1️⃣  Ingesting article while connected to RemoteStorage...");
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    const addButton = page
+      .locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)')
+      .first();
+    await expect(addButton).toBeVisible({ timeout: 10000 });
+    await addButton.click();
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 5000 });
+
+    const urlInput = page
+      .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+      .first();
+    const testUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
+    await urlInput.fill(testUrl);
+
+    const saveButton = dialog.locator('button:has-text("Save")').first();
+    await saveButton.click();
+    await expect(dialog.first()).not.toBeVisible({ timeout: 10000 });
+
+    const articleTitle = page.getByText("Test Article for Local Ingestion");
+    await expect(articleTitle).toBeVisible({ timeout: 60000 });
+
+    // Pre-condition: while connected, the list must NOT show "(content missing)".
+    // If it does, the test setup is broken — not the bug we're checking for.
+    await expect(page.getByText("(content missing)")).toHaveCount(0);
+    console.log("✅ Article ingested, no '(content missing)' badge while connected");
+
+    console.log("2️⃣  Disconnecting from RemoteStorage...");
+    await disconnectFromRemoteStorage(page);
+
+    // Reload so the list re-runs its content-exists checks against the post-disconnect
+    // state of RS's local cache.
+    await page.goto("/");
+    await page.waitForLoadState("networkidle");
+
+    // The metadata row should still be present (Dexie survives disconnect)...
+    await expect(articleTitle).toBeVisible({ timeout: 5000 });
+
+    // ...but it should NOT be flagged as content-missing. Today this fails because
+    // RS wiped its IDB on disconnect, taking the saved index.html with it.
+    console.log("3️⃣  Checking that '(content missing)' badge is not shown after disconnect...");
+    await expect(page.getByText("(content missing)")).toHaveCount(0);
+    console.log("✅ List does not show '(content missing)' after disconnect");
   });
 
   test("should delete article from listing page", async ({ page }) => {
@@ -529,10 +571,13 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     await page.waitForURL(/\/prefs/);
     console.log("✅ Navigated to preferences page");
 
-    // 3. Click "Delete All Articles" button
+    // 3. Click "Delete All Articles" button (gated on disconnect)
     console.log("3️⃣  Clicking Delete All Articles...");
-    const deleteAllButton = page.locator('button:has-text("Delete All")');
+    const deleteAllButton = page.getByTestId("delete-all-articles-button");
     await expect(deleteAllButton).toBeVisible({ timeout: 5000 });
+    await expect(deleteAllButton).toBeDisabled();
+    await disconnectFromRemoteStorage(page);
+    await expect(deleteAllButton).toBeEnabled({ timeout: 10000 });
     await deleteAllButton.click();
     console.log("✅ Delete All button clicked");
 
@@ -571,20 +616,10 @@ test.describe("Local Article Ingestion via RemoteStorage", () => {
     // 8. Verify articles deleted from IndexedDB
     console.log("8️⃣  Verifying IndexedDB is empty...");
     const articleCount = await page.evaluate(async () => {
-      const dbName = "savrDb";
-      const request = indexedDB.open(dbName);
-      return new Promise<number>((resolve) => {
-        request.onsuccess = () => {
-          const db = request.result;
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const countRequest = store.count();
-          countRequest.onsuccess = () => {
-            db.close();
-            resolve(countRequest.result);
-          };
-        };
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (!db) return 0;
+      return await db.articles.count();
     });
     expect(articleCount).toBe(0);
     console.log("✅ IndexedDB is empty");

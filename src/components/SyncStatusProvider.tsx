@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/network";
-import { /* getWiFiOnlySyncFromCookie, */ SYNC_ENABLED_COOKIE_NAME } from "~/utils/cookies"; // Disabled WiFi-only sync
+import { /* getWiFiOnlySyncFromCookie, */ SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies"; // Disabled WiFi-only sync
 
 export type SyncStatus = "active" | "paused" | "disabled";
 
@@ -18,35 +18,24 @@ interface SyncStatusProviderProps {
 
 export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
   const [isWiFi, setIsWiFi] = useState<boolean>(isOnWiFi());
-  // Default to true to match RemoteStorageProvider behavior
-  const [syncEnabled, setSyncEnabled] = useState<boolean>(true);
+  const [syncEnabled, setSyncEnabled] = useState<boolean>(() => {
+    if (typeof document === "undefined") return true;
+    const syncCookie = document.cookie
+      .split("; ")
+      .find((row) => row.startsWith(`${SYNC_ENABLED_COOKIE_NAME}=`));
+    return syncCookie ? syncCookie.split("=")[1] === "true" : true;
+  });
   // DISABLED - WiFi-only sync feature not working correctly
   // const [wiFiOnlySync, setWiFiOnlySync] = useState<boolean>(false);
   const isNetworkSupported = isNetworkInfoSupported();
 
-  // Load initial sync settings
+  // React to sync-setting changes dispatched by PreferenceScreen
   useEffect(() => {
-    const loadSettings = () => {
-      // Check if sync is enabled
-      const syncCookie = document.cookie
-        .split("; ")
-        .find((row) => row.startsWith(`${SYNC_ENABLED_COOKIE_NAME}=`));
-      if (syncCookie) {
-        const syncValue = syncCookie.split("=")[1];
-        setSyncEnabled(syncValue === "true");
-      }
-      // If no cookie exists, keep default of true (matching RemoteStorageProvider)
-
-      // DISABLED - Check if WiFi-only mode is enabled
-      // setWiFiOnlySync(getWiFiOnlySyncFromCookie());
+    const handleSyncSettingChanged = (e: Event) => {
+      setSyncEnabled((e as CustomEvent<{ enabled: boolean }>).detail.enabled);
     };
-
-    loadSettings();
-
-    // Monitor for cookie changes (e.g., from preferences screen)
-    const intervalId = setInterval(loadSettings, 1000);
-
-    return () => clearInterval(intervalId);
+    window.addEventListener(SYNC_SETTING_EVENT, handleSyncSettingChanged);
+    return () => window.removeEventListener(SYNC_SETTING_EVENT, handleSyncSettingChanged);
   }, []);
 
   // Monitor network changes - works in mobile browsers, not just PWA

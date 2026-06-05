@@ -58,10 +58,7 @@ Here are most of the planned features.
 - [x] remember scroll position
 - [x] text to speach read aloud
 - [x] content summarization
-- [x] offline sync using remoteStorage.js (experimental)
-  - [x] 5apps
-  - [x] dropbox
-  - [ ] google drive
+- [x] offline sync using remoteStorage.js
 - [x] catalog export
 - [ ] catalog import
 - [x] optional manual content uploading (via pasting, or file dialog) 

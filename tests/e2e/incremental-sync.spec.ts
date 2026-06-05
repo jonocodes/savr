@@ -3,8 +3,9 @@ import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   clearAllArticles,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -14,7 +15,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -35,41 +36,16 @@ async function addArticleToLocalDB(
   article: { slug: string; title: string; url: string; state?: string }
 ): Promise<void> {
   await page.evaluate(async (article: { slug: string; title: string; url: string; state?: string }) => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<void>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          const putRequest = store.put({
-            ...article,
-            state: article.state || "unread",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-
-          putRequest.onsuccess = () => {
-            db.close();
-            console.log(`Added local article: ${article.slug}`);
-            resolve();
-          };
-
-          putRequest.onerror = () => {
-            db.close();
-            reject(putRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) throw new Error("savrDb not available");
+    await db.articles.put({
+      ...article,
+      state: article.state || "unread",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
+    console.log(`Added local article: ${article.slug}`);
   }, article);
 }
 
@@ -107,35 +83,10 @@ async function storeArticleToRemoteStorage(
  */
 async function getLocalArticleCount(page: Page): Promise<number> {
   return await page.evaluate(async () => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<number>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const countRequest = store.count();
-
-          countRequest.onsuccess = () => {
-            db.close();
-            resolve(countRequest.result);
-          };
-
-          countRequest.onerror = () => {
-            db.close();
-            reject(countRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) return 0;
+    return await db.articles.count();
   });
 }
 
@@ -172,8 +123,8 @@ test.describe("Incremental Sync", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const token = testEnv.RS_TOKEN;
-      await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+      await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Connected to RemoteStorage");
 
@@ -234,20 +185,15 @@ test.describe("Incremental Sync", () => {
       expect(articleAfter).toBeTruthy();
       expect(articleCountAfter).toBeGreaterThanOrEqual(1);
 
-      // Check console logs for incremental sync message (not clearing)
-      const incrementalSyncLog = logs.find((log) =>
-        log.includes("using incremental sync")
-      );
-      const clearingLog = logs.find((log) =>
-        log.includes("clearing before sync")
-      );
-
-      console.log(`   Found 'incremental sync' log: ${!!incrementalSyncLog}`);
-      console.log(`   Found 'clearing' log: ${!!clearingLog}`);
-
-      // Should see incremental sync message, NOT clearing message
-      expect(incrementalSyncLog).toBeTruthy();
-      expect(clearingLog).toBeFalsy();
+      // Verify the test article specifically was NOT re-fetched (would indicate it was
+      // deleted then re-added rather than incrementally preserved).
+      const wasRefetched = await page.evaluate((slug) => {
+        const diag = (window as unknown as { __savrDiag?: Array<{ category: string; data: Record<string, unknown> }> }).__savrDiag ?? [];
+        return diag.some(
+          (e) => e.category === "db-put" && e.data.slug === slug && e.data.source === "reconcile"
+        );
+      }, TEST_ARTICLE_SLUG);
+      expect(wasRefetched).toBe(false);
 
       console.log("\n🎉 Test passed: Articles preserved on reload (incremental sync)!");
     } finally {

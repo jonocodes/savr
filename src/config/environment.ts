@@ -27,16 +27,19 @@ export const environmentConfig: EnvironmentConfig = {
     const debugValue = getEnvVar("VITE_DEBUG", "true") || "true";
     return debugValue.toLowerCase() === "true" || debugValue === "1";
   })(),
-  defaultCorsProxy: getEnvVar("VITE_CORS_PROXY", "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=") || "",
+  defaultCorsProxy:
+    getEnvVar(
+      "VITE_CORS_PROXY",
+      "https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=",
+    ) || "",
   showWelcome: (() => {
     const welcomeValue = getEnvVar("VITE_SHOW_WELCOME", "false") || "false";
     return welcomeValue.toLowerCase() === "true" || welcomeValue === "1";
   })(),
   apiKeys: {
     googleDrive: getEnvVar(
-      "VITE_GOOGLE_DRIVE_API_KEY"
-      // NOTE: this is disabled for now since I have not been able to get google drive working
-      // "298611806550-k3kc4obucu2ds6v9dlmvteqp6ve5dn6m.apps.googleusercontent.com"
+      "VITE_GOOGLE_DRIVE_API_KEY",
+      "165908882916-eg939u0ptdpbusn6pn63he9ntlspffmn.apps.googleusercontent.com",
     ),
     dropbox: getEnvVar("VITE_DROPBOX_API_KEY", "c53glfgceos23cj"),
   },

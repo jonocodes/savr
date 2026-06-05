@@ -3,7 +3,8 @@ import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
+  getWorkerToken,
   clearAllArticles,
   disconnectFromRemoteStorage,
   triggerRemoteStorageSync,
@@ -16,7 +17,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -35,41 +36,16 @@ async function addArticleToLocalDB(
   article: { slug: string; title: string; url: string; state?: string }
 ): Promise<void> {
   await page.evaluate(async (article: { slug: string; title: string; url: string; state?: string }) => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<void>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readwrite");
-          const store = transaction.objectStore("articles");
-          const putRequest = store.put({
-            ...article,
-            state: article.state || "unread",
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-          });
-
-          putRequest.onsuccess = () => {
-            db.close();
-            console.log(`Added local article: ${article.slug}`);
-            resolve();
-          };
-
-          putRequest.onerror = () => {
-            db.close();
-            reject(putRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) throw new Error("savrDb not available");
+    await db.articles.put({
+      ...article,
+      state: article.state || "unread",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     });
+    console.log(`Added local article: ${article.slug}`);
   }, article);
 }
 
@@ -78,35 +54,10 @@ async function addArticleToLocalDB(
  */
 async function getLocalArticleCount(page: Page): Promise<number> {
   return await page.evaluate(async () => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<number>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const countRequest = store.count();
-
-          countRequest.onsuccess = () => {
-            db.close();
-            resolve(countRequest.result);
-          };
-
-          countRequest.onerror = () => {
-            db.close();
-            reject(countRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) return 0;
+    return await db.articles.count();
   });
 }
 
@@ -115,35 +66,12 @@ async function getLocalArticleCount(page: Page): Promise<number> {
  */
 async function getLocalArticleSlugs(page: Page): Promise<string[]> {
   return await page.evaluate(async () => {
-    const dbName = "savrDb";
-    const request = indexedDB.open(dbName);
-
-    return new Promise<string[]>((resolve, reject) => {
-      request.onsuccess = () => {
-        const db = request.result;
-
-        try {
-          const transaction = db.transaction(["articles"], "readonly");
-          const store = transaction.objectStore("articles");
-          const getAllRequest = store.getAllKeys();
-
-          getAllRequest.onsuccess = () => {
-            db.close();
-            resolve(getAllRequest.result as string[]);
-          };
-
-          getAllRequest.onerror = () => {
-            db.close();
-            reject(getAllRequest.error);
-          };
-        } catch (error) {
-          db.close();
-          reject(error);
-        }
-      };
-
-      request.onerror = () => reject(request.error);
-    });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = (window as any).savrDb;
+    if (!db) return [];
+    const articles = await db.articles.toArray();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return articles.map((a: any) => a.slug);
   });
 }
 
@@ -201,14 +129,22 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
 
-      const token = testEnv.RS_TOKEN;
-      await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+      await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Connected to RemoteStorage");
 
       // Clear any existing articles first
       await clearAllArticles(page);
-      await page.waitForTimeout(1000);
+      await page.waitForFunction(
+        async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.count()) === 0; } catch { return false; }
+        },
+        { timeout: 10000 },
+      );
       console.log("✅ Cleared existing articles");
 
       // Add remote articles
@@ -226,7 +162,15 @@ test.describe("Sync Clears Local Articles on Connect", () => {
 
       // Trigger sync to pull remote articles into IndexedDB
       await triggerRemoteStorageSync(page);
-      await page.waitForTimeout(1000);
+      await page.waitForFunction(
+        async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.get("remote-article-1")) !== undefined; } catch { return false; }
+        },
+        { timeout: 15000 },
+      );
       console.log("✅ Synced remote articles to local DB");
 
       // Verify remote articles exist in local DB
@@ -238,7 +182,6 @@ test.describe("Sync Clears Local Articles on Connect", () => {
 
       // Disconnect from RemoteStorage
       await disconnectFromRemoteStorage(page);
-      await page.waitForTimeout(1000);
       console.log("✅ Disconnected from RemoteStorage");
 
       // ========================================
@@ -279,14 +222,23 @@ test.describe("Sync Clears Local Articles on Connect", () => {
       // ========================================
       console.log("\n📱 Reconnecting to RemoteStorage (should clear local articles)...");
 
-      await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page);
       console.log("✅ Reconnected and initial sync done");
 
       // Use manual sync helper to fetch remote articles (works around RemoteStorage.js limitation)
       console.log("   Triggering manual sync to fetch remote articles...");
       await triggerRemoteStorageSync(page);
-      await page.waitForTimeout(2000);
+      // Poll until local articles have been cleared by the reconciler
+      await page.waitForFunction(
+        async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return (await db.articles.get("local-article-1")) === undefined; } catch { return false; }
+        },
+        { timeout: 20000 },
+      );
       console.log("✅ Manual sync completed");
 
       // ========================================

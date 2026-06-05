@@ -2,9 +2,11 @@ import { test, expect } from "@playwright/test";
 import {
   connectToRemoteStorage,
   waitForRemoteStorageSync,
+  waitForOutgoingSync,
   triggerRemoteStorageSync,
   getArticleFromDB,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
+  getWorkerToken,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
@@ -15,7 +17,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -30,9 +32,248 @@ test.describe("Multi-Browser Archive Sync", () => {
   // These tests involve multiple browser contexts and sync operations, which take longer
   test.setTimeout(120000); // 2 minutes
 
-  // NOTE: This test requires a working headless browser environment with React hydration support.
+  // NOTE: These tests require a working headless browser environment with React hydration support.
   // May fail in resource-constrained environments where the browser crashes during IndexedDB init.
   // Multi-browser sync depends on RemoteStorage.js properly handling multi-client sync.
+  test("should sync article deletion between two browser contexts", async ({ browser }) => {
+    console.log("🌐 Creating two browser contexts for deletion sync test...");
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
+    await context1.addCookies([
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
+    ]);
+    await context2.addCookies([
+      { name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" },
+    ]);
+
+    const page1 = await context1.newPage();
+    const page2 = await context2.newPage();
+
+    const slug = "death-by-a-thousand-cuts";
+
+    try {
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+      const storageAddress = getWorkerStorageAddress(test.info().workerIndex);
+
+      // Setup both browsers
+      console.log("📱 Browser 1: Setting up...");
+      await page1.goto("/");
+      await page1.waitForLoadState("networkidle");
+      await connectToRemoteStorage(page1, storageAddress, token);
+      await waitForRemoteStorageSync(page1);
+      console.log("✅ Browser 1: Connected and synced");
+
+      console.log("📱 Browser 2: Setting up...");
+      await page2.goto("/");
+      await page2.waitForLoadState("networkidle");
+      await connectToRemoteStorage(page2, storageAddress, token);
+      await waitForRemoteStorageSync(page2);
+      console.log("✅ Browser 2: Connected and synced");
+
+      // Ingest article in Browser 1
+      console.log("1️⃣  Browser 1: Ingesting article...");
+      const addButton = page1
+        .locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)')
+        .first();
+      await expect(addButton).toBeVisible({ timeout: 10000 });
+      await addButton.click();
+
+      const dialog1 = page1.locator('.MuiDialog-root, [role="dialog"]');
+      await expect(dialog1.first()).toBeVisible({ timeout: 5000 });
+
+      const urlInput = page1
+        .locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input')
+        .first();
+      await urlInput.fill(`${getContentServerUrl()}/input/death-by-a-thousand-cuts/`);
+
+      await dialog1.locator('button:has-text("Save")').first().click();
+      await expect(dialog1.first()).not.toBeVisible({ timeout: 10000 });
+
+      // Wait for article in Browser 1
+      await expect(page1.getByText(/Death/i)).toBeVisible({ timeout: 60000 });
+      console.log("✅ Browser 1: Article ingested");
+
+      // Sync to Browser 2
+      await waitForOutgoingSync(page1);
+      await triggerRemoteStorageSync(page2);
+      await expect(page2.getByText(/Death/i)).toBeVisible({ timeout: 30000 });
+      console.log("✅ Browser 2: Article synced");
+
+      // Verify article exists in both Dexie stores
+      const articleBefore1 = await getArticleFromDB(page1, slug);
+      expect(articleBefore1?.slug).toBe(slug);
+      const articleBefore2 = await getArticleFromDB(page2, slug);
+      expect(articleBefore2?.slug).toBe(slug);
+
+      // Delete the article in Browser 1
+      console.log("2️⃣  Browser 1: Deleting article...");
+      const articleListItem = page1.locator(".MuiListItem-root").filter({ hasText: /Death/i });
+      const menuButton = articleListItem.locator(".MuiIconButton-root").last();
+      await menuButton.click();
+
+      const deleteMenuItem = page1.locator('[data-testid="article-menu-delete"]');
+      await expect(deleteMenuItem).toBeVisible({ timeout: 5000 });
+      await deleteMenuItem.click();
+
+      // Article should disappear from Browser 1's UI
+      await expect(page1.getByText(/Death/i)).not.toBeVisible({ timeout: 10000 });
+      const articleAfter1 = await getArticleFromDB(page1, slug);
+      expect(articleAfter1).toBeFalsy();
+      console.log("✅ Browser 1: Article deleted");
+
+      // Wait for Browser 1 to push deletion to server
+      console.log("3️⃣  Browser 1: Syncing deletion to server...");
+      await waitForOutgoingSync(page1);
+      console.log("✅ Browser 1: Deletion synced to server");
+
+      // Trigger sync in Browser 2 and wait for deletion to propagate.
+      console.log("4️⃣  Browser 2: Waiting for deletion to propagate...");
+      await triggerRemoteStorageSync(page2);
+
+      await page2.waitForFunction(
+        async (s: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try {
+            const article = await db.articles.get(s);
+            return article === undefined;
+          } catch {
+            return false;
+          }
+        },
+        slug,
+        { timeout: 30000 },
+      );
+
+      // Article should be fully gone — not showing as "(content missing)" either
+      await expect(page2.getByText(/Death/i)).not.toBeVisible({ timeout: 5000 });
+      await expect(page2.getByText("(content missing)")).not.toBeVisible();
+      console.log("✅ Browser 2: Article fully deleted from UI and IndexedDB");
+
+      console.log("\n🎉 Cross-browser deletion test passed!");
+    } finally {
+      console.log("🧹 Cleaning up...");
+      try { await context1.close(); } catch { /* ignore */ }
+      try { await context2.close(); } catch { /* ignore */ }
+    }
+  });
+
+  test("should sync article metadata edits between two browser contexts", async ({ browser }) => {
+    console.log("🌐 Creating two browser contexts for metadata edit sync test...");
+    const context1 = await browser.newContext();
+    const context2 = await browser.newContext();
+
+    await context1.addCookies([{ name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" }]);
+    await context2.addCookies([{ name: "savr-sync-enabled", value: "true", domain: "localhost", path: "/" }]);
+
+    const page1 = await context1.newPage();
+    const page2 = await context2.newPage();
+    const slug = "death-by-a-thousand-cuts";
+
+    try {
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+      const storageAddress = getWorkerStorageAddress(test.info().workerIndex);
+
+      // Setup both browsers
+      await page1.goto("/");
+      await page1.waitForLoadState("networkidle");
+      await connectToRemoteStorage(page1, storageAddress, token);
+      await waitForRemoteStorageSync(page1);
+
+      await page2.goto("/");
+      await page2.waitForLoadState("networkidle");
+      await connectToRemoteStorage(page2, storageAddress, token);
+      await waitForRemoteStorageSync(page2);
+
+      // Ingest article in Browser 1
+      console.log("1️⃣  Browser 1: Ingesting article...");
+      const addButton = page1
+        .locator('button:has-text("Add Article"), button[aria-label*="add" i], button:has(.MuiSvgIcon-root)')
+        .first();
+      await expect(addButton).toBeVisible({ timeout: 10000 });
+      await addButton.click();
+      const dialog1 = page1.locator('.MuiDialog-root, [role="dialog"]');
+      await expect(dialog1.first()).toBeVisible({ timeout: 5000 });
+      await page1.locator('input[type="url"], input[placeholder*="url"], .MuiTextField-root input').first()
+        .fill(`${getContentServerUrl()}/input/death-by-a-thousand-cuts/`);
+      await dialog1.locator('button:has-text("Save")').first().click();
+      await expect(dialog1.first()).not.toBeVisible({ timeout: 10000 });
+      await expect(page1.getByText(/Death/i)).toBeVisible({ timeout: 60000 });
+      console.log("✅ Browser 1: Article ingested");
+
+      // Sync to Browser 2
+      await waitForRemoteStorageSync(page1);
+      await triggerRemoteStorageSync(page2);
+      // Poll until Browser 2 has the article in Dexie
+      await page2.waitForFunction(
+        async (s: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try { return !!(await db.articles.get(s)); } catch { return false; }
+        },
+        slug,
+        { timeout: 20000 },
+      );
+      console.log("✅ Browser 2: Article synced");
+
+      // Edit title and author in Browser 1 via article screen
+      console.log("2️⃣  Browser 1: Editing article metadata...");
+      await page1.goto(`/article/${slug}`);
+      await page1.waitForLoadState("networkidle");
+      await page1.getByTestId("article-page-menu-button").click();
+      await page1.getByText("Edit Info").click();
+
+      // Wait for edit drawer to open
+      const titleInput = page1.locator('.MuiTextField-root:has(label:has-text("Title")) input').first();
+      await expect(titleInput).toBeVisible({ timeout: 5000 });
+
+      await titleInput.click({ clickCount: 3 });
+      await titleInput.fill("Updated Title From Browser 1");
+
+      const authorInput = page1.locator('.MuiTextField-root:has(label:has-text("Author")) input').first();
+      await authorInput.click({ clickCount: 3 });
+      await authorInput.fill("Updated Author");
+
+      await page1.locator('button:has-text("Save")').filter({ hasNot: page1.locator('[disabled]') }).last().click();
+      console.log("✅ Browser 1: Metadata saved");
+
+      // Wait for Browser 1 to sync metadata to server
+      await waitForOutgoingSync(page1);
+      console.log("✅ Browser 1: Metadata synced to server");
+
+      // Trigger sync in Browser 2 and wait for updated title in Dexie
+      console.log("3️⃣  Browser 2: Waiting for metadata update...");
+      await triggerRemoteStorageSync(page2);
+
+      await page2.waitForFunction(
+        async (s: string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const db = (window as any).savrDb;
+          if (!db) return false;
+          try {
+            const article = await db.articles.get(s);
+            return article?.title === "Updated Title From Browser 1";
+          } catch { return false; }
+        },
+        slug,
+        { timeout: 20000 },
+      );
+
+      const article2 = await getArticleFromDB(page2, slug);
+      expect(article2?.title).toBe("Updated Title From Browser 1");
+      expect(article2?.author).toBe("Updated Author");
+      console.log("✅ Browser 2: Metadata update received in IndexedDB");
+
+      console.log("\n🎉 Cross-browser metadata edit sync test passed!");
+    } finally {
+      try { await context1.close(); } catch { /* ignore */ }
+      try { await context2.close(); } catch { /* ignore */ }
+    }
+  });
+
   test("should sync article archive state between two browser contexts", async ({ browser }) => {
     // Create two separate browser contexts to simulate two different browsers
     console.log("🌐 Creating two browser contexts (simulating two browsers)...");
@@ -59,9 +300,9 @@ test.describe("Multi-Browser Archive Sync", () => {
       await page1.waitForLoadState("networkidle");
       console.log("✅ Browser 1: App loaded");
 
-      const token = testEnv.RS_TOKEN;
+      const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
       console.log("🔗 Browser 1: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page1, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page1, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page1);
       console.log("✅ Browser 1: RemoteStorage connected and synced");
 
@@ -72,7 +313,7 @@ test.describe("Multi-Browser Archive Sync", () => {
       console.log("✅ Browser 2: App loaded");
 
       console.log("🔗 Browser 2: Connecting to RemoteStorage...");
-      await connectToRemoteStorage(page2, getRemoteStorageAddress(), token);
+      await connectToRemoteStorage(page2, getWorkerStorageAddress(test.info().workerIndex), token);
       await waitForRemoteStorageSync(page2);
       console.log("✅ Browser 2: RemoteStorage connected and synced");
 
@@ -117,18 +358,15 @@ test.describe("Multi-Browser Archive Sync", () => {
 
       // Wait for Browser 1 to sync article to server before Browser 2 tries to pull
       console.log("   Browser 1: Waiting for sync to server...");
-      await waitForRemoteStorageSync(page1);
-      await page1.waitForTimeout(2000);
+      await waitForOutgoingSync(page1);
       console.log("   ✅ Browser 1: Sync completed");
 
       // Sync article to Browser 2
       console.log("\n4️⃣  Browser 2: Syncing to pull article from Browser 1...");
       await triggerRemoteStorageSync(page2);
-      // Give the UI time to react to the sync
-      await page2.waitForTimeout(3000);
 
       const articleTitle2 = page2.getByText(/Death/i);
-      await expect(articleTitle2).toBeVisible({ timeout: 15000 });
+      await expect(articleTitle2).toBeVisible({ timeout: 20000 });
       console.log("✅ Browser 2: Article appeared in Saves list after sync!");
 
       // Verify article in Browser 2's IndexedDB
@@ -167,13 +405,34 @@ test.describe("Multi-Browser Archive Sync", () => {
       expect(article1After?.state).toBe("archived");
       console.log("✅ Browser 1: Article state confirmed as 'archived' in IndexedDB");
 
-      // Wait for archive state to sync to server
-      console.log("\n8️⃣  Browser 2: Syncing to pull archive state from Browser 1...");
-      await page1.waitForTimeout(2000);
+      // Wait for Browser 1 to finish pushing the archive state to the server before
+      // Browser 2 tries to pull it. waitForOutgoingSync triggers rs.sync.sync() and
+      // waits for the sync-done event, which is more reliable than a fixed timeout.
+      console.log("\n8️⃣  Browser 1: Waiting for archive state to reach server...");
+      await waitForOutgoingSync(page1);
+      console.log("✅ Browser 1: Archive state synced to server");
+
+      console.log("   Browser 2: Pulling archive state...");
+
 
       // Trigger sync in Browser 2
       await triggerRemoteStorageSync(page2);
-      await page2.waitForTimeout(2000);
+
+      // Wait for Dexie to reflect the archived state — more reliable than a fixed timeout.
+      // The change handler (storage.ts) writes the new article state to Dexie via event.newValue.
+      await page2.waitForFunction(
+        async () => {
+          const db = (window as unknown as { savrDb?: { articles: { get: (k: string) => Promise<{ state?: string } | undefined> } } }).savrDb;
+          if (!db) return false;
+          try {
+            const article = await db.articles.get("death-by-a-thousand-cuts");
+            return article?.state === "archived";
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 15000 }
+      );
 
       // Article should disappear from Saves tab in Browser 2
       await expect(articleTitle2).not.toBeVisible({ timeout: 10000 });
@@ -189,7 +448,6 @@ test.describe("Multi-Browser Archive Sync", () => {
       // Switch to Archive tab in Browser 2 to verify it's there
       const archiveTab2 = page2.locator('button:has-text("Archive")');
       await archiveTab2.click();
-      await page2.waitForTimeout(500);
       await expect(page2.getByText(/Death/i)).toBeVisible({ timeout: 5000 });
       console.log("✅ Browser 2: Article now visible in Archive tab!");
 

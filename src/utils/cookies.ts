@@ -9,6 +9,45 @@ export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
 export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
+export const SYNC_SETTING_EVENT = "savr:sync-setting-changed";
+export const SYNC_INTERVAL_COOKIE_NAME = "savr-sync-interval";
+export const DEFAULT_SYNC_INTERVAL_MS = 10000;
+
+export const SYNC_INTERVAL_OPTIONS = [
+  { label: "2 seconds", value: 2000 },
+  { label: "5 seconds", value: 5000 },
+  { label: "10 seconds", value: 10000 },
+  { label: "30 seconds", value: 30000 },
+  { label: "1 minute", value: 60000 },
+  { label: "5 minutes", value: 300000 },
+] as const;
+
+export const getSyncIntervalFromCookie = (): number => {
+  if (typeof document === "undefined") return DEFAULT_SYNC_INTERVAL_MS;
+  const cookie = document.cookie.split(";").find((c) =>
+    c.trim().startsWith(`${SYNC_INTERVAL_COOKIE_NAME}=`)
+  );
+  if (cookie) {
+    const value = parseInt(cookie.split("=")[1]);
+    if (!isNaN(value) && value > 0) return value;
+  }
+  return DEFAULT_SYNC_INTERVAL_MS;
+};
+
+export const setSyncIntervalInCookie = (ms: number): void => {
+  if (typeof document === "undefined") return;
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+  document.cookie = `${SYNC_INTERVAL_COOKIE_NAME}=${ms}; expires=${expires.toUTCString()}; path=/`;
+};
+
+export const setSyncEnabledCookie = (enabled: boolean): void => {
+  if (typeof document === "undefined") return;
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+  document.cookie = `${SYNC_ENABLED_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
+  window.dispatchEvent(new CustomEvent(SYNC_SETTING_EVENT, { detail: { enabled } }));
+};
 export const WIFI_ONLY_SYNC_COOKIE_NAME = "savr-wifi-only-sync";
 export const SUMMARY_PROMPT_COOKIE_NAME = "savr-summary-prompt";
 export const SUMMARIZATION_ENABLED_COOKIE_NAME = "savr-summarization-enabled";

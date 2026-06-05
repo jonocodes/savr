@@ -24,33 +24,32 @@ async function setupTestServer() {
 
   const store = new Armadietto.FileTree({ path: storagePath });
 
-  // Create test user programmatically
-  let userExists = false;
-  try {
-    await store.createUser({
-      username: "testuser",
-      password: "testpass",
-      email: "test@example.com",
-    });
-    console.log("✓ Test user created: testuser / testpass");
-  } catch (error) {
-    // User might already exist, that's ok
-    if (error.message.includes("already taken")) {
-      console.log("✓ Test user already exists");
-      userExists = true;
-    } else {
-      console.log("Warning:", error.message);
-    }
-  }
-
-  // Generate an OAuth token for automated testing
-  // Scope format: path:permissions (e.g., "/:rw" for root read/write)
+  // Create one test user per worker so parallel test workers don't share storage.
+  // MAX_TEST_WORKERS must match the workers count in playwright.config.ts.
+  const maxWorkers = parseInt(process.env.MAX_TEST_WORKERS || "4", 10);
   const clientId = `http://localhost:${appPort}`;
-  const token = await store.authorize(
-    clientId, // client_id - must match the app's origin
-    "testuser",
-    { "/": ["r", "w"] } // root path with read/write permissions
-  );
+  const tokens = [];
+
+  for (let i = 0; i < maxWorkers; i++) {
+    const username = `testuser${i}`;
+    try {
+      await store.createUser({
+        username,
+        password: "testpass",
+        email: `test${i}@example.com`,
+      });
+      console.log(`✓ Test user created: ${username}`);
+    } catch (error) {
+      if (error.message.includes("already taken")) {
+        console.log(`✓ Test user already exists: ${username}`);
+      } else {
+        console.log("Warning:", error.message);
+      }
+    }
+    const token = await store.authorize(clientId, username, { "/": ["r", "w"] });
+    tokens.push(token);
+    console.log(`Token[${i}]: ${token}`);
+  }
 
   const server = new Armadietto({
     store: store,
@@ -68,19 +67,13 @@ async function setupTestServer() {
   console.log(`Server URL: http://localhost:${storagePort}`);
   console.log(`App URL:    http://localhost:${appPort}`);
   console.log(`Storage path: ${storagePath}`);
-  console.log("Username:   testuser");
-  console.log("Token:      " + token);
-  console.log("\nTest commands:");
+  console.log(`Workers:    ${maxWorkers} (testuser0 … testuser${maxWorkers - 1})`);
+  console.log(`Token[0]:   ${tokens[0]} (sample)`);
+  console.log("\nSample commands for testuser0:");
   console.log("\n# Write a file:");
-  console.log(`curl -X PUT -H 'Authorization: Bearer ${token}' \\`);
-  console.log(`  http://localhost:${storagePort}/storage/testuser/test.txt \\`);
+  console.log(`curl -X PUT -H 'Authorization: Bearer ${tokens[0]}' \\`);
+  console.log(`  http://localhost:${storagePort}/storage/testuser0/test.txt \\`);
   console.log(`  -d 'hello world'`);
-  console.log("\n# Read a file:");
-  console.log(`curl -H 'Authorization: Bearer ${token}' \\`);
-  console.log(`  http://localhost:${storagePort}/storage/testuser/test.txt`);
-  console.log("\n# List directory:");
-  console.log(`curl -H 'Authorization: Bearer ${token}' \\`);
-  console.log(`  http://localhost:${storagePort}/storage/testuser/`);
   console.log("=".repeat(60) + "\n");
 }
 

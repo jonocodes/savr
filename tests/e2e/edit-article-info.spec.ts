@@ -6,8 +6,9 @@ import {
   deleteArticleFromStorage,
   deleteArticleFromDB,
   clearAllArticles,
-  getRemoteStorageAddress,
+  getWorkerStorageAddress,
   getContentServerUrl,
+  getWorkerToken,
 } from "./utils/remotestorage-helper";
 import fs from "fs";
 import path from "path";
@@ -17,7 +18,7 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string };
+let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
 
 try {
   testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
@@ -39,14 +40,9 @@ test.describe("Edit Article Info", () => {
 
     // Clear all browser storage to ensure clean state
     await page.evaluate(async () => {
-      await new Promise<void>((resolve) => {
-        const request = indexedDB.deleteDatabase("savrDb");
-        request.onsuccess = () => resolve();
-        request.onerror = () => resolve();
-        request.onblocked = () => {
-          setTimeout(resolve, 500);
-        };
-      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const db = (window as any).savrDb;
+      if (db) await db.delete();
       localStorage.clear();
       sessionStorage.clear();
     });
@@ -56,8 +52,8 @@ test.describe("Edit Article Info", () => {
     await page.waitForLoadState("networkidle");
 
     // Connect to RemoteStorage
-    const token = testEnv.RS_TOKEN;
-    await connectToRemoteStorage(page, getRemoteStorageAddress(), token);
+    const token = getWorkerToken(testEnv.RS_TOKENS, test.info().workerIndex);
+    await connectToRemoteStorage(page, getWorkerStorageAddress(test.info().workerIndex), token);
     await waitForRemoteStorageSync(page);
     await clearAllArticles(page);
 
@@ -516,9 +512,8 @@ test.describe("Edit Article Info", () => {
       // Click to expand
       await ingestionLogButton.click();
 
-      // The log content should be visible in a collapsed section
-      // Look for the monospace log content box
-      const logContent = page.locator('[style*="monospace"], [class*="monospace"]').first();
+      // The log content should be visible in the expanded section
+      const logContent = page.getByTestId("ingestion-log-content");
       await expect(logContent).toBeVisible({ timeout: 2000 });
 
       // Click again to collapse
