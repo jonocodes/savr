@@ -4,7 +4,7 @@ import * as React from "react";
 import { DefaultCatchBoundary } from "~/components/DefaultCatchBoundary";
 import { NotFound } from "~/components/NotFound";
 
-import { ThemeProvider, CssBaseline } from "@mui/material";
+import { ThemeProvider, CssBaseline, Box } from "@mui/material";
 import { RemoteStorageProvider } from "~/components/RemoteStorageProvider";
 import { SyncStatusProvider } from "~/components/SyncStatusProvider";
 import { PWARegister } from "~/components/PWARegister";
@@ -69,7 +69,7 @@ function UrlPatternMatcher() {
             style={{
               display: "inline-block",
               padding: "12px 24px",
-              backgroundColor: "#1976d2",
+              backgroundColor: "var(--savr-primary, #1976d2)",
               color: "white",
               textDecoration: "none",
               borderRadius: "4px",
@@ -82,7 +82,7 @@ function UrlPatternMatcher() {
             style={{
               marginTop: "2rem",
               padding: "1rem",
-              backgroundColor: "#f5f5f5",
+              backgroundColor: "rgba(128, 128, 128, 0.1)",
               borderRadius: "4px",
             }}
           >
@@ -145,11 +145,11 @@ function RootComponent() {
         <SyncStatusProvider>
           <ThemeProvider theme={appTheme}>
             <CssBaseline enableColorScheme />
-            <div style={{ minHeight: "100vh", backgroundColor: "background.default" }}>
+            <Box sx={{ minHeight: "100vh", bgcolor: "background.default" }}>
               <Outlet />
               <TanStackRouterDevtools position="bottom-left" />
               <PWARegister />
-            </div>
+            </Box>
           </ThemeProvider>
         </SyncStatusProvider>
       </RemoteStorageProvider>
