@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useMemo } from "
 import RemoteStorage from "remotestoragejs";
 import { init, syncMissingArticles } from "~/utils/storage";
 import { db } from "~/utils/db";
+import { isDebugMode } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { useLocation } from "@tanstack/react-router";
 import { SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies";
@@ -69,8 +70,9 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
       store.on("connected", () => setConnected(true));
       store.on("disconnected", () => setConnected(false));
 
-      // Add test hooks (debug mode only)
-      if (typeof window !== "undefined" && import.meta.env.VITE_DEBUG) {
+      // Add test hooks (debug mode only). Note: must use isDebugMode(), not raw
+      // import.meta.env.VITE_DEBUG — the env var is a string, and "false" is truthy.
+      if (typeof window !== "undefined" && isDebugMode()) {
         (window as unknown as { remoteStorage: RemoteStorage }).remoteStorage = store;
         (window as unknown as { remoteStorageClient: BaseClient }).remoteStorageClient = client;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -6,8 +6,8 @@ This document describes the environment variables used by Savr.
 
 ### `VITE_DEBUG`
 
-- **Default**: `true`
-- **Description**: Enables debug mode with development features
+- **Default**: `false`
+- **Description**: Enables debug mode with development features (dev PWA branding, test hooks on `window`, sample URL prefill in the Add Article dialog). Debug is opt-in so production builds never ship debug behavior by accident; the `dev` and `build:dev` npm scripts set it explicitly.
 - **Usage**: `VITE_DEBUG=true npm run dev`
 
 ### `VITE_SHOW_WELCOME`

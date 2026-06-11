@@ -56,7 +56,6 @@ import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
-import { isDebugMode } from "~/config/environment";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
   summarizeText,
@@ -159,15 +158,6 @@ export default function ArticleScreen(_props: Props) {
       window.open(article.url, "_blank");
     }
     closeMenu();
-  };
-
-  const displayDebugMessage = (message: string) => {
-    if (isDebugMode()) {
-      // Only show the message while nothing is rendered yet. Replacing
-      // already-rendered article content collapses the document height and
-      // clamps the scroll position to the top mid-read.
-      setHtml((current) => (current ? current : message));
-    }
   };
 
   const handleToggleFavorite = () => {
@@ -532,8 +522,6 @@ export default function ArticleScreen(_props: Props) {
 
   useEffect(() => {
     const setup = async () => {
-      displayDebugMessage("querying database ...");
-
       const articleData = await db.articles.get(slug);
       if (!articleData) {
         console.error("Article not found");
@@ -542,8 +530,6 @@ export default function ArticleScreen(_props: Props) {
       setArticle(articleData);
 
       try {
-        displayDebugMessage("loading content ...");
-
         // Handle PDF files differently
         if (articleData.mimeType === "application/pdf") {
           const file = await storage.client?.getFile(getFilePathPdf(slug), false);

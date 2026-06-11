@@ -3,9 +3,11 @@ import tsConfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
 
 export default defineConfig(() => {
-  // Use DEBUG environment variable for feature flags
+  // Use DEBUG environment variable for feature flags.
+  // Debug is opt-in (see src/config/environment.ts) so plain builds get
+  // production branding/icons unless VITE_DEBUG=true is set explicitly.
   const isDebug = (() => {
-    const debugValue = process.env.VITE_DEBUG || "true";
+    const debugValue = process.env.VITE_DEBUG || "false";
     return debugValue.toLowerCase() === "true" || debugValue === "1";
   })();
   const devTitle = "Savr DEV - Save Articles for Reading";
