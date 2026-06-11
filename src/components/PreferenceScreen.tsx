@@ -576,7 +576,9 @@ export default function PreferencesScreen() {
                 style={{
                   padding: "8px",
                   borderRadius: "4px",
-                  border: "1px solid #ccc",
+                  border: "1px solid rgba(128, 128, 128, 0.4)",
+                  backgroundColor: "inherit",
+                  color: "inherit",
                   fontSize: "14px",
                   minWidth: "150px",
                 }}
@@ -621,7 +623,9 @@ export default function PreferencesScreen() {
                   style={{
                     padding: "8px",
                     borderRadius: "4px",
-                    border: "1px solid #ccc",
+                    border: "1px solid rgba(128, 128, 128, 0.4)",
+                  backgroundColor: "inherit",
+                  color: "inherit",
                     fontSize: "14px",
                     minWidth: "120px",
                   }}
