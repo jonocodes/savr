@@ -163,7 +163,10 @@ export default function ArticleScreen(_props: Props) {
 
   const displayDebugMessage = (message: string) => {
     if (isDebugMode()) {
-      setHtml(message);
+      // Only show the message while nothing is rendered yet. Replacing
+      // already-rendered article content collapses the document height and
+      // clamps the scroll position to the top mid-read.
+      setHtml((current) => (current ? current : message));
     }
   };
 
@@ -525,7 +528,7 @@ export default function ArticleScreen(_props: Props) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [storage, article, headerHidingEnabled]);
+  }, [storage.client, article, headerHidingEnabled]);
 
   useEffect(() => {
     const setup = async () => {
@@ -610,7 +613,11 @@ export default function ArticleScreen(_props: Props) {
         URL.revokeObjectURL(imageUrl);
       }
     };
-  }, [viewMode, slug, storage]);
+    // Depend on storage.client (stable once initialized) rather than the whole
+    // context object so unrelated provider re-renders can't reload the article
+    // mid-read (which recreates blob URLs and resets PDF/image scroll).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, slug, storage.client]);
 
   useEffect(() => {
     if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {

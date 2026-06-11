@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import RemoteStorage from "remotestoragejs";
 import { init, syncMissingArticles } from "~/utils/storage";
 import { db } from "~/utils/db";
@@ -169,8 +169,18 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
   //   };
   // }, [remoteStorage]);
 
+  // Memoize so consumers (and their effect dependencies) only see a new context
+  // value when the storage state actually changes — not on every provider
+  // re-render (e.g. when a background sync changes the unread count and the
+  // root re-renders). An unstable identity here caused ArticleScreen to reload
+  // mid-read and jump to the top of the article.
+  const contextValue = useMemo(
+    () => ({ remoteStorage, client, widget, connected }),
+    [remoteStorage, client, widget, connected]
+  );
+
   return (
-    <RemoteStorageContext.Provider value={{ remoteStorage, client, widget, connected }}>
+    <RemoteStorageContext.Provider value={contextValue}>
       <div
         id="remotestorage-container"
         style={{
