@@ -53,10 +53,11 @@ export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): P
     signal.addEventListener("abort", () => controller.abort()); // Link signals
 
     const corsProxy = getCorsProxyValue();
+    // When a proxy is set it uses a query-parameter style URL (?url=...), so
+    // the target must be encoded. When no proxy is set, use the URL as-is.
+    const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
 
-    console.log("fetching with timeout", `${corsProxy}${url}`);
-
-    const response = await fetch(`${corsProxy}${url}`, { signal: controller.signal });
+    const response = await fetch(fetchUrl, { signal: controller.signal });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }

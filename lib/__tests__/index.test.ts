@@ -222,7 +222,7 @@ describe("lib.ts", () => {
       } as Article;
 
       const result = generateInfoForArticle(article);
-      expect(result).toContain("<a href=https://www.example.com/article>example.com</a>");
+      expect(result).toContain('<a href="https://www.example.com/article">example.com</a>');
     });
 
     it("should generate info with published date only", () => {
@@ -249,7 +249,7 @@ describe("lib.ts", () => {
       } as Article;
 
       const result = generateInfoForArticle(article);
-      expect(result).toContain("<a href=https://news.bbc.co.uk/article>news.bbc.co.uk</a>");
+      expect(result).toContain('<a href="https://news.bbc.co.uk/article">news.bbc.co.uk</a>');
       expect(result).toContain("Jan 15 2023");
     });
 

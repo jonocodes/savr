@@ -430,54 +430,56 @@ export const setSummaryModelInCookie = (model: string): void => {
   document.cookie = `${SUMMARY_MODEL_COOKIE_NAME}=${model}; expires=${expires.toUTCString()}; path=/`;
 };
 
-// Get API keys from cookie (stored as JSON object: { groq: "key", openai: "key" })
-export const getApiKeysFromCookie = (): Record<string, string> => {
-  if (typeof document === "undefined") return {};
+const SUMMARY_API_KEYS_STORAGE_KEY = SUMMARY_API_KEYS_COOKIE_NAME;
 
+// Read API keys from localStorage, migrating from cookie on first access.
+const getApiKeysFromStorage = (): Record<string, string> => {
+  if (typeof localStorage === "undefined") return {};
+
+  // One-time migration from cookie to localStorage.
   const cookies = document.cookie.split(";");
-  const keysCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith(`${SUMMARY_API_KEYS_COOKIE_NAME}=`)
+  const legacyCookie = cookies.find((c) =>
+    c.trim().startsWith(`${SUMMARY_API_KEYS_COOKIE_NAME}=`)
   );
-
-  if (keysCookie) {
+  if (legacyCookie && !localStorage.getItem(SUMMARY_API_KEYS_STORAGE_KEY)) {
     try {
       const value = decodeURIComponent(
-        keysCookie.replace(`${SUMMARY_API_KEYS_COOKIE_NAME}=`, "").trim()
+        legacyCookie.replace(`${SUMMARY_API_KEYS_COOKIE_NAME}=`, "").trim()
       );
-      return JSON.parse(value) || {};
-    } catch {
-      return {};
-    }
+      localStorage.setItem(SUMMARY_API_KEYS_STORAGE_KEY, value);
+    } catch { /* ignore malformed cookie */ }
+    // Clear the cookie so the key is no longer sent over the network.
+    document.cookie = `${SUMMARY_API_KEYS_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
   }
 
-  return {};
+  try {
+    const raw = localStorage.getItem(SUMMARY_API_KEYS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
 };
 
-// Set API keys in cookie
-export const setApiKeysInCookie = (keys: Record<string, string>): void => {
-  if (typeof document === "undefined") return;
-
-  const expires = new Date();
-  expires.setFullYear(expires.getFullYear() + 1);
-
-  document.cookie = `${SUMMARY_API_KEYS_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(keys))}; expires=${expires.toUTCString()}; path=/`;
+const setApiKeysInStorage = (keys: Record<string, string>): void => {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(SUMMARY_API_KEYS_STORAGE_KEY, JSON.stringify(keys));
 };
 
 // Get single API key for a provider
 export const getApiKeyForProvider = (provider: string): string | null => {
-  const keys = getApiKeysFromCookie();
+  const keys = getApiKeysFromStorage();
   return keys[provider] || null;
 };
 
 // Set single API key for a provider
 export const setApiKeyForProvider = (provider: string, key: string | null): void => {
-  const keys = getApiKeysFromCookie();
+  const keys = getApiKeysFromStorage();
   if (key) {
     keys[provider] = key;
   } else {
     delete keys[provider];
   }
-  setApiKeysInCookie(keys);
+  setApiKeysInStorage(keys);
 };
 
 // Summary settings type

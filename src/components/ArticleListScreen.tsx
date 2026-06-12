@@ -517,6 +517,9 @@ export default function ArticleListScreen() {
     let ingesting = false;
 
     const handler = async (event: MessageEvent) => {
+      // Reject messages from sandboxed iframes and file:// pages.
+      if (!event.origin || event.origin === "null") return;
+
       if (event.data.action === "savr-html") {
         if (ingesting) return;
 
@@ -529,7 +532,13 @@ export default function ArticleListScreen() {
         }
 
         ingesting = true;
-        await processMessage(event.data.html, event.data.url);
+        try {
+          await processMessage(event.data.html, event.data.url);
+        } catch (error) {
+          console.error("Bookmarklet ingestion error:", error);
+        } finally {
+          ingesting = false;
+        }
       }
     };
     window.addEventListener("message", handler);

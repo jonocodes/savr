@@ -10,34 +10,28 @@ Severity tiers: 🔴 fix first · 🟠 high · 🟡 medium · 🟢 cleanup
 
 ## 1. Security
 
-- [ ] 🔴 **Sanitize article HTML before store/render.** Article content is
-  rendered with `dangerouslySetInnerHTML` (`src/components/ArticleComponent.tsx:46`,
-  `src/components/SubmitScreen.tsx:671`) and no sanitizer exists anywhere in the
-  repo (acknowledged TODO at `lib/src/ingestion.ts:536`). Readability strips
-  `<script>` but keeps inline event handlers and iframes. Run DOMPurify before
-  `storeFile` and/or before render.
-- [ ] 🔴 **Sandbox or sanitize the "Show Original" view.** `ArticleScreen.tsx`
-  (~line 569) injects the verbatim fetched page (`raw.html`, saved unmodified at
-  `ingestion.ts:537`) into the app's origin — inline handlers execute with
-  access to IndexedDB, the RemoteStorage token, and cookies. Consider a
-  sandboxed iframe.
-- [ ] 🔴 **Escape template interpolations.** `lib/src/article.ts:51-53`
-  interpolates title/byline unescaped; `lib/src/lib.ts:142` builds an
-  *unquoted* `href` attribute from the article URL. `lib/src/contentType.ts:91`
-  interpolates markdown title into `<title>` unescaped.
-- [ ] 🔴 **Add `event.origin` checks to `postMessage` handlers.**
-  `ArticleListScreen.tsx:519-534` ingests `event.data.html` from any window;
-  `SubmitScreen.tsx:96-102` alerts on messages from any origin. Combined with
-  the XSS above this is persistent, sync-propagated XSS.
-- [ ] 🟠 **Move LLM API keys out of cookies.** Keys are stored via
-  `document.cookie` with no `Secure`/`SameSite` flags (`src/utils/cookies.ts:457-464`)
-  so they're sent to the hosting server/CDN on every request. Use localStorage
-  at minimum.
-- [ ] 🟠 **Stop dumping cookies/localStorage on the Diagnostics page**
-  (`DiagnosticsScreen.tsx:572-581`), or at least redact key values.
-- [ ] 🟠 **URL-encode the CORS proxy target.** `tools.ts:59` concatenates the
-  raw URL onto a `?url=` proxy — any article URL containing `&` or `#` is
-  misparsed. Use `encodeURIComponent`.
+- [x] 🔴 **Sanitize article HTML before store/render.** DOMPurify added at
+  render time in `ArticleComponent.tsx` (covers both the readability view and
+  "Show Original"). Also added to `SubmitScreen.tsx` preview.
+- [x] 🔴 **Sandbox or sanitize the "Show Original" view.** DOMPurify now strips
+  event handlers, iframes, and scripts from raw.html at render time. A proper
+  sandboxed-iframe approach remains as a future improvement.
+- [x] 🔴 **Escape template interpolations.** `lib/src/article.ts` now has an
+  `escapeHtml` helper applied to title/byline/published/readTime (content
+  intentionally left as-is). `lib/src/lib.ts` href is now quoted and restricted
+  to http/https protocols. `lib/src/contentType.ts` markdown title escaped.
+- [x] 🔴 **Add `event.origin` checks to `postMessage` handlers.**
+  Both `ArticleListScreen.tsx` and `SubmitScreen.tsx` now reject messages with
+  a null/missing origin. The bookmarklet handler also gained try/catch and
+  properly resets the `ingesting` flag in a finally block.
+- [x] 🟠 **Move LLM API keys out of cookies → localStorage.** `cookies.ts`
+  now stores keys in localStorage; includes one-time migration from cookie
+  (copies value, then clears the cookie so it's no longer sent over the network).
+- [x] 🟠 **Stop dumping sensitive values on the Diagnostics page.** localStorage
+  values for keys matching `api.key`, `api_key`, `token`, `secret`, `password`
+  are now shown as `[redacted]`.
+- [x] 🟠 **URL-encode the CORS proxy target.** `tools.ts` now uses
+  `encodeURIComponent(url)` when a proxy is set.
 - [ ] 🟡 **Make the default CORS proxy a conscious decision.** All article and
   image fetches route through a hardcoded personal Cloudflare worker
   (`src/config/environment.ts:33-37`) — full reading history goes to a third

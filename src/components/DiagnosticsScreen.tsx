@@ -580,11 +580,14 @@ export default function DiagnosticsScreen() {
                     return cookies;
                   })(),
                   localStorage: (() => {
+                    const SENSITIVE_KEYS = /api.key|api_key|token|secret|password/i;
                     const items: Record<string, string> = {};
                     for (let i = 0; i < localStorage.length; i++) {
                       const key = localStorage.key(i);
                       if (key) {
-                        items[key] = localStorage.getItem(key) || "";
+                        items[key] = SENSITIVE_KEYS.test(key)
+                          ? "[redacted]"
+                          : (localStorage.getItem(key) || "");
                       }
                     }
                     return items;

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import DOMPurify from "dompurify";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import {
@@ -94,9 +95,8 @@ export default function SubmitScreen() {
     // Handshake: notify extension/content script that page is ready
     window.postMessage({ type: "READY_FOR_EXTENSION" }, "*");
     const handleMessage = (event: MessageEvent) => {
-      console.log("SubmitScreen received message:", event.data);
+      if (!event.origin || event.origin === "null") return;
       if (event.data && event.data.type === "FROM_EXTENSION") {
-        console.log("Valid extension message received:", event.data.message);
         alert(event.data.message);
       }
     };
@@ -668,7 +668,7 @@ export default function SubmitScreen() {
                   my: 2,
                 },
               }}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
             />
           </Paper>
         </Collapse>
