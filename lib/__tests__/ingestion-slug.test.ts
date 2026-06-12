@@ -40,25 +40,35 @@ function mockClient(existingMetadata: Record<string, object>) {
 }
 
 describe("finalizeSlug", () => {
-  it("generates a deterministic hash slug when the slug is empty (non-Latin title)", async () => {
+  it("falls back to a plain 'article' slug when the slug is empty (non-Latin title)", async () => {
+    const client = mockClient({});
     const a = makeArticle({ slug: "", title: "中文标题", url: "https://example.com/a" });
-    const b = makeArticle({ slug: "", title: "中文标题", url: "https://example.com/a" });
 
-    await finalizeSlug(null, a);
-    await finalizeSlug(null, b);
+    await finalizeSlug(client, a);
 
-    expect(a.slug).toMatch(/^article-[0-9a-f]{12}$/);
-    expect(a.slug).toBe(b.slug); // same title+url -> same slug (idempotent)
+    expect(a.slug).toBe("article");
   });
 
-  it("generates different slugs for different urls with empty-slug titles", async () => {
-    const a = makeArticle({ slug: "", title: "中文标题", url: "https://example.com/a" });
+  it("disambiguates the empty-slug fallback only when it is already taken", async () => {
+    const client = mockClient({
+      [getFilePathMetadata("article")]: { slug: "article", url: "https://example.com/a" },
+    });
     const b = makeArticle({ slug: "", title: "中文标题", url: "https://example.com/b" });
 
-    await finalizeSlug(null, a);
-    await finalizeSlug(null, b);
+    await finalizeSlug(client, b);
 
-    expect(a.slug).not.toBe(b.slug);
+    expect(b.slug).toMatch(/^article-[0-9a-f]{6}$/);
+  });
+
+  it("keeps the empty-slug fallback when re-ingesting the same url (idempotent)", async () => {
+    const client = mockClient({
+      [getFilePathMetadata("article")]: { slug: "article", url: "https://example.com/a" },
+    });
+    const a = makeArticle({ slug: "", title: "中文标题", url: "https://example.com/a" });
+
+    await finalizeSlug(client, a);
+
+    expect(a.slug).toBe("article");
   });
 
   it("keeps the slug when no article exists at that slug", async () => {
@@ -86,6 +96,17 @@ describe("finalizeSlug", () => {
       [getFilePathMetadata("my-article")]: { slug: "my-article", url: "https://other.com/x" },
     });
     const a = makeArticle({ slug: "my-article", title: "My Article", url: "https://example.com/a" });
+
+    await finalizeSlug(client, a);
+
+    expect(a.slug).toMatch(/^my-article-[0-9a-f]{6}$/);
+  });
+
+  it("appends a hash suffix when the slug is taken and the new article has no url (local file)", async () => {
+    const client = mockClient({
+      [getFilePathMetadata("my-article")]: { slug: "my-article", url: "https://other.com/x" },
+    });
+    const a = makeArticle({ slug: "my-article", title: "My Article", url: null });
 
     await finalizeSlug(client, a);
 

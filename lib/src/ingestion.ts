@@ -326,18 +326,19 @@ function stringToSlug(str: string): string {
 // Slugs are derived from the title, which has two failure modes: titles with
 // no Latin characters slugify to "" (article would be written to "saves//"
 // and dropped by the reconciler), and two different articles with the same
-// title would silently overwrite each other. Fall back to a content hash for
-// empty slugs, and append a URL hash when the slug is already taken by a
-// different URL. Re-ingesting the same URL keeps the same slug (idempotent).
+// title would silently overwrite each other. Empty slugs fall back to the
+// plain base "article"; a hash suffix is only appended when the slug is
+// already taken by a different article. Re-ingesting the same URL keeps the
+// same slug (idempotent).
 export async function finalizeSlug(
   storageClient: BaseClient | null,
   article: Article
 ): Promise<void> {
   if (!article.slug) {
-    article.slug = `article-${md5(`${article.title}|${article.url ?? ""}`).slice(0, 12)}`;
+    article.slug = "article";
   }
 
-  if (!storageClient || !article.url) return;
+  if (!storageClient) return;
 
   try {
     const existing = (await storageClient.getFile(
@@ -348,9 +349,9 @@ export async function finalizeSlug(
       const meta =
         typeof existing.data === "string" ? JSON.parse(existing.data) : existing.data;
       const existingUrl = (meta as Article | null)?.url;
-      if (existingUrl && existingUrl !== article.url) {
-        article.slug = `${article.slug}-${md5(article.url).slice(0, 6)}`;
-      }
+      // Same URL means we're re-ingesting the same article — keep the slug.
+      if (article.url && existingUrl === article.url) return;
+      article.slug = `${article.slug}-${md5(article.url ?? article.title ?? article.ingestDate).slice(0, 6)}`;
     }
   } catch {
     // No readable metadata at this slug — it's free to use.

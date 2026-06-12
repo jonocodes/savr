@@ -40,10 +40,10 @@ Severity tiers: 🔴 fix first · 🟠 high · 🟡 medium · 🟢 cleanup
 ## 2. Correctness bugs
 
 - [x] 🔴 **Slug collisions silently overwrite articles.** Added `finalizeSlug`
-  in `lib/src/ingestion.ts`: empty slugs (non-Latin titles) fall back to a
-  deterministic `article-<hash>` slug; a slug already taken by a *different*
-  URL gets a URL-hash suffix; re-ingesting the same URL stays idempotent.
-  Slugs are also truncated at 80 chars. Covered by
+  in `lib/src/ingestion.ts`: empty slugs (non-Latin titles) fall back to the
+  plain base `article`; a hash suffix is appended *only* when the slug is
+  already taken by a different article; re-ingesting the same URL stays
+  idempotent. Slugs are also truncated at 80 chars. Covered by
   `lib/__tests__/ingestion-slug.test.ts`.
 - [x] 🟠 **Await content writes in ingestion.** `raw.html` and `index.html`
   stores are now awaited, so failures surface and metadata can't reach other
