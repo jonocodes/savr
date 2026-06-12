@@ -5,7 +5,9 @@ const connectOptions = process.env.PW_SERVER ? { wsEndpoint: process.env.PW_SERV
 
 // When using Docker browser, use host.docker.internal instead of localhost
 const baseHost = process.env.PW_SERVER ? "host.docker.internal" : "localhost";
-const defaultBaseURL = `http://${baseHost}:3002`;
+const webServerPort = process.env.PLAYWRIGHT_WEB_SERVER_PORT || "3002";
+const defaultBaseURL = `http://${baseHost}:${webServerPort}`;
+const devServerCommand = `flox activate -c "npm run dev -- --port ${webServerPort} --strictPort"`;
 
 /**
  * @see https://playwright.dev/docs/test-configuration
@@ -92,13 +94,15 @@ export default defineConfig({
 
   /* Run your local dev server before starting the tests */
   webServer: {
-    command: "npm run dev -- --port 3002",
-    url: "http://localhost:3002",
+    command: devServerCommand,
+    url: `http://localhost:${webServerPort}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120 * 1000,
     stdout: "pipe",
     stderr: "pipe",
     env: {
+      ...process.env,
+      FLOX_DISABLE_METRICS: "true",
       VITE_CORS_PROXY: "", // Disable CORS proxy for tests to allow direct localhost fetches
     },
   },
