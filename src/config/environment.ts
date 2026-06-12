@@ -24,7 +24,10 @@ const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
 // Create environment configuration
 export const environmentConfig: EnvironmentConfig = {
   isDebugMode: (() => {
-    const debugValue = getEnvVar("VITE_DEBUG", "true") || "true";
+    // Debug mode is opt-in: only enabled when VITE_DEBUG is explicitly set
+    // (e.g. by the dev/build:dev scripts). Defaulting to enabled caused debug
+    // behaviors to ship in any build that didn't explicitly set VITE_DEBUG=false.
+    const debugValue = getEnvVar("VITE_DEBUG", "false") || "false";
     return debugValue.toLowerCase() === "true" || debugValue === "1";
   })(),
   defaultCorsProxy:
