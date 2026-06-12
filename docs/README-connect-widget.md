@@ -83,8 +83,10 @@ node armadietto.cjs
 Open in your browser:
 
 ```
-http://localhost:8004/oauth/testuser?client_id=http://localhost:8000&redirect_uri=http://localhost:8000&response_type=token&scope=savr:rw&state=test123
+http://localhost:8004/oauth/testuser?client_id=http://localhost:3000&redirect_uri=http://localhost:3000&response_type=token&scope=savr:rw&state=test123
 ```
+
+(Use your app's actual origin for `client_id`/`redirect_uri` — `http://localhost:3000` for `npm run dev`, `http://localhost:8000` for `npm run start`.)
 
 ### 3. Login
 
@@ -97,7 +99,7 @@ http://localhost:8004/oauth/testuser?client_id=http://localhost:8000&redirect_ur
 After redirect, the URL will contain:
 
 ```
-http://localhost:8000#access_token=XXXXXXXX&token_type=bearer&state=test123
+http://localhost:3000#access_token=XXXXXXXX&token_type=bearer&state=test123
 ```
 
 The `access_token` is your OAuth token (different from the one printed at server startup).

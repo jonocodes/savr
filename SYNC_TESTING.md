@@ -1,5 +1,12 @@
 # Article Sync Testing Strategy
 
+> **Status (June 2026): proposal, partially implemented.** The
+> `src/utils/syncLogic.ts` extraction this document proposes was done and has
+> a passing test suite (`syncLogic.test.ts`), but the app currently uses
+> `src/utils/reconciler.ts` instead — `syncLogic.ts` is not imported by any
+> application code. See `docs/AUDIT.md` (Tests & CI) for the open decision to
+> either wire it in or remove it.
+
 This document outlines a unit testing approach for the article sync logic to enable fast regression testing without requiring full end-to-end Playwright tests.
 
 ## Testing Approach

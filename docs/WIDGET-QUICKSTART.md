@@ -56,7 +56,7 @@ Open a **new terminal** and run:
 npm run dev
 ```
 
-Open your app in a browser (usually `http://localhost:8000` or similar).
+Open your app in a browser (`http://localhost:3000` for `npm run dev`; `npm run start` serves the production preview on port 8000).
 
 ---
 
