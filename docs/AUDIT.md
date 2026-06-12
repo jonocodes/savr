@@ -39,61 +39,50 @@ Severity tiers: 🔴 fix first · 🟠 high · 🟡 medium · 🟢 cleanup
 
 ## 2. Correctness bugs
 
-- [ ] 🔴 **Slug collisions silently overwrite articles.** Slugs derive purely
-  from the title (`lib/src/ingestion.ts:289-308`); same-title articles overwrite
-  each other in storage and Dexie. Non-Latin titles slugify to `""`, are written
-  to `saves//`, and can never sync (reconciler drops empty slugs,
-  `src/utils/reconciler.ts:30`). Add a hash suffix; implement the
-  "truncate at max length" TODO.
-- [ ] 🟠 **Await content writes in ingestion.** `raw.html` and `index.html`
-  stores are fire-and-forget (`ingestion.ts:537,559`) while `article.json` is
-  awaited — metadata can reach other devices before content exists
-  ("(content missing)" rows), and write failures report success.
-- [ ] 🟠 **Await metadata updates in ArticleScreen.** `handleToggleFavorite` /
-  `handleArchive` / `handleUnarchive` (`ArticleScreen.tsx:179,275,290`) don't
-  await `updateArticleMetadata`, so the catch can never fire and the success
-  snackbar shows even on failure. (The ArticleListScreen equivalents await —
-  the screens diverged.) Also remove the `storage.client!` non-null assertions
-  that crash on deep-link before RS init.
-- [ ] 🟠 **Make the "Enable synchronization" toggle actually stop sync.** The
-  cookie only controls widget visibility (`RemoteStorageProvider.tsx:116-123`,
-  `widgetVisibility.ts:46-48`); nothing calls `stopSync()`/`disconnect()`.
-- [ ] 🟠 **Surface real ingestion errors.** `ingestion.ts:920-923` discards the
-  cause and throws generic "error during ingestion"; UI shows "Error requesting
-  article" with no detail. Also the bookmarklet handler's `ingesting` flag is
-  never reset on failure (`ArticleListScreen.tsx:517`), sticking the dialog at
-  "Ingesting…".
-- [ ] 🟡 **Per-row network GETs in the article list.** Content-exists check at
-  `ArticleListScreen.tsx:117` lacks `maxAge: false` unlike every other read —
-  N+1 requests and "(content missing)" flicker offline.
-- [ ] 🟡 **`updateArticleMetadata` race.** Whole-record read-modify-write
-  (`tools.ts:28-47`); concurrent writers (scroll-progress saver, summarizer,
-  archive, incoming sync) race last-write-wins. Use partial updates /
-  transactions.
-- [ ] 🟡 **Fix `fetchWithTimeout` timeout detection.** The abort wiring at
-  `tools.ts:51-66` means the `TimeoutError` branch never fires; pass
-  `AbortSignal.timeout()` directly to fetch.
-- [ ] 🟡 **Revoke object URLs in `resizeImage`/`convertToWebP`**
-  (`ingestion.ts:361,395`) — leaks a blob per image per ingest.
-- [ ] 🟡 **Image extension parsing.** `ingestion.ts:111-115` bakes query
-  strings into stored resource names (`photo.jpg?w=800` → ext `jpg?w=800`);
-  srcset descriptor comparison mixes `2x` and `100w` units.
-- [ ] 🟡 **Public export republishes on every scroll-progress save.**
-  `markDirty()` fires on every metadata write (`tools.ts:44`), so the full
-  database (incl. read progress and AI summaries) republishes every 45s while
-  reading. Debounce/exclude progress writes; mention summaries/progress in the
-  prefs warning copy.
-- [ ] 🟡 **Triple-click anywhere opens Diagnostics.** Document-level listener
-  counts any 3 clicks in 500ms (`ArticleListScreen.tsx:375-396`); scope it to a
-  deliberate gesture/element.
-- [ ] 🟢 `syncMissingArticles` reports net count deltas (+3/−3 reads as "no
-  discrepancies") (`storage.ts:496-506`).
-- [ ] 🟢 `recursiveDeleteDirectory` calls `client.remove()` on directory paths,
-  polluting `errors` and making success look like failure (`storage.ts:727`).
-- [ ] 🟢 `waitForSyncThenClose` leaks its `sync-done` listener on timeout
-  (`ArticleListScreen.tsx:413-433`).
-- [ ] 🟢 Doctype dropped when rewriting `index.html` after info edit
-  (`ArticleScreen.tsx:435`).
+- [x] 🔴 **Slug collisions silently overwrite articles.** Added `finalizeSlug`
+  in `lib/src/ingestion.ts`: empty slugs (non-Latin titles) fall back to a
+  deterministic `article-<hash>` slug; a slug already taken by a *different*
+  URL gets a URL-hash suffix; re-ingesting the same URL stays idempotent.
+  Slugs are also truncated at 80 chars. Covered by
+  `lib/__tests__/ingestion-slug.test.ts`.
+- [x] 🟠 **Await content writes in ingestion.** `raw.html` and `index.html`
+  stores are now awaited, so failures surface and metadata can't reach other
+  devices before content exists.
+- [x] 🟠 **Await metadata updates in ArticleScreen.** Favorite/archive/
+  unarchive/edit handlers are async, await the write, and guard on
+  `storage.client` (snackbar instead of crash when storage isn't ready).
+- [x] 🟠 **"Enable synchronization" toggle now actually stops sync.**
+  `RemoteStorageProvider` calls `remoteStorage.stopSync()`/`startSync()` when
+  the setting changes (previously it only hid the widget).
+- [x] 🟠 **Surface real ingestion errors.** `ingestUrl` rethrows the original
+  error instead of a generic wrapper; the add-article dialog shows the actual
+  message. (The stuck `ingesting` flag was fixed in the security pass.)
+- [x] 🟡 **Per-row network GETs in the article list.** Content-exists check
+  now uses `maxAge: false` (local cache only); thumbnail effect dep fixed.
+- [x] 🟡 **Metadata write race.** Replaced whole-object
+  `updateArticleMetadata` with `patchArticleMetadata(client, slug, partial)`
+  which merges over the latest Dexie record in a transaction — concurrent
+  writers no longer clobber each other's fields with stale copies. All
+  callers converted.
+- [x] 🟡 **`fetchWithTimeout` timeout detection.** Passes
+  `AbortSignal.timeout()` directly to fetch; `TimeoutError` branch now works.
+- [x] 🟡 **Object URL leaks** in `resizeImage`/`convertToWebP` — URLs revoked
+  in both onload and onerror paths.
+- [x] 🟡 **Image extension parsing.** New `getImageExtensionFromUrl` parses
+  the URL path (query strings/hashes no longer baked into resource names);
+  srcset selection no longer compares `w` and `x` descriptors against each
+  other (prefers width descriptors when present).
+- [x] 🟡 **Public export republish on scroll.** Progress-only saves pass
+  `skipPublicExport`, so reading an article no longer republishes the
+  database. (Prefs warning copy about summaries/progress still worth a look.)
+- [x] 🟡 **Triple-click anywhere opened Diagnostics.** Removed the
+  document-level gesture entirely — Diagnostics is reachable from Preferences.
+- [x] 🟢 `syncMissingArticles` now diffs slug sets instead of counts.
+- [x] 🟢 `recursiveDeleteDirectory` no longer calls `remove()` on folder paths
+  (RS folders are implicit); successful deletes no longer report errors.
+- [x] 🟢 `waitForSyncThenClose` removes its `sync-done` listener on timeout.
+- [x] 🟢 Edit-info rewrite preserves the stored document shape (fragment stays
+  a fragment; doctype preserved for full documents).
 
 ## 3. Architecture & repo hygiene
 

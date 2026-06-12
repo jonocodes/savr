@@ -495,14 +495,17 @@ export async function updateSyncInterval(ms: number): Promise<void> {
 // Manually trigger a full reconcile (for diagnostics button)
 export async function syncMissingArticles(): Promise<string> {
   if (!triggerReconcile) return "Not connected to RemoteStorage";
-  const before = await db.articles.count();
+  // Diff slug sets rather than counts: +3/-3 would otherwise read as no change.
+  const beforeSlugs = new Set((await db.articles.toArray()).map((a) => a.slug));
   await triggerReconcile();
-  const after = await db.articles.count();
-  const delta = after - before;
-  if (delta === 0) return `No discrepancies found. ${after} articles in database.`;
-  const added = Math.max(0, delta);
-  const removed = Math.max(0, -delta);
-  return `Reconciled: +${added} added, -${removed} removed. Now: ${after} articles.`;
+  const afterArticles = await db.articles.toArray();
+  const afterSlugs = new Set(afterArticles.map((a) => a.slug));
+  const added = [...afterSlugs].filter((s) => !beforeSlugs.has(s)).length;
+  const removed = [...beforeSlugs].filter((s) => !afterSlugs.has(s)).length;
+  if (added === 0 && removed === 0) {
+    return `No discrepancies found. ${afterArticles.length} articles in database.`;
+  }
+  return `Reconciled: +${added} added, -${removed} removed. Now: ${afterArticles.length} articles.`;
 }
 
 async function calculateTotalStorage(): Promise<{
@@ -722,17 +725,10 @@ async function recursiveDeleteDirectory(
       }
     }
 
-    // After deleting all contents, delete the directory itself
-    try {
-      await client.remove(normalizedPath).then(() => {
-        deletedDirectories.push(normalizedPath);
-        console.log(`🗂️ Deleted directory: ${normalizedPath}`);
-      });
-    } catch (error) {
-      const errorMsg = `Failed to delete directory ${normalizedPath}: ${error}`;
-      errors.push(errorMsg);
-      console.warn(errorMsg);
-    }
+    // RemoteStorage folders are implicit: they disappear once their last
+    // document is removed. Calling client.remove() on a folder path is invalid
+    // and was polluting `errors`, making successful deletes look failed.
+    deletedDirectories.push(normalizedPath);
   } catch (error) {
     const errorMsg = `Failed to access directory ${directoryPath}: ${error}`;
     errors.push(errorMsg);

@@ -47,7 +47,7 @@ import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article } from "../../lib/src/models";
-import { removeArticle, updateArticleMetadata } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata } from "~/utils/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
@@ -174,15 +174,21 @@ export default function ArticleScreen(_props: Props) {
     closeMenu();
   };
 
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = async () => {
+    closeMenu();
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await patchArticleMetadata(storage.client, article.slug, {
+        favorite: !article.favorite,
+      });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);
       enqueueSnackbar("Failed to update favorite", { variant: "error" });
     }
-    closeMenu();
   };
 
   const handleShare = () => {
@@ -255,9 +261,9 @@ export default function ArticleScreen(_props: Props) {
       );
 
       // Save summary to article metadata; liveQuery refreshes the UI.
-      // Spread from the ref, not the render closure — summarization can take
-      // long enough for sync to have updated the article in the meantime.
-      await updateArticleMetadata(storage.client!, { ...(articleRef.current ?? article), summary });
+      // Patch only the summary field — summarization can take long enough
+      // for sync to have updated the article in the meantime.
+      await patchArticleMetadata(storage.client!, article.slug, { summary });
 
       enqueueSnackbar("Summary generated");
     } catch (error) {
@@ -269,10 +275,13 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleArchive = () => {
+  const handleArchive = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      // updateArticleState(storage.client!, article.slug, "archived");
-      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await patchArticleMetadata(storage.client, article.slug, { state: "archived" });
 
       enqueueSnackbar("Article archived");
       navigate({ to: "/" });
@@ -283,11 +292,13 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleUnarchive = () => {
-    if (!article) throw new Error("Article is undefined");
-
+  const handleUnarchive = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await patchArticleMetadata(storage.client, article.slug, { state: "unread" });
 
       enqueueSnackbar("Article unarchived");
       navigate({ to: "/" });
@@ -392,17 +403,18 @@ export default function ArticleScreen(_props: Props) {
   };
 
   const handleSaveEdit = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      const updatedArticle = await updateArticleMetadata(storage.client!, {
-        ...article,
+      await patchArticleMetadata(storage.client, slug, {
         title: editTitle,
         author: editAuthor,
       });
 
-      console.log("updatedArticle", updatedArticle);
-
       // Load the current HTML from storage (local-only for fast read)
-      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as {
+      const file = (await storage.client.getFile(getFilePathContent(slug), false)) as {
         data: string;
       };
       if (!file) {
@@ -431,8 +443,15 @@ export default function ArticleScreen(_props: Props) {
         pageTitleEl.textContent = `Savr - ${editTitle}`;
       }
 
-      // Save the updated HTML back to storage
-      const updatedHtml = doc.documentElement.outerHTML;
+      // Save the updated HTML back to storage, preserving the original shape:
+      // stored content is an ArticleTemplate fragment, so don't wrap it in the
+      // full <html> document that DOMParser created (which also drops doctypes).
+      const isFragment = !/<html[\s>]/i.test(file.data);
+      const updatedHtml = isFragment
+        ? // head holds elements like <title> that DOMParser hoisted out of the fragment
+          doc.head.innerHTML + doc.body.innerHTML
+        : (file.data.trimStart().toLowerCase().startsWith("<!doctype") ? "<!DOCTYPE html>" : "") +
+          doc.documentElement.outerHTML;
       await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
 
       // Update displayed content immediately
@@ -505,14 +524,16 @@ export default function ArticleScreen(_props: Props) {
         if (scrollPercentage !== lastSavedPercentage.current) {
           lastSavedPercentage.current = scrollPercentage;
 
-          // Read the latest article from the ref (not the render closure) so a
-          // save fired after a sync update can't write back stale metadata.
-          const current = articleRef.current;
-          if (storage.client && current) {
-            await updateArticleMetadata(storage.client, {
-              ...current,
-              progress: scrollPercentage,
-            });
+          // Patch only the progress field so a save fired after a sync update
+          // can't write back stale metadata. Skip the public-export republish:
+          // scroll progress alone shouldn't re-publish the whole database.
+          if (storage.client && articleRef.current) {
+            await patchArticleMetadata(
+              storage.client,
+              articleRef.current.slug,
+              { progress: scrollPercentage },
+              { skipPublicExport: true }
+            );
           }
         }
       }, 1000);
@@ -1167,8 +1188,7 @@ export default function ArticleScreen(_props: Props) {
                     color="error"
                     size="small"
                     onClick={async () => {
-                      await updateArticleMetadata(storage.client!, {
-                        ...article,
+                      await patchArticleMetadata(storage.client!, article.slug, {
                         summary: undefined,
                       });
                       enqueueSnackbar("Summary cleared");
@@ -1222,10 +1242,7 @@ export default function ArticleScreen(_props: Props) {
                           (progress) => setSummaryProgress(progress),
                         );
 
-                        await updateArticleMetadata(storage.client!, {
-                          ...(articleRef.current ?? article),
-                          summary,
-                        });
+                        await patchArticleMetadata(storage.client!, article.slug, { summary });
                         enqueueSnackbar("Summary regenerated");
                       } catch (error) {
                         console.error("Summarization failed:", error);
@@ -1285,10 +1302,7 @@ export default function ArticleScreen(_props: Props) {
                         (progress) => setSummaryProgress(progress),
                       );
 
-                      await updateArticleMetadata(storage.client!, {
-                        ...(articleRef.current ?? article),
-                        summary,
-                      });
+                      await patchArticleMetadata(storage.client!, article.slug, { summary });
                       enqueueSnackbar("Summary generated");
                     } catch (error) {
                       console.error("Summarization failed:", error);

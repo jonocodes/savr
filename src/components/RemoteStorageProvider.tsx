@@ -111,6 +111,21 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => window.removeEventListener(SYNC_SETTING_EVENT, handleSyncSettingChanged);
   }, []);
 
+  // Actually stop/start background sync when the setting changes. Previously
+  // the toggle only hid the widget while sync kept running in the background.
+  useEffect(() => {
+    if (!remoteStorage) return;
+    try {
+      if (syncEnabled) {
+        remoteStorage.startSync();
+      } else {
+        remoteStorage.stopSync();
+      }
+    } catch (error) {
+      console.warn("Failed to update sync state:", error);
+    }
+  }, [remoteStorage, syncEnabled]);
+
   // Update widget visibility based on route and sync state
   // This effect re-runs when widget is created, route changes, or sync setting changes
   useEffect(() => {

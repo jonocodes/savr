@@ -25,44 +25,52 @@ export async function removeArticle(storeClient: BaseClient, slug: string): Prom
   markDirty();
 }
 
-export async function updateArticleMetadata(
+// Update only the given fields of an article. This merges over the latest
+// record in Dexie rather than writing a whole article object captured
+// earlier — so concurrent writers (scroll-progress saver, archive button,
+// summarizer, incoming sync) can't clobber each other's fields with stale
+// copies.
+export async function patchArticleMetadata(
   storeClient: BaseClient,
-  updatedArticle: Article
+  slug: string,
+  patch: Partial<Article>,
+  options?: { skipPublicExport?: boolean }
 ): Promise<Article> {
-  // update the metadata file in the storage
+  const merged = await db.transaction("rw", db.articles, async () => {
+    const current = await db.articles.get(slug);
+    if (!current) {
+      throw new Error(`Article not found: ${slug}`);
+    }
+    const updated = { ...current, ...patch };
+    await db.articles.put(updated);
+    return updated;
+  });
 
   await storeClient.storeFile(
     "application/json",
-    getFilePathMetadata(updatedArticle.slug),
-    JSON.stringify(updatedArticle)
+    getFilePathMetadata(slug),
+    JSON.stringify(merged)
   );
 
-  // update the state in the db
+  if (!options?.skipPublicExport) {
+    markDirty();
+  }
 
-  await db.articles.put(updatedArticle);
-
-  markDirty();
-
-  return updatedArticle;
+  return merged;
 }
 
 export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
   try {
-    const controller = new AbortController();
-    const signal = AbortSignal.timeout(timeoutMs); // Automatically aborts after timeoutMs
-    signal.addEventListener("abort", () => controller.abort()); // Link signals
-
     const corsProxy = getCorsProxyValue();
     // When a proxy is set it uses a query-parameter style URL (?url=...), so
     // the target must be encoded. When no proxy is set, use the URL as-is.
     const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
 
-    const response = await fetch(fetchUrl, { signal: controller.signal });
+    const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     return response;
-    // return awaitresponse.json();
   } catch (error) {
     if ((error as Error).name === "TimeoutError") {
       console.error("Fetch request timed out:", error);

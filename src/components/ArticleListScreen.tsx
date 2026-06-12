@@ -41,7 +41,7 @@ import {
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
-import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -97,7 +97,7 @@ function ArticleItem({ article }: { article: Article }) {
     // TODO: load these lazily perhaps so it does not grind to a halt
 
     loadThumbnailData();
-  }, []);
+  }, [article.slug]);
 
   useEffect(() => {
     const checkContentExists = async () => {
@@ -114,7 +114,9 @@ function ArticleItem({ article }: { article: Article }) {
         } else {
           contentPath = getFilePathContent(article.slug);
         }
-        const file = (await storage.client.getFile(contentPath)) as { data: string | ArrayBuffer } | null;
+        // maxAge: false = local cache only; without it every rendered row
+        // fires a network GET against the RemoteStorage server.
+        const file = (await storage.client.getFile(contentPath, false)) as { data: string | ArrayBuffer } | null;
         setContentExists(!!(file && file.data));
       } catch (error) {
         console.warn(`Failed to check content for ${article.slug}:`, error);
@@ -147,7 +149,7 @@ function ArticleItem({ article }: { article: Article }) {
   const handleArchive = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      await updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await patchArticleMetadata(storage.client!, article.slug, { state: "archived" });
       enqueueSnackbar("Article archived");
     } catch (e) {
       console.error(e);
@@ -161,7 +163,7 @@ function ArticleItem({ article }: { article: Article }) {
     if (!article) throw new Error("Article is undefined");
 
     try {
-      await updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await patchArticleMetadata(storage.client!, article.slug, { state: "unread" });
       enqueueSnackbar("Article unarchived");
     } catch (e) {
       console.error(e);
@@ -173,7 +175,7 @@ function ArticleItem({ article }: { article: Article }) {
   const handleToggleFavorite = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      await updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await patchArticleMetadata(storage.client!, article.slug, { favorite: !article.favorite });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);
@@ -372,29 +374,6 @@ export default function ArticleListScreen() {
     }
   }, [articles, navigate]);
 
-  useEffect(() => {
-    const handleTripleTap = () => {
-      navigate({ to: "/diagnostics" });
-    };
-
-    let tapCount = 0;
-    let tapTimer: NodeJS.Timeout;
-
-    const handleTap = () => {
-      tapCount++;
-      clearTimeout(tapTimer);
-      tapTimer = setTimeout(() => {
-        if (tapCount >= 3) {
-          handleTripleTap();
-        }
-        tapCount = 0;
-      }, 500);
-    };
-
-    document.addEventListener("click", handleTap);
-    return () => document.removeEventListener("click", handleTap);
-  }, []);
-
   // Helper function to wait for RemoteStorage sync to complete before closing
   const waitForSyncThenClose = useCallback(async () => {
     if (!remoteStorage || !remoteStorage.remote?.connected) {
@@ -414,6 +393,7 @@ export default function ArticleListScreen() {
       const timeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
+          remoteStorage.removeEventListener("sync-done", onSyncDone);
           console.log("Sync timeout after 15 seconds, closing anyway");
           resolve();
         }
@@ -606,7 +586,8 @@ export default function ArticleListScreen() {
         }, 1500);
       } catch (error) {
         console.error(error);
-        enqueueSnackbar("Error requesting article", { variant: "error" });
+        const detail = error instanceof Error ? error.message : String(error);
+        enqueueSnackbar(`Error saving article: ${detail}`, { variant: "error" });
         setIngestStatus(null);
         setIngestPercent(0);
         setDialogVisible(false);
