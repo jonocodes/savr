@@ -18,11 +18,6 @@ module.exports = {
   ],
   setupFilesAfterEnv: ['<rootDir>/lib/__tests__/setup.js'],
   testTimeout: 10000,
-  globals: {
-    'ts-jest': {
-      useESM: true,
-    },
-  },
   moduleFileExtensions: ['ts', 'tsx', 'js', 'jsx', 'json'],
   testEnvironmentOptions: {
     customExportConditions: ['node', 'node-addons'],

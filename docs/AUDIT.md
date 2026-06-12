@@ -128,39 +128,35 @@ Severity tiers: 🔴 fix first · 🟠 high · 🟡 medium · 🟢 cleanup
 
 ## 4. Tests & CI
 
-- [ ] 🟠 **Run more than Jest in CI.** `.github/workflows/test.yml` runs unit
-  tests only — no lint, no `tsc --noEmit`, no e2e. Add lint + typecheck, plus a
-  stable e2e tier (`smoke`, `natural-sync`, `sync-no-loop`, `bulk-delete`) as a
-  separate job.
-- [ ] 🟠 **Resolve the dead `syncLogic.ts` module.** It is imported only by its
-  own 476-line test file; the app uses `reconciler.ts`. Either wire it in or
-  delete both.
+- [x] 🟠 **Run more than Jest in CI.** Added lint + typecheck steps to the
+  `unit-tests` job; added a separate `e2e-smoke` job that installs Playwright
+  and runs `smoke.spec.ts` on every push/PR. Full RS-backed e2e in CI (natural-
+  sync, sync-no-loop, bulk-delete) still needs further work (server provisioning).
+- [x] 🟠 **Resolve the dead `syncLogic.ts` module.** Deleted `src/utils/syncLogic.ts`
+  and its 476-line test file — the app uses `reconciler.ts` exclusively.
 - [ ] 🟠 **Unit-test `storage.ts`** (874 lines, zero unit tests) — or keep
   extracting its decision logic into pure modules like `reconciler.ts`.
-- [ ] 🟡 **Strengthen `smoke.spec.ts`** to assert one rendered React element
-  (e.g. the FAB); today a white-screen crash still passes.
+- [x] 🟡 **Strengthen `smoke.spec.ts`** to assert one rendered React element.
+  Added a third test that waits for `networkidle` then asserts the FAB is
+  visible — a white-screen crash now fails.
 - [ ] 🟡 **Add tests for `summarization.ts`, `publicExport.ts`, and the
   `share-handler` route** (none exist; bookmarklet entry is covered, share
   target is not).
-- [ ] 🟡 **Deduplicate e2e boilerplate.** The `.test-env.json` loading block is
-  copy-pasted in 9+ specs and the dialog-ingestion sequence in 5+; the existing
-  `tests/e2e/utils/test-helpers.ts` is largely unused. Extract `loadTestEnv()` /
-  `ingestArticleViaDialog()` fixtures.
-- [ ] 🟡 **Remove redundant/dead specs:** multi-browser delete sync is tested
-  twice (`multi-browser-sync` steps 6-10 vs `multi-browser-archive-sync` test 1);
-  `sync-clears-local-on-connect.spec.ts` is 280 fully-skipped lines for an
-  unimplemented feature (delete or convert to an issue);
-  `main-page.spec.ts` "working add article button" duplicates
-  `add-article-dialog.spec.ts`.
-- [ ] 🟡 **Replace hard waits with polling.** ~15 `waitForTimeout` calls in
+- [x] 🟡 **Deduplicate e2e boilerplate.** Extracted `loadTestEnv()` (+ `TestEnv`
+  type) into `tests/e2e/utils/test-helpers.ts`. Updated all 11 spec files that
+  copy-pasted the `.test-env.json` loading block (saved ~130 lines total).
+  `ingestArticleViaDialog()` deduplication left as future work.
+- [x] 🟡 **Remove redundant/dead specs.** Deleted
+  `sync-clears-local-on-connect.spec.ts` (280 fully-skipped lines for an
+  unimplemented feature). Trimmed `main-page.spec.ts` from 7 tests to 3 that
+  always assert (removed the "add article button" duplicate and 3 silent no-ops).
+- [ ] 🟡 **Replace hard waits with polling.** ~14 `waitForTimeout` calls in
   `bookmarklet-sync`, `incremental-sync`, `edit-article-info`,
-  `widget-visibility`, `main-page` — use the Dexie-polling pattern from
-  `natural-sync`. (Keep the intentional 20s wait in `sync-no-loop`.)
-- [ ] 🟡 **Fix silent no-op tests:** 4 of 7 `main-page.spec.ts` tests are
-  wrapped in `if (count > 0)` / `if (visible)` and can pass without asserting
-  anything — seed data deterministically or delete them.
-- [ ] 🟢 Remove the deprecated `globals['ts-jest']` block from
-  `jest.config.cjs`; consider coverage thresholds.
+  `widget-visibility` — use the Dexie-polling pattern from `natural-sync`.
+  (Keep the intentional 20s wait in `sync-no-loop`.)
+- [x] 🟡 **Fix silent no-op tests:** deleted the 4 conditional tests from
+  `main-page.spec.ts` (see above).
+- [x] 🟢 Removed the deprecated `globals['ts-jest']` block from `jest.config.cjs`.
 - [ ] 🟢 No React component tests exist (node test env, no jsdom/RTL);
   `useTextToSpeech.test.ts` covers only the exported pure helpers.
 

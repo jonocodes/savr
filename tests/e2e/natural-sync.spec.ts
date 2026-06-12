@@ -8,23 +8,10 @@ import {
   getWorkerToken,
   getContentServerUrl,
 } from "./utils/remotestorage-helper";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { loadTestEnv } from "./utils/test-helpers";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
+const testEnv = loadTestEnv();
 
-try {
-  testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
-} catch (error) {
-  throw new Error(
-    `Failed to load test environment from ${testEnvPath}. ` +
-      `Make sure global-setup.ts ran successfully. Error: ${error}`,
-  );
-}
 
 // How long to wait for a natural sync cycle (no manual trigger).
 // RS default interval is 10s per direction; 2s during tests means ≤4s round-trip.
