@@ -432,26 +432,8 @@ export const setSummaryModelInCookie = (model: string): void => {
 
 const SUMMARY_API_KEYS_STORAGE_KEY = SUMMARY_API_KEYS_COOKIE_NAME;
 
-// Read API keys from localStorage, migrating from cookie on first access.
 const getApiKeysFromStorage = (): Record<string, string> => {
   if (typeof localStorage === "undefined") return {};
-
-  // One-time migration from cookie to localStorage.
-  const cookies = document.cookie.split(";");
-  const legacyCookie = cookies.find((c) =>
-    c.trim().startsWith(`${SUMMARY_API_KEYS_COOKIE_NAME}=`)
-  );
-  if (legacyCookie && !localStorage.getItem(SUMMARY_API_KEYS_STORAGE_KEY)) {
-    try {
-      const value = decodeURIComponent(
-        legacyCookie.replace(`${SUMMARY_API_KEYS_COOKIE_NAME}=`, "").trim()
-      );
-      localStorage.setItem(SUMMARY_API_KEYS_STORAGE_KEY, value);
-    } catch { /* ignore malformed cookie */ }
-    // Clear the cookie so the key is no longer sent over the network.
-    document.cookie = `${SUMMARY_API_KEYS_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-  }
-
   try {
     const raw = localStorage.getItem(SUMMARY_API_KEYS_STORAGE_KEY);
     return raw ? (JSON.parse(raw) as Record<string, string>) : {};
@@ -467,8 +449,7 @@ const setApiKeysInStorage = (keys: Record<string, string>): void => {
 
 // Get single API key for a provider
 export const getApiKeyForProvider = (provider: string): string | null => {
-  const keys = getApiKeysFromStorage();
-  return keys[provider] || null;
+  return getApiKeysFromStorage()[provider] || null;
 };
 
 // Set single API key for a provider
