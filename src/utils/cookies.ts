@@ -48,7 +48,6 @@ export const setSyncEnabledCookie = (enabled: boolean): void => {
   document.cookie = `${SYNC_ENABLED_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
   window.dispatchEvent(new CustomEvent(SYNC_SETTING_EVENT, { detail: { enabled } }));
 };
-export const WIFI_ONLY_SYNC_COOKIE_NAME = "savr-wifi-only-sync";
 export const SUMMARY_PROMPT_COOKIE_NAME = "savr-summary-prompt";
 export const SUMMARIZATION_ENABLED_COOKIE_NAME = "savr-summarization-enabled";
 export const SUMMARY_PROVIDER_COOKIE_NAME = "savr-summary-provider";
@@ -282,35 +281,6 @@ export const setAfterExternalSaveInCookie = (value: AfterExternalSaveAction): vo
 
   document.cookie = `${AFTER_EXTERNAL_SAVE_COOKIE_NAME}=${value}; expires=${expires.toUTCString()}; path=/`;
 };
-
-// DISABLED - WiFi-only sync feature not working correctly
-// Get WiFi-only sync preference from cookie
-// export const getWiFiOnlySyncFromCookie = (): boolean => {
-//   if (typeof document === "undefined") return false;
-
-//   const cookies = document.cookie.split(";");
-//   const wifiOnlySyncCookie = cookies.find((cookie) =>
-//     cookie.trim().startsWith(`${WIFI_ONLY_SYNC_COOKIE_NAME}=`)
-//   );
-
-//   if (wifiOnlySyncCookie) {
-//     const value = wifiOnlySyncCookie.split("=")[1];
-//     return value === "true";
-//   }
-
-//   return false; // Default to false (sync on all networks)
-// };
-
-// Set WiFi-only sync preference in cookie
-// export const setWiFiOnlySyncInCookie = (enabled: boolean): void => {
-//   if (typeof document === "undefined") return;
-
-//   // Set cookie to expire in 1 year
-//   const expires = new Date();
-//   expires.setFullYear(expires.getFullYear() + 1);
-
-//   document.cookie = `${WIFI_ONLY_SYNC_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
-// };
 
 // Get summary prompt from cookie (returns null if not set, meaning use default)
 export const getSummaryPromptFromCookie = (): string | null => {

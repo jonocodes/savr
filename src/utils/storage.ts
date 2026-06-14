@@ -774,97 +774,13 @@ async function clearLocalRemoteStorageCache(): Promise<void> {
   });
 }
 
-async function deleteAllRemoteStorage(): Promise<{
-  success: boolean;
-  deletedFiles: string[];
-  errors: string[];
-}> {
-  const deletedFiles: string[] = [];
-  const errors: string[] = [];
-
-  try {
-    // Delete from RemoteStorage
-    const store = await init();
-    if (store && store.client) {
-      try {
-        // Delete all articles from the saves/ directory
-        const result = await recursiveDeleteDirectory(store.client, "saves/");
-        deletedFiles.push(...result.deletedFiles);
-        // Don't push errors from recursive delete as they're often benign (non-existing paths)
-        console.log(`✅ Deleted ${result.deletedFiles.length} files from RemoteStorage`);
-      } catch (error) {
-        // Only log a warning - this is not critical
-        console.warn("Error deleting from RemoteStorage:", error);
-      }
-    } else {
-      errors.push("RemoteStorage not available");
-    }
-  } catch (error) {
-    errors.push(`General error: ${error}`);
-    console.error("Error deleting all remote storage:", error);
-  }
-
-  console.log("deleteAllRemoteStorage done");
-
-  return {
-    success: errors.length === 0,
-    deletedFiles,
-    errors,
-  };
-}
-
-/**
- * Reset sync state and replace local articles with server data.
- * Use this when you want to discard local articles and sync fresh from the server.
- *
- * This function:
- * 1. Clears all local articles from IndexedDB
- * 2. Resets the sync initialized flag
- * 3. Triggers a fresh sync from the server
- *
- * @returns A promise that resolves when the reset is complete
- */
-async function resetSyncStateAndReplaceWithServer(): Promise<{
-  success: boolean;
-  message: string;
-}> {
-  try {
-    console.info("🔄 Resetting sync state and replacing local data with server data...");
-
-    // Clear all local articles
-    const articleCount = await db.articles.count();
-    await db.articles.clear();
-    console.info(`   ✅ Cleared ${articleCount} local articles`);
-
-    // Trigger a fresh sync
-    const store = await init();
-    if (store && store.remoteStorage) {
-      await store.remoteStorage.startSync();
-      console.info("   ✅ Triggered fresh sync from server");
-    }
-
-    return {
-      success: true,
-      message: `Cleared ${articleCount} local articles and triggered fresh sync from server`,
-    };
-  } catch (error) {
-    console.error("Failed to reset sync state:", error);
-    return {
-      success: false,
-      message: `Failed to reset sync state: ${error}`,
-    };
-  }
-}
-
 export {
   init,
   glob,
   calculateTotalStorage as calculateStorageUsage,
   calculateArticleStorageSize,
   deleteArticleStorage,
-  deleteAllRemoteStorage,
   clearLocalRemoteStorageCache,
   recursiveDeleteDirectory,
   formatBytes,
-  resetSyncStateAndReplaceWithServer,
 };

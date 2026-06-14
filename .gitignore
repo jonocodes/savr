@@ -32,4 +32,10 @@ playwright-report/
 playwright/.cache/
 test-results/
 
+# Compiled TS test artifacts (keep hand-written setup.js and __mocks__/*.js)
+lib/__tests__/*.test.js
+lib/__tests__/*.test.js.map
+lib/__tests__/*.test.d.ts
+tests/e2e/.test-env.json
+
 .flox

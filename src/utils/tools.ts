@@ -20,7 +20,7 @@ export const setCorsProxyValue = (value: string | null): void => {
 
 // delete the article from the db and the file system
 // deleteArticleStorage already handles deleting from both IndexedDB and RemoteStorage
-export async function removeArticle(storeClient: BaseClient, slug: string): Promise<void> {
+export async function removeArticle(slug: string): Promise<void> {
   await deleteArticleStorage(slug);
   markDirty();
 }
@@ -148,7 +148,6 @@ export async function imageToDataUrl(blob: Blob): Promise<string> {
 export async function loadThumbnail(slug: string): Promise<string> {
   try {
     // Try to load the thumbnail from storage
-    console.log("loading thumbnail", slug);
     const storage = await init();
     if (storage && storage.client) {
       const thumbnailPath = getFilePathThumbnail(slug);

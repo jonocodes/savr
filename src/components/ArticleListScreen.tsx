@@ -187,7 +187,7 @@ function ArticleItem({ article }: { article: Article }) {
   const handleDelete = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      await removeArticle(storage.client!, article.slug);
+      await removeArticle(article.slug);
       enqueueSnackbar("Article deleted");
     } catch (e) {
       console.error(e);

@@ -10,57 +10,33 @@ export const Route = createFileRoute("/share-handler")({
 
 function ShareHandler() {
   const navigate = useNavigate();
+  const debug = isDebugMode();
 
   // Get URL parameters from the share intent
   const urlParams = new URLSearchParams(window.location.search);
-
-  // alert("ShareHandler window.location.href: " + window.location.href);
-  // alert("ShareHandler window.location.search: " + window.location.search);
-  // alert("ShareHandler urlParams: " + JSON.stringify(urlParams));
-
   const sharedUrl = urlParams.get("url") || urlParams.get("content") || urlParams.get("text");
 
-  for (const [key, value] of urlParams.entries()) {
-    console.log(`param ${key}: ${value}`);
+  if (debug) {
+    for (const [key, value] of urlParams.entries()) {
+      console.log(`param ${key}: ${value}`);
+    }
   }
 
-  // Auto-redirect after 2 seconds using proper React navigation
+  // Redirect to the main page (immediately in normal use; with a short delay
+  // in debug mode so the diagnostic view below is readable).
   React.useEffect(() => {
-    let delay = 0;
-    let navParams = {};
-
-    if (isDebugMode()) {
-      delay = 2000;
-    }
-
-    if (sharedUrl) {
-      navParams = { search: { saveUrl: sharedUrl, autoSubmit: "true" } };
-    }
+    const delay = debug ? 2000 : 0;
+    const navParams = sharedUrl
+      ? { search: { saveUrl: sharedUrl, autoSubmit: "true" } }
+      : {};
 
     const timer = setTimeout(() => {
       navigate({ to: "/", ...navParams });
     }, delay);
 
     return () => clearTimeout(timer);
+  }, [sharedUrl, navigate, debug]);
 
-    // if (sharedUrl) {
-    //   const timer = setTimeout(() => {
-    //     navigate({ to: "/", ...navParams });
-    //   }, delay);
-
-    //   return () => clearTimeout(timer);
-    // } else {
-    //   // If no URL, redirect to home
-    //   const timer = setTimeout(() => {
-    //     navigate({ to: "/", ...navParams });
-    //   }, delay);
-
-    //   return () => clearTimeout(timer);
-    // }
-  }, [sharedUrl, navigate]);
-
-  // Show a brief debug message before redirecting
-  // if (sharedUrl) {
   const afterExternalSave = getAfterExternalSaveFromCookie();
 
   return (
@@ -71,35 +47,24 @@ function ShareHandler() {
         fontFamily: "Arial, sans-serif",
       }}
     >
-      <h3>Processing shared URL...</h3>
-      <p>URL: {sharedUrl}</p>
-      <p>Current page: {window.location.href}</p>
-      <p>window.location.search: {window.location.search}</p>
-      <p>urlParams: {JSON.stringify(urlParams)}</p>
-      <p>
-        After save action:{" "}
-        {afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE
-          ? "Show article content"
-          : afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
-            ? "Show article list"
-            : "Close tab"}
-      </p>
-      <p>Redirecting in 2 seconds...</p>
+      <h3>Processing shared link…</h3>
+      {debug && (
+        <>
+          <p>URL: {sharedUrl}</p>
+          <p>Current page: {window.location.href}</p>
+          <p>window.location.search: {window.location.search}</p>
+          <p>urlParams: {JSON.stringify(Object.fromEntries(urlParams))}</p>
+          <p>
+            After save action:{" "}
+            {afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE
+              ? "Show article content"
+              : afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
+                ? "Show article list"
+                : "Close tab"}
+          </p>
+          <p>Redirecting in 2 seconds…</p>
+        </>
+      )}
     </div>
   );
-  // }
-
-  // If no URL, show message and redirect
-  // return (
-  //   <div
-  //     style={{
-  //       padding: "20px",
-  //       textAlign: "center",
-  //       fontFamily: "Arial, sans-serif",
-  //     }}
-  //   >
-  //     <h3>No URL found</h3>
-  //     <p>Redirecting to home...</p>
-  //   </div>
-  // );
 }

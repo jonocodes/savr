@@ -201,7 +201,7 @@ export default function ArticleScreen(_props: Props) {
 
   const handleDelete = async () => {
     try {
-      await removeArticle(storage.client!, article.slug);
+      await removeArticle(article.slug);
       navigate({ to: "/" });
       enqueueSnackbar("Article deleted");
     } catch (e) {

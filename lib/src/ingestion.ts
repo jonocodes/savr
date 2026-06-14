@@ -116,7 +116,6 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
       const largestFromSrcset = getLargestImageFromSrcset(srcset);
       if (largestFromSrcset) {
         imgUrl = largestFromSrcset;
-        console.log("Using largest image from srcset:", imgUrl);
         // Remove srcset attribute since we're replacing it with a single src
         img.removeAttribute('srcset');
         // Also remove sizes attribute if present, as it's only used with srcset
@@ -193,40 +192,18 @@ async function downloadAndResizeImages(
 
       percent = percent + step;
 
-      // thumbnail
-
-      console.log("THUMB check thumb for localPath", localPath);
-
+      // thumbnail: ignore small images; otherwise prefer the one with the
+      // most pixels (likely the highest quality).
       const area = width * height;
-
-      console.log("THUMB area", area, "current maxArea", maxArea, "width", width, "height", height);
-
-      // Ignore small images
-      if (area < 5000) {
-        console.log("THUMB too small, skipping");
-      }
-
-      // Prefer images with more pixels (likely higher quality)
-      else if (area > maxArea) {
-        console.log("  maxArea", area, "previous maxArea", maxArea, "selecting", localPath);
+      if (area >= 5000 && area > maxArea) {
         maxArea = area;
         thumbnailPath = localPath;
         thumbnailBlob = blob;
-      } else {
-        console.log("THUMB not larger, keeping current thumbnail");
       }
     } catch (e) {
       console.error("THUMB error downloading and saving image", e);
     }
   }
-
-  // make the thumbnail
-
-  console.log("Final thumbnail selection:", {
-    thumbnailPath,
-    maxArea,
-    totalImages: imageData.length,
-  });
 
   if (thumbnailBlob !== null) {
     const [url, localPath, img] = imageData.find(
@@ -259,8 +236,6 @@ async function downloadAndResizeImages(
 
     savedBytes += dataUrl.length;
     savedFileCount += 1;
-
-    console.log("outputFilePath", outputFilePath);
   }
 
   return { successfulDownloads, savedBytes, savedFileCount };
@@ -282,8 +257,6 @@ async function processHtmlAndImages(
   // base.href = article.url ?? ""; // Set your desired base URL here. will this work for all paths?
 
   const imageData = await extractImageUrls(document, article.url);
-
-  console.log("imageData", imageData);
 
   sendMessage(25, "downloading images");
 
@@ -516,8 +489,6 @@ export function readabilityToArticle(
   let reader = new Readability(document);
   let readabilityResult = reader.parse();
 
-  console.log("readabilityResult", readabilityResult);
-
   if (readabilityResult === null) {
     throw new Error("Readability did not parse");
   }
@@ -525,9 +496,6 @@ export function readabilityToArticle(
   if (readabilityResult.title == "") {
     readabilityResult.title = `${mimeToExt[contentType]} ${Date.now() + 0}`;
   }
-
-  console.log(`title: ${readabilityResult.title}`);
-  console.log(`length: ${readabilityResult.length}`);
 
   // TODO: handle case where title is not found?
 
@@ -599,8 +567,6 @@ export async function ingestHtml(
   await storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
 
   sendMessageWithLog(20, "collecting images");
-
-  console.log("content", content);
 
   const { html: processedHtml, successfulDownloads, totalImages, savedImageBytes, savedImageFileCount } = await processHtmlAndImages(
     article,
@@ -923,8 +889,6 @@ export async function ingestUrl(
   var article: Article | null = null;
   var successfulDownloads = 0;
   var totalImages = 0;
-
-  console.log(`contentTypeHeader = ${contentTypeHeader}`);
 
   try {
     const extension = mime.getExtension(contentTypeHeader);

@@ -89,42 +89,51 @@ Severity tiers: 🔴 fix first · 🟠 high · 🟡 medium · 🟢 cleanup
 - [ ] 🟠 **Invert the lib→src dependency.** `lib/src/ingestion.ts:19-29` imports
   from `~/utils/storage`, `tools`, `summarization`, `cookies` — the "shared
   library" depends on the app layer and can't be reused. Inject these as
-  callbacks or move persistence up into `src/`.
-- [ ] 🟠 **Move server/test tooling out of `dependencies`.** `fastify` (+
-  plugins), `armadietto`, `playwright`, `commander`, `http-proxy`, `ts-node`,
-  `tsx`, `mozilla-readability-cli` belong in devDependencies; `typescript`
-  appears in both sections at different versions — keep one (dev).
+  callbacks or move persistence up into `src/`. _(Deferred — large refactor,
+  scheduled for its own pass.)_
+- [x] 🟠 **Move server/test tooling out of `dependencies`.** Removed entirely
+  (unused): `fastify` + `@fastify/*` plugins, `fastify-sse-v2`, `commander`,
+  `copyfiles`, `http-proxy`, `mozilla-readability-cli`, `ts-node`. Moved to
+  devDependencies: `armadietto`, `playwright`, `tsx`. Deduped `typescript`
+  (kept dev `^5.7.2`). Added missing explicit `jsdom` devDependency (a test was
+  free-riding on a transitive copy from `mozilla-readability-cli`). `npm install`
+  pruned 151 packages; full suite still green.
 - [ ] 🟠 **Split the god modules** (follow the `reconciler.ts` extraction
   pattern): `ArticleScreen.tsx` (1,314 lines), `PreferenceScreen.tsx` (1,273),
   `DiagnosticsScreen.tsx` (1,137), `ArticleListScreen.tsx` (1,005),
-  `lib/src/ingestion.ts` (1,087), `src/utils/storage.ts` (874).
+  `lib/src/ingestion.ts` (1,087), `src/utils/storage.ts` (874). _(Deferred —
+  large/high-churn refactor, scheduled for its own pass.)_
 - [ ] 🟡 **Pick one browser extension.** `browser-extension/` is Manifest v2
   (dead on Chrome since 2022); `extension2/` is v3 but looks like a test
   harness; plus five bookmarklet variants in `bookmarklet/`. Keep one, delete
-  the rest, document the choice.
-- [ ] 🟡 **Delete abandoned code:** `proxy.js` ("TODO: never quite got this to
-  work"), the WiFi-only-sync feature commented out across ~5 files
-  (`RemoteStorageProvider.tsx`, `network.ts`, `cookies.ts`,
-  `PreferenceScreen.tsx`, `MANUAL_TESTING_WIFI_SYNC.md`), commented-out blocks
-  in `ingestion.ts:399-433,942-1087` and `ArticleListScreen.tsx:940-1002`.
-- [ ] 🟡 **Remove committed compiled artifacts.** `lib/__tests__/index.test.js`
-  (a stale placeholder, not a build of the current test), `.js.map`, `.d.ts`;
-  gitignore `lib/__tests__/*.test.js*` (keep `setup.js` and `__mocks__/*.js`).
-- [ ] 🟡 **Pick one lockfile.** Both `bun.lock` and `package-lock.json` are
-  committed.
-- [ ] 🟢 Remove top-level `console.log(generateRandomString())` that runs on
-  every import (`ingestion.ts:627`), the base64-image dump at
-  `ingestion.ts:163`, and the ~98 console.log lines across src+lib.
+  the rest, document the choice. _(Deferred by request — leave extensions
+  alone.)_
+- [x] 🟡 **Delete abandoned code:** removed `proxy.js`, the WiFi-only-sync dead
+  code (commented blocks in `RemoteStorageProvider.tsx`, `PreferenceScreen.tsx`,
+  `SyncStatusProvider.tsx`, `cookies.ts` + the orphan `WIFI_ONLY_SYNC_COOKIE_NAME`
+  constant), and `MANUAL_TESTING_WIFI_SYNC.md`. The live network-status display
+  (`network.ts` + `SyncStatusProvider` + Diagnostics readout) was kept — only
+  the broken WiFi-*only*-sync feature was removed.
+- [x] 🟡 **Remove committed compiled artifacts.** Deleted
+  `lib/__tests__/index.test.{js,js.map,d.ts}`; gitignored `*.test.js*`/`*.test.d.ts`
+  under `lib/__tests__` (keeps `setup.js` and `__mocks__/*.js`).
+- [x] 🟡 **Pick one lockfile.** Deleted `bun.lock` (CI uses `npm ci`).
+- [x] 🟢 Removed the debug/data-dump `console.log`s in `lib/src/ingestion.ts`
+  (readabilityResult, content, imageData, outputFilePath, THUMB loop, srcset,
+  contentTypeHeader) and the thumbnail-load log in `tools.ts`. The top-level
+  `generateRandomString()` log was already removed in the correctness pass. A
+  broader src-wide console sweep remains.
 - [ ] 🟢 Deduplicate the summarize flow (~40 lines triplicated in
   `ArticleScreen.tsx:207,1182,1247`, plus near-copies in `SubmitScreen.tsx` and
   `ingestion.ts`).
 - [ ] 🟢 Group `src/utils/` into subdirectories (sync/, article/, ai/, ui/,
   net/).
-- [ ] 🟢 Remove dead exports `deleteAllRemoteStorage`,
-  `resetSyncStateAndReplaceWithServer` (`storage.ts:781,831`); `removeArticle`
-  ignores its first parameter (`tools.ts:23`).
-- [ ] 🟢 `share-handler.tsx:66-89` renders debug output to end users and always
-  says "Redirecting in 2 seconds" though the delay is 0 outside debug mode.
+- [x] 🟢 Removed dead exports `deleteAllRemoteStorage`,
+  `resetSyncStateAndReplaceWithServer` from `storage.ts`; dropped the ignored
+  `storeClient` parameter from `removeArticle` (`tools.ts`) and updated callers.
+- [x] 🟢 `share-handler.tsx` now shows a clean "Processing shared link…" message;
+  the debug dump and "Redirecting in 2 seconds" line are gated behind
+  `isDebugMode()`, and the dead commented branches were removed.
 
 ## 4. Tests & CI
 
