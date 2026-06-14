@@ -1,4 +1,5 @@
 import React from "react";
+import DOMPurify from "dompurify";
 import { Box, Container, useTheme } from "@mui/material";
 
 interface ArticleComponentProps {
@@ -43,7 +44,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) =
             backgroundColor: isDark ? "rgba(255,255,255,0.1)" : undefined,
           },
         }}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
       />
     </Container>
   );

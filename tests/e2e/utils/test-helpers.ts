@@ -1,4 +1,28 @@
 import { Page, Locator, expect } from "@playwright/test";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+export interface TestEnv {
+  RS_TOKEN: string;
+  RS_TOKENS: string[];
+}
+
+export function loadTestEnv(): TestEnv {
+  const envPath = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    ".test-env.json"
+  );
+  try {
+    return JSON.parse(fs.readFileSync(envPath, "utf-8")) as TestEnv;
+  } catch (error) {
+    throw new Error(
+      `Failed to load test environment from ${envPath}. ` +
+        `Make sure global-setup.ts ran successfully. Error: ${error}`
+    );
+  }
+}
 
 /**
  * Helper class for common testing operations

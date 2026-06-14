@@ -11,7 +11,7 @@ import { PWARegister } from "~/components/PWARegister";
 
 import { SnackbarProvider } from "notistack";
 import { getThemeFromCookie, getEffectiveTheme, useSystemThemeListener } from "~/utils/cookies";
-import { createAppTheme } from "~/utils/theme";
+import { createAppTheme } from "~/utils/ui/theme";
 import { useDocumentTitle } from "~/hooks/useDocumentTitle";
 
 export const Route = createRootRoute({

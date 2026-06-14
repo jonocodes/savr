@@ -12,6 +12,7 @@ import {
   getFileFetchLog,
   getFilePathThumbnail,
 } from "../src/lib";
+import ArticleTemplate from "../src/article";
 import { Article } from "../src/models";
 
 describe("lib.ts", () => {
@@ -222,7 +223,7 @@ describe("lib.ts", () => {
       } as Article;
 
       const result = generateInfoForArticle(article);
-      expect(result).toContain("<a href=https://www.example.com/article>example.com</a>");
+      expect(result).toContain('<a href="https://www.example.com/article">example.com</a>');
     });
 
     it("should generate info with published date only", () => {
@@ -249,7 +250,7 @@ describe("lib.ts", () => {
       } as Article;
 
       const result = generateInfoForArticle(article);
-      expect(result).toContain("<a href=https://news.bbc.co.uk/article>news.bbc.co.uk</a>");
+      expect(result).toContain('<a href="https://news.bbc.co.uk/article">news.bbc.co.uk</a>');
       expect(result).toContain("Jan 15 2023");
     });
 
@@ -274,6 +275,65 @@ describe("lib.ts", () => {
       } as Article;
 
       expect(generateInfoForArticle(article)).toBe("");
+    });
+
+    it("should not create a link for javascript: URLs", () => {
+      const article: Article = {
+        slug: "test",
+        title: "Test Article",
+        url: "javascript:alert(1)",
+        mimeType: "text/html",
+        state: "active",
+      } as Article;
+
+      const result = generateInfoForArticle(article);
+      expect(result).not.toContain("href");
+      expect(result).not.toContain("javascript:");
+    });
+
+    it("should use a quoted href attribute", () => {
+      const article: Article = {
+        slug: "test",
+        title: "Test Article",
+        url: "https://example.com/path?a=1&b=2",
+        mimeType: "text/html",
+        state: "active",
+      } as Article;
+
+      const result = generateInfoForArticle(article);
+      expect(result).toContain('<a href="https://example.com/path?a=1&b=2">');
+    });
+  });
+
+  describe("ArticleTemplate", () => {
+    it("should escape HTML special characters in metadata fields", () => {
+      const result = ArticleTemplate({
+        title: '<script>alert("xss")</script>',
+        byline: '<img onerror="pwned">',
+        published: "2024",
+        readTime: "5 min",
+        content: "<p>safe content</p>",
+      });
+
+      expect(result).not.toContain("<script>");
+      expect(result).not.toContain('onerror="pwned"');
+      expect(result).toContain("&lt;script&gt;");
+      expect(result).toContain("onerror=&quot;pwned&quot;");
+      // Content should pass through unescaped
+      expect(result).toContain("<p>safe content</p>");
+    });
+
+    it("should escape & and ' in metadata fields", () => {
+      const result = ArticleTemplate({
+        title: "AT&T's article",
+        byline: "O'Brien & Associates",
+        published: "",
+        readTime: "",
+        content: "<p>body</p>",
+      });
+
+      expect(result).toContain("AT&amp;T&#039;s article");
+      expect(result).toContain("O&#039;Brien &amp; Associates");
     });
   });
 

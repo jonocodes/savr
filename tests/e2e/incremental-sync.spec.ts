@@ -7,24 +7,10 @@ import {
   clearAllArticles,
   getWorkerToken,
 } from "./utils/remotestorage-helper";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { loadTestEnv } from "./utils/test-helpers";
 
-// Load test environment (token from global setup)
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const testEnvPath = path.join(__dirname, ".test-env.json");
-let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
+const testEnv = loadTestEnv();
 
-try {
-  testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
-} catch (error) {
-  throw new Error(
-    `Failed to load test environment from ${testEnvPath}. ` +
-      `Make sure global-setup.ts ran successfully. Error: ${error}`,
-  );
-}
 
 const TEST_ARTICLE_SLUG = "test-article-for-incremental-sync";
 

@@ -1,5 +1,5 @@
-import { db } from "./db";
-import { init } from "./storage";
+import { db } from "../db";
+import { init } from "../sync/storage";
 
 // Files under /public/savr/ are accessible without auth per the RemoteStorage spec.
 // Writing to "public/public-export.json" within the /savr/ scope puts the file at

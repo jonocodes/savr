@@ -87,7 +87,11 @@ export function convertToHtml(content: string, contentType: "text/html" | "text/
       if (!htmlContent.includes("<title>")) {
         // Try to extract title from first h1 or first line
         const titleMatch = content.match(/^#\s+(.+)$/m);
-        const title = titleMatch ? titleMatch[1] : "Imported Markdown";
+        const rawTitle = titleMatch ? titleMatch[1] : "Imported Markdown";
+        const title = rawTitle
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
         return `<title>${title}</title>${htmlContent}`;
       }
       return htmlContent;

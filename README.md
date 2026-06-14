@@ -172,7 +172,7 @@ Then visit http://localhost:3000
 
 If you want to test PWA/production then do
 
-> npm run build:prod && npm run start:prod
+> npm run build:prod && npm run start
 
 Also note that if you host this on a static server, it should support SPA routing and you should serve this app from the root. This is needed to handle dealing with the single path parameter as a URL.
 

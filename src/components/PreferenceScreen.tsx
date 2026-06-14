@@ -47,7 +47,7 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
 } from "@mui/icons-material";
-import { setCorsProxyValue } from "~/utils/tools";
+import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
 import { getCorsProxyFromCookie } from "~/utils/cookies";
 import {
@@ -69,8 +69,6 @@ import {
   setApiKeyForProvider,
   getSummarySettingsFromCookie,
   setSummarySettingsInCookie,
-  // getWiFiOnlySyncFromCookie, // Disabled - feature not working correctly
-  // setWiFiOnlySyncInCookie, // Disabled - feature not working correctly
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
 } from "~/utils/cookies";
@@ -84,13 +82,13 @@ import {
   testApiConnection,
   type SummaryProvider,
   type DetailLevel,
-} from "~/utils/summarization";
-import { isPWAMode, isNetworkInfoSupported } from "~/utils/network";
+} from "~/utils/ai/summarization";
+import { isPWAMode } from "~/utils/net/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { calculateStorageUsage, clearLocalRemoteStorageCache, formatBytes, updateSyncInterval } from "~/utils/storage";
+import { calculateStorageUsage, clearLocalRemoteStorageCache, formatBytes, updateSyncInterval } from "~/utils/sync/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import {
@@ -109,7 +107,7 @@ import {
   disablePublicExport,
   publishNow,
   type PublicExportState,
-} from "~/utils/publicExport";
+} from "~/utils/article/publicExport";
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
@@ -118,12 +116,10 @@ export default function PreferencesScreen() {
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
   const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
-  // const [wifiOnlySync, setWifiOnlySync] = React.useState<boolean>(false); // Disabled - feature not working correctly
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
   );
-  const _networkSupported = isNetworkInfoSupported();
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
     articles: number;
@@ -177,9 +173,6 @@ export default function PreferencesScreen() {
       const syncValue = syncCookie.split("=")[1];
       setSyncEnabled(syncValue === "true");
     }
-
-    // Load WiFi-only sync setting from cookies - DISABLED
-    // setWifiOnlySync(getWiFiOnlySyncFromCookie());
 
     setSyncInterval(getSyncIntervalFromCookie());
 
@@ -355,13 +348,6 @@ export default function PreferencesScreen() {
       window.location.reload();
     }
   };
-
-  // DISABLED - WiFi-only sync feature not working correctly
-  // const handleWiFiOnlySyncToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
-  //   const newValue = event.target.checked;
-  //   setWifiOnlySync(newValue);
-  //   setWiFiOnlySyncInCookie(newValue);
-  // };
 
   const handleHeaderHidingToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
     const newValue = event.target.checked;
@@ -639,26 +625,6 @@ export default function PreferencesScreen() {
               </ListItem>
             )}
 
-            {/* DISABLED - WiFi-only sync feature not working correctly */}
-            {/* {syncEnabled && networkSupported && (
-              <ListItem>
-                <ListItemIcon>
-                  <WifiIcon />
-                </ListItemIcon>
-                <ListItemText
-                  primary={
-                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                      Sync only over WiFi
-                      <Tooltip title="When enabled, sync will only happen when connected to WiFi. Works on mobile browsers that support network detection.">
-                        <HelpIcon fontSize="small" color="action" />
-                      </Tooltip>
-                    </Box>
-                  }
-                  secondary="Pause sync when on cellular data"
-                />
-                <Switch edge="end" checked={wifiOnlySync} onChange={handleWiFiOnlySyncToggle} />
-              </ListItem>
-            )} */}
           </List>
 
           {/* Reading Section */}
