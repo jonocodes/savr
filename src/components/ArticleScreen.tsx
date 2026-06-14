@@ -47,7 +47,7 @@ import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article } from "../../lib/src/models";
-import { removeArticle, patchArticleMetadata } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata } from "~/utils/article/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
@@ -56,20 +56,19 @@ import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
-import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
+import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
   summarizeText,
-  DEFAULT_SUMMARY_SETTINGS,
+  buildSummarySettings,
   type SummarizationProgress,
   type SummaryProvider,
-} from "~/utils/summarization";
+} from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 
 interface Props {
@@ -210,21 +209,12 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleSummarize = async () => {
-    closeMenu();
-    setSummaryDrawerOpen(true);
-
-    // If we already have a summary, just show it
-    if (article.summary) {
-      return;
-    }
-
+  const runSummarize = async (successMessage: string) => {
     if (!articleText) {
       enqueueSnackbar("No article content to summarize", { variant: "error" });
       return;
     }
 
-    // Get summarization config from cookies
     const provider = getSummaryProviderFromCookie() as SummaryProvider;
     const model = getSummaryModelFromCookie();
     const apiKey = getApiKeyForProvider(provider);
@@ -238,34 +228,18 @@ export default function ArticleScreen(_props: Props) {
     setSummaryProgress({ status: "summarizing" });
 
     try {
-      // Get settings from preferences
-      const cookieSettings = getSummarySettingsFromCookie();
-      const settings = {
-        ...DEFAULT_SUMMARY_SETTINGS,
-        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-        customPrompt: cookieSettings.customPrompt,
-      };
-
+      // Patch only the summary field — summarization can take long enough for
+      // sync to have updated the article, so we must not overwrite other fields.
       const summary = await summarizeText(
         articleText,
-        settings,
+        buildSummarySettings(),
         provider,
         apiKey,
         model,
-        (progress) => {
-          setSummaryProgress(progress);
-        },
+        (progress) => setSummaryProgress(progress),
       );
-
-      // Save summary to article metadata; liveQuery refreshes the UI.
-      // Patch only the summary field — summarization can take long enough
-      // for sync to have updated the article in the meantime.
       await patchArticleMetadata(storage.client!, article.slug, { summary });
-
-      enqueueSnackbar("Summary generated");
+      enqueueSnackbar(successMessage);
     } catch (error) {
       console.error("Summarization failed:", error);
       enqueueSnackbar("Failed to generate summary", { variant: "error" });
@@ -273,6 +247,13 @@ export default function ArticleScreen(_props: Props) {
       setIsSummarizing(false);
       setSummaryProgress(null);
     }
+  };
+
+  const handleSummarize = async () => {
+    closeMenu();
+    setSummaryDrawerOpen(true);
+    if (article.summary) return;
+    await runSummarize("Summary generated");
   };
 
   const handleArchive = async () => {
@@ -1199,59 +1180,7 @@ export default function ArticleScreen(_props: Props) {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={async () => {
-                      // The old summary stays in the db until the new one is
-                      // saved; the drawer hides it while isSummarizing is set.
-                      if (!articleText) {
-                        enqueueSnackbar("No article content to summarize", { variant: "error" });
-                        return;
-                      }
-
-                      const provider = getSummaryProviderFromCookie() as SummaryProvider;
-                      const model = getSummaryModelFromCookie();
-                      const apiKey = getApiKeyForProvider(provider);
-
-                      if (!apiKey) {
-                        enqueueSnackbar("Please set up your API key in Preferences", {
-                          variant: "warning",
-                        });
-                        return;
-                      }
-
-                      setIsSummarizing(true);
-                      setSummaryProgress({ status: "summarizing" });
-
-                      try {
-                        const cookieSettings = getSummarySettingsFromCookie();
-                        const settings = {
-                          ...DEFAULT_SUMMARY_SETTINGS,
-                          detailLevel:
-                            cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-                          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-                          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-                          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-                          customPrompt: cookieSettings.customPrompt,
-                        };
-
-                        const summary = await summarizeText(
-                          articleText,
-                          settings,
-                          provider,
-                          apiKey,
-                          model,
-                          (progress) => setSummaryProgress(progress),
-                        );
-
-                        await patchArticleMetadata(storage.client!, article.slug, { summary });
-                        enqueueSnackbar("Summary regenerated");
-                      } catch (error) {
-                        console.error("Summarization failed:", error);
-                        enqueueSnackbar("Failed to generate summary", { variant: "error" });
-                      } finally {
-                        setIsSummarizing(false);
-                        setSummaryProgress(null);
-                      }
-                    }}
+                    onClick={() => runSummarize("Summary regenerated")}
                   >
                     Regenerate
                   </Button>
@@ -1261,57 +1190,7 @@ export default function ArticleScreen(_props: Props) {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={async () => {
-                    if (!articleText) {
-                      enqueueSnackbar("No article content to summarize", { variant: "error" });
-                      return;
-                    }
-
-                    const provider = getSummaryProviderFromCookie() as SummaryProvider;
-                    const model = getSummaryModelFromCookie();
-                    const apiKey = getApiKeyForProvider(provider);
-
-                    if (!apiKey) {
-                      enqueueSnackbar("Please set up your API key in Preferences", {
-                        variant: "warning",
-                      });
-                      return;
-                    }
-
-                    setIsSummarizing(true);
-                    setSummaryProgress({ status: "summarizing" });
-
-                    try {
-                      const cookieSettings = getSummarySettingsFromCookie();
-                      const settings = {
-                        ...DEFAULT_SUMMARY_SETTINGS,
-                        detailLevel:
-                          cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-                        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-                        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-                        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-                        customPrompt: cookieSettings.customPrompt,
-                      };
-
-                      const summary = await summarizeText(
-                        articleText,
-                        settings,
-                        provider,
-                        apiKey,
-                        model,
-                        (progress) => setSummaryProgress(progress),
-                      );
-
-                      await patchArticleMetadata(storage.client!, article.slug, { summary });
-                      enqueueSnackbar("Summary generated");
-                    } catch (error) {
-                      console.error("Summarization failed:", error);
-                      enqueueSnackbar("Failed to generate summary", { variant: "error" });
-                    } finally {
-                      setIsSummarizing(false);
-                      setSummaryProgress(null);
-                    }
-                  }}
+                  onClick={() => runSummarize("Summary generated")}
                 >
                   Generate Summary
                 </Button>

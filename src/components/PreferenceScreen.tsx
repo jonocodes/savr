@@ -47,7 +47,7 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
 } from "@mui/icons-material";
-import { setCorsProxyValue } from "~/utils/tools";
+import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
 import { getCorsProxyFromCookie } from "~/utils/cookies";
 import {
@@ -82,13 +82,13 @@ import {
   testApiConnection,
   type SummaryProvider,
   type DetailLevel,
-} from "~/utils/summarization";
-import { isPWAMode } from "~/utils/network";
+} from "~/utils/ai/summarization";
+import { isPWAMode } from "~/utils/net/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { calculateStorageUsage, clearLocalRemoteStorageCache, formatBytes, updateSyncInterval } from "~/utils/storage";
+import { calculateStorageUsage, clearLocalRemoteStorageCache, formatBytes, updateSyncInterval } from "~/utils/sync/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import {
@@ -107,7 +107,7 @@ import {
   disablePublicExport,
   publishNow,
   type PublicExportState,
-} from "~/utils/publicExport";
+} from "~/utils/article/publicExport";
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());

@@ -1,11 +1,11 @@
-import { Article } from "../../lib/src/models";
+import { Article } from "../../../lib/src/models";
 import { getDefaultCorsProxy } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
-import { db } from "./db";
-import { deleteArticleStorage, init } from "./storage";
-import { getCorsProxyFromCookie, setCorsProxyInCookie } from "./cookies";
-import { getFilePathMetadata, getFilePathThumbnail } from "../../lib/src/lib";
-import { resizeImage } from "../../lib/src/ingestion";
+import { db } from "../db";
+import { deleteArticleStorage, init } from "../sync/storage";
+import { getCorsProxyFromCookie, setCorsProxyInCookie } from "../cookies";
+import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib";
+import { resizeImage } from "../../../lib/src/ingestion";
 import { markDirty } from "./publicExport";
 
 // Cookie-based CORS proxy functions

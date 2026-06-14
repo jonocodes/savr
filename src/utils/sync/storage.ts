@@ -1,12 +1,12 @@
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
-import { db } from "./db";
-import { Article } from "../../lib/src/models";
+import { db } from "../db";
+import { Article } from "../../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
 import { parseListing, reconcile, opFromChange, type Op } from "./reconciler";
-import { getSyncIntervalFromCookie } from "./cookies";
+import { getSyncIntervalFromCookie } from "../cookies";
 import { patchDisconnectKeepsLocalCache } from "./rsPatchDisconnect";
 
 // Sync progress tracking
@@ -518,7 +518,7 @@ async function calculateTotalStorage(): Promise<{
   let files = 0;
 
   try {
-    const { db } = await import("./db");
+    const { db } = await import("../db");
     const allArticles = await db.articles.toArray();
     articles = allArticles.length;
 

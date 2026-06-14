@@ -41,7 +41,7 @@ import {
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
-import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";

@@ -32,14 +32,13 @@ import {
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 import {
   summarizeText,
-  DEFAULT_SUMMARY_SETTINGS,
+  buildSummarySettings,
   type SummarizationProgress,
   type SummaryProvider,
-} from "~/utils/summarization";
+} from "~/utils/ai/summarization";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
@@ -374,19 +373,9 @@ export default function SubmitScreen() {
         return;
       }
 
-      const cookieSettings = getSummarySettingsFromCookie();
-      const settings = {
-        ...DEFAULT_SUMMARY_SETTINGS,
-        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-        customPrompt: cookieSettings.customPrompt,
-      };
-
       const summary = await summarizeText(
         plainText,
-        settings,
+        buildSummarySettings(),
         provider,
         apiKey,
         model,

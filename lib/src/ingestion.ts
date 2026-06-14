@@ -16,16 +16,15 @@ import {
   getFilePathImage,
   mimeToExt,
 } from "./lib";
-import { saveResource } from "~/utils/storage";
-import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/tools";
+import { saveResource } from "~/utils/sync/storage";
+import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/article/tools";
 import { md5 } from "js-md5";
-import { summarizeText, DEFAULT_SUMMARY_SETTINGS, type SummaryProvider } from "~/utils/summarization";
+import { summarizeText, buildSummarySettings, type SummaryProvider } from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 import { convertToHtml } from "./contentType";
 
@@ -597,17 +596,7 @@ export async function ingestHtml(
       const plainText = extractTextFromHtml(content);
       if (plainText.length > 100) {
         const model = getSummaryModelFromCookie();
-        const cookieSettings = getSummarySettingsFromCookie();
-        const settings = {
-          ...DEFAULT_SUMMARY_SETTINGS,
-          detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-          customPrompt: cookieSettings.customPrompt,
-        };
-
-        const summary = await summarizeText(plainText, settings, provider, apiKey, model);
+        const summary = await summarizeText(plainText, buildSummarySettings(), provider, apiKey, model);
         if (summary) {
           article.summary = summary;
           sendMessageWithLog(null, "summary generated");

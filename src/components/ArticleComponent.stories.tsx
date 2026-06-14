@@ -3,7 +3,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import ArticleComponent from "./ArticleComponent";
 import { useState, useEffect } from "react";
-import { withLightTheme, withDarkTheme } from "~/utils/theme";
+import { withLightTheme, withDarkTheme } from "~/utils/ui/theme";
 
 const simpleHtmlContent = `
 <div style="padding: 20px; font-family: Arial, sans-serif;">

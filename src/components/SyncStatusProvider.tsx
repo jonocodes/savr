@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/network";
+import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/net/network";
 import { SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies";
 
 export type SyncStatus = "active" | "paused" | "disabled";

@@ -123,11 +123,15 @@ Severity tiers: 🔴 fix first · 🟠 high · 🟡 medium · 🟢 cleanup
   contentTypeHeader) and the thumbnail-load log in `tools.ts`. The top-level
   `generateRandomString()` log was already removed in the correctness pass. A
   broader src-wide console sweep remains.
-- [ ] 🟢 Deduplicate the summarize flow (~40 lines triplicated in
-  `ArticleScreen.tsx:207,1182,1247`, plus near-copies in `SubmitScreen.tsx` and
-  `ingestion.ts`).
-- [ ] 🟢 Group `src/utils/` into subdirectories (sync/, article/, ai/, ui/,
-  net/).
+- [x] 🟢 Deduplicate the summarize flow. Added `buildSummarySettings()` to
+  `src/utils/ai/summarization.ts`; extracted `runSummarize(successMessage)` in
+  `ArticleScreen.tsx` replacing three near-identical blocks; `SubmitScreen.tsx`
+  and `ingestion.ts` now call `buildSummarySettings()` instead of repeating the
+  7-line settings-object construction.
+- [x] 🟢 Group `src/utils/` into subdirectories: `sync/` (storage, reconciler,
+  rsPatchDisconnect), `article/` (tools, publicExport), `ai/` (summarization),
+  `ui/` (theme, seo, widgetVisibility), `net/` (network). `cookies.ts` and
+  `db.ts` stay at root (cross-cutting). All ~20 import sites updated.
 - [x] 🟢 Removed dead exports `deleteAllRemoteStorage`,
   `resetSyncStateAndReplaceWithServer` from `storage.ts`; dropped the ignored
   `storeClient` parameter from `removeArticle` (`tools.ts`) and updated callers.

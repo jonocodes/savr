@@ -24,9 +24,9 @@ import { db } from "~/utils/db";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
-import { subscribeDiagnostic } from "~/utils/storage";
+import { subscribeDiagnostic } from "~/utils/sync/storage";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
-import { isPWAMode } from "~/utils/network";
+import { isPWAMode } from "~/utils/net/network";
 import React from "react";
 
 interface RemoteStorageEvent {
@@ -450,7 +450,7 @@ export default function DiagnosticsScreen() {
                         variant="contained"
                         color="primary"
                         onClick={async () => {
-                          const { syncMissingArticles } = await import("~/utils/storage");
+                          const { syncMissingArticles } = await import("~/utils/sync/storage");
                           const result = await syncMissingArticles();
                           alert(result);
                         }}

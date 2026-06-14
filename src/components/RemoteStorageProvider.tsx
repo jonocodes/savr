@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import RemoteStorage from "remotestoragejs";
-import { init, syncMissingArticles } from "~/utils/storage";
+import { init, syncMissingArticles } from "~/utils/sync/storage";
 import { db } from "~/utils/db";
 import { isDebugMode } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
