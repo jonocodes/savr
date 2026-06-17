@@ -139,7 +139,17 @@ export function generateInfoForArticle(article: Article): string {
     const domain = extractDomain(article.url);
 
     if (domain != null) {
-      result = `<a href=${article.url}>${domain}</a>`;
+      // Restrict to http/https to guard against javascript: URLs.
+      let safeUrl = "";
+      try {
+        const parsed = new URL(article.url);
+        if (parsed.protocol === "https:" || parsed.protocol === "http:") {
+          safeUrl = article.url;
+        }
+      } catch { /* invalid URL — omit link */ }
+      result = safeUrl
+        ? `<a href="${safeUrl}">${domain}</a>`
+        : domain;
     }
   }
 

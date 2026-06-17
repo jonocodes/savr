@@ -16,16 +16,15 @@ import {
   getFilePathImage,
   mimeToExt,
 } from "./lib";
-import { saveResource } from "~/utils/storage";
-import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/tools";
+import { saveResource } from "~/utils/sync/storage";
+import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/article/tools";
 import { md5 } from "js-md5";
-import { summarizeText, DEFAULT_SUMMARY_SETTINGS, type SummaryProvider } from "~/utils/summarization";
+import { summarizeText, buildSummarySettings, type SummaryProvider } from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 import { convertToHtml } from "./contentType";
 
@@ -64,16 +63,37 @@ export function getLargestImageFromSrcset(srcset: string): string | null {
 
     // Extract numeric value from descriptor (e.g., "2x" -> 2, "100w" -> 100)
     const numericValue = parseFloat(descriptor);
+    const unit = descriptor.endsWith("w") ? "w" : "x";
 
-    return { url, descriptor, numericValue };
+    return { url, descriptor, numericValue, unit };
   });
 
-  // Find the candidate with the largest numeric value
-  const largest = candidates.reduce((max, current) => {
+  // Width (w) and density (x) descriptors aren't comparable. If any width
+  // descriptors are present, choose among those; otherwise compare densities.
+  const widthCandidates = candidates.filter((c) => c.unit === "w");
+  const pool = widthCandidates.length > 0 ? widthCandidates : candidates;
+
+  const largest = pool.reduce((max, current) => {
     return current.numericValue > max.numericValue ? current : max;
-  }, candidates[0]);
+  }, pool[0]);
 
   return largest?.url || null;
+}
+
+// Extract a usable file extension from an image URL, ignoring query strings
+// and hashes. Falls back to jpg for extensionless URLs.
+function getImageExtensionFromUrl(imgUrl: string): string {
+  try {
+    const pathname = new URL(imgUrl).pathname;
+    const filename = pathname.split("/").pop() ?? "";
+    const dotIndex = filename.lastIndexOf(".");
+    if (dotIndex > 0 && dotIndex < filename.length - 1) {
+      return filename.slice(dotIndex + 1).toLowerCase();
+    }
+  } catch {
+    // unparseable URL — use fallback
+  }
+  return "jpg";
 }
 
 async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
@@ -95,7 +115,6 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
       const largestFromSrcset = getLargestImageFromSrcset(srcset);
       if (largestFromSrcset) {
         imgUrl = largestFromSrcset;
-        console.log("Using largest image from srcset:", imgUrl);
         // Remove srcset attribute since we're replacing it with a single src
         img.removeAttribute('srcset');
         // Also remove sizes attribute if present, as it's only used with srcset
@@ -108,13 +127,11 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
       imgUrl = new URL(imgUrl, baseDirectory).href;
     }
 
-    const ext = imgUrl.split(".").pop();
+    const ext = getImageExtensionFromUrl(imgUrl);
 
     const hash = md5(imgUrl);
 
     const localPath = `${hash}.${ext}`;
-
-    console.log("localPath", localPath);
 
     imgData.push([imgUrl, localPath, img, img.width, img.height]);
   });
@@ -143,10 +160,10 @@ async function downloadAndResizeImages(
   for (const [url, localPath] of imageData) {
     sendMessage(percent, `downloading image ${successfulDownloads + 1} of ${imageData.length}`);
 
-    const ext = url.split(".").pop();
+    const ext = getImageExtensionFromUrl(url);
 
     // TODO: add support for .avif as on dgt.is
-    const mimeType = mime.getType(ext ?? "image/jpeg") ?? "image/jpeg";
+    const mimeType = mime.getType(ext) ?? "image/jpeg";
 
     try {
       const { blob, width, height } = await fetchAndResizeImage(url, maxDimensionImage);
@@ -158,9 +175,6 @@ async function downloadAndResizeImages(
       sendMessage(percent, `resizing image ${successfulDownloads + 1} of ${imageData.length}`);
 
       const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
-
-      console.log("outputFilePath", outputFilePath);
-      console.log("dataurl", dataUrl);
 
       savedBytes += dataUrl.length;
       savedFileCount += 1;
@@ -177,40 +191,18 @@ async function downloadAndResizeImages(
 
       percent = percent + step;
 
-      // thumbnail
-
-      console.log("THUMB check thumb for localPath", localPath);
-
+      // thumbnail: ignore small images; otherwise prefer the one with the
+      // most pixels (likely the highest quality).
       const area = width * height;
-
-      console.log("THUMB area", area, "current maxArea", maxArea, "width", width, "height", height);
-
-      // Ignore small images
-      if (area < 5000) {
-        console.log("THUMB too small, skipping");
-      }
-
-      // Prefer images with more pixels (likely higher quality)
-      else if (area > maxArea) {
-        console.log("  maxArea", area, "previous maxArea", maxArea, "selecting", localPath);
+      if (area >= 5000 && area > maxArea) {
         maxArea = area;
         thumbnailPath = localPath;
         thumbnailBlob = blob;
-      } else {
-        console.log("THUMB not larger, keeping current thumbnail");
       }
     } catch (e) {
       console.error("THUMB error downloading and saving image", e);
     }
   }
-
-  // make the thumbnail
-
-  console.log("Final thumbnail selection:", {
-    thumbnailPath,
-    maxArea,
-    totalImages: imageData.length,
-  });
 
   if (thumbnailBlob !== null) {
     const [url, localPath, img] = imageData.find(
@@ -243,8 +235,6 @@ async function downloadAndResizeImages(
 
     savedBytes += dataUrl.length;
     savedFileCount += 1;
-
-    console.log("outputFilePath", outputFilePath);
   }
 
   return { successfulDownloads, savedBytes, savedFileCount };
@@ -267,8 +257,6 @@ async function processHtmlAndImages(
 
   const imageData = await extractImageUrls(document, article.url);
 
-  console.log("imageData", imageData);
-
   sendMessage(25, "downloading images");
 
   const { successfulDownloads, savedBytes, savedFileCount } = await downloadAndResizeImages(imageData, article, sendMessage);
@@ -286,11 +274,11 @@ async function processHtmlAndImages(
   };
 }
 
+const MAX_SLUG_LENGTH = 80;
+
 function stringToSlug(str: string): string {
   str = str.replace(/^\s+|\s+$/g, ""); // trim
   str = str.toLowerCase();
-
-  // TODO: truncate at max length
 
   // remove accents, swap ñ for n, etc
   var from = "àáäâèéëêìíïîòóöôùúüûñç·/_,:;";
@@ -304,7 +292,42 @@ function stringToSlug(str: string): string {
     .replace(/\s+/g, "-") // collapse whitespace and replace by -
     .replace(/-+/g, "-"); // collapse dashes
 
-  return str;
+  return str.slice(0, MAX_SLUG_LENGTH).replace(/^-+|-+$/g, "");
+}
+
+// Slugs are derived from the title, which has two failure modes: titles with
+// no Latin characters slugify to "" (article would be written to "saves//"
+// and dropped by the reconciler), and two different articles with the same
+// title would silently overwrite each other. Empty slugs fall back to the
+// plain base "article"; a hash suffix is only appended when the slug is
+// already taken by a different article. Re-ingesting the same URL keeps the
+// same slug (idempotent).
+export async function finalizeSlug(
+  storageClient: BaseClient | null,
+  article: Article
+): Promise<void> {
+  if (!article.slug) {
+    article.slug = "article";
+  }
+
+  if (!storageClient) return;
+
+  try {
+    const existing = (await storageClient.getFile(
+      getFilePathMetadata(article.slug),
+      false
+    )) as { data?: unknown } | null;
+    if (existing?.data) {
+      const meta =
+        typeof existing.data === "string" ? JSON.parse(existing.data) : existing.data;
+      const existingUrl = (meta as Article | null)?.url;
+      // Same URL means we're re-ingesting the same article — keep the slug.
+      if (article.url && existingUrl === article.url) return;
+      article.slug = `${article.slug}-${md5(article.url ?? article.title ?? article.ingestDate).slice(0, 6)}`;
+    }
+  } catch {
+    // No readable metadata at this slug — it's free to use.
+  }
 }
 
 // Helper function to resize image to max dimension
@@ -314,7 +337,9 @@ export async function resizeImage(
 ): Promise<{ blob: Blob; width: number; height: number }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    const objectUrl = URL.createObjectURL(blob);
     img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
@@ -357,15 +382,20 @@ export async function resizeImage(
       ); // Use original type or default to JPEG with 0.8 quality
     };
 
-    img.onerror = () => reject(new Error("Failed to load image for resizing"));
-    img.src = URL.createObjectURL(blob);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load image for resizing"));
+    };
+    img.src = objectUrl;
   });
 }
 
 export async function convertToWebP(blob: Blob): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+    const objectUrl = URL.createObjectURL(blob);
     img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d");
 
@@ -381,7 +411,6 @@ export async function convertToWebP(blob: Blob): Promise<Blob> {
       canvas.toBlob(
         (webpBlob) => {
           if (webpBlob) {
-            console.log("webpBlob", webpBlob);
             resolve(webpBlob);
           } else {
             reject(new Error("Failed to convert to WebP"));
@@ -391,8 +420,11 @@ export async function convertToWebP(blob: Blob): Promise<Blob> {
         0.8
       );
     };
-    img.onerror = () => reject(new Error("Failed to load image for WebP conversion"));
-    img.src = URL.createObjectURL(blob);
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error("Failed to load image for WebP conversion"));
+    };
+    img.src = objectUrl;
   });
 }
 
@@ -456,8 +488,6 @@ export function readabilityToArticle(
   let reader = new Readability(document);
   let readabilityResult = reader.parse();
 
-  console.log("readabilityResult", readabilityResult);
-
   if (readabilityResult === null) {
     throw new Error("Readability did not parse");
   }
@@ -465,9 +495,6 @@ export function readabilityToArticle(
   if (readabilityResult.title == "") {
     readabilityResult.title = `${mimeToExt[contentType]} ${Date.now() + 0}`;
   }
-
-  console.log(`title: ${readabilityResult.title}`);
-  console.log(`length: ${readabilityResult.length}`);
 
   // TODO: handle case where title is not found?
 
@@ -531,14 +558,14 @@ export async function ingestHtml(
 
   let [article, content] = readabilityToArticle(html, contentType, url);
 
+  await finalizeSlug(storageClient, article);
+
   sendMessageWithLog(null, `readability finished for ${article.slug}`);
 
   // TODO: sanitize out the js before saving raw
-  storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
+  await storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
 
   sendMessageWithLog(20, "collecting images");
-
-  console.log("content", content);
 
   const { html: processedHtml, successfulDownloads, totalImages, savedImageBytes, savedImageFileCount } = await processHtmlAndImages(
     article,
@@ -556,7 +583,7 @@ export async function ingestHtml(
     content: processedHtml,
   });
 
-  storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
+  await storageClient?.storeFile("text/html", getFilePathContent(article.slug), rendered);
 
   // Generate AI summary (if enabled in preferences and API key is configured)
   const summarizationEnabled = getSummarizationEnabledFromCookie();
@@ -569,17 +596,7 @@ export async function ingestHtml(
       const plainText = extractTextFromHtml(content);
       if (plainText.length > 100) {
         const model = getSummaryModelFromCookie();
-        const cookieSettings = getSummarySettingsFromCookie();
-        const settings = {
-          ...DEFAULT_SUMMARY_SETTINGS,
-          detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-          customPrompt: cookieSettings.customPrompt,
-        };
-
-        const summary = await summarizeText(plainText, settings, provider, apiKey, model);
+        const summary = await summarizeText(plainText, buildSummarySettings(), provider, apiKey, model);
         if (summary) {
           article.summary = summary;
           sendMessageWithLog(null, "summary generated");
@@ -614,17 +631,6 @@ export async function ingestHtml(
 
   return { article, successfulDownloads, totalImages };
 }
-
-function generateRandomString() {
-  const characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  let randomString = "";
-  for (let i = 0; i < 16; i++) {
-    randomString += characters.charAt(Math.floor(Math.random() * characters.length));
-  }
-  return randomString;
-}
-
-console.log(generateRandomString());
 
 /**
  * Extract a title from a PDF URL, using the filename without extension
@@ -683,6 +689,8 @@ export async function ingestPdf(
     readTimeMinutes: null,
     progress: 0,
   };
+
+  await finalizeSlug(storageClient, article);
 
   sendMessageWithLog(40, "saving PDF");
 
@@ -778,6 +786,8 @@ export async function ingestImage(
     progress: 0,
   };
 
+  await finalizeSlug(storageClient, article);
+
   sendMessageWithLog(40, "saving image");
 
   // Convert blob to ArrayBuffer for storage
@@ -869,8 +879,6 @@ export async function ingestUrl(
   var successfulDownloads = 0;
   var totalImages = 0;
 
-  console.log(`contentTypeHeader = ${contentTypeHeader}`);
-
   try {
     const extension = mime.getExtension(contentTypeHeader);
     const mimeType = mime.getType(extension ?? "");
@@ -919,7 +927,9 @@ export async function ingestUrl(
     article.mimeType = mimeType;
   } catch (error) {
     console.error(error);
-    throw new Error("error during ingestion");
+    // Preserve the original error so the UI can show an actionable message
+    // (unsupported content type vs. proxy down vs. parse failure, etc.)
+    throw error instanceof Error ? error : new Error(String(error));
   }
 
   // Save article metadata with updated ingestSource="url" (overwrites the one saved by ingestHtml)

@@ -13,7 +13,7 @@ export const createAppTheme = (mode: ThemeMode): Theme => {
     palette: {
       mode: effectiveMode,
       primary: {
-        main: "#6a1b9a", // Darker purple instead of blue
+        main: effectiveMode === "dark" ? "#ce93d8" : "#7b1fa2",
       },
       secondary: {
         main: "#dc004e",

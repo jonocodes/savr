@@ -24,17 +24,20 @@ test.describe("Smoke Test", () => {
     const response = await page.goto("/", { waitUntil: "commit" });
     expect(response?.status()).toBe(200);
 
-    // Check for essential HTML elements in the page content
     const content = await page.content();
-
-    // Check for HTML structure
     expect(content).toContain('<!DOCTYPE html>');
     expect(content).toContain('<html');
     expect(content).toContain('<head>');
     expect(content).toContain('<body>');
-
-    // Check for app-specific elements
     expect(content).toContain('<div id="root">');
     expect(content).toContain('/src/main.tsx');
+  });
+
+  test("should render the React app with an add-article button", async ({ page }) => {
+    await page.goto("/", { waitUntil: "networkidle" });
+    // The FAB is the primary interactive element rendered by React — if this is
+    // missing the app white-screened or failed to hydrate.
+    const fab = page.locator('.MuiFab-root, button[aria-label*="add" i]');
+    await expect(fab.first()).toBeVisible({ timeout: 10000 });
   });
 });

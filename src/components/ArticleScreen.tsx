@@ -47,7 +47,7 @@ import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article } from "../../lib/src/models";
-import { removeArticle, updateArticleMetadata } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata } from "~/utils/article/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import { CookieThemeToggle } from "./CookieThemeToggle";
@@ -56,20 +56,19 @@ import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
-import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
+import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
   summarizeText,
-  DEFAULT_SUMMARY_SETTINGS,
+  buildSummarySettings,
   type SummarizationProgress,
   type SummaryProvider,
-} from "~/utils/summarization";
+} from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 
 interface Props {
@@ -174,15 +173,21 @@ export default function ArticleScreen(_props: Props) {
     closeMenu();
   };
 
-  const handleToggleFavorite = () => {
+  const handleToggleFavorite = async () => {
+    closeMenu();
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await patchArticleMetadata(storage.client, article.slug, {
+        favorite: !article.favorite,
+      });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);
       enqueueSnackbar("Failed to update favorite", { variant: "error" });
     }
-    closeMenu();
   };
 
   const handleShare = () => {
@@ -195,7 +200,7 @@ export default function ArticleScreen(_props: Props) {
 
   const handleDelete = async () => {
     try {
-      await removeArticle(storage.client!, article.slug);
+      await removeArticle(article.slug);
       navigate({ to: "/" });
       enqueueSnackbar("Article deleted");
     } catch (e) {
@@ -204,21 +209,12 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleSummarize = async () => {
-    closeMenu();
-    setSummaryDrawerOpen(true);
-
-    // If we already have a summary, just show it
-    if (article.summary) {
-      return;
-    }
-
+  const runSummarize = async (successMessage: string) => {
     if (!articleText) {
       enqueueSnackbar("No article content to summarize", { variant: "error" });
       return;
     }
 
-    // Get summarization config from cookies
     const provider = getSummaryProviderFromCookie() as SummaryProvider;
     const model = getSummaryModelFromCookie();
     const apiKey = getApiKeyForProvider(provider);
@@ -232,34 +228,18 @@ export default function ArticleScreen(_props: Props) {
     setSummaryProgress({ status: "summarizing" });
 
     try {
-      // Get settings from preferences
-      const cookieSettings = getSummarySettingsFromCookie();
-      const settings = {
-        ...DEFAULT_SUMMARY_SETTINGS,
-        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-        customPrompt: cookieSettings.customPrompt,
-      };
-
+      // Patch only the summary field — summarization can take long enough for
+      // sync to have updated the article, so we must not overwrite other fields.
       const summary = await summarizeText(
         articleText,
-        settings,
+        buildSummarySettings(),
         provider,
         apiKey,
         model,
-        (progress) => {
-          setSummaryProgress(progress);
-        },
+        (progress) => setSummaryProgress(progress),
       );
-
-      // Save summary to article metadata; liveQuery refreshes the UI.
-      // Spread from the ref, not the render closure — summarization can take
-      // long enough for sync to have updated the article in the meantime.
-      await updateArticleMetadata(storage.client!, { ...(articleRef.current ?? article), summary });
-
-      enqueueSnackbar("Summary generated");
+      await patchArticleMetadata(storage.client!, article.slug, { summary });
+      enqueueSnackbar(successMessage);
     } catch (error) {
       console.error("Summarization failed:", error);
       enqueueSnackbar("Failed to generate summary", { variant: "error" });
@@ -269,10 +249,20 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleArchive = () => {
+  const handleSummarize = async () => {
+    closeMenu();
+    setSummaryDrawerOpen(true);
+    if (article.summary) return;
+    await runSummarize("Summary generated");
+  };
+
+  const handleArchive = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      // updateArticleState(storage.client!, article.slug, "archived");
-      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await patchArticleMetadata(storage.client, article.slug, { state: "archived" });
 
       enqueueSnackbar("Article archived");
       navigate({ to: "/" });
@@ -283,11 +273,13 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleUnarchive = () => {
-    if (!article) throw new Error("Article is undefined");
-
+  const handleUnarchive = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await patchArticleMetadata(storage.client, article.slug, { state: "unread" });
 
       enqueueSnackbar("Article unarchived");
       navigate({ to: "/" });
@@ -392,17 +384,18 @@ export default function ArticleScreen(_props: Props) {
   };
 
   const handleSaveEdit = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      const updatedArticle = await updateArticleMetadata(storage.client!, {
-        ...article,
+      await patchArticleMetadata(storage.client, slug, {
         title: editTitle,
         author: editAuthor,
       });
 
-      console.log("updatedArticle", updatedArticle);
-
       // Load the current HTML from storage (local-only for fast read)
-      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as {
+      const file = (await storage.client.getFile(getFilePathContent(slug), false)) as {
         data: string;
       };
       if (!file) {
@@ -431,8 +424,15 @@ export default function ArticleScreen(_props: Props) {
         pageTitleEl.textContent = `Savr - ${editTitle}`;
       }
 
-      // Save the updated HTML back to storage
-      const updatedHtml = doc.documentElement.outerHTML;
+      // Save the updated HTML back to storage, preserving the original shape:
+      // stored content is an ArticleTemplate fragment, so don't wrap it in the
+      // full <html> document that DOMParser created (which also drops doctypes).
+      const isFragment = !/<html[\s>]/i.test(file.data);
+      const updatedHtml = isFragment
+        ? // head holds elements like <title> that DOMParser hoisted out of the fragment
+          doc.head.innerHTML + doc.body.innerHTML
+        : (file.data.trimStart().toLowerCase().startsWith("<!doctype") ? "<!DOCTYPE html>" : "") +
+          doc.documentElement.outerHTML;
       await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
 
       // Update displayed content immediately
@@ -471,24 +471,19 @@ export default function ArticleScreen(_props: Props) {
       // Only apply header hiding logic if the preference is enabled
       if (!headerHidingEnabled) {
         setShowHeader(true);
-        return;
+      } else {
+        const currentScrollY = window.scrollY;
+        if (currentScrollY >= 0) {
+          if (currentScrollY < 50) {
+            setShowHeader(true);
+          } else if (currentScrollY > lastScrollY.current) {
+            setShowHeader(false);
+          } else if (currentScrollY < lastScrollY.current) {
+            setShowHeader(true);
+          }
+          lastScrollY.current = currentScrollY;
+        }
       }
-
-      const currentScrollY = window.scrollY;
-      if (currentScrollY < 0) return;
-      if (currentScrollY < 50) {
-        setShowHeader(true);
-        lastScrollY.current = currentScrollY;
-        return;
-      }
-      if (currentScrollY > lastScrollY.current) {
-        // Scrolling down
-        setShowHeader(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling up
-        setShowHeader(true);
-      }
-      lastScrollY.current = currentScrollY;
 
       // Clear existing timeout
       if (scrollTimeoutRef.current) {
@@ -505,14 +500,23 @@ export default function ArticleScreen(_props: Props) {
         if (scrollPercentage !== lastSavedPercentage.current) {
           lastSavedPercentage.current = scrollPercentage;
 
-          // Read the latest article from the ref (not the render closure) so a
-          // save fired after a sync update can't write back stale metadata.
-          const current = articleRef.current;
-          if (storage.client && current) {
-            await updateArticleMetadata(storage.client, {
-              ...current,
-              progress: scrollPercentage,
-            });
+          // Always persist progress locally; also sync remotely when available.
+          if (articleRef.current) {
+            console.log("[scroll-save] writing progress", scrollPercentage, "for", articleRef.current.slug, "client=", !!storage.client);
+            if (storage.client) {
+              await patchArticleMetadata(
+                storage.client,
+                articleRef.current.slug,
+                { progress: scrollPercentage },
+                { skipPublicExport: true }
+              );
+            } else {
+              await db.transaction("rw", db.articles, async () => {
+                const current = await db.articles.get(articleRef.current!.slug);
+                if (current) await db.articles.put({ ...current, progress: scrollPercentage });
+              });
+            }
+            console.log("[scroll-save] done");
           }
         }
       }, 1000);
@@ -614,17 +618,19 @@ export default function ArticleScreen(_props: Props) {
   // so later progress writes — which re-emit the article via liveQuery —
   // can never scroll the page out from under the reader.
   useEffect(() => {
+    console.log("[scroll-restore] effect fired — hasSetInitialScroll=", hasSetInitialScroll, "content=", !!content, "liveArticle=", !!liveArticle, "progress=", liveArticle?.progress);
     if (hasSetInitialScroll || !content || !liveArticle) return;
     setHasSetInitialScroll(true);
 
     const progress = liveArticle.progress ?? 0;
+    console.log("[scroll-restore] restoring to progress=", progress);
     if (progress > 0) {
       // Wait a bit for the DOM to fully render
       setTimeout(() => {
         const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const scrollPosition = (progress / 100) * documentHeight;
+        console.log("[scroll-restore] documentHeight=", documentHeight, "scrollPosition=", scrollPosition);
         if (documentHeight > 0) {
-          const scrollPosition = (progress / 100) * documentHeight;
-          console.log("setting scroll position to", scrollPosition);
           window.scrollTo(0, scrollPosition);
         }
       }, 100);
@@ -1167,8 +1173,7 @@ export default function ArticleScreen(_props: Props) {
                     color="error"
                     size="small"
                     onClick={async () => {
-                      await updateArticleMetadata(storage.client!, {
-                        ...article,
+                      await patchArticleMetadata(storage.client!, article.slug, {
                         summary: undefined,
                       });
                       enqueueSnackbar("Summary cleared");
@@ -1179,62 +1184,7 @@ export default function ArticleScreen(_props: Props) {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={async () => {
-                      // The old summary stays in the db until the new one is
-                      // saved; the drawer hides it while isSummarizing is set.
-                      if (!articleText) {
-                        enqueueSnackbar("No article content to summarize", { variant: "error" });
-                        return;
-                      }
-
-                      const provider = getSummaryProviderFromCookie() as SummaryProvider;
-                      const model = getSummaryModelFromCookie();
-                      const apiKey = getApiKeyForProvider(provider);
-
-                      if (!apiKey) {
-                        enqueueSnackbar("Please set up your API key in Preferences", {
-                          variant: "warning",
-                        });
-                        return;
-                      }
-
-                      setIsSummarizing(true);
-                      setSummaryProgress({ status: "summarizing" });
-
-                      try {
-                        const cookieSettings = getSummarySettingsFromCookie();
-                        const settings = {
-                          ...DEFAULT_SUMMARY_SETTINGS,
-                          detailLevel:
-                            cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-                          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-                          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-                          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-                          customPrompt: cookieSettings.customPrompt,
-                        };
-
-                        const summary = await summarizeText(
-                          articleText,
-                          settings,
-                          provider,
-                          apiKey,
-                          model,
-                          (progress) => setSummaryProgress(progress),
-                        );
-
-                        await updateArticleMetadata(storage.client!, {
-                          ...(articleRef.current ?? article),
-                          summary,
-                        });
-                        enqueueSnackbar("Summary regenerated");
-                      } catch (error) {
-                        console.error("Summarization failed:", error);
-                        enqueueSnackbar("Failed to generate summary", { variant: "error" });
-                      } finally {
-                        setIsSummarizing(false);
-                        setSummaryProgress(null);
-                      }
-                    }}
+                    onClick={() => runSummarize("Summary regenerated")}
                   >
                     Regenerate
                   </Button>
@@ -1244,60 +1194,7 @@ export default function ArticleScreen(_props: Props) {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={async () => {
-                    if (!articleText) {
-                      enqueueSnackbar("No article content to summarize", { variant: "error" });
-                      return;
-                    }
-
-                    const provider = getSummaryProviderFromCookie() as SummaryProvider;
-                    const model = getSummaryModelFromCookie();
-                    const apiKey = getApiKeyForProvider(provider);
-
-                    if (!apiKey) {
-                      enqueueSnackbar("Please set up your API key in Preferences", {
-                        variant: "warning",
-                      });
-                      return;
-                    }
-
-                    setIsSummarizing(true);
-                    setSummaryProgress({ status: "summarizing" });
-
-                    try {
-                      const cookieSettings = getSummarySettingsFromCookie();
-                      const settings = {
-                        ...DEFAULT_SUMMARY_SETTINGS,
-                        detailLevel:
-                          cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-                        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-                        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-                        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-                        customPrompt: cookieSettings.customPrompt,
-                      };
-
-                      const summary = await summarizeText(
-                        articleText,
-                        settings,
-                        provider,
-                        apiKey,
-                        model,
-                        (progress) => setSummaryProgress(progress),
-                      );
-
-                      await updateArticleMetadata(storage.client!, {
-                        ...(articleRef.current ?? article),
-                        summary,
-                      });
-                      enqueueSnackbar("Summary generated");
-                    } catch (error) {
-                      console.error("Summarization failed:", error);
-                      enqueueSnackbar("Failed to generate summary", { variant: "error" });
-                    } finally {
-                      setIsSummarizing(false);
-                      setSummaryProgress(null);
-                    }
-                  }}
+                  onClick={() => runSummarize("Summary generated")}
                 >
                   Generate Summary
                 </Button>

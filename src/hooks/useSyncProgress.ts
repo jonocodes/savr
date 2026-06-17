@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { subscribeSyncProgress, SyncProgress } from "~/utils/storage";
+import { subscribeSyncProgress, SyncProgress } from "~/utils/sync/storage";
 
 /**
  * Hook to track sync progress from RemoteStorage

@@ -1,5 +1,10 @@
 # Sync Redesign Discussion Notes
 
+> **Status: historical session notes.** The work discussed here was completed
+> (all items were marked done in commit `d74274a`). Kept for design rationale;
+> not a source of truth for current behavior — see `SYNC_SCENARIOS.md` for
+> that.
+
 Conversation context: investigation into perceived sync problems in Savr — long syncs on every reload, articles flashing in and out of the list, a sync counter showing nonsense values (numerator exceeding denominator), and a loading bar that disappears before articles finish appearing. The user wanted a big-picture discussion about whether the sync logic should be rewritten, not an immediate fix.
 
 This doc captures the full analysis, design discussion, instrumentation added, and open questions so the work can be picked up in a future session.

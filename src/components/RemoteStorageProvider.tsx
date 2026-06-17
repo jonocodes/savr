@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useEffect, useMemo } from "react";
 import RemoteStorage from "remotestoragejs";
-import { init, syncMissingArticles } from "~/utils/storage";
+import { init, syncMissingArticles } from "~/utils/sync/storage";
 import { db } from "~/utils/db";
 import { isDebugMode } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { useLocation } from "@tanstack/react-router";
 import { SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies";
-// import { isPWAMode, isOnWiFi, onNetworkChange } from "~/utils/network"; // Disabled - WiFi-only sync feature not working correctly
 
 // Widget type from remotestorage-widget (no TypeScript types available)
 type RemoteStorageWidget = { attach: (id: string) => void };
@@ -111,6 +110,21 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
     return () => window.removeEventListener(SYNC_SETTING_EVENT, handleSyncSettingChanged);
   }, []);
 
+  // Actually stop/start background sync when the setting changes. Previously
+  // the toggle only hid the widget while sync kept running in the background.
+  useEffect(() => {
+    if (!remoteStorage) return;
+    try {
+      if (syncEnabled) {
+        remoteStorage.startSync();
+      } else {
+        remoteStorage.stopSync();
+      }
+    } catch (error) {
+      console.warn("Failed to update sync state:", error);
+    }
+  }, [remoteStorage, syncEnabled]);
+
   // Update widget visibility based on route and sync state
   // This effect re-runs when widget is created, route changes, or sync setting changes
   useEffect(() => {
@@ -121,55 +135,6 @@ export const RemoteStorageProvider: React.FC<{ children: React.ReactNode }> = ({
     const shouldShowWidget = syncEnabled && !isArticlePage;
     widgetElement.style.display = shouldShowWidget ? "block" : "none";
   }, [widget, syncEnabled, location.pathname]);
-
-  // DISABLED - WiFi-only sync feature not working correctly
-  // Control sync based on WiFi status (only in PWA mode)
-  // useEffect(() => {
-  //   if (!remoteStorage || !isPWAMode()) {
-  //     // If not in PWA mode or remoteStorage not initialized, don't control sync
-  //     return;
-  //   }
-
-  //   const checkAndControlSync = () => {
-  //     const wifiOnlyEnabled = getWiFiOnlySyncFromCookie();
-  //     const currentlyOnWiFi = isOnWiFi();
-
-  //     // If WiFi-only is enabled and we're not on WiFi, stop sync
-  //     if (wifiOnlyEnabled && !currentlyOnWiFi) {
-  //       console.log("📴 Sync paused: WiFi-only mode enabled and not on WiFi");
-  //       try {
-  //         remoteStorage.stopSync();
-  //       } catch (error) {
-  //         console.warn("Failed to stop sync:", error);
-  //       }
-  //     } else {
-  //       // Otherwise, ensure sync is running
-  //       console.log("🔄 Sync active");
-  //       try {
-  //         remoteStorage.startSync();
-  //       } catch (error) {
-  //         console.warn("Failed to start sync:", error);
-  //       }
-  //     }
-  //   };
-
-  //   // Check sync status on mount
-  //   checkAndControlSync();
-
-  //   // Monitor network changes
-  //   const cleanupNetworkListener = onNetworkChange(() => {
-  //     console.log("Network change detected, checking sync status...");
-  //     checkAndControlSync();
-  //   });
-
-  //   // Monitor WiFi-only preference changes
-  //   const intervalId = setInterval(checkAndControlSync, 2000);
-
-  //   return () => {
-  //     cleanupNetworkListener();
-  //     clearInterval(intervalId);
-  //   };
-  // }, [remoteStorage]);
 
   // Memoize so consumers (and their effect dependencies) only see a new context
   // value when the storage state actually changes — not on every provider

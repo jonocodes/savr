@@ -36,6 +36,15 @@ export function createArticleObject(data: Article): ArticleObj {
   };
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 interface ArticleTemplateProps {
   title: string;
   byline: string;
@@ -48,10 +57,10 @@ const ArticleTemplate = (props: ArticleTemplateProps) => {
   const html = `
     <div id="savr-root">
         <div id="savr-metadata">
-            <h1>${props.title}</h1>
-            <div id="savr-byline">${props.byline}</div>
+            <h1>${escapeHtml(props.title)}</h1>
+            <div id="savr-byline">${escapeHtml(props.byline)}</div>
             <div id="savr-published">${props.published}</div>
-            <div id="savr-readTime">${props.readTime}</div>
+            <div id="savr-readTime">${escapeHtml(props.readTime)}</div>
             <hr />
         </div>
         <div id="savr-content">${props.content}</div>

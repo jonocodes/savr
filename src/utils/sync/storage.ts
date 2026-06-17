@@ -1,12 +1,12 @@
 import RemoteStorage from "remotestoragejs";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { minimatch } from "minimatch";
-import { db } from "./db";
-import { Article } from "../../lib/src/models";
+import { db } from "../db";
+import { Article } from "../../../lib/src/models";
 // import extensionConnector from "./extensionConnector";
 import { environmentConfig } from "~/config/environment";
 import { parseListing, reconcile, opFromChange, type Op } from "./reconciler";
-import { getSyncIntervalFromCookie } from "./cookies";
+import { getSyncIntervalFromCookie } from "../cookies";
 import { patchDisconnectKeepsLocalCache } from "./rsPatchDisconnect";
 
 // Sync progress tracking
@@ -495,14 +495,17 @@ export async function updateSyncInterval(ms: number): Promise<void> {
 // Manually trigger a full reconcile (for diagnostics button)
 export async function syncMissingArticles(): Promise<string> {
   if (!triggerReconcile) return "Not connected to RemoteStorage";
-  const before = await db.articles.count();
+  // Diff slug sets rather than counts: +3/-3 would otherwise read as no change.
+  const beforeSlugs = new Set((await db.articles.toArray()).map((a) => a.slug));
   await triggerReconcile();
-  const after = await db.articles.count();
-  const delta = after - before;
-  if (delta === 0) return `No discrepancies found. ${after} articles in database.`;
-  const added = Math.max(0, delta);
-  const removed = Math.max(0, -delta);
-  return `Reconciled: +${added} added, -${removed} removed. Now: ${after} articles.`;
+  const afterArticles = await db.articles.toArray();
+  const afterSlugs = new Set(afterArticles.map((a) => a.slug));
+  const added = [...afterSlugs].filter((s) => !beforeSlugs.has(s)).length;
+  const removed = [...beforeSlugs].filter((s) => !afterSlugs.has(s)).length;
+  if (added === 0 && removed === 0) {
+    return `No discrepancies found. ${afterArticles.length} articles in database.`;
+  }
+  return `Reconciled: +${added} added, -${removed} removed. Now: ${afterArticles.length} articles.`;
 }
 
 async function calculateTotalStorage(): Promise<{
@@ -515,7 +518,7 @@ async function calculateTotalStorage(): Promise<{
   let files = 0;
 
   try {
-    const { db } = await import("./db");
+    const { db } = await import("../db");
     const allArticles = await db.articles.toArray();
     articles = allArticles.length;
 
@@ -722,17 +725,10 @@ async function recursiveDeleteDirectory(
       }
     }
 
-    // After deleting all contents, delete the directory itself
-    try {
-      await client.remove(normalizedPath).then(() => {
-        deletedDirectories.push(normalizedPath);
-        console.log(`🗂️ Deleted directory: ${normalizedPath}`);
-      });
-    } catch (error) {
-      const errorMsg = `Failed to delete directory ${normalizedPath}: ${error}`;
-      errors.push(errorMsg);
-      console.warn(errorMsg);
-    }
+    // RemoteStorage folders are implicit: they disappear once their last
+    // document is removed. Calling client.remove() on a folder path is invalid
+    // and was polluting `errors`, making successful deletes look failed.
+    deletedDirectories.push(normalizedPath);
   } catch (error) {
     const errorMsg = `Failed to access directory ${directoryPath}: ${error}`;
     errors.push(errorMsg);
@@ -778,97 +774,13 @@ async function clearLocalRemoteStorageCache(): Promise<void> {
   });
 }
 
-async function deleteAllRemoteStorage(): Promise<{
-  success: boolean;
-  deletedFiles: string[];
-  errors: string[];
-}> {
-  const deletedFiles: string[] = [];
-  const errors: string[] = [];
-
-  try {
-    // Delete from RemoteStorage
-    const store = await init();
-    if (store && store.client) {
-      try {
-        // Delete all articles from the saves/ directory
-        const result = await recursiveDeleteDirectory(store.client, "saves/");
-        deletedFiles.push(...result.deletedFiles);
-        // Don't push errors from recursive delete as they're often benign (non-existing paths)
-        console.log(`✅ Deleted ${result.deletedFiles.length} files from RemoteStorage`);
-      } catch (error) {
-        // Only log a warning - this is not critical
-        console.warn("Error deleting from RemoteStorage:", error);
-      }
-    } else {
-      errors.push("RemoteStorage not available");
-    }
-  } catch (error) {
-    errors.push(`General error: ${error}`);
-    console.error("Error deleting all remote storage:", error);
-  }
-
-  console.log("deleteAllRemoteStorage done");
-
-  return {
-    success: errors.length === 0,
-    deletedFiles,
-    errors,
-  };
-}
-
-/**
- * Reset sync state and replace local articles with server data.
- * Use this when you want to discard local articles and sync fresh from the server.
- *
- * This function:
- * 1. Clears all local articles from IndexedDB
- * 2. Resets the sync initialized flag
- * 3. Triggers a fresh sync from the server
- *
- * @returns A promise that resolves when the reset is complete
- */
-async function resetSyncStateAndReplaceWithServer(): Promise<{
-  success: boolean;
-  message: string;
-}> {
-  try {
-    console.info("🔄 Resetting sync state and replacing local data with server data...");
-
-    // Clear all local articles
-    const articleCount = await db.articles.count();
-    await db.articles.clear();
-    console.info(`   ✅ Cleared ${articleCount} local articles`);
-
-    // Trigger a fresh sync
-    const store = await init();
-    if (store && store.remoteStorage) {
-      await store.remoteStorage.startSync();
-      console.info("   ✅ Triggered fresh sync from server");
-    }
-
-    return {
-      success: true,
-      message: `Cleared ${articleCount} local articles and triggered fresh sync from server`,
-    };
-  } catch (error) {
-    console.error("Failed to reset sync state:", error);
-    return {
-      success: false,
-      message: `Failed to reset sync state: ${error}`,
-    };
-  }
-}
-
 export {
   init,
   glob,
   calculateTotalStorage as calculateStorageUsage,
   calculateArticleStorageSize,
   deleteArticleStorage,
-  deleteAllRemoteStorage,
   clearLocalRemoteStorageCache,
   recursiveDeleteDirectory,
   formatBytes,
-  resetSyncStateAndReplaceWithServer,
 };

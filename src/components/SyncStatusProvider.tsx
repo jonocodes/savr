@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/network";
-import { /* getWiFiOnlySyncFromCookie, */ SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies"; // Disabled WiFi-only sync
+import { isOnWiFi, onNetworkChange, isNetworkInfoSupported } from "~/utils/net/network";
+import { SYNC_ENABLED_COOKIE_NAME, SYNC_SETTING_EVENT } from "~/utils/cookies";
 
 export type SyncStatus = "active" | "paused" | "disabled";
 
@@ -25,8 +25,6 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
       .find((row) => row.startsWith(`${SYNC_ENABLED_COOKIE_NAME}=`));
     return syncCookie ? syncCookie.split("=")[1] === "true" : true;
   });
-  // DISABLED - WiFi-only sync feature not working correctly
-  // const [wiFiOnlySync, setWiFiOnlySync] = useState<boolean>(false);
   const isNetworkSupported = isNetworkInfoSupported();
 
   // React to sync-setting changes dispatched by PreferenceScreen
@@ -55,11 +53,6 @@ export function SyncStatusProvider({ children }: SyncStatusProviderProps) {
     if (!syncEnabled) {
       return "disabled";
     }
-
-    // DISABLED - If WiFi-only is enabled and we're not on WiFi, pause sync
-    // if (wiFiOnlySync && !isWiFi) {
-    //   return "paused";
-    // }
 
     return "active";
   }, [syncEnabled]);
