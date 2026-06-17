@@ -59,7 +59,7 @@ const ArticleTemplate = (props: ArticleTemplateProps) => {
         <div id="savr-metadata">
             <h1>${escapeHtml(props.title)}</h1>
             <div id="savr-byline">${escapeHtml(props.byline)}</div>
-            <div id="savr-published">${escapeHtml(props.published)}</div>
+            <div id="savr-published">${props.published}</div>
             <div id="savr-readTime">${escapeHtml(props.readTime)}</div>
             <hr />
         </div>

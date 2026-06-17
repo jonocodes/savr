@@ -88,7 +88,12 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
-import { calculateStorageUsage, clearLocalRemoteStorageCache, formatBytes, updateSyncInterval } from "~/utils/sync/storage";
+import {
+  calculateStorageUsage,
+  clearLocalRemoteStorageCache,
+  formatBytes,
+  updateSyncInterval,
+} from "~/utils/sync/storage";
 import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import {
@@ -118,16 +123,15 @@ export default function PreferencesScreen() {
   const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
-    AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST
+    AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST,
   );
   const [storageUsage, setStorageUsage] = useState<{
     size: number;
     articles: number;
     files: number;
   } | null>(null);
-  const [publicExportState, setPublicExportState] = useState<PublicExportState>(
-    getPublicExportState
-  );
+  const [publicExportState, setPublicExportState] =
+    useState<PublicExportState>(getPublicExportState);
   const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
   const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
   const [summaryModel, setSummaryModel] = useState<string>("llama-3.3-70b-versatile");
@@ -202,7 +206,7 @@ export default function PreferencesScreen() {
     console.log("Absolute path to index for saving:", saveRoute);
 
     setBookmarklet(
-      `data:text/html,<html><body><script>var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?saveUrl='+url,'_blank');</script></body></html>`
+      `data:text/html,<html><body><script>var url=encodeURIComponent(window.location.href);window.open('${saveRoute}?saveUrl='+url,'_blank');</script></body></html>`,
     );
   }, []);
 
@@ -419,7 +423,7 @@ export default function PreferencesScreen() {
 
   const handleSettingChange = <K extends keyof typeof summarySettings>(
     key: K,
-    value: (typeof summarySettings)[K]
+    value: (typeof summarySettings)[K],
   ) => {
     const newSettings = { ...summarySettings, [key]: value };
     setSummarySettings(newSettings);
@@ -584,7 +588,7 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    Enable synchronization (experimental)
+                    Enable synchronization
                     <Tooltip title="Allows you to sync your articles across devices using a cloud service">
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
@@ -610,8 +614,8 @@ export default function PreferencesScreen() {
                     padding: "8px",
                     borderRadius: "4px",
                     border: "1px solid rgba(128, 128, 128, 0.4)",
-                  backgroundColor: "inherit",
-                  color: "inherit",
+                    backgroundColor: "inherit",
+                    color: "inherit",
                     fontSize: "14px",
                     minWidth: "120px",
                   }}
@@ -624,7 +628,6 @@ export default function PreferencesScreen() {
                 </select>
               </ListItem>
             )}
-
           </List>
 
           {/* Reading Section */}
@@ -672,7 +675,11 @@ export default function PreferencesScreen() {
                     </Tooltip>
                   </Box>
                 }
-                secondary={summarizationEnabled ? "Summaries will be generated for new articles" : "Summaries are disabled"}
+                secondary={
+                  summarizationEnabled
+                    ? "Summaries will be generated for new articles"
+                    : "Summaries are disabled"
+                }
               />
               <Switch
                 edge="end"
@@ -759,7 +766,11 @@ export default function PreferencesScreen() {
                               edge="end"
                               size="small"
                             >
-                              {showApiKey ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                              {showApiKey ? (
+                                <VisibilityOff fontSize="small" />
+                              ) : (
+                                <Visibility fontSize="small" />
+                              )}
                             </IconButton>
                           </InputAdornment>
                         ),
@@ -791,10 +802,15 @@ export default function PreferencesScreen() {
                   <Box sx={{ ml: 7, mr: 2, width: "calc(100% - 56px)" }}>
                     <Slider
                       value={summarySettings.detailLevel}
-                      onChange={(_, value) => handleSettingChange("detailLevel", value as DetailLevel)}
+                      onChange={(_, value) =>
+                        handleSettingChange("detailLevel", value as DetailLevel)
+                      }
                       min={0}
                       max={4}
-                      marks={DETAIL_LEVELS.map((label, i) => ({ value: i, label: i === 0 || i === 4 ? label : "" }))}
+                      marks={DETAIL_LEVELS.map((label, i) => ({
+                        value: i,
+                        label: i === 0 || i === 4 ? label : "",
+                      }))}
                       size="small"
                     />
                   </Box>
@@ -1066,9 +1082,12 @@ export default function PreferencesScreen() {
                     if (result.success) {
                       enqueueSnackbar("Public export disabled");
                     } else {
-                      enqueueSnackbar(`Export disabled but failed to delete remote file: ${result.error}`, {
-                        variant: "warning",
-                      });
+                      enqueueSnackbar(
+                        `Export disabled but failed to delete remote file: ${result.error}`,
+                        {
+                          variant: "warning",
+                        },
+                      );
                     }
                   }
                 }}
@@ -1091,18 +1110,24 @@ export default function PreferencesScreen() {
                             <br />
                           </>
                         ) : publicExportState.lastPublishedAt ? (
-                          <>URL: not available for this provider<br /></>
+                          <>
+                            URL: not available for this provider
+                            <br />
+                          </>
                         ) : (
-                          <>URL: pending first publish…<br /></>
+                          <>
+                            URL: pending first publish…
+                            <br />
+                          </>
                         )}
                         Status:{" "}
                         {publicExportState.publishing
                           ? "Publishing…"
                           : publicExportState.lastError
-                          ? "Failed"
-                          : publicExportState.dirty
-                          ? "Pending changes"
-                          : "Up to date"}
+                            ? "Failed"
+                            : publicExportState.dirty
+                              ? "Pending changes"
+                              : "Up to date"}
                         {publicExportState.lastPublishedAt && (
                           <>
                             <br />
@@ -1181,13 +1206,7 @@ export default function PreferencesScreen() {
                     : "Permanently remove all articles from the database"
                 }
               />
-              <Tooltip
-                title={
-                  rsConnected
-                    ? "Disconnect from remote storage first"
-                    : ""
-                }
-              >
+              <Tooltip title={rsConnected ? "Disconnect from remote storage first" : ""}>
                 <span>
                   <Button
                     variant="outlined"
@@ -1233,7 +1252,6 @@ export default function PreferencesScreen() {
           </Button>
         </DialogActions>
       </Dialog>
-
     </Box>
   );
 }

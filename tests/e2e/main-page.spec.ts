@@ -12,9 +12,11 @@ test.describe("Main Page", () => {
     await expect(mainContent.first()).toBeVisible();
   });
 
-  test("should have a navigation bar", async ({ page }) => {
-    const nav = page.locator('.MuiAppBar-root, header, nav, [role="navigation"]');
-    await expect(nav.first()).toBeVisible();
+  test("should have a header bar", async ({ page }) => {
+    const header = page.locator('.MuiPaper-root').filter({ has: page.locator('button') });
+    await expect(header.first()).toBeVisible();
+    await expect(page.getByText("Saves")).toBeVisible();
+    await expect(page.getByText("Archive")).toBeVisible();
   });
 
   test("should have responsive layout", async ({ page }) => {

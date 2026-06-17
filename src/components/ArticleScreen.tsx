@@ -1,5 +1,4 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import { useTheme } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import ReactMarkdown from "react-markdown";
@@ -106,8 +105,6 @@ export default function ArticleScreen(_props: Props) {
   const [refetchPercent, setRefetchPercent] = useState<number>(0);
   const [refetchStatus, setRefetchStatus] = useState<string | null>(null);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
-  const theme = useTheme();
-  const isDark = theme.palette.mode === "dark";
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -474,24 +471,19 @@ export default function ArticleScreen(_props: Props) {
       // Only apply header hiding logic if the preference is enabled
       if (!headerHidingEnabled) {
         setShowHeader(true);
-        return;
+      } else {
+        const currentScrollY = window.scrollY;
+        if (currentScrollY >= 0) {
+          if (currentScrollY < 50) {
+            setShowHeader(true);
+          } else if (currentScrollY > lastScrollY.current) {
+            setShowHeader(false);
+          } else if (currentScrollY < lastScrollY.current) {
+            setShowHeader(true);
+          }
+          lastScrollY.current = currentScrollY;
+        }
       }
-
-      const currentScrollY = window.scrollY;
-      if (currentScrollY < 0) return;
-      if (currentScrollY < 50) {
-        setShowHeader(true);
-        lastScrollY.current = currentScrollY;
-        return;
-      }
-      if (currentScrollY > lastScrollY.current) {
-        // Scrolling down
-        setShowHeader(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling up
-        setShowHeader(true);
-      }
-      lastScrollY.current = currentScrollY;
 
       // Clear existing timeout
       if (scrollTimeoutRef.current) {
@@ -508,16 +500,23 @@ export default function ArticleScreen(_props: Props) {
         if (scrollPercentage !== lastSavedPercentage.current) {
           lastSavedPercentage.current = scrollPercentage;
 
-          // Patch only the progress field so a save fired after a sync update
-          // can't write back stale metadata. Skip the public-export republish:
-          // scroll progress alone shouldn't re-publish the whole database.
-          if (storage.client && articleRef.current) {
-            await patchArticleMetadata(
-              storage.client,
-              articleRef.current.slug,
-              { progress: scrollPercentage },
-              { skipPublicExport: true }
-            );
+          // Always persist progress locally; also sync remotely when available.
+          if (articleRef.current) {
+            console.log("[scroll-save] writing progress", scrollPercentage, "for", articleRef.current.slug, "client=", !!storage.client);
+            if (storage.client) {
+              await patchArticleMetadata(
+                storage.client,
+                articleRef.current.slug,
+                { progress: scrollPercentage },
+                { skipPublicExport: true }
+              );
+            } else {
+              await db.transaction("rw", db.articles, async () => {
+                const current = await db.articles.get(articleRef.current!.slug);
+                if (current) await db.articles.put({ ...current, progress: scrollPercentage });
+              });
+            }
+            console.log("[scroll-save] done");
           }
         }
       }, 1000);
@@ -619,17 +618,19 @@ export default function ArticleScreen(_props: Props) {
   // so later progress writes — which re-emit the article via liveQuery —
   // can never scroll the page out from under the reader.
   useEffect(() => {
+    console.log("[scroll-restore] effect fired — hasSetInitialScroll=", hasSetInitialScroll, "content=", !!content, "liveArticle=", !!liveArticle, "progress=", liveArticle?.progress);
     if (hasSetInitialScroll || !content || !liveArticle) return;
     setHasSetInitialScroll(true);
 
     const progress = liveArticle.progress ?? 0;
+    console.log("[scroll-restore] restoring to progress=", progress);
     if (progress > 0) {
       // Wait a bit for the DOM to fully render
       setTimeout(() => {
         const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+        const scrollPosition = (progress / 100) * documentHeight;
+        console.log("[scroll-restore] documentHeight=", documentHeight, "scrollPosition=", scrollPosition);
         if (documentHeight > 0) {
-          const scrollPosition = (progress / 100) * documentHeight;
-          console.log("setting scroll position to", scrollPosition);
           window.scrollTo(0, scrollPosition);
         }
       }, 100);
@@ -1135,7 +1136,7 @@ export default function ArticleScreen(_props: Props) {
                   fontWeight: 600,
                   color: "text.primary",
                 },
-                "& a": { color: isDark ? "primary.light" : "primary.main" },
+                "& a": { color: "primary.main" },
                 "& code": {
                   bgcolor: "action.hover",
                   px: 0.5,

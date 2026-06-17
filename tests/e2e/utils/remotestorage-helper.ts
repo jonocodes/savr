@@ -247,54 +247,71 @@ export async function waitForOutgoingSync(page: Page, timeoutMs = 15000): Promis
  * we wait for sync-done event and then poll the database to ensure articles have been loaded
  */
 export async function waitForRemoteStorageSync(page: Page, timeout = 30000): Promise<void> {
-  await page.evaluate(async (timeout) => {
-    const rs = (window as any).remoteStorage;
-    if (!rs) throw new Error("RemoteStorage not available");
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await page.evaluate(async (timeout) => {
+        const rs = (window as any).remoteStorage;
+        if (!rs) throw new Error("RemoteStorage not available");
 
-    // If not connected, nothing to wait for
-    if (!rs.remote || !rs.remote.connected) {
-      return;
-    }
-
-    const startTime = Date.now();
-    const maxWaitTime = Math.min(timeout, 10000); // Cap at 10 seconds for faster tests
-
-    // Simple polling approach - don't wait for events that might not fire
-    return new Promise<void>((resolve, _reject) => {
-      const checkDb = async () => {
-        const timeSinceStart = Date.now() - startTime;
-
-        if (timeSinceStart > maxWaitTime) {
-          console.log(`RemoteStorage sync check complete (timeout) after ${timeSinceStart}ms`);
-          resolve();
+        // If not connected, nothing to wait for
+        if (!rs.remote || !rs.remote.connected) {
           return;
         }
 
-        try {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const db = (window as any).savrDb;
-          if (!db) { setTimeout(checkDb, 200); return; }
-          const count = await db.articles.count();
+        const startTime = Date.now();
+        const maxWaitTime = Math.min(timeout, 10000); // Cap at 10 seconds for faster tests
 
-          if (count > 0 || timeSinceStart > 3000) {
-            console.log(`RemoteStorage sync completed with ${count} articles after ${timeSinceStart}ms`);
-            resolve();
-          } else {
-            setTimeout(checkDb, 200);
-          }
-        } catch (error) {
-          console.warn("Error checking database:", error);
-          if (timeSinceStart < maxWaitTime) {
-            setTimeout(checkDb, 200);
-          } else {
-            resolve();
-          }
-        }
-      };
+        // Simple polling approach - don't wait for events that might not fire
+        return new Promise<void>((resolve, _reject) => {
+          const checkDb = async () => {
+            const timeSinceStart = Date.now() - startTime;
 
-      setTimeout(checkDb, 500);
-    });
-  }, timeout);
+            if (timeSinceStart > maxWaitTime) {
+              console.log(`RemoteStorage sync check complete (timeout) after ${timeSinceStart}ms`);
+              resolve();
+              return;
+            }
+
+            try {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const db = (window as any).savrDb;
+              if (!db) { setTimeout(checkDb, 200); return; }
+              const count = await db.articles.count();
+
+              if (count > 0 || timeSinceStart > 3000) {
+                console.log(`RemoteStorage sync completed with ${count} articles after ${timeSinceStart}ms`);
+                resolve();
+              } else {
+                setTimeout(checkDb, 200);
+              }
+            } catch (error) {
+              console.warn("Error checking database:", error);
+              if (timeSinceStart < maxWaitTime) {
+                setTimeout(checkDb, 200);
+              } else {
+                resolve();
+              }
+            }
+          };
+
+          setTimeout(checkDb, 500);
+        });
+      }, timeout);
+      return;
+    } catch (error) {
+      lastError = error;
+      const msg = error instanceof Error ? error.message : String(error);
+      // Retry if the execution context was destroyed (page may have navigated during RS init)
+      if (msg.includes("Execution context was destroyed") && attempt < 2) {
+        console.log(`waitForRemoteStorageSync: context destroyed, retry ${attempt + 1}/2 (waiting for page to stabilize)...`);
+        await page.waitForLoadState("networkidle");
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw lastError;
 }
 
 /**
