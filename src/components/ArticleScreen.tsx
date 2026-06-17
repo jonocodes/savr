@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
+import { useTheme } from "@mui/material";
 import { useNavigate } from "@tanstack/react-router";
 import { useLiveQuery } from "dexie-react-hooks";
 import ReactMarkdown from "react-markdown";
@@ -105,6 +106,8 @@ export default function ArticleScreen(_props: Props) {
   const [refetchPercent, setRefetchPercent] = useState<number>(0);
   const [refetchStatus, setRefetchStatus] = useState<string | null>(null);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
+  const theme = useTheme();
+  const isDark = theme.palette.mode === "dark";
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -1132,7 +1135,7 @@ export default function ArticleScreen(_props: Props) {
                   fontWeight: 600,
                   color: "text.primary",
                 },
-                "& a": { color: "primary.main" },
+                "& a": { color: isDark ? "primary.light" : "primary.main" },
                 "& code": {
                   bgcolor: "action.hover",
                   px: 0.5,

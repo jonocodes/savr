@@ -26,7 +26,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) =
           fontSize: fontSize,
           color: "text.primary",
           "& a": {
-            color: "primary.main",
+            color: isDark ? "primary.light" : "primary.main",
           },
           "& code": {
             backgroundColor: isDark ? "rgba(255,255,255,0.1)" : undefined,
