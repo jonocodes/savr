@@ -348,7 +348,7 @@ export default function ArticleScreen(_props: Props) {
       if (file) {
         setContent(file.data);
         if (viewMode === "cleaned") {
-          setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+          setHtml(file.data);
         } else {
           setHtml(file.data);
         }
@@ -438,10 +438,10 @@ export default function ArticleScreen(_props: Props) {
       // Update displayed content immediately
       setContent(updatedHtml);
       if (viewMode === "cleaned") {
-        setHtml(`<link rel="stylesheet" href="/static/web.css">${updatedHtml}`);
-      } else {
-        setHtml(updatedHtml);
-      }
+          setHtml(updatedHtml);
+        } else {
+          setHtml(updatedHtml);
+        }
 
       setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
@@ -583,7 +583,7 @@ export default function ArticleScreen(_props: Props) {
           } | null;
           if (file && !cancelled) {
             setContent(file.data);
-            setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+            setHtml(file.data);
           }
         }
       } catch (error) {

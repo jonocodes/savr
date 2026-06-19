@@ -25,6 +25,8 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) =
         sx={{
           fontSize: fontSize,
           color: "text.primary",
+          "& h1": { textAlign: "center" },
+          "& #savr-metadata": { textAlign: "center" },
           "& a": {
             color: "primary.main",
           },
@@ -44,7 +46,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) =
             backgroundColor: isDark ? "rgba(255,255,255,0.1)" : undefined,
           },
         }}
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html) }}
+        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { ADD_TAGS: ["link"], ADD_ATTR: ["rel", "href"] }) }}
       />
     </Container>
   );

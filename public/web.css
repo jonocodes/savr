@@ -1,113 +1,38 @@
 #savr-root {
-
     max-width: 725px;
     line-height: 1.5;
-    /* font-size: 25px; */
     margin: 0em auto;
     width: 100%;
-
     font-family: Helvetica, Arial, sans-serif;
 }
-
 #savr-content {
     font-family: Georgia, 'Times New Roman', Times, serif;
 }
-
-.savr-list {   
-   display: inline-grid;
-}
-
-#add-url {
-    display: flex;
-    flex-flow: column wrap;
-    align-content: center;
-}
-
-.article-card {
-    margin: 5px;
-    /* background-color: #eee; */
-
-}
-
-.card-info {
-    font-size: smaller;
-    margin-bottom: 3px;
-}
-
-.article-card-thumb {
-    float: left;
-    padding: 20px;
-    width: 150px;
-    height: 150px;
-}
-
-.thumb {
-    /* float: left; */
-    /* padding: 20px; */
-    width: 150px;
-    height: 150px;
-}
-
-.article-card-content {
-    /* float: left; */
-    padding: 20px;
-    border: 2px ;
-    height: 100%;
-
-
-    display: flex;
-  flex-direction: column;
-}
-
-.update-buttons {
-    text-align: right;
-    font-size: smaller;
-
-    margin-top: auto;
-
-    padding-bottom: 35px;
-}
-
-h1 {
-    /* font-size: 1.6em;
-    line-height: 1.25em;
-    width: 100%;
-    margin: 30px 0;
-    padding: 0; */
-    /* font-size: 1.6em; */
-    text-align: center;
-}
-
-img {
-    max-width: 100%;
-    /* max-height: 100%; */
-    height: auto;
-}
-
-hr {
-    margin-top: 10px;
-    margin-bottom: 30px;
-}
-
 #savr-metadata {
     text-align: center;
 }
-
 #savr-byline {
     font-style: italic;
 }
-
 #savr-published {
     font-size: smaller;
     margin-top: 5px;
     margin-bottom: 5px;
 }
-
 #savr-readTime {
     font-size: smaller;
 }
-
-/* Pre-formatted text styling (for plain text imports) */
+h1 {
+    text-align: center;
+}
+hr {
+    margin-top: 10px;
+    margin-bottom: 30px;
+}
+img {
+    max-width: 100%;
+    height: auto;
+}
 pre {
     white-space: pre-wrap;
     word-wrap: break-word;
@@ -117,8 +42,6 @@ pre {
     font-family: inherit;
     line-height: 1.6;
 }
-
-/* Code blocks (for markdown code) */
 code {
     background-color: rgba(0, 0, 0, 0.06);
     padding: 0.2em 0.4em;
@@ -126,7 +49,6 @@ code {
     font-family: 'Courier New', Consolas, monospace;
     font-size: 0.9em;
 }
-
 pre code {
     display: block;
     padding: 1em;
@@ -134,8 +56,6 @@ pre code {
     background-color: rgba(0, 0, 0, 0.06);
     border-radius: 5px;
 }
-
-/* Blockquotes (for markdown quotes) */
 blockquote {
     border-left: 3px solid rgba(128, 128, 128, 0.4);
     margin-left: 0;
@@ -144,22 +64,17 @@ blockquote {
     opacity: 0.75;
     font-style: italic;
 }
-
-/* Tables (for markdown tables) */
 table {
     border-collapse: collapse;
     width: 100%;
     margin: 1em 0;
 }
-
 th, td {
     border: 1px solid rgba(128, 128, 128, 0.3);
     padding: 0.5em;
     text-align: left;
 }
-
 th {
     background-color: rgba(0, 0, 0, 0.06);
     font-weight: bold;
 }
-

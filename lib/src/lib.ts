@@ -1,8 +1,5 @@
-import Mustache from "mustache";
 import { ArticleAndRender, ArticleRenderExtra, Article } from "./models";
 // import { version } from '../package.json' with { type: "json" };
-
-import { listTemplateMoustache } from "./list";
 
 export const DB_FILE_NAME = "db.json";
 
@@ -211,10 +208,6 @@ export function generateInfoForArticle(article: Article): string {
 
 //   return [readable, archived];
 // }
-
-export function renderListTemplate(view: object) {
-  return Mustache.render(listTemplateMoustache, view);
-}
 
 export function getFilePathContent(slug: string): string {
   return `saves/${slug}/index.html`;

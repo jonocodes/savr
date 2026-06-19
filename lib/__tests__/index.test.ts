@@ -5,7 +5,6 @@ import {
   humanReadableSize,
   generateInfoForCard,
   generateInfoForArticle,
-  renderListTemplate,
   getFilePathContent,
   getFilePathMetadata,
   getFilePathRaw,
@@ -334,21 +333,6 @@ describe("lib.ts", () => {
 
       expect(result).toContain("AT&amp;T&#039;s article");
       expect(result).toContain("O&#039;Brien &amp; Associates");
-    });
-  });
-
-  describe("renderListTemplate", () => {
-    it("should render template with view data", () => {
-      const view = { title: "Test List", items: ["item1", "item2"] };
-      const result = renderListTemplate(view);
-      expect(typeof result).toBe("string");
-      expect(result.length).toBeGreaterThan(0);
-    });
-
-    it("should handle empty view object", () => {
-      const view = {};
-      const result = renderListTemplate(view);
-      expect(typeof result).toBe("string");
     });
   });
 
