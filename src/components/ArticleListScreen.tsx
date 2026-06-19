@@ -800,6 +800,7 @@ export default function ArticleListScreen() {
                   Saves: {unreadCount} articles
                   <br />
                   Reading time: {formatReadTime(adjustReadTimeMinutes(unreadReadTimeSum, readingWpm))}
+                  {" "}· {Math.round(readingWpm)} wpm
                 </>
               ) : (
                 "Loading..."
@@ -809,6 +810,7 @@ export default function ArticleListScreen() {
                 Archive: {archivedCount} articles
                 <br />
                 Reading time: {formatReadTime(adjustReadTimeMinutes(archivedReadTimeSum, readingWpm))}
+                {" "}· {Math.round(readingWpm)} wpm
               </>
             ) : (
               "Loading..."
