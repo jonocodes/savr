@@ -46,6 +46,7 @@ import {
   DragHandle as DragHandleIcon,
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
+  Speed as SpeedIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -105,6 +106,8 @@ import {
   DEFAULT_SYNC_INTERVAL_MS,
 } from "~/utils/cookies";
 import { formatReadTime } from "../../lib/src/lib";
+import { adjustReadTimeMinutes, DEFAULT_WPM } from "../../lib/src/readingSpeed";
+import { useReadingWpm, getReadingSpeedState, resetReadingSpeed } from "../utils/readingSpeed";
 import {
   getPublicExportState,
   subscribePublicExport,
@@ -239,6 +242,10 @@ export default function PreferencesScreen() {
   // Article count queries
   const unreadCount = useLiveQuery(() => db.articles.where("state").equals("unread").count());
   const archivedCount = useLiveQuery(() => db.articles.where("state").equals("archived").count());
+
+  // Learned reading speed (re-renders when updated after a reading session).
+  const readingWpm = useReadingWpm();
+  const readingSpeedSampleCount = getReadingSpeedState().sampleCount;
 
   // Read time sum queries
   const unreadReadTimeSum = useLiveQuery(async () => {
@@ -924,7 +931,7 @@ export default function PreferencesScreen() {
                     <>
                       {unreadCount} articles
                       <br />
-                      Reading time: {formatReadTime(unreadReadTimeSum)}
+                      Reading time: {formatReadTime(adjustReadTimeMinutes(unreadReadTimeSum, readingWpm))}
                     </>
                   ) : (
                     "Loading..."
@@ -944,10 +951,39 @@ export default function PreferencesScreen() {
                     <>
                       {archivedCount} articles
                       <br />
-                      Reading time: {formatReadTime(archivedReadTimeSum)}
+                      Reading time: {formatReadTime(adjustReadTimeMinutes(archivedReadTimeSum, readingWpm))}
                     </>
                   ) : (
                     "Loading..."
+                  )
+                }
+              />
+            </ListItem>
+
+            <ListItem
+              secondaryAction={
+                readingSpeedSampleCount > 0 ? (
+                  <Button size="small" onClick={() => resetReadingSpeed()}>
+                    Reset
+                  </Button>
+                ) : undefined
+              }
+            >
+              <ListItemIcon>
+                <SpeedIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Reading speed"
+                secondary={
+                  readingSpeedSampleCount > 0 ? (
+                    <>
+                      {Math.round(readingWpm)} words/min
+                      <br />
+                      Learned from {readingSpeedSampleCount} reading
+                      {readingSpeedSampleCount === 1 ? " session" : " sessions"}
+                    </>
+                  ) : (
+                    `${DEFAULT_WPM} words/min (default — read some articles to personalize)`
                   )
                 }
               />

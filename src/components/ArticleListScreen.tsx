@@ -49,6 +49,8 @@ import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
+import { adjustReadTimeMinutes } from "../../lib/src/readingSpeed";
+import { useReadingWpm } from "../utils/readingSpeed";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -75,6 +77,7 @@ const sampleArticleUrls = [
 
 function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
+  const readingWpm = useReadingWpm();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
   const [contentExists, setContentExists] = useState<boolean>(true);
@@ -246,7 +249,7 @@ function ArticleItem({ article }: { article: Article }) {
                 ? "PDF document"
                 : article.mimeType?.startsWith("image/")
                   ? "Image"
-                  : generateInfoForCard(article)
+                  : generateInfoForCard(article, readingWpm)
               : "(content missing)"}
           </Typography>
         }
@@ -325,6 +328,9 @@ export default function ArticleListScreen() {
   const archivedCount = useLiveQuery(() => {
     return db.articles.where("state").equals("archived").count();
   });
+
+  // Learned reading speed (re-renders when updated after a reading session).
+  const readingWpm = useReadingWpm();
 
   // Read time sum queries
   const unreadReadTimeSum = useLiveQuery(async () => {
@@ -793,7 +799,7 @@ export default function ArticleListScreen() {
                 <>
                   Saves: {unreadCount} articles
                   <br />
-                  Reading time: {formatReadTime(unreadReadTimeSum)}
+                  Reading time: {formatReadTime(adjustReadTimeMinutes(unreadReadTimeSum, readingWpm))}
                 </>
               ) : (
                 "Loading..."
@@ -802,7 +808,7 @@ export default function ArticleListScreen() {
               <>
                 Archive: {archivedCount} articles
                 <br />
-                Reading time: {formatReadTime(archivedReadTimeSum)}
+                Reading time: {formatReadTime(adjustReadTimeMinutes(archivedReadTimeSum, readingWpm))}
               </>
             ) : (
               "Loading..."
