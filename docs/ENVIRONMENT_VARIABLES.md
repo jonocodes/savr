@@ -40,14 +40,6 @@ This document describes the environment variables used by Savr.
 - **Description**: Build timestamp for versioning
 - **Usage**: Automatically set during build process
 
-### `VITE_APP_MODE` (vestigial)
-
-- **Status**: Set by the `dev:prod` npm script and the Jest test mocks
-  (`lib/__tests__/setup.js`, `lib/__tests__/__mocks__/environment.js`), but
-  **never read by application code** — `src/config/environment.ts` does not
-  reference it. Candidate for removal; debug behavior is controlled by
-  `VITE_DEBUG` instead.
-
 ## Pre-configured Scripts
 
 The following npm scripts are pre-configured with specific environment variables:
