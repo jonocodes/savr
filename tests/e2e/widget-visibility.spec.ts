@@ -48,7 +48,7 @@ test.describe("RemoteStorage Widget Visibility", () => {
         url: "https://example.com/test",
         state: "unread",
         ingestDate: new Date().toISOString(),
-        defaultReadTimeMinutes: 5,
+        wordCount: 1000,
       });
     });
 
@@ -106,7 +106,7 @@ test.describe("RemoteStorage Widget Visibility", () => {
         url: "https://example.com/test-nav",
         state: "unread",
         ingestDate: new Date().toISOString(),
-        defaultReadTimeMinutes: 5,
+        wordCount: 1000,
       });
     });
 

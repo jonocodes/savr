@@ -2,6 +2,7 @@ import {
   mimeToExt,
   extractDomain,
   calcReadingTime,
+  calcWordCount,
   humanReadableSize,
   generateInfoForCard,
   generateInfoForArticle,
@@ -49,6 +50,20 @@ describe("lib.ts", () => {
       expect(extractDomain("https://www.example.com")).toBe("example.com");
       expect(extractDomain("https://example.com/")).toBe("example.com");
       expect(extractDomain("https://example.com?param=value")).toBe("example.com");
+    });
+  });
+
+  describe("calcWordCount", () => {
+    it("counts words in normal text", () => {
+      expect(calcWordCount("one two three")).toBe(3);
+    });
+
+    it("handles multiple spaces", () => {
+      expect(calcWordCount("Word1    Word2   Word3")).toBe(3);
+    });
+
+    it("returns 0 for empty string", () => {
+      expect(calcWordCount("")).toBe(0);
     });
   });
 
@@ -139,7 +154,7 @@ describe("lib.ts", () => {
         url: "https://example.com",
         mimeType: "text/html",
         state: "active",
-        defaultReadTimeMinutes: 5,
+        wordCount: 1000, // 1000 words / 200 wpm = 5 min
       } as Article;
 
       expect(generateInfoForCard(article)).toBe("5 min");
@@ -168,7 +183,7 @@ describe("lib.ts", () => {
         url: "https://example.com",
         mimeType: "text/html",
         state: "active",
-        defaultReadTimeMinutes: 10,
+        wordCount: 2000, // 2000 words / 200 wpm = 10 min
         progress: 75,
       } as Article;
 
@@ -184,7 +199,7 @@ describe("lib.ts", () => {
         mimeType: "text/html",
         state: "active",
         publishedDate: "2023-01-15T10:00:00Z",
-        defaultReadTimeMinutes: 8,
+        wordCount: 1600, // 1600 words / 200 wpm = 8 min
         progress: 50,
       } as Article;
 

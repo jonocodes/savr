@@ -74,7 +74,7 @@
                     "type": "string",
                     "format": "date-time"
                 },
-                "defaultReadTimeMinutes": {
+                "wordCount": {
                     "type": "integer",
                     "exclusiveMinimum": 0
                 },

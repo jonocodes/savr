@@ -1,7 +1,7 @@
 import { ArticleAndRender, ArticleRenderExtra, Article } from "./models";
 // import { version } from '../package.json' with { type: "json" };
 
-import { DEFAULT_WPM, adjustReadTimeMinutes } from "./readingSpeed";
+import { DEFAULT_WPM } from "./readingSpeed";
 export const DB_FILE_NAME = "db.json";
 
 // TODO: maybe dont need this mapping since the subtype is the extension
@@ -33,15 +33,12 @@ export function extractDomain(url: string): string | null {
   }
 }
 
+export function calcWordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
+
 export function calcReadingTime(text: string, wordsPerMinute: number = DEFAULT_WPM): number {
-  const wordCount = text.split(/\s+/).length;
-
-  const readingTimeMinutes = wordCount / wordsPerMinute;
-
-  const roundedReadingTime = Math.ceil(readingTimeMinutes);
-
-  // console.log(`Estimated reading time: ${roundedReadingTime} minute(s)`);
-  return roundedReadingTime;
+  return Math.max(1, Math.ceil(calcWordCount(text) / wordsPerMinute));
 }
 
 export function humanReadableSize(bytes: number): string {
@@ -98,8 +95,8 @@ export function generateInfoForCard(article: Article, wpm: number = DEFAULT_WPM)
     }
   }
 
-  if (article.defaultReadTimeMinutes != null && article.defaultReadTimeMinutes != 0) {
-    let read = formatReadTime(adjustReadTimeMinutes(article.defaultReadTimeMinutes, wpm));
+  if (article.wordCount != null && article.wordCount > 0) {
+    let read = formatReadTime(Math.ceil(article.wordCount / wpm));
 
     if (article.progress != null && article.progress != 0) {
       read = `${read} • ${article.progress}%`;

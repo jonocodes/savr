@@ -49,7 +49,6 @@ import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
-import { adjustReadTimeMinutes } from "../../lib/src/readingSpeed";
 import { useReadingWpm } from "../utils/readingSpeed";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
@@ -333,13 +332,13 @@ export default function ArticleListScreen() {
   const readingWpm = useReadingWpm();
 
   // Read time sum queries
-  const unreadReadTimeSum = useLiveQuery(async () => {
+  const unreadWordCountSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
-  const archivedReadTimeSum = useLiveQuery(async () => {
+  const archivedWordCountSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
@@ -795,21 +794,21 @@ export default function ArticleListScreen() {
         {filteredArticles.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
             {filter === "unread" ? (
-              unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+              unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                 <>
                   Saves: {unreadCount} articles
                   <br />
-                  Reading time: {formatReadTime(adjustReadTimeMinutes(unreadReadTimeSum, readingWpm))}
+                  Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
                   {" "}· {Math.round(readingWpm)} wpm
                 </>
               ) : (
                 "Loading..."
               )
-            ) : archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+            ) : archivedCount !== undefined && archivedWordCountSum !== undefined ? (
               <>
                 Archive: {archivedCount} articles
                 <br />
-                Reading time: {formatReadTime(adjustReadTimeMinutes(archivedReadTimeSum, readingWpm))}
+                Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
                 {" "}· {Math.round(readingWpm)} wpm
               </>
             ) : (

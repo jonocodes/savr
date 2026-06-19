@@ -7,7 +7,7 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate, { createArticleObject } from "./article";
 import {
   generateInfoForArticle,
-  calcReadingTime,
+  calcWordCount,
   getFilePathRaw,
   getFilePathContent,
   getFilePathMetadata,
@@ -16,6 +16,7 @@ import {
   getFilePathImage,
   mimeToExt,
 } from "./lib";
+import { DEFAULT_WPM } from "./readingSpeed";
 import { saveResource } from "~/utils/sync/storage";
 import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/article/tools";
 import { md5 } from "js-md5";
@@ -516,7 +517,7 @@ export function readabilityToArticle(
     }
   }
 
-  const readingTimeMinutes = calcReadingTime(content);
+  const wordCount = calcWordCount(content);
 
   const author = readabilityResult.byline;
 
@@ -532,7 +533,7 @@ export function readabilityToArticle(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "bookmarklet",
     mimeType: contentType,
-    defaultReadTimeMinutes: readingTimeMinutes,
+    wordCount: wordCount,
     progress: 0,
   };
 
@@ -579,7 +580,7 @@ export async function ingestHtml(
     title: article.title,
     byline: article.author || "",
     published: generateInfoForArticle(article),
-    readTime: `${article.defaultReadTimeMinutes} minute read`,
+    readTime: `${Math.ceil((article.wordCount ?? 0) / DEFAULT_WPM)} minute read`,
     content: processedHtml,
   });
 
@@ -686,7 +687,7 @@ export async function ingestPdf(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: "application/pdf",
-    defaultReadTimeMinutes: null,
+    wordCount: null,
     progress: 0,
   };
 
@@ -782,7 +783,7 @@ export async function ingestImage(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: mimeType,
-    defaultReadTimeMinutes: null,
+    wordCount: null,
     progress: 0,
   };
 

@@ -93,15 +93,6 @@ export function updateReadingSpeed(
   };
 }
 
-/**
- * Scale a reading-time estimate (computed at the DEFAULT_WPM baseline) to a
- * reader's learned speed. A faster reader sees smaller numbers. The result is
- * always at least one minute.
- */
-export function adjustReadTimeMinutes(baselineMinutes: number, wpm: number): number {
-  if (!Number.isFinite(wpm) || wpm <= 0) return baselineMinutes;
-  return Math.max(1, Math.ceil(baselineMinutes * (DEFAULT_WPM / wpm)));
-}
 
 export interface ReadingSessionTrackerOptions {
   /** Override the idle cap (mainly for tests). Defaults to {@link IDLE_TIMEOUT_MS}. */

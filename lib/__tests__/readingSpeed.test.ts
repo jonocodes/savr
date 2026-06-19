@@ -8,7 +8,6 @@ import {
   MIN_WORDS_READ,
   ReadingSessionTracker,
   ReadingSpeedState,
-  adjustReadTimeMinutes,
   clampWpm,
   initialReadingSpeedState,
   updateReadingSpeed,
@@ -172,31 +171,6 @@ describe("readingSpeed", () => {
       expect(clampWpm(10)).toBe(MIN_VALID_WPM);
       expect(clampWpm(99999)).toBe(MAX_VALID_WPM);
       expect(clampWpm(250)).toBe(250);
-    });
-  });
-
-  describe("adjustReadTimeMinutes", () => {
-    it("returns fewer minutes for a faster reader", () => {
-      // 10 min at the 200 wpm baseline, reader at 400 wpm -> ~5 min.
-      expect(adjustReadTimeMinutes(10, 400)).toBe(5);
-    });
-
-    it("returns more minutes for a slower reader", () => {
-      expect(adjustReadTimeMinutes(10, 100)).toBe(20);
-    });
-
-    it("is a no-op at the default speed", () => {
-      expect(adjustReadTimeMinutes(7, DEFAULT_WPM)).toBe(7);
-    });
-
-    it("never returns less than one minute", () => {
-      expect(adjustReadTimeMinutes(1, MAX_VALID_WPM)).toBe(1);
-    });
-
-    it("falls back to the baseline for invalid speeds", () => {
-      expect(adjustReadTimeMinutes(8, 0)).toBe(8);
-      expect(adjustReadTimeMinutes(8, NaN)).toBe(8);
-      expect(adjustReadTimeMinutes(8, -5)).toBe(8);
     });
   });
 

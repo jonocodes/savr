@@ -106,7 +106,7 @@ import {
   DEFAULT_SYNC_INTERVAL_MS,
 } from "~/utils/cookies";
 import { formatReadTime } from "../../lib/src/lib";
-import { adjustReadTimeMinutes, DEFAULT_WPM } from "../../lib/src/readingSpeed";
+import { DEFAULT_WPM } from "../../lib/src/readingSpeed";
 import { useReadingWpm, getReadingSpeedState, resetReadingSpeed } from "../utils/readingSpeed";
 import {
   getPublicExportState,
@@ -248,13 +248,13 @@ export default function PreferencesScreen() {
   const readingSpeedSampleCount = getReadingSpeedState().sampleCount;
 
   // Read time sum queries
-  const unreadReadTimeSum = useLiveQuery(async () => {
+  const unreadWordCountSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
-  const archivedReadTimeSum = useLiveQuery(async () => {
+  const archivedWordCountSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
 
   const totalArticleCount = useLiveQuery(() => db.articles.count());
@@ -927,11 +927,11 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Unread Articles"
                 secondary={
-                  unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                  unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                     <>
                       {unreadCount} articles
                       <br />
-                      Reading time: {formatReadTime(adjustReadTimeMinutes(unreadReadTimeSum, readingWpm))}
+                      Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
                     </>
                   ) : (
                     "Loading..."
@@ -947,11 +947,11 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Archived Articles"
                 secondary={
-                  archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+                  archivedCount !== undefined && archivedWordCountSum !== undefined ? (
                     <>
                       {archivedCount} articles
                       <br />
-                      Reading time: {formatReadTime(adjustReadTimeMinutes(archivedReadTimeSum, readingWpm))}
+                      Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
                     </>
                   ) : (
                     "Loading..."
@@ -1057,7 +1057,7 @@ export default function PreferencesScreen() {
                           article.title || "",
                           article.url || "",
                           article.state || "",
-                          article.defaultReadTimeMinutes || "",
+                          article.wordCount || "",
                           article.publication || "",
                           article.author || "",
                           article.publishedDate || "",
