@@ -250,11 +250,11 @@ export default function PreferencesScreen() {
   // Read time sum queries
   const unreadReadTimeSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
   });
   const archivedReadTimeSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
   });
 
   const totalArticleCount = useLiveQuery(() => db.articles.count());
@@ -1057,7 +1057,7 @@ export default function PreferencesScreen() {
                           article.title || "",
                           article.url || "",
                           article.state || "",
-                          article.readTimeMinutes || "",
+                          article.defaultReadTimeMinutes || "",
                           article.publication || "",
                           article.author || "",
                           article.publishedDate || "",

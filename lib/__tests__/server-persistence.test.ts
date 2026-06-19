@@ -187,9 +187,9 @@ describe("Server Persistence Tests", () => {
       const savedArticle = JSON.parse(articleJsonCall[2]);
 
       // Reading time should be calculated and saved
-      expect(savedArticle).toHaveProperty("readTimeMinutes");
-      expect(typeof savedArticle.readTimeMinutes).toBe("number");
-      expect(savedArticle.readTimeMinutes).toBeGreaterThan(0);
+      expect(savedArticle).toHaveProperty("defaultReadTimeMinutes");
+      expect(typeof savedArticle.defaultReadTimeMinutes).toBe("number");
+      expect(savedArticle.defaultReadTimeMinutes).toBeGreaterThan(0);
     });
 
     it("should preserve author/byline information", async () => {

@@ -532,7 +532,7 @@ export function readabilityToArticle(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "bookmarklet",
     mimeType: contentType,
-    readTimeMinutes: readingTimeMinutes,
+    defaultReadTimeMinutes: readingTimeMinutes,
     progress: 0,
   };
 
@@ -579,7 +579,7 @@ export async function ingestHtml(
     title: article.title,
     byline: article.author || "",
     published: generateInfoForArticle(article),
-    readTime: `${article.readTimeMinutes} minute read`,
+    readTime: `${article.defaultReadTimeMinutes} minute read`,
     content: processedHtml,
   });
 
@@ -686,7 +686,7 @@ export async function ingestPdf(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: "application/pdf",
-    readTimeMinutes: null,
+    defaultReadTimeMinutes: null,
     progress: 0,
   };
 
@@ -782,7 +782,7 @@ export async function ingestImage(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: mimeType,
-    readTimeMinutes: null,
+    defaultReadTimeMinutes: null,
     progress: 0,
   };
 
@@ -1056,7 +1056,7 @@ export async function ingestUrl(
 //     ingestPlatform: `typescript/web (${version})`,
 //     ingestSource: "????",
 //     mimeType: "text/plain",
-//     readTimeMinutes: 1,  // TODO: set this correctly
+//     defaultReadTimeMinutes: 1,  // TODO: set this correctly
 //     progress: 0,
 //   };
 
@@ -1070,7 +1070,7 @@ export async function ingestUrl(
 //     title: article.title,
 //     byline: article.author || 'unknown author',
 //     published: generateInfoForArticle(article),
-//     readTime: `${article.readTimeMinutes} minute read`,
+//     readTime: `${article.defaultReadTimeMinutes} minute read`,
 //     content: content,
 //     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
 //     // namespace: rootPath,
@@ -1081,7 +1081,7 @@ export async function ingestUrl(
 //   //   title: article.title,
 //   //   byline: article.author,
 //   //   published: generateInfoForArticle(article),
-//   //   readTime: `${article.readTimeMinutes} minute read`,
+//   //   readTime: `${article.defaultReadTimeMinutes} minute read`,
 //   //   content: content,
 //   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
 //   //   // namespace: rootPath,

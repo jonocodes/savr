@@ -131,7 +131,7 @@ function readabilityToArticle(
     ingestPlatform: `typescript/web (${mockVersion})`,
     ingestSource: "????",
     mimeType: contentType,
-    readTimeMinutes: readingTimeMinutes,
+    defaultReadTimeMinutes: readingTimeMinutes,
     progress: 0,
   };
 
@@ -226,8 +226,8 @@ describe("ingestion.ts - readabilityToArticle (minimal)", () => {
 
       const [article] = readabilityToArticle(html, contentType, url);
 
-      expect(article.readTimeMinutes).toBeGreaterThan(0);
-      expect(typeof article.readTimeMinutes).toBe("number");
+      expect(article.defaultReadTimeMinutes).toBeGreaterThan(0);
+      expect(typeof article.defaultReadTimeMinutes).toBe("number");
     });
 
     it("should handle null URL", () => {

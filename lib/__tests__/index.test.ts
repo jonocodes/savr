@@ -139,7 +139,7 @@ describe("lib.ts", () => {
         url: "https://example.com",
         mimeType: "text/html",
         state: "active",
-        readTimeMinutes: 5,
+        defaultReadTimeMinutes: 5,
       } as Article;
 
       expect(generateInfoForCard(article)).toBe("5 min");
@@ -168,7 +168,7 @@ describe("lib.ts", () => {
         url: "https://example.com",
         mimeType: "text/html",
         state: "active",
-        readTimeMinutes: 10,
+        defaultReadTimeMinutes: 10,
         progress: 75,
       } as Article;
 
@@ -184,7 +184,7 @@ describe("lib.ts", () => {
         mimeType: "text/html",
         state: "active",
         publishedDate: "2023-01-15T10:00:00Z",
-        readTimeMinutes: 8,
+        defaultReadTimeMinutes: 8,
         progress: 50,
       } as Article;
 

@@ -121,8 +121,8 @@ describe("ingestion.ts - readabilityToArticle", () => {
 
       const [article] = readabilityToArticle(html, contentType, url);
 
-      expect(article.readTimeMinutes).toBeGreaterThan(0);
-      expect(typeof article.readTimeMinutes).toBe("number");
+      expect(article.defaultReadTimeMinutes).toBeGreaterThan(0);
+      expect(typeof article.defaultReadTimeMinutes).toBe("number");
     });
 
     it("should handle null URL", () => {

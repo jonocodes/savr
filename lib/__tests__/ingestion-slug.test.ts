@@ -24,7 +24,7 @@ function makeArticle(overrides: Partial<Article>): Article {
     ingestPlatform: "test",
     ingestSource: "url",
     mimeType: "text/html",
-    readTimeMinutes: null,
+    defaultReadTimeMinutes: null,
     progress: 0,
     ...overrides,
   } as Article;

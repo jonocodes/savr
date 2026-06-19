@@ -98,8 +98,8 @@ export function generateInfoForCard(article: Article, wpm: number = DEFAULT_WPM)
     }
   }
 
-  if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
-    let read = formatReadTime(adjustReadTimeMinutes(article.readTimeMinutes, wpm));
+  if (article.defaultReadTimeMinutes != null && article.defaultReadTimeMinutes != 0) {
+    let read = formatReadTime(adjustReadTimeMinutes(article.defaultReadTimeMinutes, wpm));
 
     if (article.progress != null && article.progress != 0) {
       read = `${read} • ${article.progress}%`;

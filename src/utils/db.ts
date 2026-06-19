@@ -14,5 +14,19 @@ db.version(2).stores({
   articles: "slug, ingestDate, state",
 });
 
+// Rename readTimeMinutes -> defaultReadTimeMinutes to clarify it is the
+// baseline (default-wpm) estimate, not the user-adjusted display value.
+db.version(3).stores({}).upgrade((tx) =>
+  tx
+    .table("articles")
+    .toCollection()
+    .modify((article: Record<string, unknown>) => {
+      if ("readTimeMinutes" in article) {
+        article.defaultReadTimeMinutes = article.readTimeMinutes;
+        delete article.readTimeMinutes;
+      }
+    })
+);
+
 export { db };
 export type { DbType };

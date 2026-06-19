@@ -10,7 +10,7 @@ export type Article = {
   ingestPlatform: string; // platform/web
   ingestSource: string;
   mimeType: string;
-  readTimeMinutes: number | null;
+  defaultReadTimeMinutes: number | null;
   progress: number;
   favorite?: boolean;
   summary?: string; // AI-generated summary of the article

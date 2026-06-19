@@ -335,11 +335,11 @@ export default function ArticleListScreen() {
   // Read time sum queries
   const unreadReadTimeSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
   });
   const archivedReadTimeSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.defaultReadTimeMinutes || 0), 0);
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
