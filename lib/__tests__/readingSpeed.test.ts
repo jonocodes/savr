@@ -8,8 +8,10 @@ import {
   MIN_WORDS_READ,
   ReadingSessionTracker,
   ReadingSpeedState,
+  bootstrapReadingSpeed,
   clampWpm,
   initialReadingSpeedState,
+  sessionWpm,
   updateReadingSpeed,
 } from "../src/readingSpeed";
 import { calcReadingTime } from "../src/lib";
@@ -163,6 +165,66 @@ describe("readingSpeed", () => {
       expect(updateReadingSpeed(state, { wordsRead: NaN, activeSeconds: 60 })).toEqual(state);
       expect(updateReadingSpeed(state, { wordsRead: 300, activeSeconds: NaN })).toEqual(state);
       expect(updateReadingSpeed(state, { wordsRead: 300, activeSeconds: 0 })).toEqual(state);
+    });
+  });
+
+  describe("sessionWpm", () => {
+    it("returns the measured pace for a valid session", () => {
+      // 300 words in 60s -> 300 wpm.
+      expect(sessionWpm({ wordsRead: 300, activeSeconds: 60 })).toBeCloseTo(300, 5);
+    });
+
+    it("returns null for sessions that are too short or too small", () => {
+      expect(sessionWpm({ wordsRead: 300, activeSeconds: MIN_SESSION_SECONDS - 1 })).toBeNull();
+      expect(sessionWpm({ wordsRead: MIN_WORDS_READ - 1, activeSeconds: 60 })).toBeNull();
+    });
+
+    it("returns null for out-of-band paces", () => {
+      expect(sessionWpm({ wordsRead: 5000, activeSeconds: 20 })).toBeNull(); // way too fast
+      expect(sessionWpm({ wordsRead: 60, activeSeconds: 600 })).toBeNull(); // way too slow
+    });
+
+    it("agrees with updateReadingSpeed on which sessions count", () => {
+      const state = initialReadingSpeedState();
+      const tooFast = { wordsRead: 5000, activeSeconds: 20 };
+      expect(sessionWpm(tooFast)).toBeNull();
+      expect(updateReadingSpeed(state, tooFast)).toEqual(state);
+    });
+  });
+
+  describe("bootstrapReadingSpeed", () => {
+    it("returns the default state when there are no usable samples", () => {
+      expect(bootstrapReadingSpeed([])).toEqual(initialReadingSpeedState());
+      expect(bootstrapReadingSpeed([null, undefined])).toEqual(initialReadingSpeedState());
+    });
+
+    it("averages valid per-article speeds", () => {
+      const state = bootstrapReadingSpeed([200, 300, 400]);
+      expect(state.wpm).toBeCloseTo(300, 5);
+      expect(state.sampleCount).toBe(3);
+    });
+
+    it("ignores out-of-band and missing values", () => {
+      // 5 and 5000 are out of band; null/undefined skipped. Only 250 & 350 count.
+      const state = bootstrapReadingSpeed([5, 5000, null, 250, undefined, 350]);
+      expect(state.wpm).toBeCloseTo(300, 5);
+      expect(state.sampleCount).toBe(2);
+    });
+
+    it("clamps an extreme-but-in-band mean into the valid band", () => {
+      const state = bootstrapReadingSpeed([MAX_VALID_WPM, MAX_VALID_WPM]);
+      expect(state.wpm).toBeLessThanOrEqual(MAX_VALID_WPM);
+      expect(state.wpm).toBeGreaterThanOrEqual(MIN_VALID_WPM);
+    });
+
+    it("seeds an estimate that later local sessions still nudge", () => {
+      // Bootstrap from other devices at ~300 wpm with several samples.
+      let state = bootstrapReadingSpeed([300, 300, 300, 300]);
+      expect(state.wpm).toBeCloseTo(300, 5);
+      // A local 400 wpm session should move the estimate up, but not all the way.
+      state = updateReadingSpeed(state, { wordsRead: 400, activeSeconds: 60 });
+      expect(state.wpm).toBeGreaterThan(300);
+      expect(state.wpm).toBeLessThan(400);
     });
   });
 

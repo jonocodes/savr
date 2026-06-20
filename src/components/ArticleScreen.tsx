@@ -135,6 +135,11 @@ export default function ArticleScreen(_props: Props) {
   const articleRef = useRef<Article | null>(null);
   articleRef.current = liveArticle ?? null;
 
+  // Always-current storage handle so the reading-session finalize callback can
+  // persist remotely without re-running (and thus restarting) its effect.
+  const storageRef = useRef(storage);
+  storageRef.current = storage;
+
   // Extract plain text from HTML content for TTS
   const articleText = useMemo(() => {
     if (!content) return "";
@@ -573,7 +578,30 @@ export default function ArticleScreen(_props: Props) {
       tracker.recordActivity(progress, Date.now());
 
       const session = tracker.getSession();
-      if (session) recordReadingSession(session);
+      if (!session) return;
+
+      const { wpm: measuredWpm } = recordReadingSession(session);
+
+      // Persist the measured pace on the article so other devices can bootstrap
+      // their own estimate from it. Mirrors how scroll progress is saved.
+      if (measuredWpm != null && articleRef.current) {
+        const targetSlug = articleRef.current.slug;
+        const rounded = Math.round(measuredWpm);
+        const client = storageRef.current.client;
+        if (client) {
+          void patchArticleMetadata(
+            client,
+            targetSlug,
+            { readingWpm: rounded },
+            { skipPublicExport: true }
+          );
+        } else {
+          void db.transaction("rw", db.articles, async () => {
+            const current = await db.articles.get(targetSlug);
+            if (current) await db.articles.put({ ...current, readingWpm: rounded });
+          });
+        }
+      }
     };
 
     const handleVisibility = () => {

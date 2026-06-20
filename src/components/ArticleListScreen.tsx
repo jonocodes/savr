@@ -49,7 +49,7 @@ import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
-import { useReadingWpm } from "../utils/readingSpeed";
+import { useReadingWpm, bootstrapReadingSpeedIfUnseeded } from "../utils/readingSpeed";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -330,6 +330,15 @@ export default function ArticleListScreen() {
 
   // Learned reading speed (re-renders when updated after a reading session).
   const readingWpm = useReadingWpm();
+
+  // On a fresh device the local estimate has no samples; seed it from the
+  // reading speeds measured on other devices (synced via article metadata).
+  // Safe to re-run as articles arrive from sync: it no-ops once this device has
+  // any estimate of its own, so it never clobbers locally-learned data.
+  useEffect(() => {
+    if (!articles) return;
+    bootstrapReadingSpeedIfUnseeded(articles.map((a) => a.readingWpm));
+  }, [articles]);
 
   // Read time sum queries
   const unreadWordCountSum = useLiveQuery(async () => {

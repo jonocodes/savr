@@ -62,34 +62,70 @@ export const clampWpm = (wpm: number): number =>
   Math.min(MAX_VALID_WPM, Math.max(MIN_VALID_WPM, wpm));
 
 /**
+ * The measured pace of a single session, or null when the session is too short,
+ * covers too few words, or implies an out-of-band pace (skim, fast-scroll, a tab
+ * left open). This is the value worth persisting per-article so other devices
+ * can bootstrap an estimate from it.
+ */
+export function sessionWpm(session: ReadingSession): number | null {
+  const { wordsRead, activeSeconds } = session;
+
+  if (!Number.isFinite(activeSeconds) || activeSeconds < MIN_SESSION_SECONDS) return null;
+  if (!Number.isFinite(wordsRead) || wordsRead < MIN_WORDS_READ) return null;
+
+  const wpm = wordsRead / (activeSeconds / 60);
+  if (!Number.isFinite(wpm)) return null;
+  if (wpm < MIN_VALID_WPM || wpm > MAX_VALID_WPM) return null;
+
+  return wpm;
+}
+
+/**
  * Fold a completed reading session into the running estimate.
  *
- * Returns the state unchanged when the session is too short, covers too few
- * words, or implies an out-of-band pace. Otherwise blends the session pace in
- * via an EMA whose weight starts high (so the first samples dominate) and decays
- * toward {@link EMA_ALPHA} as the sample count grows.
+ * Returns the state unchanged when the session pace is not valid (see
+ * {@link sessionWpm}). Otherwise blends the session pace in via an EMA whose
+ * weight starts high (so the first samples dominate) and decays toward
+ * {@link EMA_ALPHA} as the sample count grows.
  */
 export function updateReadingSpeed(
   state: ReadingSpeedState,
   session: ReadingSession
 ): ReadingSpeedState {
-  const { wordsRead, activeSeconds } = session;
-
-  if (!Number.isFinite(activeSeconds) || activeSeconds < MIN_SESSION_SECONDS) return state;
-  if (!Number.isFinite(wordsRead) || wordsRead < MIN_WORDS_READ) return state;
-
-  const sessionWpm = wordsRead / (activeSeconds / 60);
-  if (!Number.isFinite(sessionWpm)) return state;
-  if (sessionWpm < MIN_VALID_WPM || sessionWpm > MAX_VALID_WPM) return state;
+  const wpm = sessionWpm(session);
+  if (wpm === null) return state;
 
   // Weight the first few samples heavily so we leave the default behind quickly,
   // then settle into a stable EMA once there is enough history.
   const alpha = Math.max(EMA_ALPHA, 1 / (state.sampleCount + 1));
-  const blended = state.wpm * (1 - alpha) + sessionWpm * alpha;
+  const blended = state.wpm * (1 - alpha) + wpm * alpha;
 
   return {
     wpm: clampWpm(blended),
     sampleCount: state.sampleCount + 1,
+  };
+}
+
+/**
+ * Build an initial estimate from per-article reading speeds gathered on other
+ * devices (synced via article metadata). Out-of-band values are ignored. With
+ * no usable samples the default baseline is returned, so a brand-new account
+ * still starts somewhere sensible.
+ *
+ * The resulting sampleCount reflects how many readings informed the estimate,
+ * which keeps local sessions from over-correcting a well-supported baseline.
+ */
+export function bootstrapReadingSpeed(wpms: Array<number | null | undefined>): ReadingSpeedState {
+  const valid = wpms.filter(
+    (w): w is number => typeof w === "number" && w >= MIN_VALID_WPM && w <= MAX_VALID_WPM
+  );
+
+  if (valid.length === 0) return initialReadingSpeedState();
+
+  const mean = valid.reduce((sum, w) => sum + w, 0) / valid.length;
+  return {
+    wpm: clampWpm(mean),
+    sampleCount: valid.length,
   };
 }
 

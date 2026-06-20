@@ -534,6 +534,7 @@ export function readabilityToArticle(
     ingestSource: "bookmarklet",
     mimeType: contentType,
     wordCount: wordCount,
+    readingWpm: null,
     progress: 0,
   };
 
@@ -688,6 +689,7 @@ export async function ingestPdf(
     ingestSource: "url",
     mimeType: "application/pdf",
     wordCount: null,
+    readingWpm: null,
     progress: 0,
   };
 
@@ -784,6 +786,7 @@ export async function ingestImage(
     ingestSource: "url",
     mimeType: mimeType,
     wordCount: null,
+    readingWpm: null,
     progress: 0,
   };
 

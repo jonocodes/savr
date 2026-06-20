@@ -3,7 +3,9 @@ import {
   DEFAULT_WPM,
   ReadingSession,
   ReadingSpeedState,
+  bootstrapReadingSpeed,
   initialReadingSpeedState,
+  sessionWpm,
   updateReadingSpeed,
 } from "../../lib/src/readingSpeed";
 
@@ -46,13 +48,33 @@ const setReadingSpeedState = (state: ReadingSpeedState): void => {
 };
 
 /**
- * Fold a completed reading session into the stored estimate and return the new
- * state. Sessions that fail the validity checks leave the estimate untouched.
+ * Fold a completed reading session into the stored estimate. Returns the new
+ * local state plus the session's measured pace (null when the session was too
+ * noisy to learn from) — the caller persists that pace on the article so other
+ * devices can bootstrap from it.
  */
-export const recordReadingSession = (session: ReadingSession): ReadingSpeedState => {
+export const recordReadingSession = (
+  session: ReadingSession
+): { state: ReadingSpeedState; wpm: number | null } => {
   const next = updateReadingSpeed(getReadingSpeedState(), session);
   setReadingSpeedState(next);
-  return next;
+  return { state: next, wpm: sessionWpm(session) };
+};
+
+/**
+ * Seed the local estimate from reading speeds measured on other devices (synced
+ * via article metadata) — but only when this device has not learned anything
+ * itself yet, so we never clobber a locally-built estimate. Returns true if a
+ * bootstrap was applied.
+ */
+export const bootstrapReadingSpeedIfUnseeded = (
+  articleWpms: Array<number | null | undefined>
+): boolean => {
+  if (getReadingSpeedState().sampleCount > 0) return false;
+  const seeded = bootstrapReadingSpeed(articleWpms);
+  if (seeded.sampleCount === 0) return false;
+  setReadingSpeedState(seeded);
+  return true;
 };
 
 /** Reset the estimate back to the default baseline. */
