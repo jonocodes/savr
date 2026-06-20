@@ -27,6 +27,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fon
           fontSize: fontSize,
           fontFamily: fontFamily,
           color: "text.primary",
+          "& *:not(code):not(pre):not(pre *)": { fontFamily: fontFamily ?? "inherit" },
           "& h1": { textAlign: "center" },
           "& #savr-metadata": { textAlign: "center" },
           "& a": {
