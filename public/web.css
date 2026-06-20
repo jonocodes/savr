@@ -6,7 +6,7 @@
     font-family: Helvetica, Arial, sans-serif;
 }
 #savr-content {
-    font-family: Georgia, 'Times New Roman', Times, serif;
+    font-family: var(--savr-font-family, Georgia, 'Times New Roman', Times, serif);
 }
 #savr-metadata {
     text-align: center;

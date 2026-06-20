@@ -5,9 +5,10 @@ import { Box, Container, useTheme } from "@mui/material";
 interface ArticleComponentProps {
   html: string;
   fontSize: number;
+  fontFamily?: string;
 }
 
-const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) => {
+const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fontFamily }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
 
@@ -19,7 +20,8 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize }) =
         mt: 1,
         mb: 4,
         p: "12px",
-      }}
+        "--savr-font-family": fontFamily ?? "Georgia, 'Times New Roman', Times, serif",
+      } as React.CSSProperties}
     >
       <Box
         sx={{

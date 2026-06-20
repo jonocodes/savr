@@ -20,6 +20,10 @@ import {
   LinearProgress,
   CircularProgress,
   Collapse,
+  Select,
+  MenuItem as SelectMenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -42,6 +46,10 @@ import {
   ExpandLess as ExpandLessIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  FormatSize as FormatSizeIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon,
+  SettingsBrightness as SettingsBrightnessIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -50,10 +58,19 @@ import { Article } from "../../lib/src/models";
 import { removeArticle, patchArticleMetadata } from "~/utils/article/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
-import { CookieThemeToggle } from "./CookieThemeToggle";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
-import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
+import {
+  getFontSizeFromCookie,
+  setFontSizeInCookie,
+  getThemeFromCookie,
+  setThemeInCookie,
+  ThemeMode,
+  getFontFamilyFromCookie,
+  setFontFamilyInCookie,
+  FONT_FAMILY_OPTIONS,
+  FontFamily,
+} from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { ReadingSessionTracker } from "../../lib/src/readingSpeed";
@@ -108,6 +125,10 @@ export default function ArticleScreen(_props: Props) {
   const [refetchPercent, setRefetchPercent] = useState<number>(0);
   const [refetchStatus, setRefetchStatus] = useState<string | null>(null);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
+  const [stylesDrawerOpen, setStylesDrawerOpen] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getThemeFromCookie());
+  const [fontFamily, setFontFamily] = useState<FontFamily>(() => getFontFamilyFromCookie());
+  const currentFontCss = FONT_FAMILY_OPTIONS.find((o) => o.value === fontFamily)?.css;
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -799,33 +820,14 @@ export default function ArticleScreen(_props: Props) {
             {/* {article.title} */}
           </Typography>
 
-          <Tooltip title="Increase font size">
+          <Tooltip title="Reading styles">
             <IconButton
               color="inherit"
-              onClick={() => {
-                const newSize = fontSize + 2;
-                setFontSize(newSize);
-                setFontSizeInCookie(newSize);
-              }}
+              onClick={() => setStylesDrawerOpen(true)}
             >
-              <AddIcon />
+              <FormatSizeIcon />
             </IconButton>
           </Tooltip>
-
-          <Tooltip title="Decrease font size">
-            <IconButton
-              color="inherit"
-              onClick={() => {
-                const newSize = fontSize - 2;
-                setFontSize(newSize);
-                setFontSizeInCookie(newSize);
-              }}
-            >
-              <RemoveIcon />
-            </IconButton>
-          </Tooltip>
-
-          <CookieThemeToggle size="small" />
 
           <Tooltip title="Listen to article">
             <IconButton
@@ -1023,7 +1025,7 @@ export default function ArticleScreen(_props: Props) {
             />
           </Box>
         ) : (
-          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} />
+          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} fontFamily={currentFontCss} />
         )}
       </Box>
 
@@ -1176,6 +1178,144 @@ export default function ArticleScreen(_props: Props) {
             </Typography>
           )}
           <LinearProgress variant="determinate" value={refetchPercent} />
+        </Box>
+      </Drawer>
+
+      {/* Styles Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={stylesDrawerOpen}
+        onClose={() => setStylesDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            bgcolor: "background.paper",
+            color: "text.primary",
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+            Reading styles
+          </Typography>
+
+          {/* Theme mode */}
+          <Box sx={{ display: "flex", gap: 2, mb: 3, justifyContent: "center" }}>
+            {(["light", "dark", "system"] as ThemeMode[]).map((mode) => {
+              const selected = currentTheme === mode;
+              const icon =
+                mode === "light" ? (
+                  <LightModeIcon />
+                ) : mode === "dark" ? (
+                  <DarkModeIcon />
+                ) : (
+                  <SettingsBrightnessIcon />
+                );
+              const label = mode.charAt(0).toUpperCase() + mode.slice(1);
+              return (
+                <Box
+                  key={mode}
+                  onClick={() => {
+                    if (currentTheme !== mode) {
+                      setThemeInCookie(mode);
+                      setCurrentTheme(mode);
+                      window.dispatchEvent(new CustomEvent("themeChanged"));
+                    }
+                  }}
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0.5,
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      border: selected ? "2px solid" : "2px solid",
+                      borderColor: selected ? "primary.main" : "divider",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: selected ? "primary.main" : "transparent",
+                      color: selected ? "primary.contrastText" : "text.secondary",
+                      transition: "all 0.2s ease-in-out",
+                    }}
+                  >
+                    {icon}
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: selected ? "primary.main" : "text.secondary" }}
+                  >
+                    {label}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* Font size */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              pt: 2,
+              borderTop: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <IconButton
+              onClick={() => {
+                const newSize = Math.max(12, fontSize - 2);
+                setFontSize(newSize);
+                setFontSizeInCookie(newSize);
+              }}
+            >
+              <RemoveIcon />
+            </IconButton>
+            <Typography sx={{ minWidth: 60, textAlign: "center", fontSize }}>
+              A
+            </Typography>
+            <IconButton
+              onClick={() => {
+                const newSize = Math.min(32, fontSize + 2);
+                setFontSize(newSize);
+                setFontSizeInCookie(newSize);
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          </Box>
+
+          {/* Font family */}
+          <Box sx={{ pt: 2, borderTop: "1px solid", borderColor: "divider", mt: 2 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Font</InputLabel>
+              <Select
+                value={fontFamily}
+                label="Font"
+                onChange={(e) => {
+                  const val = e.target.value as FontFamily;
+                  setFontFamily(val);
+                  setFontFamilyInCookie(val);
+                }}
+              >
+                {FONT_FAMILY_OPTIONS.map((opt) => (
+                  <SelectMenuItem key={opt.value} value={opt.value} sx={{ fontFamily: opt.css }}>
+                    {opt.label}
+                  </SelectMenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
         </Box>
       </Drawer>
 
