@@ -1,4 +1,4 @@
-import { getLargestImageFromSrcset } from "../src/ingestion";
+import { getLargestImageFromSrcset, extractImageUrls } from "../src/ingestion";
 
 describe("ingestion.ts - srcset handling", () => {
   describe("getLargestImageFromSrcset", () => {
@@ -137,6 +137,85 @@ describe("ingestion.ts - srcset handling", () => {
 
       // After processing, both should be removed
       // This would be tested through the full ingestion flow
+    });
+  });
+
+  describe("<picture>/<source> handling", () => {
+    beforeAll(() => {
+      (global as any).DOMParser = class DOMParser {
+        parseFromString(html: string, _contentType: string): Document {
+          const parser = new (require("jsdom").JSDOM)(html);
+          return parser.window.document;
+        }
+      };
+    });
+
+    const parse = (html: string): Document =>
+      new (global as any).DOMParser().parseFromString(html, "text/html");
+
+    it("removes <source> elements so the rewritten <img src> is used", async () => {
+      // Medium-style markup: the real image lives on the <img>, but the
+      // <picture>'s <source> would otherwise override it in the browser.
+      const doc = parse(`
+        <html><body>
+          <picture>
+            <source type="image/webp" srcset="https://miro.medium.com/v2/resize:fit:1400/format:webp/1*abc.png 1400w">
+            <img src="https://miro.medium.com/v2/resize:fit:700/1*abc.png" alt="hero">
+          </picture>
+        </body></html>
+      `);
+
+      const result = await extractImageUrls(doc, "https://medium.com/some-article");
+
+      expect(doc.querySelectorAll("source").length).toBe(0);
+      expect(result.length).toBe(1);
+    });
+
+    it("falls back to the largest <source> srcset when the <img> has none", async () => {
+      const doc = parse(`
+        <html><body>
+          <picture>
+            <source srcset="https://example.com/small.jpg 640w, https://example.com/large.jpg 1400w">
+            <img alt="hero">
+          </picture>
+        </body></html>
+      `);
+
+      const result = await extractImageUrls(doc, "https://example.com/article");
+
+      expect(result[0][0]).toBe("https://example.com/large.jpg");
+      expect(doc.querySelectorAll("source").length).toBe(0);
+    });
+
+    it("prefers the <img>'s own srcset over <source> elements", async () => {
+      const doc = parse(`
+        <html><body>
+          <picture>
+            <source srcset="https://example.com/source.jpg 1400w">
+            <img src="https://example.com/fallback.jpg"
+                 srcset="https://example.com/img-small.jpg 1x, https://example.com/img-large.jpg 2x">
+          </picture>
+        </body></html>
+      `);
+
+      const result = await extractImageUrls(doc, "https://example.com/article");
+
+      expect(result[0][0]).toBe("https://example.com/img-large.jpg");
+      expect(doc.querySelector("img")?.getAttribute("srcset")).toBeNull();
+      expect(doc.querySelectorAll("source").length).toBe(0);
+    });
+
+    it("leaves plain <img> elements (no <picture>) untouched", async () => {
+      const doc = parse(`
+        <html><body>
+          <img src="https://example.com/plain.jpg" alt="plain">
+        </body></html>
+      `);
+
+      const result = await extractImageUrls(doc, "https://example.com/article");
+
+      expect(result.length).toBe(1);
+      expect(result[0][0]).toBe("https://example.com/plain.jpg");
     });
   });
 });

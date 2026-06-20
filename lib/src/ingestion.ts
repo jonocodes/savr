@@ -97,7 +97,7 @@ function getImageExtensionFromUrl(imgUrl: string): string {
   return "jpg";
 }
 
-async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
+export async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
   const imgElements = doc.querySelectorAll("img");
   const imgData: ImageData[] = [];
 
@@ -110,8 +110,26 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
   imgElements.forEach((img) => {
     let imgUrl = img.src;
 
-    // Check if srcset exists and extract the largest image
-    const srcset = img.getAttribute('srcset');
+    // Images are frequently wrapped in <picture> with one or more <source>
+    // elements (Medium does this for every article image). The browser gives
+    // <source> precedence over the <img>'s own src/srcset, so we must (a) use
+    // a <source> srcset when the <img> has no usable srcset of its own, and
+    // (b) strip the <source> elements afterward. Otherwise the rendered
+    // article keeps loading the original remote images and ignores the local
+    // copies we write into <img src> below.
+    const picture = img.closest("picture");
+
+    let srcset = img.getAttribute("srcset");
+    if (!srcset && picture) {
+      for (const source of Array.from(picture.querySelectorAll("source"))) {
+        const sourceSrcset = source.getAttribute("srcset");
+        if (sourceSrcset) {
+          srcset = sourceSrcset;
+          break;
+        }
+      }
+    }
+
     if (srcset) {
       const largestFromSrcset = getLargestImageFromSrcset(srcset);
       if (largestFromSrcset) {
@@ -121,6 +139,12 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
         // Also remove sizes attribute if present, as it's only used with srcset
         img.removeAttribute('sizes');
       }
+    }
+
+    // Drop any <source> siblings so the browser falls back to the <img src>
+    // we rewrite to the downloaded image.
+    if (picture) {
+      picture.querySelectorAll("source").forEach((source) => source.remove());
     }
 
     // If the imgUrl is a relative URL or starts with '/', prepend the baseDirectory
