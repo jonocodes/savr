@@ -5,6 +5,7 @@ export type ThemeMode = "light" | "dark" | "system";
 
 export const THEME_COOKIE_NAME = "savr-theme";
 export const FONT_SIZE_COOKIE_NAME = "savr-font-size";
+export const FONT_FAMILY_COOKIE_NAME = "savr-font-family";
 export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
@@ -170,6 +171,34 @@ export const setCorsProxyInCookie = (corsProxy: string | null): void => {
     // Remove cookie if value is null or empty
     document.cookie = `${CORS_PROXY_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
   }
+};
+
+export type FontFamily = "sans" | "serif" | "humanist" | "mono";
+
+export const FONT_FAMILY_OPTIONS: { value: FontFamily; label: string; css: string }[] = [
+  { value: "sans", label: "Sans (Inter)", css: "'Inter', sans-serif" },
+  { value: "serif", label: "Serif (Lora)", css: "'Lora', Georgia, serif" },
+  { value: "humanist", label: "Humanist (Lato)", css: "'Lato', sans-serif" },
+  { value: "mono", label: "Mono", css: "monospace" },
+];
+
+export const getFontFamilyFromCookie = (): FontFamily => {
+  if (typeof document === "undefined") return "sans";
+
+  const cookies = document.cookie.split(";");
+  const cookie = cookies.find((c) => c.trim().startsWith(`${FONT_FAMILY_COOKIE_NAME}=`));
+  if (cookie) {
+    const value = cookie.split("=")[1].trim() as FontFamily;
+    if (FONT_FAMILY_OPTIONS.some((o) => o.value === value)) return value;
+  }
+  return "sans";
+};
+
+export const setFontFamilyInCookie = (font: FontFamily): void => {
+  if (typeof document === "undefined") return;
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+  document.cookie = `${FONT_FAMILY_COOKIE_NAME}=${font}; expires=${expires.toUTCString()}; path=/`;
 };
 
 // Set font size in cookie

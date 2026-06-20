@@ -20,6 +20,10 @@ import {
   LinearProgress,
   CircularProgress,
   Collapse,
+  Select,
+  MenuItem as SelectMenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -56,7 +60,17 @@ import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
-import { getFontSizeFromCookie, setFontSizeInCookie, getThemeFromCookie, setThemeInCookie, ThemeMode } from "~/utils/cookies";
+import {
+  getFontSizeFromCookie,
+  setFontSizeInCookie,
+  getThemeFromCookie,
+  setThemeInCookie,
+  ThemeMode,
+  getFontFamilyFromCookie,
+  setFontFamilyInCookie,
+  FONT_FAMILY_OPTIONS,
+  FontFamily,
+} from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { ReadingSessionTracker } from "../../lib/src/readingSpeed";
@@ -113,6 +127,8 @@ export default function ArticleScreen(_props: Props) {
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
   const [stylesDrawerOpen, setStylesDrawerOpen] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getThemeFromCookie());
+  const [fontFamily, setFontFamily] = useState<FontFamily>(() => getFontFamilyFromCookie());
+  const currentFontCss = FONT_FAMILY_OPTIONS.find((o) => o.value === fontFamily)?.css;
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -1009,7 +1025,7 @@ export default function ArticleScreen(_props: Props) {
             />
           </Box>
         ) : (
-          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} />
+          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} fontFamily={currentFontCss} />
         )}
       </Box>
 
@@ -1277,6 +1293,28 @@ export default function ArticleScreen(_props: Props) {
             >
               <AddIcon />
             </IconButton>
+          </Box>
+
+          {/* Font family */}
+          <Box sx={{ pt: 2, borderTop: "1px solid", borderColor: "divider", mt: 2 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Font</InputLabel>
+              <Select
+                value={fontFamily}
+                label="Font"
+                onChange={(e) => {
+                  const val = e.target.value as FontFamily;
+                  setFontFamily(val);
+                  setFontFamilyInCookie(val);
+                }}
+              >
+                {FONT_FAMILY_OPTIONS.map((opt) => (
+                  <SelectMenuItem key={opt.value} value={opt.value} sx={{ fontFamily: opt.css }}>
+                    {opt.label}
+                  </SelectMenuItem>
+                ))}
+              </Select>
+            </FormControl>
           </Box>
         </Box>
       </Drawer>
