@@ -20,14 +20,13 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fon
         mt: 1,
         mb: 4,
         p: "12px",
-      }}
+        "--savr-font-family": fontFamily ?? "Georgia, 'Times New Roman', Times, serif",
+      } as React.CSSProperties}
     >
       <Box
         sx={{
           fontSize: fontSize,
-          fontFamily: fontFamily,
           color: "text.primary",
-          "& *:not(code):not(pre):not(pre *)": { fontFamily: fontFamily ?? "inherit" },
           "& h1": { textAlign: "center" },
           "& #savr-metadata": { textAlign: "center" },
           "& a": {
