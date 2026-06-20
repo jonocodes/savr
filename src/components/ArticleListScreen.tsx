@@ -49,6 +49,7 @@ import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
+import { useReadingWpm, bootstrapReadingSpeedIfUnseeded } from "../utils/readingSpeed";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -75,6 +76,7 @@ const sampleArticleUrls = [
 
 function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
+  const readingWpm = useReadingWpm();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
   const [contentExists, setContentExists] = useState<boolean>(true);
@@ -246,7 +248,7 @@ function ArticleItem({ article }: { article: Article }) {
                 ? "PDF document"
                 : article.mimeType?.startsWith("image/")
                   ? "Image"
-                  : generateInfoForCard(article)
+                  : generateInfoForCard(article, readingWpm)
               : "(content missing)"}
           </Typography>
         }
@@ -326,14 +328,26 @@ export default function ArticleListScreen() {
     return db.articles.where("state").equals("archived").count();
   });
 
+  // Learned reading speed (re-renders when updated after a reading session).
+  const readingWpm = useReadingWpm();
+
+  // On a fresh device the local estimate has no samples; seed it from the
+  // reading speeds measured on other devices (synced via article metadata).
+  // Safe to re-run as articles arrive from sync: it no-ops once this device has
+  // any estimate of its own, so it never clobbers locally-learned data.
+  useEffect(() => {
+    if (!articles) return;
+    bootstrapReadingSpeedIfUnseeded(articles.map((a) => a.readingWpm));
+  }, [articles]);
+
   // Read time sum queries
-  const unreadReadTimeSum = useLiveQuery(async () => {
+  const unreadWordCountSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
-  const archivedReadTimeSum = useLiveQuery(async () => {
+  const archivedWordCountSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
@@ -789,20 +803,22 @@ export default function ArticleListScreen() {
         {filteredArticles.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
             {filter === "unread" ? (
-              unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+              unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                 <>
                   Saves: {unreadCount} articles
                   <br />
-                  Reading time: {formatReadTime(unreadReadTimeSum)}
+                  Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
+                  {" "}· {Math.round(readingWpm)} wpm
                 </>
               ) : (
                 "Loading..."
               )
-            ) : archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+            ) : archivedCount !== undefined && archivedWordCountSum !== undefined ? (
               <>
                 Archive: {archivedCount} articles
                 <br />
-                Reading time: {formatReadTime(archivedReadTimeSum)}
+                Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
+                {" "}· {Math.round(readingWpm)} wpm
               </>
             ) : (
               "Loading..."

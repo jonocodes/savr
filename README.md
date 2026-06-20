@@ -19,6 +19,12 @@ Savr is:
 - Read content and images without an internet connection
 - No dependency on a service/company to do the scraping or storage
 - Authorization and cross device synchronization optional (using your Dropbox or Google Drive)
+- Learns your reading speed over time and personalizes estimated reading times
+- Mark articles as favorites
+- Light, dark, and system themes
+- Toggle between a cleaned reader view and the original page
+- Save content by pasting HTML, Markdown, or plain text, or by uploading PDFs and images
+- Publish a read-only public copy of your collection
 - Open source, cross platform (mobile and desktop/web)
 - Use the free hosted version, or self host it
 - Non-proprietary since it integrates with any browser and does not need specific extensions installed (see bookmarklet)

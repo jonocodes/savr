@@ -46,6 +46,7 @@ import {
   DragHandle as DragHandleIcon,
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
+  Speed as SpeedIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -105,6 +106,8 @@ import {
   DEFAULT_SYNC_INTERVAL_MS,
 } from "~/utils/cookies";
 import { formatReadTime } from "../../lib/src/lib";
+import { DEFAULT_WPM } from "../../lib/src/readingSpeed";
+import { useReadingWpm, getReadingSpeedState, resetReadingSpeed } from "../utils/readingSpeed";
 import {
   getPublicExportState,
   subscribePublicExport,
@@ -240,14 +243,18 @@ export default function PreferencesScreen() {
   const unreadCount = useLiveQuery(() => db.articles.where("state").equals("unread").count());
   const archivedCount = useLiveQuery(() => db.articles.where("state").equals("archived").count());
 
+  // Learned reading speed (re-renders when updated after a reading session).
+  const readingWpm = useReadingWpm();
+  const readingSpeedSampleCount = getReadingSpeedState().sampleCount;
+
   // Read time sum queries
-  const unreadReadTimeSum = useLiveQuery(async () => {
+  const unreadWordCountSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
-  const archivedReadTimeSum = useLiveQuery(async () => {
+  const archivedWordCountSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
 
   const totalArticleCount = useLiveQuery(() => db.articles.count());
@@ -920,11 +927,11 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Unread Articles"
                 secondary={
-                  unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+                  unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                     <>
                       {unreadCount} articles
                       <br />
-                      Reading time: {formatReadTime(unreadReadTimeSum)}
+                      Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
                     </>
                   ) : (
                     "Loading..."
@@ -940,14 +947,43 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary="Archived Articles"
                 secondary={
-                  archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+                  archivedCount !== undefined && archivedWordCountSum !== undefined ? (
                     <>
                       {archivedCount} articles
                       <br />
-                      Reading time: {formatReadTime(archivedReadTimeSum)}
+                      Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
                     </>
                   ) : (
                     "Loading..."
+                  )
+                }
+              />
+            </ListItem>
+
+            <ListItem
+              secondaryAction={
+                readingSpeedSampleCount > 0 ? (
+                  <Button size="small" onClick={() => resetReadingSpeed()}>
+                    Reset
+                  </Button>
+                ) : undefined
+              }
+            >
+              <ListItemIcon>
+                <SpeedIcon />
+              </ListItemIcon>
+              <ListItemText
+                primary="Reading speed"
+                secondary={
+                  readingSpeedSampleCount > 0 ? (
+                    <>
+                      {Math.round(readingWpm)} words/min
+                      <br />
+                      Learned from {readingSpeedSampleCount} reading
+                      {readingSpeedSampleCount === 1 ? " session" : " sessions"}
+                    </>
+                  ) : (
+                    `${DEFAULT_WPM} words/min (default — read some articles to personalize)`
                   )
                 }
               />
@@ -1021,7 +1057,7 @@ export default function PreferencesScreen() {
                           article.title || "",
                           article.url || "",
                           article.state || "",
-                          article.readTimeMinutes || "",
+                          article.wordCount || "",
                           article.publication || "",
                           article.author || "",
                           article.publishedDate || "",

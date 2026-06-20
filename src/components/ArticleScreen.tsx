@@ -56,6 +56,9 @@ import { useTextToSpeech } from "~/hooks/useTextToSpeech";
 import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
+import { ReadingSessionTracker } from "../../lib/src/readingSpeed";
+import { recordReadingSession, useReadingWpm } from "../utils/readingSpeed";
+import { formatReadTime } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
@@ -133,6 +136,11 @@ export default function ArticleScreen(_props: Props) {
   const articleRef = useRef<Article | null>(null);
   articleRef.current = liveArticle ?? null;
 
+  // Always-current storage handle so the reading-session finalize callback can
+  // persist remotely without re-running (and thus restarting) its effect.
+  const storageRef = useRef(storage);
+  storageRef.current = storage;
+
   // Extract plain text from HTML content for TTS
   const articleText = useMemo(() => {
     if (!content) return "";
@@ -143,6 +151,15 @@ export default function ArticleScreen(_props: Props) {
     // Get text content
     return doc.body?.textContent?.trim() || "";
   }, [content]);
+
+  // Word count of the article body, used to convert reading progress into the
+  // number of words actually read for the adaptive reading-speed estimate.
+  const wordCount = useMemo(
+    () => (articleText ? articleText.split(/\s+/).filter(Boolean).length : 0),
+    [articleText]
+  );
+
+  const readingWpm = useReadingWpm();
 
   // Initialize TTS hook
   const [ttsState, ttsControls] = useTextToSpeech(articleText);
@@ -458,6 +475,9 @@ export default function ArticleScreen(_props: Props) {
   // Scroll percentage tracking
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const lastSavedPercentage = useRef<number | null>(null);
+  // Active reading-speed session for the currently open article. Null between
+  // sessions (e.g. while the tab is hidden) so stray scroll events are ignored.
+  const sessionTrackerRef = useRef<ReadingSessionTracker | null>(null);
   // const hasSetInitialScroll = useRef(false);
   const [hasSetInitialScroll, setHasSetInitialScroll] = useState(false);
 
@@ -496,6 +516,11 @@ export default function ArticleScreen(_props: Props) {
         const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
         const scrollPercentage = Math.round((scrollTop / documentHeight) * 100);
 
+        // Feed the reading-speed tracker: each settled scroll position marks a
+        // point of activity, and the gap since the last one counts as reading
+        // time (capped against idle gaps inside the tracker).
+        sessionTrackerRef.current?.recordActivity(scrollPercentage, Date.now());
+
         // Only save if the percentage has changed
         if (scrollPercentage !== lastSavedPercentage.current) {
           lastSavedPercentage.current = scrollPercentage;
@@ -530,6 +555,74 @@ export default function ArticleScreen(_props: Props) {
       }
     };
   }, [storage.client, headerHidingEnabled]);
+
+  // Adaptive reading-speed session lifecycle. A session runs while the article
+  // is open and the tab is visible; it is finalized (and folded into the learned
+  // WPM) when the tab is hidden or the screen unmounts. Recreating the tracker
+  // when the tab becomes visible again starts a fresh session and prevents the
+  // same reading from being counted twice.
+  useEffect(() => {
+    if (!wordCount) return;
+
+    const startSession = () => {
+      sessionTrackerRef.current = new ReadingSessionTracker(wordCount);
+    };
+
+    const finalizeSession = () => {
+      const tracker = sessionTrackerRef.current;
+      if (!tracker) return;
+      // Detach first so a follow-on finalize (hidden -> unmount) is a no-op.
+      sessionTrackerRef.current = null;
+
+      const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress =
+        documentHeight > 0 ? Math.round((window.scrollY / documentHeight) * 100) : 0;
+      // Final activity marker captures the time spent on the last segment read.
+      tracker.recordActivity(progress, Date.now());
+
+      const session = tracker.getSession();
+      if (!session) return;
+
+      const { wpm: measuredWpm } = recordReadingSession(session);
+
+      // Persist the measured pace on the article so other devices can bootstrap
+      // their own estimate from it. Mirrors how scroll progress is saved.
+      if (measuredWpm != null && articleRef.current) {
+        const targetSlug = articleRef.current.slug;
+        const rounded = Math.round(measuredWpm);
+        const client = storageRef.current.client;
+        if (client) {
+          void patchArticleMetadata(
+            client,
+            targetSlug,
+            { readingWpm: rounded },
+            { skipPublicExport: true }
+          );
+        } else {
+          void db.transaction("rw", db.articles, async () => {
+            const current = await db.articles.get(targetSlug);
+            if (current) await db.articles.put({ ...current, readingWpm: rounded });
+          });
+        }
+      }
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        finalizeSession();
+      } else if (document.visibilityState === "visible" && !sessionTrackerRef.current) {
+        startSession();
+      }
+    };
+
+    startSession();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      finalizeSession();
+    };
+  }, [slug, wordCount]);
 
   // Load the article content (HTML, PDF, or image) once the metadata row is
   // available. Deps are the narrow values the load actually reads — never the
@@ -1001,6 +1094,12 @@ export default function ArticleScreen(_props: Props) {
                 <Typography variant="body2" color="text.secondary">
                   <strong>Content Type:</strong> {article.mimeType || "Unknown"}
                 </Typography>
+                {wordCount > 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Reading time:</strong>{" "}
+                    {formatReadTime(Math.max(1, Math.ceil(wordCount / readingWpm)))} ({wordCount.toLocaleString()} words)
+                  </Typography>
+                )}
               </Stack>
             </Box>
 

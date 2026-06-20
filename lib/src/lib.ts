@@ -1,6 +1,7 @@
 import { ArticleAndRender, ArticleRenderExtra, Article } from "./models";
 // import { version } from '../package.json' with { type: "json" };
 
+import { DEFAULT_WPM } from "./readingSpeed";
 export const DB_FILE_NAME = "db.json";
 
 // TODO: maybe dont need this mapping since the subtype is the extension
@@ -32,17 +33,12 @@ export function extractDomain(url: string): string | null {
   }
 }
 
-export function calcReadingTime(text: string): number {
-  const wordCount = text.split(/\s+/).length;
+export function calcWordCount(text: string): number {
+  return text.split(/\s+/).filter(Boolean).length;
+}
 
-  const wordsPerMinute = 200; // adjust this value if needed
-
-  const readingTimeMinutes = wordCount / wordsPerMinute;
-
-  const roundedReadingTime = Math.ceil(readingTimeMinutes);
-
-  // console.log(`Estimated reading time: ${roundedReadingTime} minute(s)`);
-  return roundedReadingTime;
+export function calcReadingTime(text: string, wordsPerMinute: number = DEFAULT_WPM): number {
+  return Math.max(1, Math.ceil(calcWordCount(text) / wordsPerMinute));
 }
 
 export function humanReadableSize(bytes: number): string {
@@ -82,7 +78,7 @@ export function formatReadTime(minutes: number): string {
   return mins > 0 ? `${totalHours} hr ${mins} min` : `${totalHours} hr`;
 }
 
-export function generateInfoForCard(article: Article): string {
+export function generateInfoForCard(article: Article, wpm: number = DEFAULT_WPM): string {
   var result = "";
 
   if (article.author != null && article.author != "") {
@@ -99,8 +95,8 @@ export function generateInfoForCard(article: Article): string {
     }
   }
 
-  if (article.readTimeMinutes != null && article.readTimeMinutes != 0) {
-    let read = formatReadTime(article.readTimeMinutes);
+  if (article.wordCount != null && article.wordCount > 0) {
+    let read = formatReadTime(Math.ceil(article.wordCount / wpm));
 
     if (article.progress != null && article.progress != 0) {
       read = `${read} • ${article.progress}%`;

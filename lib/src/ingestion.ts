@@ -7,7 +7,7 @@ import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate, { createArticleObject } from "./article";
 import {
   generateInfoForArticle,
-  calcReadingTime,
+  calcWordCount,
   getFilePathRaw,
   getFilePathContent,
   getFilePathMetadata,
@@ -16,6 +16,7 @@ import {
   getFilePathImage,
   mimeToExt,
 } from "./lib";
+import { DEFAULT_WPM } from "./readingSpeed";
 import { saveResource } from "~/utils/sync/storage";
 import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/article/tools";
 import { md5 } from "js-md5";
@@ -516,7 +517,7 @@ export function readabilityToArticle(
     }
   }
 
-  const readingTimeMinutes = calcReadingTime(content);
+  const wordCount = calcWordCount(content);
 
   const author = readabilityResult.byline;
 
@@ -532,7 +533,8 @@ export function readabilityToArticle(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "bookmarklet",
     mimeType: contentType,
-    readTimeMinutes: readingTimeMinutes,
+    wordCount: wordCount,
+    readingWpm: null,
     progress: 0,
   };
 
@@ -579,7 +581,7 @@ export async function ingestHtml(
     title: article.title,
     byline: article.author || "",
     published: generateInfoForArticle(article),
-    readTime: `${article.readTimeMinutes} minute read`,
+    readTime: `${Math.ceil((article.wordCount ?? 0) / DEFAULT_WPM)} minute read`,
     content: processedHtml,
   });
 
@@ -686,7 +688,8 @@ export async function ingestPdf(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: "application/pdf",
-    readTimeMinutes: null,
+    wordCount: null,
+    readingWpm: null,
     progress: 0,
   };
 
@@ -782,7 +785,8 @@ export async function ingestImage(
     ingestPlatform: `typescript/web (${version})`,
     ingestSource: "url",
     mimeType: mimeType,
-    readTimeMinutes: null,
+    wordCount: null,
+    readingWpm: null,
     progress: 0,
   };
 
@@ -1056,7 +1060,7 @@ export async function ingestUrl(
 //     ingestPlatform: `typescript/web (${version})`,
 //     ingestSource: "????",
 //     mimeType: "text/plain",
-//     readTimeMinutes: 1,  // TODO: set this correctly
+//     defaultReadTimeMinutes: 1,  // TODO: set this correctly
 //     progress: 0,
 //   };
 
@@ -1070,7 +1074,7 @@ export async function ingestUrl(
 //     title: article.title,
 //     byline: article.author || 'unknown author',
 //     published: generateInfoForArticle(article),
-//     readTime: `${article.readTimeMinutes} minute read`,
+//     readTime: `${article.defaultReadTimeMinutes} minute read`,
 //     content: content,
 //     // metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
 //     // namespace: rootPath,
@@ -1081,7 +1085,7 @@ export async function ingestUrl(
 //   //   title: article.title,
 //   //   byline: article.author,
 //   //   published: generateInfoForArticle(article),
-//   //   readTime: `${article.readTimeMinutes} minute read`,
+//   //   readTime: `${article.defaultReadTimeMinutes} minute read`,
 //   //   content: content,
 //   //   metadata: JSON.stringify({ ingestPlatform: version }, null, 2)
 //   //   // namespace: rootPath,

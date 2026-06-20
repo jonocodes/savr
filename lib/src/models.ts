@@ -10,7 +10,8 @@ export type Article = {
   ingestPlatform: string; // platform/web
   ingestSource: string;
   mimeType: string;
-  readTimeMinutes: number | null;
+  wordCount: number | null;
+  readingWpm?: number | null; // Measured reading speed (wpm) from the last session; syncs so other devices can bootstrap
   progress: number;
   favorite?: boolean;
   summary?: string; // AI-generated summary of the article

@@ -43,7 +43,7 @@ function makeSeedArticle(i: number) {
     publication: null,
     author: null,
     publishedDate: null,
-    readTimeMinutes: null,
+    wordCount: null,
     progress: 0,
   };
 }
