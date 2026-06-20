@@ -57,7 +57,8 @@ import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { ReadingSessionTracker } from "../../lib/src/readingSpeed";
-import { recordReadingSession } from "../utils/readingSpeed";
+import { recordReadingSession, useReadingWpm } from "../utils/readingSpeed";
+import { formatReadTime } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
@@ -157,6 +158,8 @@ export default function ArticleScreen(_props: Props) {
     () => (articleText ? articleText.split(/\s+/).filter(Boolean).length : 0),
     [articleText]
   );
+
+  const readingWpm = useReadingWpm();
 
   // Initialize TTS hook
   const [ttsState, ttsControls] = useTextToSpeech(articleText);
@@ -1091,6 +1094,12 @@ export default function ArticleScreen(_props: Props) {
                 <Typography variant="body2" color="text.secondary">
                   <strong>Content Type:</strong> {article.mimeType || "Unknown"}
                 </Typography>
+                {wordCount > 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Reading time:</strong>{" "}
+                    {formatReadTime(Math.max(1, Math.ceil(wordCount / readingWpm)))} ({wordCount.toLocaleString()} words)
+                  </Typography>
+                )}
               </Stack>
             </Box>
 
