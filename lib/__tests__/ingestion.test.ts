@@ -13,6 +13,9 @@ import { Article } from "../src/models";
       head: {
         appendChild: () => {},
       },
+      // hoistPictureSources runs before Readability; these tests don't
+      // exercise images, so an empty NodeList is sufficient.
+      querySelectorAll: () => [],
       documentElement: {
         outerHTML: string,
       },

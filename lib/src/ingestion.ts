@@ -97,6 +97,34 @@ function getImageExtensionFromUrl(imgUrl: string): string {
   return "jpg";
 }
 
+// Lazy-loaded images (Medium and others) often render as a <picture> whose
+// real image URL lives only in the <source> elements, with the <img> carrying
+// no src at all. Readability discards such "empty" <img> elements before we
+// ever see them, so the article ends up with no images. Hoist the largest
+// <source> srcset onto a srcless <img> *before* Readability runs so the image
+// survives parsing; extractImageUrls then downloads it and strips the sources.
+export function hoistPictureSources(doc: Document): number {
+  let hoisted = 0;
+  doc.querySelectorAll("picture").forEach((picture) => {
+    const img = picture.querySelector("img");
+    if (!img) return;
+    // Already has a usable src — nothing to hoist.
+    if (img.getAttribute("src")) return;
+
+    for (const source of Array.from(picture.querySelectorAll("source"))) {
+      const srcset = source.getAttribute("srcset");
+      if (!srcset) continue;
+      const largest = getLargestImageFromSrcset(srcset);
+      if (largest) {
+        img.setAttribute("src", largest);
+        hoisted += 1;
+        break;
+      }
+    }
+  });
+  return hoisted;
+}
+
 export async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
   const imgElements = doc.querySelectorAll("img");
   const imgData: ImageData[] = [];
@@ -509,6 +537,10 @@ export function readabilityToArticle(
 
   // Append the base element into the head
   document.head.appendChild(base);
+
+  // Recover lazy-loaded <picture> images before Readability strips srcless
+  // <img> elements (see hoistPictureSources).
+  hoistPictureSources(document);
 
   let reader = new Readability(document);
   let readabilityResult = reader.parse();

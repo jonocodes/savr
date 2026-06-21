@@ -1,4 +1,4 @@
-import { getLargestImageFromSrcset, extractImageUrls } from "../src/ingestion";
+import { getLargestImageFromSrcset, extractImageUrls, hoistPictureSources } from "../src/ingestion";
 
 describe("ingestion.ts - srcset handling", () => {
   describe("getLargestImageFromSrcset", () => {
@@ -216,6 +216,69 @@ describe("ingestion.ts - srcset handling", () => {
 
       expect(result.length).toBe(1);
       expect(result[0][0]).toBe("https://example.com/plain.jpg");
+    });
+  });
+
+  describe("hoistPictureSources", () => {
+    beforeAll(() => {
+      (global as any).DOMParser = class DOMParser {
+        parseFromString(html: string, _contentType: string): Document {
+          const parser = new (require("jsdom").JSDOM)(html);
+          return parser.window.document;
+        }
+      };
+    });
+
+    const parse = (html: string): Document =>
+      new (global as any).DOMParser().parseFromString(html, "text/html");
+
+    it("hoists the largest <source> srcset onto a srcless <img> (Medium pattern)", () => {
+      // Medium body images carry no src; the URL lives only in <source srcSet>.
+      const doc = parse(`
+        <html><body>
+          <figure><picture>
+            <source srcset="https://miro.medium.com/v2/resize:fit:640/1*x.jpeg 640w, https://miro.medium.com/v2/resize:fit:1400/1*x.jpeg 1400w">
+            <img alt="hero" width="700" height="467">
+          </picture></figure>
+        </body></html>
+      `);
+
+      const hoisted = hoistPictureSources(doc);
+
+      expect(hoisted).toBe(1);
+      expect(doc.querySelector("img")?.getAttribute("src")).toBe(
+        "https://miro.medium.com/v2/resize:fit:1400/1*x.jpeg"
+      );
+    });
+
+    it("does not overwrite an <img> that already has a src", () => {
+      const doc = parse(`
+        <html><body>
+          <picture>
+            <source srcset="https://example.com/source.jpg 1400w">
+            <img src="https://example.com/existing.jpg" alt="hero">
+          </picture>
+        </body></html>
+      `);
+
+      const hoisted = hoistPictureSources(doc);
+
+      expect(hoisted).toBe(0);
+      expect(doc.querySelector("img")?.getAttribute("src")).toBe(
+        "https://example.com/existing.jpg"
+      );
+    });
+
+    it("ignores <picture> elements without an <img>", () => {
+      const doc = parse(`
+        <html><body>
+          <picture>
+            <source srcset="https://example.com/source.jpg 1400w">
+          </picture>
+        </body></html>
+      `);
+
+      expect(hoistPictureSources(doc)).toBe(0);
     });
   });
 });
