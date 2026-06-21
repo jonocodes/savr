@@ -103,6 +103,11 @@ function getImageExtensionFromUrl(imgUrl: string): string {
 // ever see them, so the article ends up with no images. Hoist the largest
 // <source> srcset onto a srcless <img> *before* Readability runs so the image
 // survives parsing; extractImageUrls then downloads it and strips the sources.
+//
+// This is a workaround for a long-standing upstream gap (Readability's
+// _fixLazyImages only inspects an element's own attributes, never child
+// <source> elements). Background, history, and removal criteria:
+// docs/readability-lazy-picture-workaround.md
 export function hoistPictureSources(doc: Document): number {
   let hoisted = 0;
   doc.querySelectorAll("picture").forEach((picture) => {
