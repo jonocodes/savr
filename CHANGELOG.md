@@ -118,11 +118,19 @@
 
 - Migrated from Expo to TanStack Router (#3)
 
+## 2025-04-19
+
+- Added RemoteStorage support and converted to a PWA; removed Android/Kotlin codebase (#2)
+
+## 2025-04-08
+
+- Adopted Expo as the primary framework; archived old Kotlin codebase to a separate branch (#1)
+
 ---
 
-<!-- CHANGELOG PROMPT
+## Prompt for generating new entries
 
-Use this prompt to generate a new entry after merging a PR. Paste it into Claude along with the PR description.
+Use this prompt after merging a PR. Paste it into Claude along with the PR description.
 
 ---
 
@@ -137,5 +145,3 @@ I just merged a PR into my project "savr" (a read-it-later app). Below is the PR
 
 PR description:
 [paste PR body here]
-
--->
