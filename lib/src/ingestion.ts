@@ -97,7 +97,40 @@ function getImageExtensionFromUrl(imgUrl: string): string {
   return "jpg";
 }
 
-async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
+// Lazy-loaded images (Medium and others) often render as a <picture> whose
+// real image URL lives only in the <source> elements, with the <img> carrying
+// no src at all. Readability discards such "empty" <img> elements before we
+// ever see them, so the article ends up with no images. Hoist the largest
+// <source> srcset onto a srcless <img> *before* Readability runs so the image
+// survives parsing; extractImageUrls then downloads it and strips the sources.
+//
+// This is a workaround for a long-standing upstream gap (Readability's
+// _fixLazyImages only inspects an element's own attributes, never child
+// <source> elements). Background, history, and removal criteria:
+// docs/readability-lazy-picture-workaround.md
+export function hoistPictureSources(doc: Document): number {
+  let hoisted = 0;
+  doc.querySelectorAll("picture").forEach((picture) => {
+    const img = picture.querySelector("img");
+    if (!img) return;
+    // Already has a usable src — nothing to hoist.
+    if (img.getAttribute("src")) return;
+
+    for (const source of Array.from(picture.querySelectorAll("source"))) {
+      const srcset = source.getAttribute("srcset");
+      if (!srcset) continue;
+      const largest = getLargestImageFromSrcset(srcset);
+      if (largest) {
+        img.setAttribute("src", largest);
+        hoisted += 1;
+        break;
+      }
+    }
+  });
+  return hoisted;
+}
+
+export async function extractImageUrls(doc: Document, articleUrl: string | null): Promise<ImageData[]> {
   const imgElements = doc.querySelectorAll("img");
   const imgData: ImageData[] = [];
 
@@ -110,8 +143,26 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
   imgElements.forEach((img) => {
     let imgUrl = img.src;
 
-    // Check if srcset exists and extract the largest image
-    const srcset = img.getAttribute('srcset');
+    // Images are frequently wrapped in <picture> with one or more <source>
+    // elements (Medium does this for every article image). The browser gives
+    // <source> precedence over the <img>'s own src/srcset, so we must (a) use
+    // a <source> srcset when the <img> has no usable srcset of its own, and
+    // (b) strip the <source> elements afterward. Otherwise the rendered
+    // article keeps loading the original remote images and ignores the local
+    // copies we write into <img src> below.
+    const picture = img.closest("picture");
+
+    let srcset = img.getAttribute("srcset");
+    if (!srcset && picture) {
+      for (const source of Array.from(picture.querySelectorAll("source"))) {
+        const sourceSrcset = source.getAttribute("srcset");
+        if (sourceSrcset) {
+          srcset = sourceSrcset;
+          break;
+        }
+      }
+    }
+
     if (srcset) {
       const largestFromSrcset = getLargestImageFromSrcset(srcset);
       if (largestFromSrcset) {
@@ -121,6 +172,12 @@ async function extractImageUrls(doc: Document, articleUrl: string | null): Promi
         // Also remove sizes attribute if present, as it's only used with srcset
         img.removeAttribute('sizes');
       }
+    }
+
+    // Drop any <source> siblings so the browser falls back to the <img src>
+    // we rewrite to the downloaded image.
+    if (picture) {
+      picture.querySelectorAll("source").forEach((source) => source.remove());
     }
 
     // If the imgUrl is a relative URL or starts with '/', prepend the baseDirectory
@@ -485,6 +542,10 @@ export function readabilityToArticle(
 
   // Append the base element into the head
   document.head.appendChild(base);
+
+  // Recover lazy-loaded <picture> images before Readability strips srcless
+  // <img> elements (see hoistPictureSources).
+  hoistPictureSources(document);
 
   let reader = new Readability(document);
   let readabilityResult = reader.parse();
