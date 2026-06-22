@@ -9,7 +9,7 @@
   "scripts": {
     "generate-routes": "tsr generate",
     "dev": "VITE_DEBUG=true vite dev",
-    "dev:prod": "VITE_APP_MODE=production vite dev",
+    "dev:prod": "vite dev",
     "dev:welcome": "VITE_DEBUG=true VITE_SHOW_WELCOME=true vite dev",
     "build": "VITE_BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ) vite build && tsc --noEmit",
     "build:dev": "VITE_DEBUG=true VITE_BUILD_TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%SZ) vite build && tsc --noEmit",
