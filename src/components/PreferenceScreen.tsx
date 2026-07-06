@@ -47,6 +47,7 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
   Speed as SpeedIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -83,6 +84,7 @@ import {
   FORMAT_OPTIONS,
   DEFAULT_SUMMARY_SETTINGS,
   testApiConnection,
+  fetchAvailableModels,
   getProviderConfig,
   type SummaryProvider,
   type DetailLevel,
@@ -142,6 +144,8 @@ export default function PreferencesScreen() {
   const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
   const [summaryModel, setSummaryModel] = useState<string>("qwen/qwen3-32b");
   const [summaryBaseUrl, setSummaryBaseUrl] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
@@ -401,6 +405,35 @@ export default function PreferencesScreen() {
     // Load API key for this provider
     const savedKey = getApiKeyForProvider(provider);
     setApiKey(savedKey || "");
+    // Fetched model list belongs to the previous provider — drop it.
+    setAvailableModels([]);
+  };
+
+  const handleRefreshModels = async () => {
+    const providerConfig = getProviderConfig(summaryProvider);
+    if (providerConfig?.requiresApiKey && !apiKey.trim()) {
+      enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      return;
+    }
+    if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
+      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      return;
+    }
+    setIsFetchingModels(true);
+    try {
+      const models = await fetchAvailableModels(summaryProvider, apiKey, summaryBaseUrl);
+      if (models.length === 0) {
+        enqueueSnackbar("Provider returned no models", { variant: "warning" });
+      } else {
+        setAvailableModels(models);
+        enqueueSnackbar(`Found ${models.length} models`, { variant: "success" });
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      enqueueSnackbar(`Could not fetch models: ${detail}`, { variant: "error" });
+    } finally {
+      setIsFetchingModels(false);
+    }
   };
 
   const handleModelChange = (model: string) => {
@@ -770,29 +803,69 @@ export default function PreferencesScreen() {
                     </ListItemIcon>
                     <ListItemText primary="Model" />
                   </Box>
-                  <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
-                    {getProviderConfig(summaryProvider)?.isCustom ? (
-                      <TextField
-                        value={summaryModel}
-                        onChange={(e) => handleModelChange(e.target.value)}
-                        fullWidth
-                        size="small"
-                        placeholder="Model name, e.g. llama3.2 or qwen2.5"
-                      />
-                    ) : (
-                      <FormControl fullWidth size="small">
-                        <Select
-                          value={summaryModel}
-                          onChange={(e) => handleModelChange(e.target.value)}
-                        >
-                          {getProviderConfig(summaryProvider)?.models.map((model) => (
-                            <MuiMenuItem key={model.id} value={model.id}>
-                              {model.name} - {model.description}
-                            </MuiMenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
+                  <Box
+                    sx={{
+                      ml: 7,
+                      pr: 2,
+                      width: "calc(100% - 56px)",
+                      display: "flex",
+                      gap: 1,
+                      alignItems: "center",
+                    }}
+                  >
+                    {(() => {
+                      const cfg = getProviderConfig(summaryProvider);
+                      const curated = cfg?.models ?? [];
+                      // Prefer a freshly fetched list; otherwise fall back to the
+                      // curated defaults (or free text for custom providers).
+                      if (availableModels.length === 0 && cfg?.isCustom) {
+                        return (
+                          <TextField
+                            value={summaryModel}
+                            onChange={(e) => handleModelChange(e.target.value)}
+                            fullWidth
+                            size="small"
+                            placeholder="Model name, e.g. llama3.2 or qwen2.5"
+                          />
+                        );
+                      }
+                      const ids =
+                        availableModels.length > 0 ? availableModels : curated.map((m) => m.id);
+                      // Keep the current selection visible even if it isn't in the list.
+                      const optionIds =
+                        summaryModel && !ids.includes(summaryModel)
+                          ? [summaryModel, ...ids]
+                          : ids;
+                      return (
+                        <FormControl fullWidth size="small">
+                          <Select
+                            value={summaryModel}
+                            onChange={(e) => handleModelChange(e.target.value)}
+                          >
+                            {optionIds.map((id) => {
+                              const c = curated.find((m) => m.id === id);
+                              return (
+                                <MuiMenuItem key={id} value={id}>
+                                  {c ? `${c.name} - ${c.description}` : id}
+                                </MuiMenuItem>
+                              );
+                            })}
+                          </Select>
+                        </FormControl>
+                      );
+                    })()}
+                    <IconButton
+                      onClick={handleRefreshModels}
+                      disabled={isFetchingModels}
+                      title="Fetch available models from provider"
+                      size="small"
+                    >
+                      {isFetchingModels ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <RefreshIcon fontSize="small" />
+                      )}
+                    </IconButton>
                   </Box>
                 </ListItem>
 

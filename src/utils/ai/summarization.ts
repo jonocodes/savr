@@ -312,3 +312,47 @@ export async function testApiConnection(
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
 }
+
+/**
+ * Fetch the list of model ids a provider currently offers via its
+ * OpenAI-compatible `GET /v1/models` endpoint (derived from the chat-completions
+ * URL by swapping the path). Works for Groq, OpenAI, Gemini's compat layer and
+ * local servers. Returns a sorted list of model ids.
+ *
+ * @param baseUrl Endpoint override for custom providers (ignored for built-ins).
+ */
+export async function fetchAvailableModels(
+  provider: SummaryProvider,
+  apiKey: string,
+  baseUrl?: string
+): Promise<string[]> {
+  const endpoint = resolveEndpoint(provider, baseUrl);
+  const modelsUrl = endpoint.replace(/\/chat\/completions\/?$/, "/models");
+  if (modelsUrl === endpoint) {
+    throw new Error(
+      "Could not derive a models URL — the endpoint should end with /chat/completions"
+    );
+  }
+
+  const headers: Record<string, string> = {};
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  const res = await fetch(modelsUrl, { headers });
+  if (!res.ok) {
+    const error = await res.json().catch(() => ({ error: { message: res.statusText } }));
+    throw new Error(error.error?.message || res.statusText);
+  }
+
+  const data = await res.json();
+  const list: unknown[] = Array.isArray(data?.data) ? data.data : [];
+  const ids = list
+    .map((m) => (m && typeof m === "object" ? (m as { id?: unknown }).id : undefined))
+    // Gemini's compat endpoint prefixes ids with "models/"; strip it so the id
+    // matches what the chat-completions call expects.
+    .map((id) => (typeof id === "string" ? id.replace(/^models\//, "") : ""))
+    .filter((id): id is string => id.length > 0);
+
+  return Array.from(new Set(ids)).sort();
+}

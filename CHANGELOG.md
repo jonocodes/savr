@@ -8,6 +8,7 @@
 - Updated the default Groq model to Qwen3 32B (Groq is deprecating the Llama 3.3 70B model)
 - Scaled the summary output-token limit by detail level (was a fixed 1000), fixing summaries that were cut off — notably with "thinking" models like Gemini 2.5 that spend part of the token budget on reasoning
 - Summary failure toasts now include the underlying provider error instead of a generic message
+- Added a "refresh models" button in Preferences that fetches the provider's live model list from its `/v1/models` endpoint, so the dropdown no longer relies solely on hardcoded defaults
 
 ## 2026-06-20
 

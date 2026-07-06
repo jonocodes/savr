@@ -148,6 +148,8 @@ Savr can automatically generate summaries of your saved articles using an LLM to
 
 To enable summarization, go to Preferences and toggle on "Enable AI Summarization". For cloud providers you'll need to provide an API key from your chosen provider (Groq offers free API keys). For the **Local / Custom** provider, enter the server's chat-completions URL (e.g. `http://localhost:8080/v1/chat/completions`) and the model name; an API key is usually optional.
 
+The model dropdown ships with curated defaults, but these can go stale as providers add and retire models. Use the **refresh** button beside the model selector to fetch the provider's current model list live from its `/v1/models` endpoint (requires the API key/URL to be set first).
+
 > **Note:** summaries are requested directly from your browser, so the provider must send permissive CORS headers. The major cloud providers and llama.cpp's `llama-server` do this by default. Ollama needs `OLLAMA_ORIGINS=*` (or your app's origin) set in its environment to allow browser requests.
 
 <div align="center" width="100%">
