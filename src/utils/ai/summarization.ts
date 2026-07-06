@@ -206,6 +206,20 @@ export function buildPrompt(text: string, settings: SummarySettings): string {
 }
 
 /**
+ * Output-token budget per detail level. Higher levels ask for longer summaries,
+ * and the budget also has to absorb the reasoning tokens that "thinking" models
+ * (e.g. Gemini 2.5) spend before emitting the answer — too small a cap truncates
+ * the visible summary.
+ */
+const MAX_TOKENS_BY_DETAIL: Record<DetailLevel, number> = {
+  0: 512,
+  1: 768,
+  2: 1536,
+  3: 3072,
+  4: 6144,
+};
+
+/**
  * Call any OpenAI-compatible /chat/completions endpoint. The Authorization
  * header is omitted when no key is provided so local servers that don't require
  * auth (llama-server, Ollama, LM Studio, ...) work out of the box.
@@ -214,7 +228,8 @@ async function callChatApi(
   endpoint: string,
   apiKey: string,
   model: string,
-  prompt: string
+  prompt: string,
+  maxTokens: number
 ): Promise<string> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) {
@@ -227,7 +242,12 @@ async function callChatApi(
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
-      max_tokens: 1000,
+      // `max_tokens` is the widely-supported field across OpenAI-compatible
+      // endpoints (Groq, Gemini's compat layer, llama.cpp, Ollama, ...). Note
+      // this caps *output* tokens, and "thinking" models such as Gemini 2.5
+      // spend part of that budget on internal reasoning before the answer — so
+      // it needs headroom or the visible summary gets truncated.
+      max_tokens: maxTokens,
     }),
   });
 
@@ -262,8 +282,9 @@ export async function summarizeText(
 
   const prompt = buildPrompt(truncatedText, settings);
   const endpoint = resolveEndpoint(provider, baseUrl);
+  const maxTokens = MAX_TOKENS_BY_DETAIL[settings.detailLevel];
 
-  const summary = await callChatApi(endpoint, apiKey, model, prompt);
+  const summary = await callChatApi(endpoint, apiKey, model, prompt, maxTokens);
 
   onProgress?.({ status: "ready" });
 
@@ -284,7 +305,8 @@ export async function testApiConnection(
   try {
     const endpoint = resolveEndpoint(provider, baseUrl);
     const testPrompt = "Say 'API connection successful' in exactly those words.";
-    await callChatApi(endpoint, apiKey, model, testPrompt);
+    // Give reasoning models headroom so the short reply isn't eaten by thinking.
+    await callChatApi(endpoint, apiKey, model, testPrompt, 512);
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
