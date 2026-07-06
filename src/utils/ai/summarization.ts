@@ -1,12 +1,30 @@
-// Cloud-based summarization using Groq or OpenAI APIs
+// Summarization via any OpenAI-compatible chat-completions endpoint.
+//
+// Groq, OpenAI, Gemini (via its OpenAI-compat endpoint), OpenRouter, and local
+// servers such as llama.cpp's llama-server, Ollama, LM Studio and vLLM all speak
+// the same POST /chat/completions shape. That means a single call path plus a
+// table of endpoints covers all of them — adding a provider is a data edit here,
+// not new code. The "custom" provider lets the user point at any base URL and
+// type a model name by hand (e.g. a local llama-server or a self-hosted model).
 import { getSummarySettingsFromCookie } from "../cookies";
 
-// Available providers
-export type SummaryProvider = "groq" | "openai";
+// Provider ids are open-ended now that providers are just data, so this is a
+// plain string alias rather than a closed union.
+export type SummaryProvider = string;
 
 export type SummaryProviderConfig = {
   id: SummaryProvider;
   name: string;
+  // Full OpenAI-compatible chat-completions URL. Empty for custom providers,
+  // where the user supplies the base URL at runtime.
+  baseUrl: string;
+  // Whether an API key is mandatory. Local servers usually don't need one.
+  requiresApiKey: boolean;
+  // Custom providers let the user type a base URL and model name freely instead
+  // of picking from the model dropdown.
+  isCustom?: boolean;
+  // Hint shown under the API key field in preferences.
+  apiKeyHint?: string;
   models: { id: string; name: string; description: string }[];
 };
 
@@ -14,20 +32,64 @@ export const PROVIDERS: SummaryProviderConfig[] = [
   {
     id: "groq",
     name: "Groq",
+    baseUrl: "https://api.groq.com/openai/v1/chat/completions",
+    requiresApiKey: true,
+    apiKeyHint: "Get a free key at console.groq.com",
     models: [
-      { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", description: "Free tier, very fast" },
+      { id: "qwen/qwen3-32b", name: "Qwen3 32B", description: "Free tier, very capable" },
       { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", description: "Faster, lighter" },
     ],
   },
   {
     id: "openai",
     name: "OpenAI",
+    baseUrl: "https://api.openai.com/v1/chat/completions",
+    requiresApiKey: true,
+    apiKeyHint: "Get a key at platform.openai.com",
     models: [
       { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast & affordable" },
       { id: "gpt-4o", name: "GPT-4o", description: "Most capable" },
     ],
   },
+  {
+    id: "gemini",
+    name: "Gemini",
+    baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+    requiresApiKey: true,
+    apiKeyHint: "Get a key at aistudio.google.com/apikey",
+    models: [
+      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Fast & affordable" },
+      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Most capable" },
+    ],
+  },
+  {
+    id: "custom",
+    name: "Local / Custom",
+    baseUrl: "",
+    requiresApiKey: false,
+    isCustom: true,
+    apiKeyHint: "Optional — most local servers don't need a key",
+    models: [],
+  },
 ];
+
+export function getProviderConfig(provider: SummaryProvider): SummaryProviderConfig | undefined {
+  return PROVIDERS.find((p) => p.id === provider);
+}
+
+/**
+ * Resolve the chat-completions endpoint for a provider. For custom providers the
+ * URL comes from the caller (user-supplied); for built-ins it comes from the
+ * provider table.
+ */
+function resolveEndpoint(provider: SummaryProvider, baseUrlOverride?: string): string {
+  const config = getProviderConfig(provider);
+  const url = (config?.isCustom ? baseUrlOverride : config?.baseUrl)?.trim();
+  if (!url) {
+    throw new Error(`No API endpoint configured for provider "${provider}"`);
+  }
+  return url;
+}
 
 // Detail level options (0-4)
 export const DETAIL_LEVELS = ["Brief", "Concise", "Moderate", "Detailed", "Comprehensive"] as const;
@@ -144,15 +206,24 @@ export function buildPrompt(text: string, settings: SummarySettings): string {
 }
 
 /**
- * Call the Groq API for summarization
+ * Call any OpenAI-compatible /chat/completions endpoint. The Authorization
+ * header is omitted when no key is provided so local servers that don't require
+ * auth (llama-server, Ollama, LM Studio, ...) work out of the box.
  */
-async function callGroqApi(prompt: string, apiKey: string, model: string): Promise<string> {
-  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+async function callChatApi(
+  endpoint: string,
+  apiKey: string,
+  model: string,
+  prompt: string
+): Promise<string> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+
+  const res = await fetch(endpoint, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
+    headers,
     body: JSON.stringify({
       model,
       messages: [{ role: "user", content: prompt }],
@@ -170,33 +241,9 @@ async function callGroqApi(prompt: string, apiKey: string, model: string): Promi
 }
 
 /**
- * Call the OpenAI API for summarization
- */
-async function callOpenAiApi(prompt: string, apiKey: string, model: string): Promise<string> {
-  const res = await fetch("https://api.openai.com/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
-    },
-    body: JSON.stringify({
-      model,
-      messages: [{ role: "user", content: prompt }],
-      max_tokens: 1000,
-    }),
-  });
-
-  if (!res.ok) {
-    const error = await res.json().catch(() => ({ error: { message: res.statusText } }));
-    throw new Error(error.error?.message || res.statusText);
-  }
-
-  const data = await res.json();
-  return data.choices[0]?.message?.content || "";
-}
-
-/**
- * Summarize article text using cloud LLM API
+ * Summarize article text using an OpenAI-compatible LLM API.
+ *
+ * @param baseUrl Endpoint override for custom providers (ignored for built-ins).
  */
 export async function summarizeText(
   text: string,
@@ -204,7 +251,8 @@ export async function summarizeText(
   provider: SummaryProvider,
   apiKey: string,
   model: string,
-  onProgress?: ProgressCallback
+  onProgress?: ProgressCallback,
+  baseUrl?: string
 ): Promise<string> {
   onProgress?.({ status: "summarizing" });
 
@@ -213,16 +261,9 @@ export async function summarizeText(
   const truncatedText = text.length > maxInputChars ? text.slice(0, maxInputChars) + "..." : text;
 
   const prompt = buildPrompt(truncatedText, settings);
+  const endpoint = resolveEndpoint(provider, baseUrl);
 
-  let summary: string;
-
-  if (provider === "groq") {
-    summary = await callGroqApi(prompt, apiKey, model);
-  } else if (provider === "openai") {
-    summary = await callOpenAiApi(prompt, apiKey, model);
-  } else {
-    throw new Error(`Unknown provider: ${provider}`);
-  }
+  const summary = await callChatApi(endpoint, apiKey, model, prompt);
 
   onProgress?.({ status: "ready" });
 
@@ -230,22 +271,20 @@ export async function summarizeText(
 }
 
 /**
- * Test the API connection with a simple request
+ * Test the API connection with a simple request.
+ *
+ * @param baseUrl Endpoint override for custom providers (ignored for built-ins).
  */
 export async function testApiConnection(
   provider: SummaryProvider,
   apiKey: string,
-  model: string
+  model: string,
+  baseUrl?: string
 ): Promise<{ success: boolean; error?: string }> {
   try {
+    const endpoint = resolveEndpoint(provider, baseUrl);
     const testPrompt = "Say 'API connection successful' in exactly those words.";
-
-    if (provider === "groq") {
-      await callGroqApi(testPrompt, apiKey, model);
-    } else if (provider === "openai") {
-      await callOpenAiApi(testPrompt, apiKey, model);
-    }
-
+    await callChatApi(endpoint, apiKey, model, testPrompt);
     return { success: true };
   } catch (error) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };

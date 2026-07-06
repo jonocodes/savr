@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-07-06
+
+- AI summarization now works with any OpenAI-compatible chat-completions endpoint via a single config-driven call path
+- Added Gemini as a built-in summarization provider (via its OpenAI-compatible endpoint)
+- Added a "Local / Custom" provider so summaries can run against a local server (llama.cpp, Ollama, LM Studio, vLLM) or any compatible service by entering a base URL and model name; API key optional
+- Updated the default Groq model to Qwen3 32B (Groq is deprecating the Llama 3.3 70B model)
+
 ## 2026-06-20
 
 - Added "Reading styles" bottom drawer consolidating font size and theme controls into a single button (#55)

@@ -81,13 +81,14 @@ import { ingestUrl } from "../../lib/src/ingestion";
 import {
   summarizeText,
   buildSummarySettings,
+  getProviderConfig,
   type SummarizationProgress,
-  type SummaryProvider,
 } from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
+  getSummaryCustomBaseUrlFromCookie,
   getApiKeyForProvider,
 } from "~/utils/cookies";
 
@@ -253,12 +254,19 @@ export default function ArticleScreen(_props: Props) {
       return;
     }
 
-    const provider = getSummaryProviderFromCookie() as SummaryProvider;
+    const provider = getSummaryProviderFromCookie();
     const model = getSummaryModelFromCookie();
-    const apiKey = getApiKeyForProvider(provider);
+    const apiKey = getApiKeyForProvider(provider) || "";
+    const baseUrl = getSummaryCustomBaseUrlFromCookie();
+    const providerConfig = getProviderConfig(provider);
 
-    if (!apiKey) {
+    if (providerConfig?.requiresApiKey && !apiKey) {
       enqueueSnackbar("Please set up your API key in Preferences", { variant: "warning" });
+      return;
+    }
+
+    if (providerConfig?.isCustom && !baseUrl.trim()) {
+      enqueueSnackbar("Please set the server URL in Preferences", { variant: "warning" });
       return;
     }
 
@@ -275,6 +283,7 @@ export default function ArticleScreen(_props: Props) {
         apiKey,
         model,
         (progress) => setSummaryProgress(progress),
+        baseUrl,
       );
       await patchArticleMetadata(storage.client!, article.slug, { summary });
       enqueueSnackbar(successMessage);
