@@ -289,7 +289,8 @@ export default function ArticleScreen(_props: Props) {
       enqueueSnackbar(successMessage);
     } catch (error) {
       console.error("Summarization failed:", error);
-      enqueueSnackbar("Failed to generate summary", { variant: "error" });
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      enqueueSnackbar(`Failed to generate summary: ${detail}`, { variant: "error" });
     } finally {
       setIsSummarizing(false);
       setSummaryProgress(null);
