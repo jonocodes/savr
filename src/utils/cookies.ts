@@ -5,6 +5,7 @@ export type ThemeMode = "light" | "dark" | "system";
 
 export const THEME_COOKIE_NAME = "savr-theme";
 export const FONT_SIZE_COOKIE_NAME = "savr-font-size";
+export const FONT_FAMILY_COOKIE_NAME = "savr-font-family";
 export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
@@ -48,7 +49,6 @@ export const setSyncEnabledCookie = (enabled: boolean): void => {
   document.cookie = `${SYNC_ENABLED_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
   window.dispatchEvent(new CustomEvent(SYNC_SETTING_EVENT, { detail: { enabled } }));
 };
-export const WIFI_ONLY_SYNC_COOKIE_NAME = "savr-wifi-only-sync";
 export const SUMMARY_PROMPT_COOKIE_NAME = "savr-summary-prompt";
 export const SUMMARIZATION_ENABLED_COOKIE_NAME = "savr-summarization-enabled";
 export const SUMMARY_PROVIDER_COOKIE_NAME = "savr-summary-provider";
@@ -173,6 +173,34 @@ export const setCorsProxyInCookie = (corsProxy: string | null): void => {
   }
 };
 
+export type FontFamily = "sans" | "serif" | "humanist" | "mono";
+
+export const FONT_FAMILY_OPTIONS: { value: FontFamily; label: string; css: string }[] = [
+  { value: "sans", label: "Sans (Inter)", css: "'Inter', sans-serif" },
+  { value: "serif", label: "Serif (Lora)", css: "'Lora', Georgia, serif" },
+  { value: "humanist", label: "Humanist (Lato)", css: "'Lato', sans-serif" },
+  { value: "mono", label: "Mono", css: "monospace" },
+];
+
+export const getFontFamilyFromCookie = (): FontFamily => {
+  if (typeof document === "undefined") return "sans";
+
+  const cookies = document.cookie.split(";");
+  const cookie = cookies.find((c) => c.trim().startsWith(`${FONT_FAMILY_COOKIE_NAME}=`));
+  if (cookie) {
+    const value = cookie.split("=")[1].trim() as FontFamily;
+    if (FONT_FAMILY_OPTIONS.some((o) => o.value === value)) return value;
+  }
+  return "sans";
+};
+
+export const setFontFamilyInCookie = (font: FontFamily): void => {
+  if (typeof document === "undefined") return;
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+  document.cookie = `${FONT_FAMILY_COOKIE_NAME}=${font}; expires=${expires.toUTCString()}; path=/`;
+};
+
 // Set font size in cookie
 export const setFontSizeInCookie = (fontSize: number): void => {
   if (typeof document === "undefined") return;
@@ -282,35 +310,6 @@ export const setAfterExternalSaveInCookie = (value: AfterExternalSaveAction): vo
 
   document.cookie = `${AFTER_EXTERNAL_SAVE_COOKIE_NAME}=${value}; expires=${expires.toUTCString()}; path=/`;
 };
-
-// DISABLED - WiFi-only sync feature not working correctly
-// Get WiFi-only sync preference from cookie
-// export const getWiFiOnlySyncFromCookie = (): boolean => {
-//   if (typeof document === "undefined") return false;
-
-//   const cookies = document.cookie.split(";");
-//   const wifiOnlySyncCookie = cookies.find((cookie) =>
-//     cookie.trim().startsWith(`${WIFI_ONLY_SYNC_COOKIE_NAME}=`)
-//   );
-
-//   if (wifiOnlySyncCookie) {
-//     const value = wifiOnlySyncCookie.split("=")[1];
-//     return value === "true";
-//   }
-
-//   return false; // Default to false (sync on all networks)
-// };
-
-// Set WiFi-only sync preference in cookie
-// export const setWiFiOnlySyncInCookie = (enabled: boolean): void => {
-//   if (typeof document === "undefined") return;
-
-//   // Set cookie to expire in 1 year
-//   const expires = new Date();
-//   expires.setFullYear(expires.getFullYear() + 1);
-
-//   document.cookie = `${WIFI_ONLY_SYNC_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
-// };
 
 // Get summary prompt from cookie (returns null if not set, meaning use default)
 export const getSummaryPromptFromCookie = (): string | null => {
@@ -430,54 +429,37 @@ export const setSummaryModelInCookie = (model: string): void => {
   document.cookie = `${SUMMARY_MODEL_COOKIE_NAME}=${model}; expires=${expires.toUTCString()}; path=/`;
 };
 
-// Get API keys from cookie (stored as JSON object: { groq: "key", openai: "key" })
-export const getApiKeysFromCookie = (): Record<string, string> => {
-  if (typeof document === "undefined") return {};
+const SUMMARY_API_KEYS_STORAGE_KEY = SUMMARY_API_KEYS_COOKIE_NAME;
 
-  const cookies = document.cookie.split(";");
-  const keysCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith(`${SUMMARY_API_KEYS_COOKIE_NAME}=`)
-  );
-
-  if (keysCookie) {
-    try {
-      const value = decodeURIComponent(
-        keysCookie.replace(`${SUMMARY_API_KEYS_COOKIE_NAME}=`, "").trim()
-      );
-      return JSON.parse(value) || {};
-    } catch {
-      return {};
-    }
+const getApiKeysFromStorage = (): Record<string, string> => {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(SUMMARY_API_KEYS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
   }
-
-  return {};
 };
 
-// Set API keys in cookie
-export const setApiKeysInCookie = (keys: Record<string, string>): void => {
-  if (typeof document === "undefined") return;
-
-  const expires = new Date();
-  expires.setFullYear(expires.getFullYear() + 1);
-
-  document.cookie = `${SUMMARY_API_KEYS_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(keys))}; expires=${expires.toUTCString()}; path=/`;
+const setApiKeysInStorage = (keys: Record<string, string>): void => {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(SUMMARY_API_KEYS_STORAGE_KEY, JSON.stringify(keys));
 };
 
 // Get single API key for a provider
 export const getApiKeyForProvider = (provider: string): string | null => {
-  const keys = getApiKeysFromCookie();
-  return keys[provider] || null;
+  return getApiKeysFromStorage()[provider] || null;
 };
 
 // Set single API key for a provider
 export const setApiKeyForProvider = (provider: string, key: string | null): void => {
-  const keys = getApiKeysFromCookie();
+  const keys = getApiKeysFromStorage();
   if (key) {
     keys[provider] = key;
   } else {
     delete keys[provider];
   }
-  setApiKeysInCookie(keys);
+  setApiKeysInStorage(keys);
 };
 
 // Summary settings type

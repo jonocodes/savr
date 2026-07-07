@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import PreferenceScreen from "./PreferenceScreen";
 import { ThemeProvider, CssBaseline } from "@mui/material";
 import { setThemeInCookie } from "~/utils/cookies";
-import { createAppTheme } from "~/utils/theme";
+import { createAppTheme } from "~/utils/ui/theme";
 import type { ComponentType } from "react";
 
 // Theme decorator that sets up the theme based on cookie

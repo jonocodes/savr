@@ -2,16 +2,17 @@ import {
   mimeToExt,
   extractDomain,
   calcReadingTime,
+  calcWordCount,
   humanReadableSize,
   generateInfoForCard,
   generateInfoForArticle,
-  renderListTemplate,
   getFilePathContent,
   getFilePathMetadata,
   getFilePathRaw,
   getFileFetchLog,
   getFilePathThumbnail,
 } from "../src/lib";
+import ArticleTemplate from "../src/article";
 import { Article } from "../src/models";
 
 describe("lib.ts", () => {
@@ -49,6 +50,20 @@ describe("lib.ts", () => {
       expect(extractDomain("https://www.example.com")).toBe("example.com");
       expect(extractDomain("https://example.com/")).toBe("example.com");
       expect(extractDomain("https://example.com?param=value")).toBe("example.com");
+    });
+  });
+
+  describe("calcWordCount", () => {
+    it("counts words in normal text", () => {
+      expect(calcWordCount("one two three")).toBe(3);
+    });
+
+    it("handles multiple spaces", () => {
+      expect(calcWordCount("Word1    Word2   Word3")).toBe(3);
+    });
+
+    it("returns 0 for empty string", () => {
+      expect(calcWordCount("")).toBe(0);
     });
   });
 
@@ -139,7 +154,7 @@ describe("lib.ts", () => {
         url: "https://example.com",
         mimeType: "text/html",
         state: "active",
-        readTimeMinutes: 5,
+        wordCount: 1000, // 1000 words / 200 wpm = 5 min
       } as Article;
 
       expect(generateInfoForCard(article)).toBe("5 min");
@@ -168,7 +183,7 @@ describe("lib.ts", () => {
         url: "https://example.com",
         mimeType: "text/html",
         state: "active",
-        readTimeMinutes: 10,
+        wordCount: 2000, // 2000 words / 200 wpm = 10 min
         progress: 75,
       } as Article;
 
@@ -184,7 +199,7 @@ describe("lib.ts", () => {
         mimeType: "text/html",
         state: "active",
         publishedDate: "2023-01-15T10:00:00Z",
-        readTimeMinutes: 8,
+        wordCount: 1600, // 1600 words / 200 wpm = 8 min
         progress: 50,
       } as Article;
 
@@ -222,7 +237,7 @@ describe("lib.ts", () => {
       } as Article;
 
       const result = generateInfoForArticle(article);
-      expect(result).toContain("<a href=https://www.example.com/article>example.com</a>");
+      expect(result).toContain('<a href="https://www.example.com/article">example.com</a>');
     });
 
     it("should generate info with published date only", () => {
@@ -249,7 +264,7 @@ describe("lib.ts", () => {
       } as Article;
 
       const result = generateInfoForArticle(article);
-      expect(result).toContain("<a href=https://news.bbc.co.uk/article>news.bbc.co.uk</a>");
+      expect(result).toContain('<a href="https://news.bbc.co.uk/article">news.bbc.co.uk</a>');
       expect(result).toContain("Jan 15 2023");
     });
 
@@ -275,20 +290,64 @@ describe("lib.ts", () => {
 
       expect(generateInfoForArticle(article)).toBe("");
     });
-  });
 
-  describe("renderListTemplate", () => {
-    it("should render template with view data", () => {
-      const view = { title: "Test List", items: ["item1", "item2"] };
-      const result = renderListTemplate(view);
-      expect(typeof result).toBe("string");
-      expect(result.length).toBeGreaterThan(0);
+    it("should not create a link for javascript: URLs", () => {
+      const article: Article = {
+        slug: "test",
+        title: "Test Article",
+        url: "javascript:alert(1)",
+        mimeType: "text/html",
+        state: "active",
+      } as Article;
+
+      const result = generateInfoForArticle(article);
+      expect(result).not.toContain("href");
+      expect(result).not.toContain("javascript:");
     });
 
-    it("should handle empty view object", () => {
-      const view = {};
-      const result = renderListTemplate(view);
-      expect(typeof result).toBe("string");
+    it("should use a quoted href attribute", () => {
+      const article: Article = {
+        slug: "test",
+        title: "Test Article",
+        url: "https://example.com/path?a=1&b=2",
+        mimeType: "text/html",
+        state: "active",
+      } as Article;
+
+      const result = generateInfoForArticle(article);
+      expect(result).toContain('<a href="https://example.com/path?a=1&b=2">');
+    });
+  });
+
+  describe("ArticleTemplate", () => {
+    it("should escape HTML special characters in metadata fields", () => {
+      const result = ArticleTemplate({
+        title: '<script>alert("xss")</script>',
+        byline: '<img onerror="pwned">',
+        published: "2024",
+        readTime: "5 min",
+        content: "<p>safe content</p>",
+      });
+
+      expect(result).not.toContain("<script>");
+      expect(result).not.toContain('onerror="pwned"');
+      expect(result).toContain("&lt;script&gt;");
+      expect(result).toContain("onerror=&quot;pwned&quot;");
+      // Content should pass through unescaped
+      expect(result).toContain("<p>safe content</p>");
+    });
+
+    it("should escape & and ' in metadata fields", () => {
+      const result = ArticleTemplate({
+        title: "AT&T's article",
+        byline: "O'Brien & Associates",
+        published: "",
+        readTime: "",
+        content: "<p>body</p>",
+      });
+
+      expect(result).toContain("AT&amp;T&#039;s article");
+      expect(result).toContain("O&#039;Brien &amp; Associates");
     });
   });
 

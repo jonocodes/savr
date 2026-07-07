@@ -41,11 +41,8 @@ import { Article } from "../src/models";
 
 // Mock the functions that are imported from lib.ts
 const mockLib = {
-  calcReadingTime: (content: string) => {
-    const wordCount = content.split(/\s+/).length;
-    const wordsPerMinute = 200;
-    const readingTimeMinutes = wordCount / wordsPerMinute;
-    return Math.ceil(readingTimeMinutes);
+  calcWordCount: (content: string) => {
+    return content.split(/\s+/).filter(Boolean).length;
   },
   mimeToExt: {
     "text/html": "html",
@@ -116,7 +113,7 @@ function readabilityToArticle(
     }
   }
 
-  const readingTimeMinutes = mockLib.calcReadingTime(content);
+  const wordCount = mockLib.calcWordCount(content);
   const author = readabilityResult.byline;
 
   const article: Article = {
@@ -131,7 +128,7 @@ function readabilityToArticle(
     ingestPlatform: `typescript/web (${mockVersion})`,
     ingestSource: "????",
     mimeType: contentType,
-    readTimeMinutes: readingTimeMinutes,
+    wordCount: wordCount,
     progress: 0,
   };
 
@@ -226,8 +223,8 @@ describe("ingestion.ts - readabilityToArticle (minimal)", () => {
 
       const [article] = readabilityToArticle(html, contentType, url);
 
-      expect(article.readTimeMinutes).toBeGreaterThan(0);
-      expect(typeof article.readTimeMinutes).toBe("number");
+      expect(article.wordCount).toBeGreaterThan(0);
+      expect(typeof article.wordCount).toBe("number");
     });
 
     it("should handle null URL", () => {

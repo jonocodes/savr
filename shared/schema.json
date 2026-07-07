@@ -74,8 +74,12 @@
                     "type": "string",
                     "format": "date-time"
                 },
-                "readTimeMinutes": {
+                "wordCount": {
                     "type": "integer",
+                    "exclusiveMinimum": 0
+                },
+                "readingWpm": {
+                    "type": ["number", "null"],
                     "exclusiveMinimum": 0
                 },
                 "progress": {

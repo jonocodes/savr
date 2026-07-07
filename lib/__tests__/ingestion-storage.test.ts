@@ -39,11 +39,11 @@ import { getFilePathMetadata, getFilePathRaw, getFilePathContent, getFileFetchLo
 const { __setMockReadability } = require("@mozilla/readability");
 
 // Mock the storage-related imports
-jest.mock("~/utils/storage", () => ({
+jest.mock("~/utils/sync/storage", () => ({
   saveResource: jest.fn().mockResolvedValue("mocked-path"),
 }));
 
-jest.mock("~/utils/tools", () => ({
+jest.mock("~/utils/article/tools", () => ({
   fetchAndResizeImage: jest.fn().mockRejectedValue(new Error("Network disabled in test")),
   fetchWithTimeout: jest.fn().mockRejectedValue(new Error("Network disabled in test")),
   imageToDataUrl: jest.fn().mockResolvedValue("data:image/png;base64,test"),

@@ -1,12 +1,10 @@
 import { useEffect } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
+import { isDebugMode } from "~/config/environment";
 
-/**
- * Hook that updates the document title to show the unread article count.
- * Format: "Savr (x)" where x is the number of unread articles.
- * Shows "Savr" without count when there are no unread articles.
- */
+const APP_NAME = isDebugMode() ? "Savr DEV" : "Savr";
+
 export function useDocumentTitle() {
   const unreadCount = useLiveQuery(() => {
     return db.articles.where("state").equals("unread").count();
@@ -14,9 +12,9 @@ export function useDocumentTitle() {
 
   useEffect(() => {
     if (unreadCount !== undefined && unreadCount > 0) {
-      document.title = `Savr (${unreadCount})`;
+      document.title = `${APP_NAME} (${unreadCount})`;
     } else {
-      document.title = "Savr";
+      document.title = APP_NAME;
     }
   }, [unreadCount]);
 }

@@ -45,11 +45,11 @@ import {
 const { __setMockReadability } = require("@mozilla/readability");
 
 // Mock the storage-related imports
-jest.mock("~/utils/storage", () => ({
+jest.mock("~/utils/sync/storage", () => ({
   saveResource: jest.fn().mockResolvedValue("mocked-path"),
 }));
 
-jest.mock("~/utils/tools", () => ({
+jest.mock("~/utils/article/tools", () => ({
   fetchAndResizeImage: jest
     .fn()
     .mockRejectedValue(new Error("Network disabled in test")),
@@ -187,9 +187,9 @@ describe("Server Persistence Tests", () => {
       const savedArticle = JSON.parse(articleJsonCall[2]);
 
       // Reading time should be calculated and saved
-      expect(savedArticle).toHaveProperty("readTimeMinutes");
-      expect(typeof savedArticle.readTimeMinutes).toBe("number");
-      expect(savedArticle.readTimeMinutes).toBeGreaterThan(0);
+      expect(savedArticle).toHaveProperty("wordCount");
+      expect(typeof savedArticle.wordCount).toBe("number");
+      expect(savedArticle.wordCount).toBeGreaterThan(0);
     });
 
     it("should preserve author/byline information", async () => {

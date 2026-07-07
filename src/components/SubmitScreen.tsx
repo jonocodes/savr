@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
+import DOMPurify from "dompurify";
 import { useNavigate, useRouter } from "@tanstack/react-router";
 import ReactMarkdown from "react-markdown";
 import {
@@ -31,14 +32,13 @@ import {
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 import {
   summarizeText,
-  DEFAULT_SUMMARY_SETTINGS,
+  buildSummarySettings,
   type SummarizationProgress,
   type SummaryProvider,
-} from "~/utils/summarization";
+} from "~/utils/ai/summarization";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
@@ -94,9 +94,8 @@ export default function SubmitScreen() {
     // Handshake: notify extension/content script that page is ready
     window.postMessage({ type: "READY_FOR_EXTENSION" }, "*");
     const handleMessage = (event: MessageEvent) => {
-      console.log("SubmitScreen received message:", event.data);
+      if (!event.origin || event.origin === "null") return;
       if (event.data && event.data.type === "FROM_EXTENSION") {
-        console.log("Valid extension message received:", event.data.message);
         alert(event.data.message);
       }
     };
@@ -374,19 +373,9 @@ export default function SubmitScreen() {
         return;
       }
 
-      const cookieSettings = getSummarySettingsFromCookie();
-      const settings = {
-        ...DEFAULT_SUMMARY_SETTINGS,
-        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-        customPrompt: cookieSettings.customPrompt,
-      };
-
       const summary = await summarizeText(
         plainText,
-        settings,
+        buildSummarySettings(),
         provider,
         apiKey,
         model,
@@ -668,7 +657,7 @@ export default function SubmitScreen() {
                   my: 2,
                 },
               }}
-              dangerouslySetInnerHTML={{ __html: previewHtml }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewHtml) }}
             />
           </Paper>
         </Collapse>

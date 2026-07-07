@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { useLiveQuery } from "dexie-react-hooks";
 import ReactMarkdown from "react-markdown";
 import {
   AppBar,
@@ -19,6 +20,10 @@ import {
   LinearProgress,
   CircularProgress,
   Collapse,
+  Select,
+  MenuItem as SelectMenuItem,
+  FormControl,
+  InputLabel,
 } from "@mui/material";
 // import useScrollTrigger from "@mui/material/useScrollTrigger";
 import {
@@ -41,35 +46,49 @@ import {
   ExpandLess as ExpandLessIcon,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  FormatSize as FormatSizeIcon,
+  LightMode as LightModeIcon,
+  DarkMode as DarkModeIcon,
+  SettingsBrightness as SettingsBrightnessIcon,
 } from "@mui/icons-material";
 import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article } from "../../lib/src/models";
-import { removeArticle, updateArticleMetadata } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata } from "~/utils/article/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
-import { CookieThemeToggle } from "./CookieThemeToggle";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
-import { getFontSizeFromCookie, setFontSizeInCookie } from "~/utils/cookies";
+import {
+  getFontSizeFromCookie,
+  setFontSizeInCookie,
+  getThemeFromCookie,
+  setThemeInCookie,
+  ThemeMode,
+  getFontFamilyFromCookie,
+  setFontFamilyInCookie,
+  FONT_FAMILY_OPTIONS,
+  FontFamily,
+} from "~/utils/cookies";
 import { getHeaderHidingFromCookie } from "~/utils/cookies";
 import { getFilePathContent, getFilePathRaw, getFileFetchLog, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
-import { calculateArticleStorageSize, formatBytes } from "~/utils/storage";
-import { isDebugMode } from "~/config/environment";
+import { ReadingSessionTracker } from "../../lib/src/readingSpeed";
+import { recordReadingSession, useReadingWpm } from "../utils/readingSpeed";
+import { formatReadTime } from "../../lib/src/lib";
+import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import {
   summarizeText,
-  DEFAULT_SUMMARY_SETTINGS,
+  buildSummarySettings,
   type SummarizationProgress,
   type SummaryProvider,
-} from "~/utils/summarization";
+} from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
   getApiKeyForProvider,
-  getSummarySettingsFromCookie,
 } from "~/utils/cookies";
 
 interface Props {
@@ -106,6 +125,10 @@ export default function ArticleScreen(_props: Props) {
   const [refetchPercent, setRefetchPercent] = useState<number>(0);
   const [refetchStatus, setRefetchStatus] = useState<string | null>(null);
   const [summaryDrawerOpen, setSummaryDrawerOpen] = useState(false);
+  const [stylesDrawerOpen, setStylesDrawerOpen] = useState(false);
+  const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getThemeFromCookie());
+  const [fontFamily, setFontFamily] = useState<FontFamily>(() => getFontFamilyFromCookie());
+  const currentFontCss = FONT_FAMILY_OPTIONS.find((o) => o.value === fontFamily)?.css;
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -119,7 +142,25 @@ export default function ArticleScreen(_props: Props) {
     files: { path: string; size: number }[];
   } | null>(null);
 
-  const [article, setArticle] = useState({} as Article);
+  // Article metadata is read reactively from Dexie, so any write — local
+  // (progress, summary, archive) or from background sync — is reflected here
+  // without manual setState bookkeeping. undefined until the row loads.
+  const liveArticle = useLiveQuery(() => db.articles.get(slug), [slug]);
+  // Fallback keeps property access in the JSX safe while loading.
+  const article = liveArticle ?? ({} as Article);
+  const articleLoaded = liveArticle !== undefined;
+  const mimeType = liveArticle?.mimeType;
+
+  // Latest article snapshot for async callbacks (the debounced scroll-progress
+  // writer, long-running summarization) so they write against current data
+  // instead of a stale render closure.
+  const articleRef = useRef<Article | null>(null);
+  articleRef.current = liveArticle ?? null;
+
+  // Always-current storage handle so the reading-session finalize callback can
+  // persist remotely without re-running (and thus restarting) its effect.
+  const storageRef = useRef(storage);
+  storageRef.current = storage;
 
   // Extract plain text from HTML content for TTS
   const articleText = useMemo(() => {
@@ -131,6 +172,15 @@ export default function ArticleScreen(_props: Props) {
     // Get text content
     return doc.body?.textContent?.trim() || "";
   }, [content]);
+
+  // Word count of the article body, used to convert reading progress into the
+  // number of words actually read for the adaptive reading-speed estimate.
+  const wordCount = useMemo(
+    () => (articleText ? articleText.split(/\s+/).filter(Boolean).length : 0),
+    [articleText]
+  );
+
+  const readingWpm = useReadingWpm();
 
   // Initialize TTS hook
   const [ttsState, ttsControls] = useTextToSpeech(articleText);
@@ -161,21 +211,21 @@ export default function ArticleScreen(_props: Props) {
     closeMenu();
   };
 
-  const displayDebugMessage = (message: string) => {
-    if (isDebugMode()) {
-      setHtml(message);
+  const handleToggleFavorite = async () => {
+    closeMenu();
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
     }
-  };
-
-  const handleToggleFavorite = () => {
     try {
-      updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await patchArticleMetadata(storage.client, article.slug, {
+        favorite: !article.favorite,
+      });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);
       enqueueSnackbar("Failed to update favorite", { variant: "error" });
     }
-    closeMenu();
   };
 
   const handleShare = () => {
@@ -188,7 +238,7 @@ export default function ArticleScreen(_props: Props) {
 
   const handleDelete = async () => {
     try {
-      await removeArticle(storage.client!, article.slug);
+      await removeArticle(article.slug);
       navigate({ to: "/" });
       enqueueSnackbar("Article deleted");
     } catch (e) {
@@ -197,21 +247,12 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleSummarize = async () => {
-    closeMenu();
-    setSummaryDrawerOpen(true);
-
-    // If we already have a summary, just show it
-    if (article.summary) {
-      return;
-    }
-
+  const runSummarize = async (successMessage: string) => {
     if (!articleText) {
       enqueueSnackbar("No article content to summarize", { variant: "error" });
       return;
     }
 
-    // Get summarization config from cookies
     const provider = getSummaryProviderFromCookie() as SummaryProvider;
     const model = getSummaryModelFromCookie();
     const apiKey = getApiKeyForProvider(provider);
@@ -225,34 +266,18 @@ export default function ArticleScreen(_props: Props) {
     setSummaryProgress({ status: "summarizing" });
 
     try {
-      // Get settings from preferences
-      const cookieSettings = getSummarySettingsFromCookie();
-      const settings = {
-        ...DEFAULT_SUMMARY_SETTINGS,
-        detailLevel: cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-        customPrompt: cookieSettings.customPrompt,
-      };
-
+      // Patch only the summary field — summarization can take long enough for
+      // sync to have updated the article, so we must not overwrite other fields.
       const summary = await summarizeText(
         articleText,
-        settings,
+        buildSummarySettings(),
         provider,
         apiKey,
         model,
-        (progress) => {
-          setSummaryProgress(progress);
-        },
+        (progress) => setSummaryProgress(progress),
       );
-
-      // Save summary to article metadata
-      const updatedArticle = { ...article, summary };
-      await updateArticleMetadata(storage.client!, updatedArticle);
-      setArticle(updatedArticle);
-
-      enqueueSnackbar("Summary generated");
+      await patchArticleMetadata(storage.client!, article.slug, { summary });
+      enqueueSnackbar(successMessage);
     } catch (error) {
       console.error("Summarization failed:", error);
       enqueueSnackbar("Failed to generate summary", { variant: "error" });
@@ -262,10 +287,20 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleArchive = () => {
+  const handleSummarize = async () => {
+    closeMenu();
+    setSummaryDrawerOpen(true);
+    if (article.summary) return;
+    await runSummarize("Summary generated");
+  };
+
+  const handleArchive = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      // updateArticleState(storage.client!, article.slug, "archived");
-      updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await patchArticleMetadata(storage.client, article.slug, { state: "archived" });
 
       enqueueSnackbar("Article archived");
       navigate({ to: "/" });
@@ -276,11 +311,13 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleUnarchive = () => {
-    if (!article) throw new Error("Article is undefined");
-
+  const handleUnarchive = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await patchArticleMetadata(storage.client, article.slug, { state: "unread" });
 
       enqueueSnackbar("Article unarchived");
       navigate({ to: "/" });
@@ -339,9 +376,8 @@ export default function ArticleScreen(_props: Props) {
       updatedArticle.progress = article.progress;
       updatedArticle.state = article.state;
 
-      // Save to IndexedDB
+      // Save to IndexedDB; liveQuery refreshes the displayed metadata
       await db.articles.put(updatedArticle);
-      setArticle(updatedArticle);
 
       // Reload the displayed content
       const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as {
@@ -350,7 +386,7 @@ export default function ArticleScreen(_props: Props) {
       if (file) {
         setContent(file.data);
         if (viewMode === "cleaned") {
-          setHtml(`<link rel="stylesheet" href="/static/web.css">${file.data}`);
+          setHtml(file.data);
         } else {
           setHtml(file.data);
         }
@@ -386,22 +422,18 @@ export default function ArticleScreen(_props: Props) {
   };
 
   const handleSaveEdit = async () => {
+    if (!storage.client) {
+      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      return;
+    }
     try {
-      const updatedArticle = await updateArticleMetadata(storage.client!, {
-        ...article,
+      await patchArticleMetadata(storage.client, slug, {
         title: editTitle,
         author: editAuthor,
       });
 
-      console.log("updatedArticle", updatedArticle);
-
-      // await db.articles.put(updatedArticle);
-      setArticle(updatedArticle);
-
-      // const raw = await storage.client?.getFile(getFilePathRaw(slug));
-
       // Load the current HTML from storage (local-only for fast read)
-      const file = (await storage.client?.getFile(getFilePathContent(slug), false)) as {
+      const file = (await storage.client.getFile(getFilePathContent(slug), false)) as {
         data: string;
       };
       if (!file) {
@@ -430,17 +462,24 @@ export default function ArticleScreen(_props: Props) {
         pageTitleEl.textContent = `Savr - ${editTitle}`;
       }
 
-      // Save the updated HTML back to storage
-      const updatedHtml = doc.documentElement.outerHTML;
+      // Save the updated HTML back to storage, preserving the original shape:
+      // stored content is an ArticleTemplate fragment, so don't wrap it in the
+      // full <html> document that DOMParser created (which also drops doctypes).
+      const isFragment = !/<html[\s>]/i.test(file.data);
+      const updatedHtml = isFragment
+        ? // head holds elements like <title> that DOMParser hoisted out of the fragment
+          doc.head.innerHTML + doc.body.innerHTML
+        : (file.data.trimStart().toLowerCase().startsWith("<!doctype") ? "<!DOCTYPE html>" : "") +
+          doc.documentElement.outerHTML;
       await storage.client?.storeFile("text/html", getFilePathContent(slug), updatedHtml);
 
       // Update displayed content immediately
       setContent(updatedHtml);
       if (viewMode === "cleaned") {
-        setHtml(`<link rel="stylesheet" href="/static/web.css">${updatedHtml}`);
-      } else {
-        setHtml(updatedHtml);
-      }
+          setHtml(updatedHtml);
+        } else {
+          setHtml(updatedHtml);
+        }
 
       setInfoDrawerOpen(false);
       enqueueSnackbar("Article info updated");
@@ -456,7 +495,10 @@ export default function ArticleScreen(_props: Props) {
 
   // Scroll percentage tracking
   const scrollTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const lastLoggedPercentage = useRef<number | null>(null);
+  const lastSavedPercentage = useRef<number | null>(null);
+  // Active reading-speed session for the currently open article. Null between
+  // sessions (e.g. while the tab is hidden) so stray scroll events are ignored.
+  const sessionTrackerRef = useRef<ReadingSessionTracker | null>(null);
   // const hasSetInitialScroll = useRef(false);
   const [hasSetInitialScroll, setHasSetInitialScroll] = useState(false);
 
@@ -470,24 +512,19 @@ export default function ArticleScreen(_props: Props) {
       // Only apply header hiding logic if the preference is enabled
       if (!headerHidingEnabled) {
         setShowHeader(true);
-        return;
+      } else {
+        const currentScrollY = window.scrollY;
+        if (currentScrollY >= 0) {
+          if (currentScrollY < 50) {
+            setShowHeader(true);
+          } else if (currentScrollY > lastScrollY.current) {
+            setShowHeader(false);
+          } else if (currentScrollY < lastScrollY.current) {
+            setShowHeader(true);
+          }
+          lastScrollY.current = currentScrollY;
+        }
       }
-
-      const currentScrollY = window.scrollY;
-      if (currentScrollY < 0) return;
-      if (currentScrollY < 50) {
-        setShowHeader(true);
-        lastScrollY.current = currentScrollY;
-        return;
-      }
-      if (currentScrollY > lastScrollY.current) {
-        // Scrolling down
-        setShowHeader(false);
-      } else if (currentScrollY < lastScrollY.current) {
-        // Scrolling up
-        setShowHeader(true);
-      }
-      lastScrollY.current = currentScrollY;
 
       // Clear existing timeout
       if (scrollTimeoutRef.current) {
@@ -500,19 +537,32 @@ export default function ArticleScreen(_props: Props) {
         const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
         const scrollPercentage = Math.round((scrollTop / documentHeight) * 100);
 
-        // Only log if the percentage has changed
-        if (scrollPercentage !== lastLoggedPercentage.current) {
-          console.log(`Article scroll percentage: ${scrollPercentage}%`);
-          lastLoggedPercentage.current = scrollPercentage;
+        // Feed the reading-speed tracker: each settled scroll position marks a
+        // point of activity, and the gap since the last one counts as reading
+        // time (capped against idle gaps inside the tracker).
+        sessionTrackerRef.current?.recordActivity(scrollPercentage, Date.now());
 
-          if (storage.client) {
-            article.progress = scrollPercentage;
+        // Only save if the percentage has changed
+        if (scrollPercentage !== lastSavedPercentage.current) {
+          lastSavedPercentage.current = scrollPercentage;
 
-            // console.log("updatingArticle with", article);
-
-            const updatedArticle = await updateArticleMetadata(storage.client, article);
-
-            console.log("updatedArticle", updatedArticle);
+          // Always persist progress locally; also sync remotely when available.
+          if (articleRef.current) {
+            console.log("[scroll-save] writing progress", scrollPercentage, "for", articleRef.current.slug, "client=", !!storage.client);
+            if (storage.client) {
+              await patchArticleMetadata(
+                storage.client,
+                articleRef.current.slug,
+                { progress: scrollPercentage },
+                { skipPublicExport: true }
+              );
+            } else {
+              await db.transaction("rw", db.articles, async () => {
+                const current = await db.articles.get(articleRef.current!.slug);
+                if (current) await db.articles.put({ ...current, progress: scrollPercentage });
+              });
+            }
+            console.log("[scroll-save] done");
           }
         }
       }, 1000);
@@ -525,108 +575,181 @@ export default function ArticleScreen(_props: Props) {
         clearTimeout(scrollTimeoutRef.current);
       }
     };
-  }, [storage, article, headerHidingEnabled]);
+  }, [storage.client, headerHidingEnabled]);
 
+  // Adaptive reading-speed session lifecycle. A session runs while the article
+  // is open and the tab is visible; it is finalized (and folded into the learned
+  // WPM) when the tab is hidden or the screen unmounts. Recreating the tracker
+  // when the tab becomes visible again starts a fresh session and prevents the
+  // same reading from being counted twice.
   useEffect(() => {
-    const setup = async () => {
-      displayDebugMessage("querying database ...");
+    if (!wordCount) return;
 
-      const articleData = await db.articles.get(slug);
-      if (!articleData) {
-        console.error("Article not found");
-        return;
+    const startSession = () => {
+      sessionTrackerRef.current = new ReadingSessionTracker(wordCount);
+    };
+
+    const finalizeSession = () => {
+      const tracker = sessionTrackerRef.current;
+      if (!tracker) return;
+      // Detach first so a follow-on finalize (hidden -> unmount) is a no-op.
+      sessionTrackerRef.current = null;
+
+      const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const progress =
+        documentHeight > 0 ? Math.round((window.scrollY / documentHeight) * 100) : 0;
+      // Final activity marker captures the time spent on the last segment read.
+      tracker.recordActivity(progress, Date.now());
+
+      const session = tracker.getSession();
+      if (!session) return;
+
+      const { wpm: measuredWpm } = recordReadingSession(session);
+
+      // Persist the measured pace on the article so other devices can bootstrap
+      // their own estimate from it. Mirrors how scroll progress is saved.
+      if (measuredWpm != null && articleRef.current) {
+        const targetSlug = articleRef.current.slug;
+        const rounded = Math.round(measuredWpm);
+        const client = storageRef.current.client;
+        if (client) {
+          void patchArticleMetadata(
+            client,
+            targetSlug,
+            { readingWpm: rounded },
+            { skipPublicExport: true }
+          );
+        } else {
+          void db.transaction("rw", db.articles, async () => {
+            const current = await db.articles.get(targetSlug);
+            if (current) await db.articles.put({ ...current, readingWpm: rounded });
+          });
+        }
       }
-      setArticle(articleData);
+    };
 
+    const handleVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        finalizeSession();
+      } else if (document.visibilityState === "visible" && !sessionTrackerRef.current) {
+        startSession();
+      }
+    };
+
+    startSession();
+    document.addEventListener("visibilitychange", handleVisibility);
+
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibility);
+      finalizeSession();
+    };
+  }, [slug, wordCount]);
+
+  // Load the article content (HTML, PDF, or image) once the metadata row is
+  // available. Deps are the narrow values the load actually reads — never the
+  // article object itself — so metadata-only updates (progress saves, sync
+  // from other devices) cannot re-trigger a content reload mid-read.
+  useEffect(() => {
+    const client = storage.client;
+    if (!articleLoaded || !client) return;
+
+    let cancelled = false;
+    // Track the blob URL created by THIS effect run so cleanup revokes the
+    // real value (revoking via the pdfUrl/imageUrl state captured a stale
+    // closure and leaked every URL).
+    let objectUrl: string | null = null;
+
+    const load = async () => {
       try {
-        displayDebugMessage("loading content ...");
-
-        // Handle PDF files differently
-        if (articleData.mimeType === "application/pdf") {
-          const file = await storage.client?.getFile(getFilePathPdf(slug), false);
-          if (file) {
-            const f = file as { data: ArrayBuffer; contentType: string };
-            const blob = new Blob([f.data], { type: "application/pdf" });
-            const url = URL.createObjectURL(blob);
-            setPdfUrl(url);
+        if (mimeType === "application/pdf") {
+          const file = (await client.getFile(getFilePathPdf(slug), false)) as {
+            data: ArrayBuffer;
+            contentType: string;
+          } | null;
+          if (file && !cancelled) {
+            const blob = new Blob([file.data], { type: "application/pdf" });
+            objectUrl = URL.createObjectURL(blob);
+            setPdfUrl(objectUrl);
           }
-        } else if (articleData.mimeType?.startsWith("image/")) {
-          // Handle image files
-          const extension = mimeToExt[articleData.mimeType] || "jpg";
-          const file = await storage.client?.getFile(getFilePathImage(slug, extension), false);
-          if (file) {
-            const f = file as { data: ArrayBuffer; contentType: string };
-            const blob = new Blob([f.data], { type: articleData.mimeType });
-            const url = URL.createObjectURL(blob);
-            setImageUrl(url);
+        } else if (mimeType?.startsWith("image/")) {
+          const extension = mimeToExt[mimeType] || "jpg";
+          const file = (await client.getFile(getFilePathImage(slug, extension), false)) as {
+            data: ArrayBuffer;
+            contentType: string;
+          } | null;
+          if (file && !cancelled) {
+            const blob = new Blob([file.data], { type: mimeType });
+            objectUrl = URL.createObjectURL(blob);
+            setImageUrl(objectUrl);
           }
         } else if (viewMode === "original") {
-          storage.client
-            ?.getFile(getFilePathRaw(slug), false) // maxAge: false = local-only, no network requests
-            .then((file) => {
-              const f = file as { data: string };
-              setContent(f.data);
-              setHtml(`${f.data}`);
-            })
-            .catch((error) => {
-              console.error("Error retrieving article", error);
-            });
+          // maxAge: false = local-only, no network requests
+          const file = (await client.getFile(getFilePathRaw(slug), false)) as {
+            data: string;
+          } | null;
+          if (file && !cancelled) {
+            setContent(file.data);
+            setHtml(file.data);
+          }
         } else {
-          storage.client
-            ?.getFile(`saves/${slug}/index.html`, false) // maxAge: false = local-only, no network requests
-            .then((file) => {
-              const f = file as { data: string };
-              setContent(f.data);
-              setHtml(`<link rel="stylesheet" href="/static/web.css">${f.data}`);
-            })
-            .catch((error) => {
-              console.error("Error retrieving article", error);
-            });
+          const file = (await client.getFile(getFilePathContent(slug), false)) as {
+            data: string;
+          } | null;
+          if (file && !cancelled) {
+            setContent(file.data);
+            setHtml(file.data);
+          }
         }
-
-        // Use persisted size info if available, otherwise calculate on-demand
-        if (articleData.sizeBytes == null || articleData.assetCount == null) {
-          calculateArticleStorageSize(slug)
-            .then((sizeInfo) => {
-              setStorageSize(sizeInfo);
-            })
-            .catch((error) => {
-              console.error("Failed to calculate storage size:", error);
-            });
-        }
-      } catch (e) {
-        console.error(e);
+      } catch (error) {
+        console.error("Error retrieving article", error);
       }
     };
 
-    setup();
+    load();
 
-    // Cleanup: revoke object URLs when component unmounts or slug changes
     return () => {
-      if (pdfUrl) {
-        URL.revokeObjectURL(pdfUrl);
-      }
-      if (imageUrl) {
-        URL.revokeObjectURL(imageUrl);
+      cancelled = true;
+      if (objectUrl) {
+        URL.revokeObjectURL(objectUrl);
       }
     };
-  }, [viewMode, slug, storage]);
+  }, [articleLoaded, mimeType, viewMode, slug, storage.client]);
 
+  // Calculate storage size on demand for articles ingested before size info
+  // was persisted. Independent of content loading and view mode.
+  const sizeKnown = liveArticle?.sizeBytes != null && liveArticle?.assetCount != null;
   useEffect(() => {
-    if (!hasSetInitialScroll && article.progress && article.progress > 0 && content) {
+    if (!articleLoaded || sizeKnown) return;
+    calculateArticleStorageSize(slug)
+      .then(setStorageSize)
+      .catch((error) => {
+        console.error("Failed to calculate storage size:", error);
+      });
+  }, [articleLoaded, sizeKnown, slug]);
+
+  // Restore the reading position exactly once, when content first becomes
+  // available. Marked done immediately (even when there is nothing to restore)
+  // so later progress writes — which re-emit the article via liveQuery —
+  // can never scroll the page out from under the reader.
+  useEffect(() => {
+    console.log("[scroll-restore] effect fired — hasSetInitialScroll=", hasSetInitialScroll, "content=", !!content, "liveArticle=", !!liveArticle, "progress=", liveArticle?.progress);
+    if (hasSetInitialScroll || !content || !liveArticle) return;
+    setHasSetInitialScroll(true);
+
+    const progress = liveArticle.progress ?? 0;
+    console.log("[scroll-restore] restoring to progress=", progress);
+    if (progress > 0) {
       // Wait a bit for the DOM to fully render
       setTimeout(() => {
         const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
-
+        const scrollPosition = (progress / 100) * documentHeight;
+        console.log("[scroll-restore] documentHeight=", documentHeight, "scrollPosition=", scrollPosition);
         if (documentHeight > 0) {
-          const scrollPosition = (article.progress / 100) * documentHeight;
-          console.log("setting scroll position to", scrollPosition);
           window.scrollTo(0, scrollPosition);
-          setHasSetInitialScroll(true);
         }
       }, 100);
     }
-  }, [hasSetInitialScroll, article.progress, content]);
+  }, [hasSetInitialScroll, liveArticle, content]);
 
   // Handle click on summary link (injected into HTML content)
   useEffect(() => {
@@ -697,33 +820,14 @@ export default function ArticleScreen(_props: Props) {
             {/* {article.title} */}
           </Typography>
 
-          <Tooltip title="Increase font size">
+          <Tooltip title="Reading styles">
             <IconButton
               color="inherit"
-              onClick={() => {
-                const newSize = fontSize + 2;
-                setFontSize(newSize);
-                setFontSizeInCookie(newSize);
-              }}
+              onClick={() => setStylesDrawerOpen(true)}
             >
-              <AddIcon />
+              <FormatSizeIcon />
             </IconButton>
           </Tooltip>
-
-          <Tooltip title="Decrease font size">
-            <IconButton
-              color="inherit"
-              onClick={() => {
-                const newSize = fontSize - 2;
-                setFontSize(newSize);
-                setFontSizeInCookie(newSize);
-              }}
-            >
-              <RemoveIcon />
-            </IconButton>
-          </Tooltip>
-
-          <CookieThemeToggle size="small" />
 
           <Tooltip title="Listen to article">
             <IconButton
@@ -921,7 +1025,7 @@ export default function ArticleScreen(_props: Props) {
             />
           </Box>
         ) : (
-          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} />
+          <ArticleComponent html={htmlWithSummaryLink} fontSize={fontSize} fontFamily={currentFontCss} />
         )}
       </Box>
 
@@ -992,6 +1096,12 @@ export default function ArticleScreen(_props: Props) {
                 <Typography variant="body2" color="text.secondary">
                   <strong>Content Type:</strong> {article.mimeType || "Unknown"}
                 </Typography>
+                {wordCount > 0 && (
+                  <Typography variant="body2" color="text.secondary">
+                    <strong>Reading time:</strong>{" "}
+                    {formatReadTime(Math.max(1, Math.ceil(wordCount / readingWpm)))} ({wordCount.toLocaleString()} words)
+                  </Typography>
+                )}
               </Stack>
             </Box>
 
@@ -1071,6 +1181,144 @@ export default function ArticleScreen(_props: Props) {
         </Box>
       </Drawer>
 
+      {/* Styles Drawer */}
+      <Drawer
+        anchor="bottom"
+        open={stylesDrawerOpen}
+        onClose={() => setStylesDrawerOpen(false)}
+        PaperProps={{
+          sx: {
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            bgcolor: "background.paper",
+            color: "text.primary",
+          },
+        }}
+      >
+        <Box sx={{ p: 3 }}>
+          <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
+            Reading styles
+          </Typography>
+
+          {/* Theme mode */}
+          <Box sx={{ display: "flex", gap: 2, mb: 3, justifyContent: "center" }}>
+            {(["light", "dark", "system"] as ThemeMode[]).map((mode) => {
+              const selected = currentTheme === mode;
+              const icon =
+                mode === "light" ? (
+                  <LightModeIcon />
+                ) : mode === "dark" ? (
+                  <DarkModeIcon />
+                ) : (
+                  <SettingsBrightnessIcon />
+                );
+              const label = mode.charAt(0).toUpperCase() + mode.slice(1);
+              return (
+                <Box
+                  key={mode}
+                  onClick={() => {
+                    if (currentTheme !== mode) {
+                      setThemeInCookie(mode);
+                      setCurrentTheme(mode);
+                      window.dispatchEvent(new CustomEvent("themeChanged"));
+                    }
+                  }}
+                  sx={{
+                    display: "flex",
+                    flexDirection: "column",
+                    alignItems: "center",
+                    gap: 0.5,
+                    cursor: "pointer",
+                    flex: 1,
+                  }}
+                >
+                  <Box
+                    sx={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: "50%",
+                      border: selected ? "2px solid" : "2px solid",
+                      borderColor: selected ? "primary.main" : "divider",
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      bgcolor: selected ? "primary.main" : "transparent",
+                      color: selected ? "primary.contrastText" : "text.secondary",
+                      transition: "all 0.2s ease-in-out",
+                    }}
+                  >
+                    {icon}
+                  </Box>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: selected ? "primary.main" : "text.secondary" }}
+                  >
+                    {label}
+                  </Typography>
+                </Box>
+              );
+            })}
+          </Box>
+
+          {/* Font size */}
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 2,
+              pt: 2,
+              borderTop: "1px solid",
+              borderColor: "divider",
+            }}
+          >
+            <IconButton
+              onClick={() => {
+                const newSize = Math.max(12, fontSize - 2);
+                setFontSize(newSize);
+                setFontSizeInCookie(newSize);
+              }}
+            >
+              <RemoveIcon />
+            </IconButton>
+            <Typography sx={{ minWidth: 60, textAlign: "center", fontSize }}>
+              A
+            </Typography>
+            <IconButton
+              onClick={() => {
+                const newSize = Math.min(32, fontSize + 2);
+                setFontSize(newSize);
+                setFontSizeInCookie(newSize);
+              }}
+            >
+              <AddIcon />
+            </IconButton>
+          </Box>
+
+          {/* Font family */}
+          <Box sx={{ pt: 2, borderTop: "1px solid", borderColor: "divider", mt: 2 }}>
+            <FormControl fullWidth size="small">
+              <InputLabel>Font</InputLabel>
+              <Select
+                value={fontFamily}
+                label="Font"
+                onChange={(e) => {
+                  const val = e.target.value as FontFamily;
+                  setFontFamily(val);
+                  setFontFamilyInCookie(val);
+                }}
+              >
+                {FONT_FAMILY_OPTIONS.map((opt) => (
+                  <SelectMenuItem key={opt.value} value={opt.value} sx={{ fontFamily: opt.css }}>
+                    {opt.label}
+                  </SelectMenuItem>
+                ))}
+              </Select>
+            </FormControl>
+          </Box>
+        </Box>
+      </Drawer>
+
       {/* Text to Speech Drawer */}
       <TextToSpeechDrawer
         open={ttsDrawerOpen}
@@ -1112,7 +1360,7 @@ export default function ArticleScreen(_props: Props) {
             </Box>
           )}
 
-          {article.summary && (
+          {!isSummarizing && article.summary && (
             <Box
               sx={{
                 lineHeight: 1.7,
@@ -1164,9 +1412,9 @@ export default function ArticleScreen(_props: Props) {
                     color="error"
                     size="small"
                     onClick={async () => {
-                      const updatedArticle = { ...article, summary: undefined };
-                      await updateArticleMetadata(storage.client!, updatedArticle);
-                      setArticle(updatedArticle);
+                      await patchArticleMetadata(storage.client!, article.slug, {
+                        summary: undefined,
+                      });
                       enqueueSnackbar("Summary cleared");
                     }}
                   >
@@ -1175,64 +1423,7 @@ export default function ArticleScreen(_props: Props) {
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={async () => {
-                      // Clear existing summary first
-                      const clearedArticle = { ...article, summary: undefined };
-                      setArticle(clearedArticle);
-
-                      // Then regenerate
-                      if (!articleText) {
-                        enqueueSnackbar("No article content to summarize", { variant: "error" });
-                        return;
-                      }
-
-                      const provider = getSummaryProviderFromCookie() as SummaryProvider;
-                      const model = getSummaryModelFromCookie();
-                      const apiKey = getApiKeyForProvider(provider);
-
-                      if (!apiKey) {
-                        enqueueSnackbar("Please set up your API key in Preferences", {
-                          variant: "warning",
-                        });
-                        return;
-                      }
-
-                      setIsSummarizing(true);
-                      setSummaryProgress({ status: "summarizing" });
-
-                      try {
-                        const cookieSettings = getSummarySettingsFromCookie();
-                        const settings = {
-                          ...DEFAULT_SUMMARY_SETTINGS,
-                          detailLevel:
-                            cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-                          tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-                          focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-                          format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-                          customPrompt: cookieSettings.customPrompt,
-                        };
-
-                        const summary = await summarizeText(
-                          articleText,
-                          settings,
-                          provider,
-                          apiKey,
-                          model,
-                          (progress) => setSummaryProgress(progress),
-                        );
-
-                        const updatedArticle = { ...clearedArticle, summary };
-                        await updateArticleMetadata(storage.client!, updatedArticle);
-                        setArticle(updatedArticle);
-                        enqueueSnackbar("Summary regenerated");
-                      } catch (error) {
-                        console.error("Summarization failed:", error);
-                        enqueueSnackbar("Failed to generate summary", { variant: "error" });
-                      } finally {
-                        setIsSummarizing(false);
-                        setSummaryProgress(null);
-                      }
-                    }}
+                    onClick={() => runSummarize("Summary regenerated")}
                   >
                     Regenerate
                   </Button>
@@ -1242,59 +1433,7 @@ export default function ArticleScreen(_props: Props) {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={async () => {
-                    if (!articleText) {
-                      enqueueSnackbar("No article content to summarize", { variant: "error" });
-                      return;
-                    }
-
-                    const provider = getSummaryProviderFromCookie() as SummaryProvider;
-                    const model = getSummaryModelFromCookie();
-                    const apiKey = getApiKeyForProvider(provider);
-
-                    if (!apiKey) {
-                      enqueueSnackbar("Please set up your API key in Preferences", {
-                        variant: "warning",
-                      });
-                      return;
-                    }
-
-                    setIsSummarizing(true);
-                    setSummaryProgress({ status: "summarizing" });
-
-                    try {
-                      const cookieSettings = getSummarySettingsFromCookie();
-                      const settings = {
-                        ...DEFAULT_SUMMARY_SETTINGS,
-                        detailLevel:
-                          cookieSettings.detailLevel as typeof DEFAULT_SUMMARY_SETTINGS.detailLevel,
-                        tone: cookieSettings.tone as typeof DEFAULT_SUMMARY_SETTINGS.tone,
-                        focus: cookieSettings.focus as typeof DEFAULT_SUMMARY_SETTINGS.focus,
-                        format: cookieSettings.format as typeof DEFAULT_SUMMARY_SETTINGS.format,
-                        customPrompt: cookieSettings.customPrompt,
-                      };
-
-                      const summary = await summarizeText(
-                        articleText,
-                        settings,
-                        provider,
-                        apiKey,
-                        model,
-                        (progress) => setSummaryProgress(progress),
-                      );
-
-                      const updatedArticle = { ...article, summary };
-                      await updateArticleMetadata(storage.client!, updatedArticle);
-                      setArticle(updatedArticle);
-                      enqueueSnackbar("Summary generated");
-                    } catch (error) {
-                      console.error("Summarization failed:", error);
-                      enqueueSnackbar("Failed to generate summary", { variant: "error" });
-                    } finally {
-                      setIsSummarizing(false);
-                      setSummaryProgress(null);
-                    }
-                  }}
+                  onClick={() => runSummarize("Summary generated")}
                 >
                   Generate Summary
                 </Button>

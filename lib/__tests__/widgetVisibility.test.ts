@@ -3,7 +3,7 @@ import {
   isSyncEnabled,
   isArticlePage,
   shouldShowWidget,
-} from "../../src/utils/widgetVisibility";
+} from "../../src/utils/ui/widgetVisibility";
 
 describe("widgetVisibility", () => {
   describe("getCookieValue", () => {

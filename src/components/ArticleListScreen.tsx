@@ -41,7 +41,7 @@ import {
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
-import { removeArticle, updateArticleMetadata, loadThumbnail } from "~/utils/tools";
+import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -49,6 +49,7 @@ import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
 import { isDebugMode } from "~/config/environment";
 import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
+import { useReadingWpm, bootstrapReadingSpeedIfUnseeded } from "../utils/readingSpeed";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
@@ -75,6 +76,7 @@ const sampleArticleUrls = [
 
 function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
+  const readingWpm = useReadingWpm();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
   const [contentExists, setContentExists] = useState<boolean>(true);
@@ -97,7 +99,7 @@ function ArticleItem({ article }: { article: Article }) {
     // TODO: load these lazily perhaps so it does not grind to a halt
 
     loadThumbnailData();
-  }, []);
+  }, [article.slug]);
 
   useEffect(() => {
     const checkContentExists = async () => {
@@ -114,7 +116,9 @@ function ArticleItem({ article }: { article: Article }) {
         } else {
           contentPath = getFilePathContent(article.slug);
         }
-        const file = (await storage.client.getFile(contentPath)) as { data: string | ArrayBuffer } | null;
+        // maxAge: false = local cache only; without it every rendered row
+        // fires a network GET against the RemoteStorage server.
+        const file = (await storage.client.getFile(contentPath, false)) as { data: string | ArrayBuffer } | null;
         setContentExists(!!(file && file.data));
       } catch (error) {
         console.warn(`Failed to check content for ${article.slug}:`, error);
@@ -147,7 +151,7 @@ function ArticleItem({ article }: { article: Article }) {
   const handleArchive = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      await updateArticleMetadata(storage.client!, { ...article, state: "archived" });
+      await patchArticleMetadata(storage.client!, article.slug, { state: "archived" });
       enqueueSnackbar("Article archived");
     } catch (e) {
       console.error(e);
@@ -161,7 +165,7 @@ function ArticleItem({ article }: { article: Article }) {
     if (!article) throw new Error("Article is undefined");
 
     try {
-      await updateArticleMetadata(storage.client!, { ...article, state: "unread" });
+      await patchArticleMetadata(storage.client!, article.slug, { state: "unread" });
       enqueueSnackbar("Article unarchived");
     } catch (e) {
       console.error(e);
@@ -173,7 +177,7 @@ function ArticleItem({ article }: { article: Article }) {
   const handleToggleFavorite = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      await updateArticleMetadata(storage.client!, { ...article, favorite: !article.favorite });
+      await patchArticleMetadata(storage.client!, article.slug, { favorite: !article.favorite });
       enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
     } catch (e) {
       console.error(e);
@@ -185,7 +189,7 @@ function ArticleItem({ article }: { article: Article }) {
   const handleDelete = async (event: React.MouseEvent) => {
     event.stopPropagation();
     try {
-      await removeArticle(storage.client!, article.slug);
+      await removeArticle(article.slug);
       enqueueSnackbar("Article deleted");
     } catch (e) {
       console.error(e);
@@ -244,7 +248,7 @@ function ArticleItem({ article }: { article: Article }) {
                 ? "PDF document"
                 : article.mimeType?.startsWith("image/")
                   ? "Image"
-                  : generateInfoForCard(article)
+                  : generateInfoForCard(article, readingWpm)
               : "(content missing)"}
           </Typography>
         }
@@ -324,14 +328,26 @@ export default function ArticleListScreen() {
     return db.articles.where("state").equals("archived").count();
   });
 
+  // Learned reading speed (re-renders when updated after a reading session).
+  const readingWpm = useReadingWpm();
+
+  // On a fresh device the local estimate has no samples; seed it from the
+  // reading speeds measured on other devices (synced via article metadata).
+  // Safe to re-run as articles arrive from sync: it no-ops once this device has
+  // any estimate of its own, so it never clobbers locally-learned data.
+  useEffect(() => {
+    if (!articles) return;
+    bootstrapReadingSpeedIfUnseeded(articles.map((a) => a.readingWpm));
+  }, [articles]);
+
   // Read time sum queries
-  const unreadReadTimeSum = useLiveQuery(async () => {
+  const unreadWordCountSum = useLiveQuery(async () => {
     const unreadArticles = await db.articles.where("state").equals("unread").toArray();
-    return unreadArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return unreadArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
-  const archivedReadTimeSum = useLiveQuery(async () => {
+  const archivedWordCountSum = useLiveQuery(async () => {
     const archivedArticles = await db.articles.where("state").equals("archived").toArray();
-    return archivedArticles.reduce((sum, article) => sum + (article.readTimeMinutes || 0), 0);
+    return archivedArticles.reduce((sum, article) => sum + (article.wordCount || 0), 0);
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
@@ -372,29 +388,6 @@ export default function ArticleListScreen() {
     }
   }, [articles, navigate]);
 
-  useEffect(() => {
-    const handleTripleTap = () => {
-      navigate({ to: "/diagnostics" });
-    };
-
-    let tapCount = 0;
-    let tapTimer: NodeJS.Timeout;
-
-    const handleTap = () => {
-      tapCount++;
-      clearTimeout(tapTimer);
-      tapTimer = setTimeout(() => {
-        if (tapCount >= 3) {
-          handleTripleTap();
-        }
-        tapCount = 0;
-      }, 500);
-    };
-
-    document.addEventListener("click", handleTap);
-    return () => document.removeEventListener("click", handleTap);
-  }, []);
-
   // Helper function to wait for RemoteStorage sync to complete before closing
   const waitForSyncThenClose = useCallback(async () => {
     if (!remoteStorage || !remoteStorage.remote?.connected) {
@@ -414,6 +407,7 @@ export default function ArticleListScreen() {
       const timeout = setTimeout(() => {
         if (!resolved) {
           resolved = true;
+          remoteStorage.removeEventListener("sync-done", onSyncDone);
           console.log("Sync timeout after 15 seconds, closing anyway");
           resolve();
         }
@@ -517,6 +511,9 @@ export default function ArticleListScreen() {
     let ingesting = false;
 
     const handler = async (event: MessageEvent) => {
+      // Reject messages from sandboxed iframes and file:// pages.
+      if (!event.origin || event.origin === "null") return;
+
       if (event.data.action === "savr-html") {
         if (ingesting) return;
 
@@ -529,7 +526,13 @@ export default function ArticleListScreen() {
         }
 
         ingesting = true;
-        await processMessage(event.data.html, event.data.url);
+        try {
+          await processMessage(event.data.html, event.data.url);
+        } catch (error) {
+          console.error("Bookmarklet ingestion error:", error);
+        } finally {
+          ingesting = false;
+        }
       }
     };
     window.addEventListener("message", handler);
@@ -597,7 +600,8 @@ export default function ArticleListScreen() {
         }, 1500);
       } catch (error) {
         console.error(error);
-        enqueueSnackbar("Error requesting article", { variant: "error" });
+        const detail = error instanceof Error ? error.message : String(error);
+        enqueueSnackbar(`Error saving article: ${detail}`, { variant: "error" });
         setIngestStatus(null);
         setIngestPercent(0);
         setDialogVisible(false);
@@ -799,20 +803,22 @@ export default function ArticleListScreen() {
         {filteredArticles.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
             {filter === "unread" ? (
-              unreadCount !== undefined && unreadReadTimeSum !== undefined ? (
+              unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                 <>
                   Saves: {unreadCount} articles
                   <br />
-                  Reading time: {formatReadTime(unreadReadTimeSum)}
+                  Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
+                  {" "}· {Math.round(readingWpm)} wpm
                 </>
               ) : (
                 "Loading..."
               )
-            ) : archivedCount !== undefined && archivedReadTimeSum !== undefined ? (
+            ) : archivedCount !== undefined && archivedWordCountSum !== undefined ? (
               <>
                 Archive: {archivedCount} articles
                 <br />
-                Reading time: {formatReadTime(archivedReadTimeSum)}
+                Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
+                {" "}· {Math.round(readingWpm)} wpm
               </>
             ) : (
               "Loading..."

@@ -11,7 +11,8 @@ export default function CorsTestScreen() {
         sx={{
           width: "100%",
           height: "calc(100vh - 100px)",
-          border: "1px solid #ccc",
+          border: 1,
+          borderColor: "divider",
         }}
       >
         <iframe

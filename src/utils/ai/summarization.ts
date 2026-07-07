@@ -1,4 +1,5 @@
 // Cloud-based summarization using Groq or OpenAI APIs
+import { getSummarySettingsFromCookie } from "../cookies";
 
 // Available providers
 export type SummaryProvider = "groq" | "openai";
@@ -74,6 +75,18 @@ export const DEFAULT_SUMMARY_SETTINGS: SummarySettings = {
   format: "paragraphs",
   customPrompt: "",
 };
+
+export function buildSummarySettings(): SummarySettings {
+  const cookieSettings = getSummarySettingsFromCookie();
+  return {
+    ...DEFAULT_SUMMARY_SETTINGS,
+    detailLevel: cookieSettings.detailLevel as SummarySettings["detailLevel"],
+    tone: cookieSettings.tone as SummarySettings["tone"],
+    focus: cookieSettings.focus as SummarySettings["focus"],
+    format: cookieSettings.format as SummarySettings["format"],
+    customPrompt: cookieSettings.customPrompt,
+  };
+}
 
 // Progress callback types (kept for compatibility)
 export type SummarizationProgress = {

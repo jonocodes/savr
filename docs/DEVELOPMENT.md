@@ -61,14 +61,24 @@ rm -f tests/e2e/.test-env.json
 
 ### Test Categories
 
-| Test File | Description | CI Reliability |
-|-----------|-------------|----------------|
-| `smoke.spec.ts` | Basic page load verification | High |
-| `main-page.spec.ts` | Main page UI tests | Low (requires React hydration) |
-| `add-article-dialog.spec.ts` | Dialog interaction tests | Low (requires React hydration) |
-| `ingest-local-article.spec.ts` | Article ingestion flow | Low (requires React hydration) |
-| `widget-visibility.spec.ts` | RemoteStorage widget tests | Low (requires React hydration) |
-| `multi-browser-sync.spec.ts` | Multi-browser sync tests | Skipped |
+| Test File | Description | Notes |
+|-----------|-------------|-------|
+| `smoke.spec.ts` | Basic page load verification (static HTML shell only) | Most CI-reliable; does not verify React boots |
+| `main-page.spec.ts` | Main page UI tests | Requires React hydration |
+| `add-article-dialog.spec.ts` | Add-article dialog interactions | Requires React hydration |
+| `ingest-local-article.spec.ts` | Article ingestion via UI, incl. PDF/markdown/image from `test_data/input/` | Serial |
+| `article-server-persistence.spec.ts` | Persist to RemoteStorage server and restore after local wipe | Serial |
+| `edit-article-info.spec.ts` | Edit-article drawer: metadata fields, persistence | Serial |
+| `bookmarklet-sync.spec.ts` | Bookmarklet `?bookmarklet=` ingestion flow via postMessage | Serial |
+| `multi-browser-sync.spec.ts` | Add/delete propagation across two browser contexts (manual sync trigger) | Active |
+| `multi-browser-archive-sync.spec.ts` | Deletion, metadata-edit, and archive-state sync across contexts | Active |
+| `natural-sync.spec.ts` | Background-interval sync with no manual trigger | Active |
+| `incremental-sync.spec.ts` | Local articles preserved across reload | Serial |
+| `sync-no-loop.spec.ts` | Regression: reconcile must not re-fire after sync settles | Contains intentional 20s wait |
+| `sync-clears-local-on-connect.spec.ts` | Clear-local-on-connect semantics | Skipped (behavior not implemented) |
+| `bulk-delete.spec.ts` | Delete All wipes Dexie and RemoteStorage cache | Active |
+| `widget-visibility.spec.ts` | RemoteStorage widget shown/hidden per page and sync setting | Active |
+| `text-to-speech.spec.ts` | TTS toolbar, drawer controls, speed/voice | Voice availability depends on headless env |
 
 ### Playwright Configuration
 

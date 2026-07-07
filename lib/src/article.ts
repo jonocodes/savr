@@ -1,17 +1,6 @@
 import { Article } from "./models";
 
-// class ArticleObj {
-//   constructor(data: Article) {
-//     this.data = data;
-//   }
-
-//   pathContent(): string {
-//     return `saves/${this.slug}/content.html`;
-//   }
-// }
-
 type ArticleObj = {
-  // data: Article;
   pathContent: () => string;
   pathThumbnail: () => string;
   pathMetadata: () => string;
@@ -36,6 +25,15 @@ export function createArticleObject(data: Article): ArticleObj {
   };
 }
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 interface ArticleTemplateProps {
   title: string;
   byline: string;
@@ -44,21 +42,18 @@ interface ArticleTemplateProps {
   content: string;
 }
 
-const ArticleTemplate = (props: ArticleTemplateProps) => {
-  const html = `
-    <div id="savr-root">
-        <div id="savr-metadata">
-            <h1>${props.title}</h1>
-            <div id="savr-byline">${props.byline}</div>
-            <div id="savr-published">${props.published}</div>
-            <div id="savr-readTime">${props.readTime}</div>
-            <hr />
-        </div>
-        <div id="savr-content">${props.content}</div>
+const ArticleTemplate = (props: ArticleTemplateProps): string => `
+<link rel="stylesheet" href="/web.css">
+<div id="savr-root">
+    <div id="savr-metadata">
+        <h1>${escapeHtml(props.title)}</h1>
+        <div id="savr-byline">${escapeHtml(props.byline)}</div>
+        <div id="savr-published">${props.published}</div>
+        <div id="savr-readTime">${escapeHtml(props.readTime)}</div>
+        <hr />
     </div>
-    `;
-
-  return html;
-};
+    <div id="savr-content">${props.content}</div>
+</div>
+`;
 
 export default ArticleTemplate;

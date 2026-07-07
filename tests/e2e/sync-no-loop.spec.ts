@@ -20,22 +20,9 @@ import {
   clearAllArticles,
   getWorkerToken,
 } from "./utils/remotestorage-helper";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
+import { loadTestEnv } from "./utils/test-helpers";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-const testEnvPath = path.join(__dirname, ".test-env.json");
-
-let testEnv: { RS_TOKEN: string; RS_TOKENS: string[] };
-try {
-  testEnv = JSON.parse(fs.readFileSync(testEnvPath, "utf-8"));
-} catch (e) {
-  throw new Error(
-    `Failed to load test environment from ${testEnvPath}. Ensure global-setup ran. Error: ${e}`
-  );
-}
+const testEnv = loadTestEnv();
 
 interface DiagEvent {
   category: string;
@@ -56,7 +43,7 @@ function makeSeedArticle(i: number) {
     publication: null,
     author: null,
     publishedDate: null,
-    readTimeMinutes: null,
+    wordCount: null,
     progress: 0,
   };
 }
