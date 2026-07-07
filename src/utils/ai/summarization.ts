@@ -208,6 +208,19 @@ export function buildPrompt(text: string, settings: SummarySettings): string {
 const MAX_OUTPUT_TOKENS = 4096;
 
 /**
+ * Strip chain-of-thought that reasoning models (e.g. Qwen3 on Groq, DeepSeek-R1)
+ * emit inline in the message content wrapped in <think>...</think> tags. Without
+ * this the reasoning leaks into the summary. Handles multiple/multiline blocks
+ * and cleans up any stray unpaired tags.
+ */
+function stripReasoning(content: string): string {
+  return content
+    .replace(/<think(?:ing)?>[\s\S]*?<\/think(?:ing)?>/gi, "")
+    .replace(/<\/?think(?:ing)?>/gi, "")
+    .trim();
+}
+
+/**
  * Call any OpenAI-compatible /chat/completions endpoint. The Authorization
  * header is omitted when no key is provided so local servers that don't require
  * auth (llama-server, Ollama, LM Studio, ...) work out of the box.
@@ -245,7 +258,7 @@ async function callChatApi(
   }
 
   const data = await res.json();
-  return data.choices[0]?.message?.content || "";
+  return stripReasoning(data.choices[0]?.message?.content || "");
 }
 
 /**
