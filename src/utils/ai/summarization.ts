@@ -180,30 +180,32 @@ export function buildPrompt(text: string, settings: SummarySettings): string {
       ? "Use bullet points to organize the information."
       : "Write in flowing paragraphs.";
 
+  // A single flat ceiling, not a per-level target: detailInstructions above
+  // already shapes length ("1-2 sentences" vs "comprehensive"). This just
+  // stops the open-ended top end (Comprehensive) from running unbounded.
+  const lengthCeiling = "Regardless of detail level, keep the summary under 800 words.";
+
   const parts = [
     "Summarize the following text.",
     detailInstructions[settings.detailLevel],
     toneInstructions[settings.tone],
     focusInstructions[settings.focus],
     formatInstruction,
+    lengthCeiling,
   ].filter(Boolean);
 
   return `${parts.join(" ")}\n\nText:\n${text}\n\nSummary:`;
 }
 
 /**
- * Output-token budget per detail level. Higher levels ask for longer summaries,
- * and the budget also has to absorb the reasoning tokens that "thinking" models
- * (e.g. Gemini 2.5) spend before emitting the answer — too small a cap truncates
- * the visible summary.
+ * Flat output-token safety net for the /chat/completions call. This is not
+ * meant to shape summary length — buildPrompt's word-count ceiling does that —
+ * it only guards against a model ignoring that instruction and generating
+ * without bound. Generous enough to leave headroom for "thinking" models
+ * (e.g. Gemini 2.5) that spend part of the budget on reasoning before the
+ * visible answer, but still well under common per-request output limits.
  */
-const MAX_TOKENS_BY_DETAIL: Record<DetailLevel, number> = {
-  0: 512,
-  1: 768,
-  2: 1536,
-  3: 3072,
-  4: 6144,
-};
+const MAX_OUTPUT_TOKENS = 4096;
 
 /**
  * Call any OpenAI-compatible /chat/completions endpoint. The Authorization
@@ -268,9 +270,8 @@ export async function summarizeText(
 
   const prompt = buildPrompt(truncatedText, settings);
   const endpoint = resolveEndpoint(provider, baseUrl);
-  const maxTokens = MAX_TOKENS_BY_DETAIL[settings.detailLevel];
 
-  const summary = await callChatApi(endpoint, apiKey, model, prompt, maxTokens);
+  const summary = await callChatApi(endpoint, apiKey, model, prompt, MAX_OUTPUT_TOKENS);
 
   onProgress?.({ status: "ready" });
 

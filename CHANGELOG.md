@@ -6,7 +6,7 @@
 - Added Gemini as a built-in summarization provider (via its OpenAI-compatible endpoint)
 - Added a "Local / Custom" provider so summaries can run against a local server (llama.cpp, Ollama, LM Studio, vLLM) or any compatible service by entering a base URL and model name; API key optional
 - Updated the default Groq model to Qwen3 32B (Groq is deprecating the Llama 3.3 70B model)
-- Scaled the summary output-token limit by detail level (was a fixed 1000), fixing summaries that were cut off — notably with "thinking" models like Gemini 2.5 that spend part of the token budget on reasoning
+- Fixed summaries getting cut off (notably with "thinking" models like Gemini 2.5, which spend part of the token budget on reasoning): summary length is now steered by an explicit word-count ceiling in the prompt rather than a low `max_tokens` value; the API's output-token limit is now a single generous safety net (4096) rather than the thing shaping length
 - Summary failure toasts now include the underlying provider error instead of a generic message
 - Added a "refresh models" button in Preferences that fetches the provider's live model list from its `/v1/models` endpoint; removed the hardcoded model lists entirely, so the model field is now free-text until a live list is fetched
 
