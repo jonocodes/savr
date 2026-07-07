@@ -25,7 +25,6 @@ export type SummaryProviderConfig = {
   isCustom?: boolean;
   // Hint shown under the API key field in preferences.
   apiKeyHint?: string;
-  models: { id: string; name: string; description: string }[];
 };
 
 export const PROVIDERS: SummaryProviderConfig[] = [
@@ -35,10 +34,6 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     baseUrl: "https://api.groq.com/openai/v1/chat/completions",
     requiresApiKey: true,
     apiKeyHint: "Get a free key at console.groq.com",
-    models: [
-      { id: "qwen/qwen3-32b", name: "Qwen3 32B", description: "Free tier, very capable" },
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", description: "Faster, lighter" },
-    ],
   },
   {
     id: "openai",
@@ -46,10 +41,6 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     baseUrl: "https://api.openai.com/v1/chat/completions",
     requiresApiKey: true,
     apiKeyHint: "Get a key at platform.openai.com",
-    models: [
-      { id: "gpt-4o-mini", name: "GPT-4o Mini", description: "Fast & affordable" },
-      { id: "gpt-4o", name: "GPT-4o", description: "Most capable" },
-    ],
   },
   {
     id: "gemini",
@@ -57,10 +48,6 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     requiresApiKey: true,
     apiKeyHint: "Get a key at aistudio.google.com/apikey",
-    models: [
-      { id: "gemini-2.0-flash", name: "Gemini 2.0 Flash", description: "Fast & affordable" },
-      { id: "gemini-2.5-pro", name: "Gemini 2.5 Pro", description: "Most capable" },
-    ],
   },
   {
     id: "custom",
@@ -69,7 +56,6 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     requiresApiKey: false,
     isCustom: true,
     apiKeyHint: "Optional — most local servers don't need a key",
-    models: [],
   },
 ];
 

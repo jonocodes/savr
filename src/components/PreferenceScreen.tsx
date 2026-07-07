@@ -395,13 +395,6 @@ export default function PreferencesScreen() {
   const handleProviderChange = (provider: SummaryProvider) => {
     setSummaryProvider(provider);
     setSummaryProviderInCookie(provider);
-    // Set default model for provider
-    const providerConfig = PROVIDERS.find((p) => p.id === provider);
-    if (providerConfig && providerConfig.models.length > 0) {
-      const defaultModel = providerConfig.models[0].id;
-      setSummaryModel(defaultModel);
-      setSummaryModelInCookie(defaultModel);
-    }
     // Load API key for this provider
     const savedKey = getApiKeyForProvider(provider);
     setApiKey(savedKey || "");
@@ -813,47 +806,41 @@ export default function PreferencesScreen() {
                       alignItems: "center",
                     }}
                   >
-                    {(() => {
-                      const cfg = getProviderConfig(summaryProvider);
-                      const curated = cfg?.models ?? [];
-                      // Prefer a freshly fetched list; otherwise fall back to the
-                      // curated defaults (or free text for custom providers).
-                      if (availableModels.length === 0 && cfg?.isCustom) {
-                        return (
-                          <TextField
-                            value={summaryModel}
-                            onChange={(e) => handleModelChange(e.target.value)}
-                            fullWidth
-                            size="small"
-                            placeholder="Model name, e.g. llama3.2 or qwen2.5"
-                          />
-                        );
-                      }
-                      const ids =
-                        availableModels.length > 0 ? availableModels : curated.map((m) => m.id);
-                      // Keep the current selection visible even if it isn't in the list.
-                      const optionIds =
-                        summaryModel && !ids.includes(summaryModel)
-                          ? [summaryModel, ...ids]
-                          : ids;
-                      return (
-                        <FormControl fullWidth size="small">
-                          <Select
-                            value={summaryModel}
-                            onChange={(e) => handleModelChange(e.target.value)}
-                          >
-                            {optionIds.map((id) => {
-                              const c = curated.find((m) => m.id === id);
-                              return (
-                                <MuiMenuItem key={id} value={id}>
-                                  {c ? `${c.name} - ${c.description}` : id}
-                                </MuiMenuItem>
-                              );
-                            })}
-                          </Select>
-                        </FormControl>
-                      );
-                    })()}
+                    {availableModels.length === 0 ? (
+                      // No list fetched yet — let the user type a model id. The ↻
+                      // button fetches the provider's live list to turn this into
+                      // a dropdown.
+                      <TextField
+                        value={summaryModel}
+                        onChange={(e) => handleModelChange(e.target.value)}
+                        fullWidth
+                        size="small"
+                        placeholder="Type a model id, or press ↻ to fetch"
+                      />
+                    ) : (
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={
+                            // Keep the current selection valid even if it isn't
+                            // in the fetched list.
+                            availableModels.includes(summaryModel) ? summaryModel : ""
+                          }
+                          displayEmpty
+                          onChange={(e) => handleModelChange(e.target.value)}
+                        >
+                          {!availableModels.includes(summaryModel) && (
+                            <MuiMenuItem value="" disabled>
+                              Select a model
+                            </MuiMenuItem>
+                          )}
+                          {availableModels.map((id) => (
+                            <MuiMenuItem key={id} value={id}>
+                              {id}
+                            </MuiMenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
                     <IconButton
                       onClick={handleRefreshModels}
                       disabled={isFetchingModels}
