@@ -131,11 +131,13 @@ Note that you don't need to sync your articles to a cloud service for them to be
 
 # AI Summarization
 
-Savr can automatically generate summaries of your saved articles using cloud-based LLM providers (Groq or OpenAI) to create concise summaries when you save new articles.
+Savr can automatically generate summaries of your saved articles using an LLM to create concise summaries when you save new articles. Any provider with an OpenAI-compatible chat-completions endpoint works — including cloud services and local model servers.
 
 **Supported Providers:**
-- **Groq** - Uses Llama models for fast, free summarization
-- **OpenAI** - Uses GPT models for high-quality summaries
+- **Groq** - Fast, free summarization (Qwen and Llama models)
+- **OpenAI** - GPT models for high-quality summaries
+- **Gemini** - Google's models via their OpenAI-compatible endpoint
+- **Local / Custom** - Point at any OpenAI-compatible server (llama.cpp's `llama-server`, Ollama, LM Studio, vLLM, OpenRouter, ...) by entering its URL and a model name
 
 **Customization Options:**
 - **Detail Level** - From brief overviews to comprehensive summaries
@@ -144,7 +146,11 @@ Savr can automatically generate summaries of your saved articles using cloud-bas
 - **Focus** - General summary, key facts, action items, main themes, or arguments
 - **Custom Prompt** - Advanced users can define their own summarization prompt
 
-To enable summarization, go to Preferences and toggle on "Enable AI Summarization". You'll need to provide an API key from your chosen provider (Groq offers free API keys).
+To enable summarization, go to Preferences and toggle on "Enable AI Summarization". For cloud providers you'll need to provide an API key from your chosen provider (Groq offers free API keys). For the **Local / Custom** provider, enter the server's chat-completions URL (e.g. `http://localhost:8080/v1/chat/completions`) and the model name; an API key is usually optional.
+
+To choose a model, either type its id directly or press the **refresh** button beside the model field to fetch the provider's current model list live from its `/v1/models` endpoint (requires the API key/URL to be set first, and a key for cloud providers). Model lists are fetched on demand rather than hardcoded, so they never go stale.
+
+> **Note:** summaries are requested directly from your browser, so the provider must send permissive CORS headers. The major cloud providers and llama.cpp's `llama-server` do this by default. Ollama needs `OLLAMA_ORIGINS=*` (or your app's origin) set in its environment to allow browser requests.
 
 <div align="center" width="100%">
 

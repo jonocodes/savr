@@ -31,13 +31,14 @@ import {
   AfterExternalSaveAction,
   getSummaryProviderFromCookie,
   getSummaryModelFromCookie,
+  getSummaryCustomBaseUrlFromCookie,
   getApiKeyForProvider,
 } from "~/utils/cookies";
 import {
   summarizeText,
   buildSummarySettings,
+  getProviderConfig,
   type SummarizationProgress,
-  type SummaryProvider,
 } from "~/utils/ai/summarization";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -342,12 +343,19 @@ export default function SubmitScreen() {
     }
 
     // Get summarization config from cookies
-    const provider = getSummaryProviderFromCookie() as SummaryProvider;
+    const provider = getSummaryProviderFromCookie();
     const model = getSummaryModelFromCookie();
-    const apiKey = getApiKeyForProvider(provider);
+    const apiKey = getApiKeyForProvider(provider) || "";
+    const baseUrl = getSummaryCustomBaseUrlFromCookie();
+    const providerConfig = getProviderConfig(provider);
 
-    if (!apiKey) {
+    if (providerConfig?.requiresApiKey && !apiKey) {
       enqueueSnackbar("Please set up your API key in Preferences", { variant: "warning" });
+      return;
+    }
+
+    if (providerConfig?.isCustom && !baseUrl.trim()) {
+      enqueueSnackbar("Please set the server URL in Preferences", { variant: "warning" });
       return;
     }
 
@@ -382,13 +390,15 @@ export default function SubmitScreen() {
         (progress) => {
           setSummaryProgress(progress);
         },
+        baseUrl,
       );
 
       setTestSummary(summary);
       setSummaryProgress(null);
     } catch (error) {
       console.error("Failed to generate test summary:", error);
-      enqueueSnackbar("Failed to generate summary", { variant: "error" });
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      enqueueSnackbar(`Failed to generate summary: ${detail}`, { variant: "error" });
     } finally {
       setIsSummarizing(false);
     }

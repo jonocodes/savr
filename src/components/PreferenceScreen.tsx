@@ -47,6 +47,7 @@ import {
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
   Speed as SpeedIcon,
+  Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
@@ -66,6 +67,8 @@ import {
   setSummaryProviderInCookie,
   getSummaryModelFromCookie,
   setSummaryModelInCookie,
+  getSummaryCustomBaseUrlFromCookie,
+  setSummaryCustomBaseUrlInCookie,
   getApiKeyForProvider,
   setApiKeyForProvider,
   getSummarySettingsFromCookie,
@@ -81,6 +84,8 @@ import {
   FORMAT_OPTIONS,
   DEFAULT_SUMMARY_SETTINGS,
   testApiConnection,
+  fetchAvailableModels,
+  getProviderConfig,
   type SummaryProvider,
   type DetailLevel,
 } from "~/utils/ai/summarization";
@@ -137,7 +142,10 @@ export default function PreferencesScreen() {
     useState<PublicExportState>(getPublicExportState);
   const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
   const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
-  const [summaryModel, setSummaryModel] = useState<string>("llama-3.3-70b-versatile");
+  const [summaryModel, setSummaryModel] = useState<string>("qwen/qwen3-32b");
+  const [summaryBaseUrl, setSummaryBaseUrl] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isTestingApi, setIsTestingApi] = useState(false);
@@ -194,6 +202,7 @@ export default function PreferencesScreen() {
     const savedProvider = getSummaryProviderFromCookie() as SummaryProvider;
     setSummaryProvider(savedProvider);
     setSummaryModel(getSummaryModelFromCookie());
+    setSummaryBaseUrl(getSummaryCustomBaseUrlFromCookie());
     const savedKey = getApiKeyForProvider(savedProvider);
     if (savedKey) setApiKey(savedKey);
     const savedSettings = getSummarySettingsFromCookie();
@@ -386,21 +395,48 @@ export default function PreferencesScreen() {
   const handleProviderChange = (provider: SummaryProvider) => {
     setSummaryProvider(provider);
     setSummaryProviderInCookie(provider);
-    // Set default model for provider
-    const providerConfig = PROVIDERS.find((p) => p.id === provider);
-    if (providerConfig && providerConfig.models.length > 0) {
-      const defaultModel = providerConfig.models[0].id;
-      setSummaryModel(defaultModel);
-      setSummaryModelInCookie(defaultModel);
-    }
     // Load API key for this provider
     const savedKey = getApiKeyForProvider(provider);
     setApiKey(savedKey || "");
+    // Fetched model list belongs to the previous provider — drop it.
+    setAvailableModels([]);
+  };
+
+  const handleRefreshModels = async () => {
+    const providerConfig = getProviderConfig(summaryProvider);
+    if (providerConfig?.requiresApiKey && !apiKey.trim()) {
+      enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      return;
+    }
+    if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
+      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      return;
+    }
+    setIsFetchingModels(true);
+    try {
+      const models = await fetchAvailableModels(summaryProvider, apiKey, summaryBaseUrl);
+      if (models.length === 0) {
+        enqueueSnackbar("Provider returned no models", { variant: "warning" });
+      } else {
+        setAvailableModels(models);
+        enqueueSnackbar(`Found ${models.length} models`, { variant: "success" });
+      }
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : "Unknown error";
+      enqueueSnackbar(`Could not fetch models: ${detail}`, { variant: "error" });
+    } finally {
+      setIsFetchingModels(false);
+    }
   };
 
   const handleModelChange = (model: string) => {
     setSummaryModel(model);
     setSummaryModelInCookie(model);
+  };
+
+  const handleBaseUrlChange = (url: string) => {
+    setSummaryBaseUrl(url);
+    setSummaryCustomBaseUrlInCookie(url);
   };
 
   const handleApiKeyChange = (key: string) => {
@@ -409,13 +445,23 @@ export default function PreferencesScreen() {
   };
 
   const handleTestApiConnection = async () => {
-    if (!apiKey.trim()) {
+    const providerConfig = getProviderConfig(summaryProvider);
+    if (providerConfig?.requiresApiKey && !apiKey.trim()) {
       enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      return;
+    }
+    if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
+      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
       return;
     }
     setIsTestingApi(true);
     try {
-      const result = await testApiConnection(summaryProvider, apiKey, summaryModel);
+      const result = await testApiConnection(
+        summaryProvider,
+        apiKey,
+        summaryModel,
+        summaryBaseUrl,
+      );
       if (result.success) {
         enqueueSnackbar("API connection successful!", { variant: "success" });
       } else {
@@ -718,6 +764,30 @@ export default function PreferencesScreen() {
                   </Box>
                 </ListItem>
 
+                {/* Server URL (custom / local providers only) */}
+                {getProviderConfig(summaryProvider)?.isCustom && (
+                  <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
+                    <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
+                      <ListItemIcon>
+                        <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
+                      </ListItemIcon>
+                      <ListItemText
+                        primary="Server URL"
+                        secondary="OpenAI-compatible endpoint, e.g. http://localhost:8080/v1/chat/completions"
+                      />
+                    </Box>
+                    <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
+                      <TextField
+                        value={summaryBaseUrl}
+                        onChange={(e) => handleBaseUrlChange(e.target.value)}
+                        fullWidth
+                        size="small"
+                        placeholder="http://localhost:8080/v1/chat/completions"
+                      />
+                    </Box>
+                  </ListItem>
+                )}
+
                 {/* Model Selection */}
                 <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
                   <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
@@ -726,19 +796,63 @@ export default function PreferencesScreen() {
                     </ListItemIcon>
                     <ListItemText primary="Model" />
                   </Box>
-                  <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
-                    <FormControl fullWidth size="small">
-                      <Select
+                  <Box
+                    sx={{
+                      ml: 7,
+                      pr: 2,
+                      width: "calc(100% - 56px)",
+                      display: "flex",
+                      gap: 1,
+                      alignItems: "center",
+                    }}
+                  >
+                    {availableModels.length === 0 ? (
+                      // No list fetched yet — let the user type a model id. The ↻
+                      // button fetches the provider's live list to turn this into
+                      // a dropdown.
+                      <TextField
                         value={summaryModel}
                         onChange={(e) => handleModelChange(e.target.value)}
-                      >
-                        {PROVIDERS.find((p) => p.id === summaryProvider)?.models.map((model) => (
-                          <MuiMenuItem key={model.id} value={model.id}>
-                            {model.name} - {model.description}
-                          </MuiMenuItem>
-                        ))}
-                      </Select>
-                    </FormControl>
+                        fullWidth
+                        size="small"
+                        placeholder="Type a model id, or press ↻ to fetch"
+                      />
+                    ) : (
+                      <FormControl fullWidth size="small">
+                        <Select
+                          value={
+                            // Keep the current selection valid even if it isn't
+                            // in the fetched list.
+                            availableModels.includes(summaryModel) ? summaryModel : ""
+                          }
+                          displayEmpty
+                          onChange={(e) => handleModelChange(e.target.value)}
+                        >
+                          {!availableModels.includes(summaryModel) && (
+                            <MuiMenuItem value="" disabled>
+                              Select a model
+                            </MuiMenuItem>
+                          )}
+                          {availableModels.map((id) => (
+                            <MuiMenuItem key={id} value={id}>
+                              {id}
+                            </MuiMenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                    <IconButton
+                      onClick={handleRefreshModels}
+                      disabled={isFetchingModels}
+                      title="Fetch available models from provider"
+                      size="small"
+                    >
+                      {isFetchingModels ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <RefreshIcon fontSize="small" />
+                      )}
+                    </IconButton>
                   </Box>
                 </ListItem>
 
@@ -750,11 +864,7 @@ export default function PreferencesScreen() {
                     </ListItemIcon>
                     <ListItemText
                       primary="API Key"
-                      secondary={
-                        summaryProvider === "groq"
-                          ? "Get a free key at console.groq.com"
-                          : "Get a key at platform.openai.com"
-                      }
+                      secondary={getProviderConfig(summaryProvider)?.apiKeyHint}
                     />
                   </Box>
                   <Box sx={{ ml: 7, pr: 2, display: "flex", gap: 1, width: "calc(100% - 56px)" }}>
@@ -787,7 +897,12 @@ export default function PreferencesScreen() {
                       variant="outlined"
                       size="small"
                       onClick={handleTestApiConnection}
-                      disabled={isTestingApi || !apiKey.trim()}
+                      disabled={
+                        isTestingApi ||
+                        (getProviderConfig(summaryProvider)?.requiresApiKey ?? true
+                          ? !apiKey.trim()
+                          : false)
+                      }
                       sx={{ minWidth: 80 }}
                     >
                       {isTestingApi ? <CircularProgress size={20} /> : "Test"}
