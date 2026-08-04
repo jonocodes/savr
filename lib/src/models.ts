@@ -1,3 +1,11 @@
+// Provenance for an AI-generated summary: what produced it and when.
+export type SummaryMeta = {
+  model: string;
+  provider: string;
+  generatedAt: string; // ISO 8601 timestamp
+  detailLevel?: number; // 0-4 detail level used, if available
+};
+
 export type Article = {
   slug: string;
   title: string;
@@ -15,6 +23,7 @@ export type Article = {
   progress: number;
   favorite?: boolean;
   summary?: string; // AI-generated summary of the article
+  summaryMeta?: SummaryMeta; // Provenance of the AI summary (model, provider, when)
   assetCount?: number; // Number of files stored for this article
   sizeBytes?: number; // Total storage size in bytes across all files
   // publishedTime: string | null;

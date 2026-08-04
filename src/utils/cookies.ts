@@ -53,6 +53,7 @@ export const SUMMARY_PROMPT_COOKIE_NAME = "savr-summary-prompt";
 export const SUMMARIZATION_ENABLED_COOKIE_NAME = "savr-summarization-enabled";
 export const SUMMARY_PROVIDER_COOKIE_NAME = "savr-summary-provider";
 export const SUMMARY_MODEL_COOKIE_NAME = "savr-summary-model";
+export const SUMMARY_CUSTOM_BASE_URL_COOKIE_NAME = "savr-summary-custom-base-url";
 export const SUMMARY_API_KEYS_COOKIE_NAME = "savr-summary-api-keys";
 export const SUMMARY_SETTINGS_COOKIE_NAME = "savr-summary-settings";
 
@@ -402,9 +403,9 @@ export const setSummaryProviderInCookie = (provider: string): void => {
   document.cookie = `${SUMMARY_PROVIDER_COOKIE_NAME}=${provider}; expires=${expires.toUTCString()}; path=/`;
 };
 
-// Get summary model from cookie (defaults to "llama-3.3-70b-versatile")
+// Get summary model from cookie (defaults to Groq's default model)
 export const getSummaryModelFromCookie = (): string => {
-  if (typeof document === "undefined") return "llama-3.3-70b-versatile";
+  if (typeof document === "undefined") return "qwen/qwen3-32b";
 
   const cookies = document.cookie.split(";");
   const modelCookie = cookies.find((cookie) =>
@@ -413,10 +414,10 @@ export const getSummaryModelFromCookie = (): string => {
 
   if (modelCookie) {
     const value = modelCookie.split("=")[1]?.trim();
-    return value || "llama-3.3-70b-versatile";
+    return value || "qwen/qwen3-32b";
   }
 
-  return "llama-3.3-70b-versatile";
+  return "qwen/qwen3-32b";
 };
 
 // Set summary model in cookie
@@ -427,6 +428,33 @@ export const setSummaryModelInCookie = (model: string): void => {
   expires.setFullYear(expires.getFullYear() + 1);
 
   document.cookie = `${SUMMARY_MODEL_COOKIE_NAME}=${model}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get custom/local base URL from cookie (used only by the "custom" provider)
+export const getSummaryCustomBaseUrlFromCookie = (): string => {
+  if (typeof document === "undefined") return "";
+
+  const cookies = document.cookie.split(";");
+  const urlCookie = cookies.find((cookie) =>
+    cookie.trim().startsWith(`${SUMMARY_CUSTOM_BASE_URL_COOKIE_NAME}=`)
+  );
+
+  if (urlCookie) {
+    const value = urlCookie.split("=")[1]?.trim();
+    return value ? decodeURIComponent(value) : "";
+  }
+
+  return "";
+};
+
+// Set custom/local base URL in cookie
+export const setSummaryCustomBaseUrlInCookie = (url: string): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${SUMMARY_CUSTOM_BASE_URL_COOKIE_NAME}=${encodeURIComponent(url)}; expires=${expires.toUTCString()}; path=/`;
 };
 
 const SUMMARY_API_KEYS_STORAGE_KEY = SUMMARY_API_KEYS_COOKIE_NAME;
