@@ -488,6 +488,13 @@ export default function ArticleListScreen() {
         setIngestPercent(100);
         setUrl("");
 
+        // Remove bookmarklet query param so the save doesn't re-trigger on reload
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        currentUrlParams.delete("bookmarklet");
+        const newSearch = currentUrlParams.toString();
+        const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
+
         const afterExternalSave = getAfterExternalSaveFromCookie();
         if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
           await waitForSyncThenClose();
