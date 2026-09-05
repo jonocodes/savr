@@ -96,6 +96,23 @@ When on the main screen you can always click the '+' button and enter a URL.
 
 The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save.
 
+### Custom raw-content bookmarklets
+
+Some pages hold content Savr can't extract on its own — for example a YouTube transcript, which is injected by the page's JavaScript and would be rejected by Readability. For these, a site-specific bookmarklet can do the extraction itself and hand Savr the finished content plus metadata (title, author, url). Savr stores it verbatim — no Readability, no scraping — via the raw-ingest path.
+
+Such a bookmarklet opens Savr at `/?rawIngest=1` and, once Savr replies with a `savr-ready` message, posts:
+
+```js
+savrWindow.postMessage({
+  action: "savr-raw",
+  content,                 // the extracted text/HTML/markdown
+  contentType: "text/plain", // or text/html, text/markdown, auto
+  title, author, url,      // metadata stored as-is
+}, savrOrigin);
+```
+
+A working example that scrapes a YouTube transcript lives at [`bookmarklet/savr-youtube-transcript.unminified.js`](bookmarklet/savr-youtube-transcript.unminified.js) — set `SAVR_ORIGIN` to your instance, minify it, and save it as a bookmarklet.
+
 ## In browser
 
 Append the savr url to the front of the url you want to save. For example:

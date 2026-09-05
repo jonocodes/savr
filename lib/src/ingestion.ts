@@ -27,7 +27,7 @@ import {
   getSummaryModelFromCookie,
   getApiKeyForProvider,
 } from "~/utils/cookies";
-import { convertToHtml } from "./contentType";
+import { convertToHtml, detectContentType } from "./contentType";
 
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
@@ -631,6 +631,79 @@ export async function ingestHtml(
   sendMessage: (percent: number | null, message: string | null) => void,
   overrides?: IngestOverrides
 ): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
+  const [article, content] = readabilityToArticle(html, contentType, url, overrides);
+  return persistArticle(storageClient, article, content, html, sendMessage, {
+    startMessage: `readability finished for ${article.slug}`,
+  });
+}
+
+/**
+ * Ingest already-extracted "raw" content, bypassing Readability entirely.
+ *
+ * The caller (e.g. a site-specific bookmarklet) is responsible for producing the
+ * body and metadata; Savr stores them verbatim and runs the normal downstream
+ * pipeline (image download, offline render, optional AI summary, sync). This is
+ * the path for content Savr cannot extract itself — e.g. a YouTube transcript,
+ * which isn't present in the statically-fetched page and which Readability would
+ * reject.
+ */
+export async function ingestRaw(
+  storageClient: BaseClient | null,
+  params: {
+    content: string;
+    contentType?: "auto" | "text/html" | "text/markdown" | "text/plain";
+    title: string;
+    author?: string | null;
+    url?: string | null;
+    publishedDate?: string | null;
+  },
+  sendMessage: (percent: number | null, message: string | null) => void
+): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
+  const requestedType = params.contentType ?? "auto";
+  const actualContentType =
+    requestedType === "auto" ? detectContentType(params.content) : requestedType;
+  const bodyHtml = convertToHtml(params.content, actualContentType);
+
+  const title = params.title.trim() || `raw ${Date.now()}`;
+
+  const article: Article = {
+    slug: stringToSlug(title),
+    title,
+    url: params.url?.trim() || null,
+    state: "unread",
+    publication: null,
+    author: params.author?.trim() || null,
+    publishedDate: params.publishedDate?.trim() || undefined,
+    ingestDate: new Date().toISOString(),
+    ingestPlatform: `typescript/web (${version})`,
+    ingestSource: "raw",
+    mimeType: "text/html",
+    wordCount: calcWordCount(bodyHtml),
+    readingWpm: null,
+    progress: 0,
+  };
+
+  return persistArticle(storageClient, article, bodyHtml, bodyHtml, sendMessage, {
+    startMessage: `raw content received for ${article.slug}`,
+  });
+}
+
+/**
+ * Shared downstream pipeline for every ingest path: finalize the slug, store the
+ * raw source, download/resize images for offline use, render the reader view,
+ * optionally summarize, and persist metadata for sync.
+ *
+ * @param content  body HTML used for image processing and rendering
+ * @param rawHtml  the source stored verbatim as raw.html
+ */
+async function persistArticle(
+  storageClient: BaseClient | null,
+  article: Article,
+  content: string,
+  rawHtml: string,
+  sendMessage: (percent: number | null, message: string | null) => void,
+  opts?: { startMessage?: string }
+): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
   const logMessages: string[] = [];
 
   // Wrapper to collect log messages while still calling the original sendMessage
@@ -641,14 +714,14 @@ export async function ingestHtml(
     sendMessage(percent, message);
   };
 
-  let [article, content] = readabilityToArticle(html, contentType, url, overrides);
-
   await finalizeSlug(storageClient, article);
 
-  sendMessageWithLog(null, `readability finished for ${article.slug}`);
+  if (opts?.startMessage) {
+    sendMessageWithLog(null, opts.startMessage);
+  }
 
   // TODO: sanitize out the js before saving raw
-  await storageClient?.storeFile("text/html", getFilePathRaw(article.slug), html);
+  await storageClient?.storeFile("text/html", getFilePathRaw(article.slug), rawHtml);
 
   sendMessageWithLog(20, "collecting images");
 
@@ -703,7 +776,7 @@ export async function ingestHtml(
   const baseFileCount = 4; // raw.html, index.html, fetch.log, article.json
   article.assetCount = baseFileCount + savedImageFileCount;
   const articleJson = JSON.stringify(article);
-  article.sizeBytes = html.length + rendered.length + fetchLogContent.length + articleJson.length + savedImageBytes;
+  article.sizeBytes = rawHtml.length + rendered.length + fetchLogContent.length + articleJson.length + savedImageBytes;
 
   // Save article metadata to RemoteStorage for cross-device sync
   // This is critical: without article.json, other devices cannot sync this article
