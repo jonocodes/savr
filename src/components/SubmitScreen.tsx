@@ -24,6 +24,7 @@ import {
   Chip,
   Collapse,
   Tooltip,
+  Stack,
 } from "@mui/material";
 import { ArrowBack as ArrowBackIcon, Preview as PreviewIcon, ExpandMore as ExpandMoreIcon, ExpandLess as ExpandLessIcon, UploadFile as UploadFileIcon } from "@mui/icons-material";
 import {
@@ -58,6 +59,9 @@ export default function SubmitScreen() {
   const [dialogVisible, setDialogVisible] = useState(false);
 
   const [content, setContent] = useState<string>("");
+  const [editTitle, setEditTitle] = useState<string>("");
+  const [editAuthor, setEditAuthor] = useState<string>("");
+  const [editUrl, setEditUrl] = useState<string>("");
   const [contentType, setContentType] = useState<ContentTypeOption>("auto");
   const [detectedType, setDetectedType] = useState<"text/html" | "text/markdown" | "text/plain" | null>(null);
   const [ingestPercent, setIngestPercent] = useState<number>(0);
@@ -143,13 +147,14 @@ export default function SubmitScreen() {
           // corsProxy,
           htmlContent,
           "text/html", // Always save as HTML since we convert
-          null,
+          editUrl.trim() || null,
           (percent: number | null, message: string | null) => {
             if (percent !== null) {
               setIngestStatus(message);
               setIngestPercent(percent);
             }
           },
+          { title: editTitle, author: editAuthor },
         );
 
         const article: Article = result.article;
@@ -174,6 +179,9 @@ export default function SubmitScreen() {
           setIngestStatus(null);
           setIngestPercent(0);
           setContent("");
+          setEditTitle("");
+          setEditAuthor("");
+          setEditUrl("");
           setDetectedType(null);
 
           console.log("afterExternalSave", afterExternalSave);
@@ -201,6 +209,9 @@ export default function SubmitScreen() {
       client,
       content,
       contentType,
+      editTitle,
+      editAuthor,
+      editUrl,
       setDialogVisible,
       setIngestStatus,
       setIngestPercent,
@@ -490,6 +501,41 @@ export default function SubmitScreen() {
             <LinearProgress variant="determinate" value={ingestPercent} />
           </Box>
         )}
+
+        {/* Optional metadata overrides. Left blank, these fall back to values
+            Readability derives from the content. */}
+        <Stack spacing={2} sx={{ mb: 2 }}>
+          <TextField
+            label="Title"
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            fullWidth
+            variant="outlined"
+            size="small"
+            disabled={ingestStatus !== null}
+            helperText="Optional — leave blank to auto-detect from content"
+          />
+          <TextField
+            label="Author"
+            value={editAuthor}
+            onChange={(e) => setEditAuthor(e.target.value)}
+            fullWidth
+            variant="outlined"
+            size="small"
+            disabled={ingestStatus !== null}
+            helperText="Optional — leave blank to auto-detect from content"
+          />
+          <TextField
+            label="URL"
+            value={editUrl}
+            onChange={(e) => setEditUrl(e.target.value)}
+            fullWidth
+            variant="outlined"
+            size="small"
+            disabled={ingestStatus !== null}
+            helperText="Optional — source link; also resolves relative image paths"
+          />
+        </Stack>
 
         {/* Content Type Selector */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2, flexWrap: "wrap" }}>

@@ -292,5 +292,57 @@ describe("ingestion.ts - readabilityToArticle", () => {
       expect(article).toBeDefined();
       expect(article.title).toBe("Test Article Title");
     });
+
+    describe("metadata overrides", () => {
+      const html = "<html><body><h1>Test Article Title</h1><p>Content</p></body></html>";
+      const contentType = "text/html";
+      const url = "https://example.com/article";
+
+      it("should override the title and recompute the slug", () => {
+        const [article] = readabilityToArticle(html, contentType, url, {
+          title: "My Custom Title",
+        });
+
+        expect(article.title).toBe("My Custom Title");
+        expect(article.slug).toBe("my-custom-title");
+      });
+
+      it("should override the author", () => {
+        const [article] = readabilityToArticle(html, contentType, url, {
+          author: "Jane Doe",
+        });
+
+        expect(article.author).toBe("Jane Doe");
+      });
+
+      it("should trim whitespace from overrides", () => {
+        const [article] = readabilityToArticle(html, contentType, url, {
+          title: "  Padded Title  ",
+          author: "  Padded Author  ",
+        });
+
+        expect(article.title).toBe("Padded Title");
+        expect(article.slug).toBe("padded-title");
+        expect(article.author).toBe("Padded Author");
+      });
+
+      it("should fall back to Readability values for blank overrides", () => {
+        const [article] = readabilityToArticle(html, contentType, url, {
+          title: "   ",
+          author: "",
+        });
+
+        expect(article.title).toBe("Test Article Title");
+        expect(article.slug).toBe("test-article-title");
+        expect(article.author).toBe("Test Author");
+      });
+
+      it("should be a no-op when no overrides are provided", () => {
+        const [article] = readabilityToArticle(html, contentType, url);
+
+        expect(article.title).toBe("Test Article Title");
+        expect(article.author).toBe("Test Author");
+      });
+    });
   });
 });

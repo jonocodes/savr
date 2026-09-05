@@ -522,10 +522,21 @@ export async function convertToWebP(blob: Blob): Promise<Blob> {
 //   return "text/plain";
 // }
 
+/**
+ * Optional caller-supplied metadata that overrides what Readability derives.
+ * Used by the advanced "Save raw content" form so the user can set the title/
+ * author explicitly rather than relying on extraction.
+ */
+export type IngestOverrides = {
+  title?: string | null;
+  author?: string | null;
+};
+
 export function readabilityToArticle(
   html: string,
   contentType: string,
-  url: string | null
+  url: string | null,
+  overrides?: IngestOverrides
 ): [Article, string] {
   // var options = {};
 
@@ -599,6 +610,16 @@ export function readabilityToArticle(
     progress: 0,
   };
 
+  // Apply caller-supplied overrides (advanced form). A provided title also drives
+  // the slug so the stored folder name matches what the user chose.
+  if (overrides?.title != null && overrides.title.trim() !== "") {
+    article.title = overrides.title.trim();
+    article.slug = stringToSlug(article.title);
+  }
+  if (overrides?.author != null && overrides.author.trim() !== "") {
+    article.author = overrides.author.trim();
+  }
+
   return [article, content];
 }
 
@@ -607,7 +628,8 @@ export async function ingestHtml(
   html: string,
   contentType: string,
   url: string | null,
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  overrides?: IngestOverrides
 ): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
   const logMessages: string[] = [];
 
@@ -619,7 +641,7 @@ export async function ingestHtml(
     sendMessage(percent, message);
   };
 
-  let [article, content] = readabilityToArticle(html, contentType, url);
+  let [article, content] = readabilityToArticle(html, contentType, url, overrides);
 
   await finalizeSlug(storageClient, article);
 
