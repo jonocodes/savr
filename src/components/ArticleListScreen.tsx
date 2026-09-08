@@ -38,6 +38,8 @@ import {
   ArrowForward,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
@@ -351,6 +353,9 @@ export default function ArticleListScreen() {
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
+  const [query, setQuery] = useState<string>("");
+  const [searchOpen, setSearchOpen] = useState<boolean>(false);
+  const searchFieldRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
@@ -686,7 +691,30 @@ export default function ArticleListScreen() {
     }
   }, [dialogVisible]);
 
-  const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
+  // Focus the search field when search opens
+  useEffect(() => {
+    if (searchOpen) {
+      setTimeout(() => {
+        searchFieldRef.current?.focus();
+      }, 100);
+    }
+  }, [searchOpen]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setQuery("");
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filteredArticles = (articles ?? [])
+    .filter((article) => article.state === filter)
+    .filter(
+      (article) =>
+        !q ||
+        [article.title, article.author, article.publication, article.summary].some((field) =>
+          field?.toLowerCase().includes(q),
+        ),
+    );
 
   const pulse = keyframes`
     0% { transform: translateX(0) scale(1); opacity: 1; }
@@ -724,26 +752,57 @@ export default function ArticleListScreen() {
         </Tooltip>
 
         <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
-          <ToggleButtonGroup
-            value={filter}
-            exclusive
-            onChange={(_, newFilter) => {
-              if (newFilter !== null) {
-                setFilter(newFilter);
-              }
-            }}
-            size="small"
-          >
-            <ToggleButton value="unread">
-              <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Saves
-            </ToggleButton>
-            <ToggleButton value="archived">
-              <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Archive
-            </ToggleButton>
-          </ToggleButtonGroup>
+          {searchOpen ? (
+            <TextField
+              inputRef={searchFieldRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeSearch();
+              }}
+              placeholder="Search title, author, publication…"
+              size="small"
+              fullWidth
+              sx={{ maxWidth: 480 }}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />,
+                endAdornment: (
+                  <IconButton size="small" onClick={closeSearch} aria-label="Close search">
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                ),
+              }}
+            />
+          ) : (
+            <ToggleButtonGroup
+              value={filter}
+              exclusive
+              onChange={(_, newFilter) => {
+                if (newFilter !== null) {
+                  setFilter(newFilter);
+                }
+              }}
+              size="small"
+            >
+              <ToggleButton value="unread">
+                <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
+                Saves
+              </ToggleButton>
+              <ToggleButton value="archived">
+                <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
+                Archive
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
         </Box>
+
+        {!searchOpen && (
+          <Tooltip title="Search">
+            <IconButton onClick={() => setSearchOpen(true)} aria-label="Search">
+              <SearchIcon />
+            </IconButton>
+          </Tooltip>
+        )}
 
         <Tooltip title="Settings">
           <IconButton onClick={() => navigate({ to: "/prefs" })}>
