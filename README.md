@@ -37,7 +37,6 @@ Savr is:
 | Requires minimal tech knowledge  | ✅          | ✅               | ❌       | ❌       | ❌     |
 | Own/Control Your Data            | ✅          | ❌               | ✅       | ✅       | ✅     |
 | Offline content including images | ✅          | sometimes cached  | ❌       | ❌       | ❌     |
-| Tagging and search               | ❌          | ✅                | ✅       | ✅       | ✅     |
 | Other Content Types              | md, txt, pdf, images | ❌       | pdf       | pdf, epub   | ❌   |
 | Offline mobile                   | ✅          | sometimes         | ✅       | ✅       | ❌     |
 | Text To Speach                   | ✅          | ✅                | iOS only | android only | ❌     |
