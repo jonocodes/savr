@@ -52,6 +52,10 @@ import {
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
 import { getCorsProxyFromCookie } from "~/utils/cookies";
+// Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
+// minified at build time by the minify-bookmarklet Vite plugin. The placeholder
+// SAVR origin "__SAVR_ORIGIN__" is substituted with the app's origin below.
+import ytTranscriptBookmarkletSource from "../../bookmarklet/savr-youtube-transcript.unminified.js?bookmarklet";
 import {
   getThemeFromCookie,
   toggleTheme,
@@ -154,6 +158,7 @@ export default function PreferencesScreen() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [bookmarklet, setBookmarklet] = React.useState<string>("");
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
+  const ytTranscriptBookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA
   const isInstalledPWA = isPWAMode();
@@ -244,6 +249,17 @@ export default function PreferencesScreen() {
 
       const bookmarkletJS = `javascript:(function(){${storePageScript}})();`;
       bookmarkletRef.current.href = bookmarkletJS;
+    }
+
+    // YouTube transcript bookmarklet: scrapes the transcript on the page and
+    // sends it to Savr as raw content (savr-raw), bypassing Readability.
+    // Script body comes from bookmarklet/savr-youtube-transcript.unminified.js.
+    if (ytTranscriptBookmarkletRef.current) {
+      const origin = window.location.origin;
+      ytTranscriptBookmarkletRef.current.href = `javascript:${ytTranscriptBookmarkletSource.replace(
+        '"__SAVR_ORIGIN__"',
+        JSON.stringify(origin),
+      )}`;
     }
   }, []);
   const navigate = useNavigate();
@@ -563,6 +579,35 @@ export default function PreferencesScreen() {
                     }}
                   >
                     savr save 🟣
+                  </a>
+                </Box>
+              </ListItem>
+            )}
+
+            {!isInstalledPWA && (
+              <ListItem>
+                <ListItemIcon>
+                  <BookmarkAddIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="YouTube transcript bookmarklet"
+                  secondary="Drag to your bookmarks bar — saves a YouTube video's transcript"
+                />
+                <Box sx={{ ml: 2 }}>
+                  <a
+                    ref={ytTranscriptBookmarkletRef}
+                    style={{
+                      color: "primary.main",
+                      textDecoration: "none",
+                      fontWeight: "bold",
+                      padding: "8px 12px",
+                      border: "1px solid",
+                      borderColor: "primary.main",
+                      borderRadius: "4px",
+                      display: "inline-block",
+                    }}
+                  >
+                    savr yt transcript 🔴
                   </a>
                 </Box>
               </ListItem>

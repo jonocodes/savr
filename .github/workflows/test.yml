@@ -33,6 +33,12 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
+      - name: Remove Google Chrome apt source
+        # The ubuntu-latest image ships a dl.google.com chrome-stable apt source
+        # that intermittently serves a corrupt Packages.gz (hash-sum mismatch),
+        # which fails the whole `apt-get update` that `--with-deps` runs. We only
+        # need Playwright's bundled Chromium (from Ubuntu repos), so drop it.
+        run: sudo rm -f /etc/apt/sources.list.d/google-chrome*.list
       - name: Install Playwright browsers
         run: npx playwright install chromium --with-deps
       - name: Smoke tests

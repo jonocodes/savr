@@ -1,106 +1,70 @@
 #!/usr/bin/env node
 
-import { spawn } from 'child_process';
-import { fileURLToPath } from 'url';
-import { dirname, resolve } from 'path';
+import { execFileSync, spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+const projectRoot = resolve(__dirname, '..');
+const playwrightArgs = process.argv.slice(2);
 
-console.log('Starting Vite dev server on port 3002...');
-
-// When using Docker browser (PW_SERVER set), use host.docker.internal instead of localhost
+const DEFAULT_PORT = 3002;
 const baseHost = process.env.PW_SERVER ? 'host.docker.internal' : 'localhost';
 
-// Start Vite dev server on port 3002
-const vite = spawn('npm', ['run', 'dev', '--', '--port', '3002'], { 
-  stdio: 'pipe',
-  cwd: resolve(__dirname, '..')
-});
-
-let port = 3002;
-let viteStarted = false;
-
-vite.stderr.on('data', (data) => {
-  const output = data.toString();
-  console.log('Vite output:', output);
-  
-  // Look for the port in Vite's output (check for both http and https)
-  const match = output.match(/Local:\s+(?:https?:\/\/)?localhost:(\d+)/);
-  if (match && !viteStarted) {
-    port = match[1];
-    viteStarted = true;
-    console.log(`\n🎯 Vite detected on port: ${port}`);
-    console.log(`🚀 Starting Playwright tests with base URL: http://${baseHost}:${port}\n`);
-    
-    // Kill Vite and start Playwright
-    vite.kill();
-    
-    // Start Playwright with the detected port
-    const playwright = spawn('npx', ['playwright', 'test'], {
-      env: { 
-        ...process.env, 
-        PLAYWRIGHT_BASE_URL: `http://${baseHost}:${port}` 
-      },
-      stdio: 'inherit',
-      cwd: resolve(__dirname, '..')
+function canListenOnPort(port) {
+  try {
+    const output = execFileSync('lsof', ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN', '-t'], {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
     });
-    
-    playwright.on('close', (code) => {
-      process.exit(code);
-    });
+    return output.trim().length === 0;
+  } catch {
+    return true;
   }
-});
+}
 
-vite.stdout.on('data', (data) => {
-  const output = data.toString();
-  console.log('Vite stdout:', output);
-  
-  // Also check stdout for port info (check for both http and https)
-  const match = output.match(/Local:\s+(?:https?:\/\/)?localhost:(\d+)/);
-  if (match && !viteStarted) {
-    port = match[1];
-    viteStarted = true;
-    console.log(`\n🎯 Vite detected on port: ${port}`);
-    console.log(`🚀 Starting Playwright tests with base URL: http://${baseHost}:${port}\n`);
-    
-    // Kill Vite and start Playwright
-    vite.kill();
-    
-    // Start Playwright with the detected port
-    const playwright = spawn('npx', ['playwright', 'test'], {
-      env: { 
-        ...process.env, 
-        PLAYWRIGHT_BASE_URL: `http://${baseHost}:${port}` 
-      },
-      stdio: 'inherit',
-      cwd: resolve(__dirname, '..')
-    });
-    
-    playwright.on('close', (code) => {
-      process.exit(code);
-    });
+function findAvailablePort(startPort) {
+  let port = startPort;
+
+  while (!canListenOnPort(port)) {
+    port += 1;
   }
-});
 
-// Timeout after 10 seconds
-setTimeout(() => {
-  if (!viteStarted) {
-    console.error('❌ Timeout: Could not detect Vite port within 10 seconds');
-    vite.kill();
-    process.exit(1);
-  }
-}, 10000);
+  return port;
+}
 
-// Handle process termination
-process.on('SIGINT', () => {
-  console.log('\n🛑 Received SIGINT, cleaning up...');
-  vite.kill();
-  process.exit(0);
-});
+async function main() {
+  const selectedPort = findAvailablePort(DEFAULT_PORT);
+  const baseURL = `http://${baseHost}:${selectedPort}`;
 
-process.on('SIGTERM', () => {
-  console.log('\n🛑 Received SIGTERM, cleaning up...');
-  vite.kill();
-  process.exit(0);
+  console.log(`Using Playwright base URL: ${baseURL}`);
+  console.log(`Starting Playwright with args: ${playwrightArgs.length > 0 ? playwrightArgs.join(' ') : '(full suite)'}`);
+
+  const playwright = spawn('npx', ['playwright', 'test', ...playwrightArgs], {
+    env: {
+      ...process.env,
+      PLAYWRIGHT_BASE_URL: baseURL,
+      PLAYWRIGHT_WEB_SERVER_PORT: String(selectedPort),
+    },
+    stdio: 'inherit',
+    cwd: projectRoot,
+  });
+
+  playwright.on('close', (code) => {
+    process.exit(code ?? 1);
+  });
+
+  process.on('SIGINT', () => {
+    playwright.kill('SIGINT');
+  });
+
+  process.on('SIGTERM', () => {
+    playwright.kill('SIGTERM');
+  });
+}
+
+main().catch((error) => {
+  console.error('❌ Failed to start Playwright:', error);
+  process.exit(1);
 });

@@ -1,5 +1,9 @@
 # Savr
 
+Savr is an app for saving online content to read later.
+
+**Use Savr here (hosted app): https://savr.link**
+
 Savr is an app for saving online content to read later. It is [file-centric, offline first, future proof](#offline-use), and [favors decentralization](#how-to-use-it). Read about the design and motivation in the [FAQ](#faq).
 
 When reading an article in a browser, share it to Savr. Then open Savr later to read it. Savr is a free, hosted or self hosted, progressive web app that works on-line, off-line, and on your phone.
@@ -72,8 +76,12 @@ Here are most of the planned features.
   - [ ] allow for deferred image loading at view time
 - [ ] media types (audio, video) - You may want to check out our sister project [StashCast](https://github.com/jonocodes/stashcast)
 
+See the [changelog](CHANGELOG.md) for the full history of shipped changes.
+
 
 # How to "install" it
+
+**Hosted app (recommended): https://savr.link**
 
 Savr is a PWA (progressive web app) which means it primarily runs in a browser, but it can also be "installed" as an app on your phone. There it will work offline like your other mobile apps.
 
@@ -88,6 +96,23 @@ When on the main screen you can always click the '+' button and enter a URL.
 ## Bookmarklet
 
 The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save.
+
+### Custom raw-content bookmarklets
+
+Some pages hold content Savr can't extract on its own — for example a YouTube transcript, which is injected by the page's JavaScript and would be rejected by Readability. For these, a site-specific bookmarklet can do the extraction itself and hand Savr the finished content plus metadata (title, author, url). Savr stores it verbatim — no Readability, no scraping — via the raw-ingest path.
+
+Such a bookmarklet opens Savr at `/?rawIngest=1` and, once Savr replies with a `savr-ready` message, posts:
+
+```js
+savrWindow.postMessage({
+  action: "savr-raw",
+  content,                 // the extracted text/HTML/markdown
+  contentType: "text/plain", // or text/html, text/markdown, auto
+  title, author, url,      // metadata stored as-is
+}, savrOrigin);
+```
+
+A working example that scrapes a YouTube transcript lives at [`bookmarklet/savr-youtube-transcript.unminified.js`](bookmarklet/savr-youtube-transcript.unminified.js) — edit it there if you need to change it: the Savr app imports this same file (minified at build time by a Vite plugin) for the YouTube transcript bookmarklet on the Preferences screen, so it is the single source of truth. The `SAVR_ORIGIN` placeholder is substituted with the app's origin at runtime; for standalone use, replace it with your Savr origin, minify the file, and save it as a bookmarklet.
 
 ## In browser
 
@@ -187,6 +212,21 @@ If you want to test PWA/production then do
 
 Also note that if you host this on a static server, it should support SPA routing and you should serve this app from the root. This is needed to handle dealing with the single path parameter as a URL.
 
+## E2E testing
+
+Playwright e2e tests can be run through the repo scripts:
+
+> npm run test:e2e
+
+To quickly verify that Playwright is wired up without running the full suite:
+
+> npm run test:e2e:smoke
+
+To run one spec or forward Playwright filters:
+
+> npm run test:e2e:single -- tests/e2e/smoke.spec.ts
+> npm run test:e2e:single -- tests/e2e/main-page.spec.ts -g "should display"
+
 # Security
 
 All content is stored locally on your device. Savr has no server side storage. This makes it so we don't need to host any data, and so it can more simply be hosted by you if you want.
@@ -232,13 +272,13 @@ There are some great projects like [Wallabag](https://wallabag.org/) and [Omnivo
 
 CORS (Cross-Origin Resource Sharing) is a security feature implemented by web browsers that prevents websites from making requests to different domains. This is a security measure to protect users from malicious websites that might try to access data from other sites.
 
-**Why does Savr need it?**
+**Why does Savr need it?**  
 When you save an article, Savr needs to fetch the content from the original website. However, due to CORS restrictions, many websites tell thew browser they want content blocked if loaded from a different domain. This often prevents Savr from fetching content and images.
 
-**How does Savr solve this?**
+**How does Savr solve this?**  
 Savr uses a CORS proxy server that acts as a middleman. Instead of your browser directly requesting content from the original website, it requests it through the proxy server, which then fetches the content and sends it back to Savr.
 
-**Why bring your own proxy?**
+**Why bring your own proxy?**  
 While Savr provides a default proxy, you can configure your own CORS proxy server for:
 
 - **Better reliability**: Public proxies can be unstable or go down
