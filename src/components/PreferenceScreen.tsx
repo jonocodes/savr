@@ -154,6 +154,7 @@ export default function PreferencesScreen() {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [bookmarklet, setBookmarklet] = React.useState<string>("");
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
+  const ytTranscriptBookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
   // Check if running as installed PWA
   const isInstalledPWA = isPWAMode();
@@ -244,6 +245,35 @@ export default function PreferencesScreen() {
 
       const bookmarkletJS = `javascript:(function(){${storePageScript}})();`;
       bookmarkletRef.current.href = bookmarkletJS;
+    }
+
+    // YouTube transcript bookmarklet: scrapes the transcript on the page and
+    // sends it to Savr as raw content (savr-raw), bypassing Readability.
+    // Source: bookmarklet/savr-youtube-transcript.unminified.js
+    if (ytTranscriptBookmarkletRef.current) {
+      const origin = window.location.origin;
+      const ytScript = `(async()=>{
+        const O='${origin}';
+        const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+        async function waitForSegments(m,i){for(let k=0;k<m;k++){const s=document.querySelectorAll('ytd-transcript-segment-renderer');if(s.length)return s;await sleep(i);}return document.querySelectorAll('ytd-transcript-segment-renderer');}
+        let segs=await waitForSegments(2,300);
+        if(!segs.length){
+          const c=[...document.querySelectorAll('[aria-label]')].find(e=>/^show transcript$/i.test((e.getAttribute('aria-label')||'').trim()))||[...document.querySelectorAll('[aria-label]')].find(e=>/transcript/i.test(e.getAttribute('aria-label')||''));
+          if(c){c.scrollIntoView({block:'center'});await sleep(200);c.click();c.closest('button, yt-button-shape, tp-yt-paper-button, ytd-menu-service-item-renderer')?.click();}
+          segs=await waitForSegments(10,400);
+        }
+        if(!segs.length){alert('Could not open the transcript panel automatically. Try opening it manually once, then run this again.');return;}
+        const content=[...segs].map(s=>(s.querySelector('.segment-text')?.textContent||s.textContent||'').trim()).join('\\n');
+        const title=(document.querySelector('h1.ytd-watch-metadata, #title h1, h1.title yt-formatted-string')?.textContent||'').trim()||(document.title||'YouTube transcript').replace(/\\s*-\\s*YouTube\\s*$/,'').trim();
+        const author=(document.querySelector('ytd-channel-name #text a, #owner #channel-name a, ytd-channel-name a')?.textContent||'').trim()||null;
+        const pageUrl=window.location.href;
+        const w=window.open(O+'/?rawIngest=1','_blank');
+        if(!w){alert('Could not open the Savr window. Please allow pop-ups for this site.');return;}
+        let sent=false;
+        const onMessage=e=>{if(e.source!==w)return;if(!e.data||e.data.action!=='savr-ready'||sent)return;sent=true;window.removeEventListener('message',onMessage);w.postMessage({action:'savr-raw',content:content,contentType:'text/plain',title:title,author:author,url:pageUrl},O);};
+        window.addEventListener('message',onMessage);
+      })();`;
+      ytTranscriptBookmarkletRef.current.href = `javascript:${ytScript}`;
     }
   }, []);
   const navigate = useNavigate();
@@ -563,6 +593,35 @@ export default function PreferencesScreen() {
                     }}
                   >
                     savr save 🟣
+                  </a>
+                </Box>
+              </ListItem>
+            )}
+
+            {!isInstalledPWA && (
+              <ListItem>
+                <ListItemIcon>
+                  <BookmarkAddIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="YouTube transcript bookmarklet"
+                  secondary="Drag to your bookmarks bar — saves a YouTube video's transcript"
+                />
+                <Box sx={{ ml: 2 }}>
+                  <a
+                    ref={ytTranscriptBookmarkletRef}
+                    style={{
+                      color: "primary.main",
+                      textDecoration: "none",
+                      fontWeight: "bold",
+                      padding: "8px 12px",
+                      border: "1px solid",
+                      borderColor: "primary.main",
+                      borderRadius: "4px",
+                      display: "inline-block",
+                    }}
+                  >
+                    savr yt transcript 🔴
                   </a>
                 </Box>
               </ListItem>
