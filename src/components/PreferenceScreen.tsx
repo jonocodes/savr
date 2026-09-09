@@ -255,7 +255,8 @@ export default function PreferencesScreen() {
       const ytScript = `(async()=>{
         const O='${origin}';
         const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-        async function waitForSegments(m,i){for(let k=0;k<m;k++){const s=document.querySelectorAll('ytd-transcript-segment-renderer');if(s.length)return s;await sleep(i);}return document.querySelectorAll('ytd-transcript-segment-renderer');}
+        const SEG='transcript-segment-view-model, ytd-transcript-segment-renderer';
+        async function waitForSegments(m,i){for(let k=0;k<m;k++){const s=document.querySelectorAll(SEG);if(s.length)return s;await sleep(i);}return document.querySelectorAll(SEG);}
         let segs=await waitForSegments(2,300);
         if(!segs.length){
           const c=[...document.querySelectorAll('[aria-label]')].find(e=>/^show transcript$/i.test((e.getAttribute('aria-label')||'').trim()))||[...document.querySelectorAll('[aria-label]')].find(e=>/transcript/i.test(e.getAttribute('aria-label')||''));
@@ -263,7 +264,7 @@ export default function PreferencesScreen() {
           segs=await waitForSegments(10,400);
         }
         if(!segs.length){alert('Could not open the transcript panel automatically. Try opening it manually once, then run this again.');return;}
-        const content=[...segs].map(s=>(s.querySelector('.segment-text')?.textContent||s.textContent||'').trim()).join('\\n');
+        const content=[...segs].map(s=>(s.querySelector('.ytAttributedStringHost, .segment-text')?.textContent||'').trim()).join('\\n');
         const title=(document.querySelector('h1.ytd-watch-metadata, #title h1, h1.title yt-formatted-string')?.textContent||'').trim()||(document.title||'YouTube transcript').replace(/\\s*-\\s*YouTube\\s*$/,'').trim();
         const author=(document.querySelector('ytd-channel-name #text a, #owner #channel-name a, ytd-channel-name a')?.textContent||'').trim()||null;
         const pageUrl=window.location.href;

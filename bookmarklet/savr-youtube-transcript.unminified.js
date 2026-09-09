@@ -15,13 +15,22 @@
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+  // YouTube's transcript DOM changed: modern pages use
+  // <transcript-segment-view-model> with ytw* class names; older pages used
+  // <ytd-transcript-segment-renderer> with .segment-* class names. Match both.
+  const SEGMENT_SEL =
+    "transcript-segment-view-model, ytd-transcript-segment-renderer";
+  const TIMESTAMP_SEL =
+    ".ytwTranscriptSegmentViewModelTimestamp, .segment-timestamp";
+  const TEXT_SEL = ".ytAttributedStringHost, .segment-text";
+
   async function waitForSegments(maxTries, interval) {
     for (let i = 0; i < maxTries; i++) {
-      const segs = document.querySelectorAll("ytd-transcript-segment-renderer");
+      const segs = document.querySelectorAll(SEGMENT_SEL);
       if (segs.length) return segs;
       await sleep(interval);
     }
-    return document.querySelectorAll("ytd-transcript-segment-renderer");
+    return document.querySelectorAll(SEGMENT_SEL);
   }
 
   // --- Open the transcript panel (if not already open) --------------------
@@ -57,8 +66,10 @@
 
   // --- Scrape transcript + metadata --------------------------------------
   const lines = [...segments].map((seg) => {
-    const time = seg.querySelector(".segment-timestamp")?.textContent.trim() || "";
-    const text = seg.querySelector(".segment-text")?.textContent.trim() || seg.textContent.trim();
+    const time = seg.querySelector(TIMESTAMP_SEL)?.textContent.trim() || "";
+    // Don't fall back to seg.textContent — the new DOM nests the timestamp and a
+    // hidden a11y label ("1 second") inside the segment, which would pollute the line.
+    const text = seg.querySelector(TEXT_SEL)?.textContent.trim() || "";
     if (STRIP_TIMESTAMPS) return text;
     return time ? `[${time}] ${text}` : text;
   });
