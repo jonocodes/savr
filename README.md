@@ -77,6 +77,8 @@ Here are most of the planned features.
   - [ ] allow for deferred image loading at view time
 - [ ] media types (audio, video) - You may want to check out our sister project [StashCast](https://github.com/jonocodes/stashcast)
 
+See the [changelog](CHANGELOG.md) for the full history of shipped changes.
+
 
 # How to "install" it
 
