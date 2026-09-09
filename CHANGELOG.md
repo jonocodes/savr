@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-09-08
+
+- Added a non-intrusive search to the article list: a toolbar search icon swaps the Saves/Archive toggle for a slim search box, closed with ✕ or `Esc` (#65)
+- Search is a client-side filter over title, author, publication, and summary, and chains onto the current Saves/Archive view (#65)
+
+## 2026-08-25
+
+- Fixed the bookmarklet URL param persisting after save, which re-triggered ingestion on page reload
+
 ## 2026-07-06
 
 - AI summarization now works with any OpenAI-compatible chat-completions endpoint via a single config-driven call path
