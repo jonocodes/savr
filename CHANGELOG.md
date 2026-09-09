@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-09-09
+
+- Site-specific bookmarklets: a bookmarklet can now extract content itself and hand it to Savr as raw content (`savr-raw` postMessage), bypassing Readability — for dynamic pages that a static fetch can't see (#63)
+- Added a YouTube transcript bookmarklet to Preferences: drag it to your bookmarks toolbar, run it on a YouTube video and it opens the transcript panel, scrapes it (timestamps stripped), and saves it as plain text with title, author, and video URL (#63)
+- Works with both YouTube's new transcript DOM (`transcript-segment-view-model`) and the legacy one (`ytd-transcript-segment-renderer`); the transcript auto-opens if not already visible (#63)
+- The transcript bookmarklet ships from a single source: the app imports `bookmarklet/savr-youtube-transcript.unminified.js` and minifies it at build time, so the file on disk is the only place to edit (#63)
+
 ## 2026-09-08
 
 - Added a non-intrusive search to the article list: a toolbar search icon swaps the Saves/Archive toggle for a slim search box, closed with ✕ or `Esc` (#65)
