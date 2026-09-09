@@ -10,7 +10,11 @@
   // and prefix with "javascript:".
 
   // --- Config -------------------------------------------------------------
-  const SAVR_ORIGIN = "http://localhost:3000"; // change to your deployed Savr origin
+  // "__SAVR_ORIGIN__" is a placeholder: the app's Vite build minifies this file
+  // and PreferenceScreen.tsx substitutes the real Savr origin at runtime, so
+  // there is a single source of truth for this script. To use it standalone,
+  // replace the placeholder with your Savr origin (e.g. "http://localhost:3000").
+  const SAVR_ORIGIN = "__SAVR_ORIGIN__";
   const STRIP_TIMESTAMPS = true; // false → keep leading "[00:34] " markers
 
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));

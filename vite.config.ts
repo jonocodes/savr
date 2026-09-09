@@ -1,6 +1,29 @@
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
+import { transform as esbuildTransform } from "esbuild";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
+
+// Minifies a bookmarklet source file at build time so the bookmarklet exists
+// once on disk (the unminified file) and the prefs page can import the
+// minified form. Import it as: <file>?bookmarklet -> `export default "..."`
+const bookmarkletFile = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "bookmarklet/savr-youtube-transcript.unminified.js"
+);
+const bookmarkletPlugin = {
+  name: "minify-bookmarklet",
+  enforce: "pre" as const,
+  load(id: string) {
+    if (id !== `${bookmarkletFile}?bookmarklet`) return;
+    const source = readFileSync(bookmarkletFile, "utf8");
+    return esbuildTransform(source, { minify: true }).then((r) =>
+      `export default ${JSON.stringify(r.code)};`
+    );
+  },
+};
 
 export default defineConfig(() => {
   // Use DEBUG environment variable for feature flags.
@@ -50,6 +73,7 @@ export default defineConfig(() => {
       __DEV__: true,
     },
     plugins: [
+      bookmarkletPlugin,
       {
         name: "serve-index",
         configureServer(server) {

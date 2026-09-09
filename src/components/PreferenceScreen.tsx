@@ -52,6 +52,10 @@ import {
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy } from "~/config/environment";
 import { getCorsProxyFromCookie } from "~/utils/cookies";
+// Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
+// minified at build time by the minify-bookmarklet Vite plugin. The placeholder
+// SAVR origin "__SAVR_ORIGIN__" is substituted with the app's origin below.
+import ytTranscriptBookmarkletSource from "../../bookmarklet/savr-youtube-transcript.unminified.js?bookmarklet";
 import {
   getThemeFromCookie,
   toggleTheme,
@@ -249,32 +253,13 @@ export default function PreferencesScreen() {
 
     // YouTube transcript bookmarklet: scrapes the transcript on the page and
     // sends it to Savr as raw content (savr-raw), bypassing Readability.
-    // Source: bookmarklet/savr-youtube-transcript.unminified.js
+    // Script body comes from bookmarklet/savr-youtube-transcript.unminified.js.
     if (ytTranscriptBookmarkletRef.current) {
       const origin = window.location.origin;
-      const ytScript = `(async()=>{
-        const O='${origin}';
-        const sleep=ms=>new Promise(r=>setTimeout(r,ms));
-        const SEG='transcript-segment-view-model, ytd-transcript-segment-renderer';
-        async function waitForSegments(m,i){for(let k=0;k<m;k++){const s=document.querySelectorAll(SEG);if(s.length)return s;await sleep(i);}return document.querySelectorAll(SEG);}
-        let segs=await waitForSegments(2,300);
-        if(!segs.length){
-          const c=[...document.querySelectorAll('[aria-label]')].find(e=>/^show transcript$/i.test((e.getAttribute('aria-label')||'').trim()))||[...document.querySelectorAll('[aria-label]')].find(e=>/transcript/i.test(e.getAttribute('aria-label')||''));
-          if(c){c.scrollIntoView({block:'center'});await sleep(200);c.click();c.closest('button, yt-button-shape, tp-yt-paper-button, ytd-menu-service-item-renderer')?.click();}
-          segs=await waitForSegments(10,400);
-        }
-        if(!segs.length){alert('Could not open the transcript panel automatically. Try opening it manually once, then run this again.');return;}
-        const content=[...segs].map(s=>(s.querySelector('.ytAttributedStringHost, .segment-text')?.textContent||'').trim()).join('\\n');
-        const title=(document.querySelector('h1.ytd-watch-metadata, #title h1, h1.title yt-formatted-string')?.textContent||'').trim()||(document.title||'YouTube transcript').replace(/\\s*-\\s*YouTube\\s*$/,'').trim();
-        const author=(document.querySelector('ytd-channel-name #text a, #owner #channel-name a, ytd-channel-name a')?.textContent||'').trim()||null;
-        const pageUrl=window.location.href;
-        const w=window.open(O+'/?rawIngest=1','_blank');
-        if(!w){alert('Could not open the Savr window. Please allow pop-ups for this site.');return;}
-        let sent=false;
-        const onMessage=e=>{if(e.source!==w)return;if(!e.data||e.data.action!=='savr-ready'||sent)return;sent=true;window.removeEventListener('message',onMessage);w.postMessage({action:'savr-raw',content:content,contentType:'text/plain',title:title,author:author,url:pageUrl},O);};
-        window.addEventListener('message',onMessage);
-      })();`;
-      ytTranscriptBookmarkletRef.current.href = `javascript:${ytScript}`;
+      ytTranscriptBookmarkletRef.current.href = `javascript:${ytTranscriptBookmarkletSource.replace(
+        '"__SAVR_ORIGIN__"',
+        JSON.stringify(origin),
+      )}`;
     }
   }, []);
   const navigate = useNavigate();

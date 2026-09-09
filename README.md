@@ -113,7 +113,7 @@ savrWindow.postMessage({
 }, savrOrigin);
 ```
 
-A working example that scrapes a YouTube transcript lives at [`bookmarklet/savr-youtube-transcript.unminified.js`](bookmarklet/savr-youtube-transcript.unminified.js) — set `SAVR_ORIGIN` to your instance, minify it, and save it as a bookmarklet.
+A working example that scrapes a YouTube transcript lives at [`bookmarklet/savr-youtube-transcript.unminified.js`](bookmarklet/savr-youtube-transcript.unminified.js) — edit it there if you need to change it: the Savr app imports this same file (minified at build time by a Vite plugin) for the YouTube transcript bookmarklet on the Preferences screen, so it is the single source of truth. The `SAVR_ORIGIN` placeholder is substituted with the app's origin at runtime; for standalone use, replace it with your Savr origin, minify the file, and save it as a bookmarklet.
 
 ## In browser
 
