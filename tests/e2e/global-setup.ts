@@ -50,10 +50,17 @@ async function waitForServer(
 export default async function globalSetup(_config: FullConfig) {
   console.log("\n🚀 Starting test servers...\n");
 
+  // Ports are set by scripts/run-e2e.js (derived per worktree) so concurrent
+  // worktrees don't collide. Fall back to the historical fixed ports when
+  // playwright is launched directly.
+  const appPort = Number(process.env.PLAYWRIGHT_WEB_SERVER_PORT) || 3002;
+  const storagePort = Number(process.env.STORAGE_PORT) || 8006;
+  const contentPort = Number(process.env.CONTENT_SERVER_PORT) || 8080;
+
   // Clean up any stale processes from previous runs
   console.log("Cleaning up stale processes...");
-  killPortProcess(8006);
-  killPortProcess(8080);
+  killPortProcess(storagePort);
+  killPortProcess(contentPort);
   // Give processes time to die
   await new Promise((resolve) => setTimeout(resolve, 1000));
 
@@ -64,8 +71,9 @@ export default async function globalSetup(_config: FullConfig) {
     stdio: "pipe",
     env: {
       ...process.env,
-      NODE_ENV: "test", // Signals to armadietto.cjs to use port 8006
-      STORAGE_PORT: "8006", // Explicitly set storage port
+      NODE_ENV: "test", // Signals to armadietto.cjs to use the automated-test ports
+      APP_PORT: String(appPort),
+      STORAGE_PORT: String(storagePort),
       MAX_TEST_WORKERS: process.env.CI ? "2" : "4", // Must match workers in playwright.config.ts
     },
   });
@@ -109,8 +117,8 @@ export default async function globalSetup(_config: FullConfig) {
 
   console.log("Waiting for Armadietto to respond...");
   try {
-    await waitForServer("http://localhost:8006/", 10000);
-    console.log("✅ Armadietto server ready on port 8006\n");
+    await waitForServer(`http://localhost:${storagePort}/`, 10000);
+    console.log(`✅ Armadietto server ready on port ${storagePort}\n`);
   } catch (err) {
     throw new Error(
       `Armadietto server failed to respond: ${err}. ` +
@@ -126,7 +134,7 @@ export default async function globalSetup(_config: FullConfig) {
   console.log("Starting content server...");
   contentServerProcess = spawn(
     "npx",
-    ["http-server", "test_data/", "-p", "8080", "--cors"],
+    ["http-server", "test_data/", "-p", String(contentPort), "--cors"],
     {
       stdio: "pipe",
     }
@@ -156,8 +164,8 @@ export default async function globalSetup(_config: FullConfig) {
 
   console.log("Waiting for content server to respond...");
   try {
-    await waitForServer("http://localhost:8080/", 10000);
-    console.log("✅ Content server ready on port 8080\n");
+    await waitForServer(`http://localhost:${contentPort}/`, 10000);
+    console.log(`✅ Content server ready on port ${contentPort}\n`);
   } catch (err) {
     throw new Error(`Content server failed to respond: ${err}`);
   }

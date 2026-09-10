@@ -13,6 +13,23 @@ export function getTestHost(): string {
   return process.env.PW_SERVER ? "host.docker.internal" : "localhost";
 }
 
+/**
+ * Get the app's origin (http://<host>:<app-port>) using the port set by
+ * scripts/run-e2e.js, falling back to the historical default app port.
+ */
+export function getAppOrigin(): string {
+  const port = process.env.PLAYWRIGHT_WEB_SERVER_PORT ?? "3002";
+  return `http://${getTestHost()}:${port}`;
+}
+
+/**
+ * True if the given URL is served by the app under test rather than some
+ * other host (used to decide whether to navigate back to the app before cleanup).
+ */
+export function isAppUrl(url: string): boolean {
+  return url.startsWith(getAppOrigin());
+}
+
 // Armadietto creates this many users; must match MAX_TEST_WORKERS in global-setup.ts
 const MAX_TEST_WORKERS = parseInt(process.env.MAX_TEST_WORKERS ?? "4", 10);
 
@@ -22,7 +39,8 @@ const MAX_TEST_WORKERS = parseInt(process.env.MAX_TEST_WORKERS ?? "4", 10);
  * Wraps around if Playwright restarts a worker with a new index beyond MAX_TEST_WORKERS.
  */
 export function getWorkerStorageAddress(workerIndex: number): string {
-  return `testuser${workerIndex % MAX_TEST_WORKERS}@${getTestHost()}:8006`;
+  const port = process.env.STORAGE_PORT ?? "8006";
+  return `testuser${workerIndex % MAX_TEST_WORKERS}@${getTestHost()}:${port}`;
 }
 
 /**
@@ -44,7 +62,8 @@ export function getRemoteStorageAddress(): string {
  * Get the content server base URL for tests
  */
 export function getContentServerUrl(): string {
-  return `http://${getTestHost()}:8080`;
+  const port = process.env.CONTENT_SERVER_PORT ?? "8080";
+  return `http://${getTestHost()}:${port}`;
 }
 
 /**

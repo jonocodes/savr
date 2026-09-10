@@ -31,9 +31,48 @@ npx playwright test
 ### Test Infrastructure
 
 The e2e tests use a global setup (`tests/e2e/global-setup.ts`) that starts:
-1. **Vite dev server** on port 3002
-2. **Armadietto RemoteStorage server** on port 8006
-3. **Content server** (http-server) on port 8080 for test articles
+1. **Vite dev server**
+2. **Armadietto RemoteStorage server** for each test user
+3. **Content server** (http-server) for test articles
+
+**Ports are dynamic and per-worktree.** `scripts/run-e2e.js` derives a stable,
+non-overlapping set of ports for the app, remote-storage, and content servers
+from the worktree/checkout path (FNV-1a hash of the project root) and passes
+them via `PLAYWRIGHT_WEB_SERVER_PORT`, `STORAGE_PORT`, and `CONTENT_SERVER_PORT`.
+This lets several git worktrees run the e2e suite concurrently without
+colliding or killing each other's servers.
+
+- When launched through `npm run test:e2e` (i.e. `scripts/run-e2e.js`), the
+  ports are picked per worktree automatically.
+- When `npx playwright test` is run directly, the historical fixed ports are
+  used as a fallback: app on 3002, storage on 8006, content on 8080.
+
+`tests/e2e/utils/remotestorage-helper.ts` exposes `getAppOrigin()`,
+`getWorkerStorageAddress()`, and `getContentServerUrl()` so specs read the
+actual ports from the environment instead of hardcoding them.
+
+### Testing with git worktrees
+
+- Run tests via `npm run test:e2e` (or the docker variant) from **each**
+  worktree; the runner picks an isolated port set automatically.
+- Don't run `npx playwright test` directly in two worktrees at once — without
+  `scripts/run-e2e.js` they fall back to the shared fixed ports and collide.
+- Each worktree needs its own dependency install (`npm install`).
+
+### Testing with flox
+
+The `savr` flox environment is a FloxHub-managed remote environment
+(`jonocodes/savr`). Because `.flox` is keyed to a directory, git worktrees
+(copied into new directories) don't inherit the environment automatically.
+Two options to share one environment across worktrees:
+
+1. **Activate the managed env remotely** (recommended, fully shared):
+   in each worktree's `.envrc`:
+   ```bash
+   flox activate -r jonocodes/savr
+   ```
+   Env changes (`flox edit`) propagate to every worktree.
+2. **Point direnv at the primary worktree's env**: `flox activate -d <primary-path>`
 
 ### Known Issues
 
@@ -48,16 +87,21 @@ The React app may crash headless browsers when IndexedDB/RemoteStorage initializ
 
 #### Port Conflicts
 
-If tests fail with `EADDRINUSE` errors, clean up stale processes:
+If tests fail with `EADDRINUSE` errors, clean up stale processes. Check which
+ports the run used from the `scripts/run-e2e.js` output line
+`Ports (app/storage/content): …`, then:
 
 ```bash
-# Kill processes on test ports
-lsof -i :8080 -i :8006 -i :3002 | grep -v "^COMMAND" | awk '{print $2}' | sort -u | xargs -r kill -9
+# Kill processes on the relevant ports
+lsof -i :9080 -i :7606 -i :3002 | grep -v "^COMMAND" | awk '{print $2}' | sort -u | xargs -r kill -9
 
-# Clean up temp files
-rm -rf /tmp/restore8006
+# Clean up temp files (storage path is keyed off the storage port)
+rm -rf /tmp/restore*
 rm -f tests/e2e/.test-env.json
 ```
+
+(`restore*` covers both the fixed fallback `restore8006` and any per-worktree
+`restore<storage-port>` directories.)
 
 ### Test Categories
 

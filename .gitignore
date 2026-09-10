@@ -14,6 +14,7 @@ dist-ssr
 .output
 .tanstack
 .nitro
+.freebuff
 
 # Editor directories and files
 .vscode/*

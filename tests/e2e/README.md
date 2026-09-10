@@ -101,7 +101,7 @@ Add these scripts to your `package.json`:
 
 The tests are configured in `playwright.config.ts` at the project root. Key settings:
 
-- **Base URL**: `http://localhost:3002` (Vite dev server)
+- **Base URL**: Dynamic per worktree (see docs/DEVELOPMENT.md). When run via `npm run test:e2e`, `scripts/run-e2e.js` picks a stable port set; direct `npx playwright test` falls back to `http://localhost:3002`
 - **Web Server**: Automatically starts `npm run dev` before tests
 - **Browsers**: Tests currently run in Chromium by default
 - **Screenshots**: Taken on test failure

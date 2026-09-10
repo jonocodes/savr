@@ -12,6 +12,7 @@ import {
   getWorkerStorageAddress,
   getContentServerUrl,
   getWorkerToken,
+  isAppUrl,
 } from "./utils/remotestorage-helper";
 import { loadTestEnv } from "./utils/test-helpers";
 
@@ -328,7 +329,7 @@ test.describe("Bookmarklet Server Sync", () => {
     console.log("🧹 Cleaning up test article...");
 
     const currentUrl = page.url();
-    if (!currentUrl.includes(":3002")) {
+    if (!isAppUrl(currentUrl)) {
       await page.goto("/");
       await page.waitForLoadState("networkidle");
     }

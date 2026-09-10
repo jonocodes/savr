@@ -58,13 +58,15 @@ export default async function globalTeardown() {
     }
   }
 
-  // Fallback: kill any remaining processes on the ports
-  killPortProcess(8006);
-  killPortProcess(8080);
+  // Fallback: kill any remaining processes on our ports (same source as
+  // global-setup: set by run-e2e.js, falls back to the historical fixed ports).
+  const storagePort = Number(process.env.STORAGE_PORT) || 8006;
+  const contentPort = Number(process.env.CONTENT_SERVER_PORT) || 8080;
+  killPortProcess(storagePort);
+  killPortProcess(contentPort);
 
-  // Clean up temp storage directory
-  // Must match STORAGE_PORT in global-setup.ts
-  const storagePath = "/tmp/restore8006";
+  // Clean up temp storage directory (keyed off the storage port).
+  const storagePath = `/tmp/restore${storagePort}`;
   if (fs.existsSync(storagePath)) {
     console.log("Cleaning up RemoteStorage temp data...");
     console.log("storagePath", storagePath);
