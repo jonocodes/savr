@@ -243,6 +243,30 @@ Of course you wont be able to modify your collection when the app is not running
 
 # FAQ
 
+## What makes Savr easier than other read-it-later apps?
+
+There is nothing to install and nothing to sign up for. You don't download an app, stand up a server, or create an account — you just [open the site](https://savr.link) and start saving.
+
+Because Savr is a [static web app with no backend](#why-not-use-an-existing-open-source-project), everything runs right in your browser:
+
+- **No account.** Your articles are saved straight to your device. Syncing across devices is optional, and if you want it you use [your own Dropbox or Google Drive](#synchronization) — there's still no Savr account to manage.
+- **No install required.** It works in any browser. If you want an app-like experience you can optionally ["install" it as a PWA](#what-is-a-pwa), but you never have to.
+- **No extension to add.** Save from any browser with the [bookmarklet](#what-is-a-bookmarklet) or by [prepending the Savr URL](#in-browser) — no store-specific extension needed.
+- **Nothing to maintain.** With no server, there's nothing for you (or a company) to keep online, patch, or pay for.
+
+## What makes Savr an app for power users?
+
+Under the simple surface there's a lot of depth for people who want more control:
+
+- **Save more than just web articles.** Beyond scraping a URL, you can [paste HTML, Markdown, or plain text, or upload PDFs and images](#features), with automatic content-type detection.
+- **Adaptive reading times.** Savr learns your reading speed over time and personalizes the estimated reading time for each article, instead of assuming a fixed words-per-minute.
+- **AI summaries, your way.** Generate summaries with [any OpenAI-compatible provider](#ai-summarization) — cloud or a local model server — and tune the detail level, format, tone, and focus, or supply your own prompt.
+- **Text-to-speech.** Have articles read aloud, cross-platform.
+- **Own your data as plain files.** Everything is stored in open, [future-proof file formats](#offline-use) you can read, back up, or process with other tools — no proprietary database to escape.
+- **Bring your own infrastructure.** Point Savr at [your own CORS proxy](#what-is-cors) for better reliability, speed, and privacy, and self-host the whole thing if you want.
+- **Publish a public copy.** Share a read-only public version of your collection.
+- **Reader or original.** Toggle between the cleaned, distraction-free reader view and the original page.
+
 ## Why another read-it-later app?
 
 I consider myself a self-hosting enthusiast, who does not like to self-host :smile:. I love open source and open formats, but I don't think every single purpose app should require a custom backend for it.
