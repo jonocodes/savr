@@ -46,11 +46,12 @@ import {
   DragHandle as DragHandleIcon,
   AutoAwesome as AutoAwesomeIcon,
   Public as PublicIcon,
+  Insights as InsightsIcon,
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/article/tools";
-import { getDefaultCorsProxy } from "~/config/environment";
+import { getDefaultCorsProxy, isTelemetryConfigured } from "~/config/environment";
 import { getCorsProxyFromCookie } from "~/utils/cookies";
 // Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
 // minified at build time by the minify-bookmarklet Vite plugin. The placeholder
@@ -63,6 +64,8 @@ import {
   getEffectiveTheme,
   getHeaderHidingFromCookie,
   setHeaderHidingInCookie,
+  getTelemetryEnabledFromCookie,
+  setTelemetryEnabledInCookie,
   getAfterExternalSaveFromCookie,
   setAfterExternalSaveInCookie,
   getSummarizationEnabledFromCookie,
@@ -134,6 +137,7 @@ export default function PreferencesScreen() {
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
   const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
+  const [telemetryEnabled, setTelemetryEnabled] = React.useState<boolean>(true);
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST,
   );
@@ -198,6 +202,7 @@ export default function PreferencesScreen() {
 
     // Load header hiding setting from cookies
     setHeaderHidingEnabled(getHeaderHidingFromCookie());
+    setTelemetryEnabled(getTelemetryEnabledFromCookie());
 
     // Load after external save setting from cookies
     setAfterExternalSave(getAfterExternalSaveFromCookie());
@@ -389,6 +394,14 @@ export default function PreferencesScreen() {
     const newValue = event.target.checked;
     setHeaderHidingEnabled(newValue);
     setHeaderHidingInCookie(newValue);
+  };
+
+  const handleTelemetryToggle = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const newValue = event.target.checked;
+    setTelemetryEnabled(newValue);
+    setTelemetryEnabledInCookie(newValue);
+    // Takes full effect on next load: opting in loads the tracker then; opting
+    // out stops all future events immediately (each event re-checks consent).
   };
 
   const handleAfterExternalSaveChange = (event: React.ChangeEvent<HTMLSelectElement>) => {
@@ -1250,6 +1263,32 @@ export default function PreferencesScreen() {
               </Box>
             </ListItem>
           </List>
+
+          {/* Privacy Section — only shown on builds where telemetry is configured */}
+          {isTelemetryConfigured() && (
+            <List>
+              <ListSubheader>Privacy</ListSubheader>
+
+              <ListItem>
+                <ListItemIcon>
+                  <InsightsIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Share anonymous usage statistics"
+                  secondary={
+                    telemetryEnabled
+                      ? "Sends anonymous counts (app opens, captures, installs) and your country. No account, no article URLs or content. Respects Do-Not-Track."
+                      : "Off — no usage data is collected."
+                  }
+                />
+                <Switch
+                  edge="end"
+                  checked={telemetryEnabled}
+                  onChange={handleTelemetryToggle}
+                />
+              </ListItem>
+            </List>
+          )}
 
           {/* Public Export Section */}
           <List>

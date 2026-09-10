@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Button, Snackbar, Alert } from "@mui/material";
+import { trackPwaInstall } from "~/utils/telemetry";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -52,6 +53,7 @@ export function PWARegister() {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       const { outcome } = await deferredPrompt.userChoice;
+      trackPwaInstall(outcome);
       if (outcome === "accepted") {
         setShowInstallPrompt(false);
         setDeferredPrompt(null);

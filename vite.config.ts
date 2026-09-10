@@ -112,7 +112,9 @@ export default defineConfig(() => {
           name: isDebug ? devTitle : prodTitle,
           short_name: isDebug ? "Savr DEV" : "Savr",
           description: "Save and read articles offline with a clean, distraction-free interface",
-          start_url: "/",
+          // Tag launches from the installed icon so telemetry can distinguish
+          // installed-PWA opens even where display-mode detection is quirky.
+          start_url: "/?s=pwa",
           display: "standalone",
           background_color: "#390055", //dark purple
           theme_color: "#000000",
@@ -171,6 +173,12 @@ export default defineConfig(() => {
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,webp}"],
           runtimeCaching: [
+            {
+              // Never cache or replay analytics — always hit the network, and let
+              // it fail silently when offline (no queued/duplicated events).
+              urlPattern: /^https:\/\/(gc\.zgo\.at|[^/]*\.goatcounter\.com)\/.*/i,
+              handler: "NetworkOnly",
+            },
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
               handler: "CacheFirst",

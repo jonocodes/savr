@@ -43,6 +43,7 @@ import {
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml, ingestRaw } from "../../lib/src/ingestion";
+import { trackCapture, trackCaptureFailed } from "~/utils/telemetry";
 import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
@@ -492,6 +493,7 @@ export default function ArticleListScreen() {
       );
 
       await db.articles.put(article);
+      trackCapture("bookmarklet");
       setIngestStatus("Syncing to remote storage...");
       try {
         await remoteStorage?.startSync();
@@ -603,6 +605,7 @@ export default function ArticleListScreen() {
       );
 
       await db.articles.put(article);
+      trackCapture("raw");
       setIngestStatus("Syncing to remote storage...");
       try {
         await remoteStorage?.startSync();
@@ -709,6 +712,7 @@ export default function ArticleListScreen() {
 
         console.log("About to save article to IndexedDB:", article);
         await db.articles.put(article);
+        trackCapture("url");
         console.log("Article saved to IndexedDB successfully");
 
         // Verify the article was actually saved
@@ -745,6 +749,7 @@ export default function ArticleListScreen() {
         }, 1500);
       } catch (error) {
         console.error(error);
+        trackCaptureFailed();
         const detail = error instanceof Error ? error.message : String(error);
         enqueueSnackbar(`Error saving article: ${detail}`, { variant: "error" });
         setIngestStatus(null);

@@ -7,6 +7,7 @@ import { Article } from "../../../lib/src/models";
 import { environmentConfig } from "~/config/environment";
 import { parseListing, reconcile, opFromChange, type Op } from "./reconciler";
 import { getSyncIntervalFromCookie } from "../cookies";
+import { trackSyncConnect } from "../telemetry";
 import { patchDisconnectKeepsLocalCache } from "./rsPatchDisconnect";
 
 // Sync progress tracking
@@ -332,6 +333,9 @@ function initRemote() {
 
     remoteStorage.on("connected", () => {
       console.info(`🟢 remoteStorage connected to "${remoteStorage.remote.userAddress}"`);
+      // Anonymous telemetry: record which provider type connected, never the
+      // account address. `backend` is "dropbox" | "googledrive" | "remotestorage".
+      trackSyncConnect((remoteStorage as unknown as { backend?: string }).backend || "unknown");
       hasTriggeredInitialReconcile = false;
       // Reconcile is intentionally NOT triggered here. Running it immediately on "connected"
       // is unsafe: RS's local listing cache hasn't been refreshed from the server yet, so

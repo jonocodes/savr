@@ -7,6 +7,14 @@ export interface EnvironmentConfig {
     googleDrive?: string;
     dropbox?: string;
   };
+  telemetry: {
+    // GoatCounter "count" endpoint, e.g. "https://savr.goatcounter.com/count".
+    // When empty (the default), telemetry is disabled entirely. Only the hosted
+    // savr.link build sets this, so self-hosters are anonymous/off by default.
+    goatCounterUrl: string;
+    // The GoatCounter tracker script. Overridable but rarely needs changing.
+    scriptUrl: string;
+  };
 }
 
 // Get environment variables
@@ -46,6 +54,11 @@ export const environmentConfig: EnvironmentConfig = {
     ),
     dropbox: getEnvVar("VITE_DROPBOX_API_KEY", "c53glfgceos23cj"),
   },
+  telemetry: {
+    // Default empty => telemetry off (self-host builds collect nothing).
+    goatCounterUrl: getEnvVar("VITE_GOATCOUNTER_URL", "") || "",
+    scriptUrl: getEnvVar("VITE_GOATCOUNTER_SCRIPT", "https://gc.zgo.at/count.js") || "",
+  },
 };
 
 export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
@@ -54,3 +67,9 @@ export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(
 export const isDebugMode = () => environmentConfig.isDebugMode;
 export const getDefaultCorsProxy = () => environmentConfig.defaultCorsProxy;
 export const shouldShowWelcome = () => environmentConfig.showWelcome;
+
+// Telemetry is "configured" only when a GoatCounter endpoint has been provided
+// at build time. Self-host builds leave it empty, so nothing is ever collected.
+export const getGoatCounterUrl = () => environmentConfig.telemetry.goatCounterUrl;
+export const getGoatCounterScriptUrl = () => environmentConfig.telemetry.scriptUrl;
+export const isTelemetryConfigured = () => environmentConfig.telemetry.goatCounterUrl !== "";

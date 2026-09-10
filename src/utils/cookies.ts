@@ -8,6 +8,7 @@ export const FONT_SIZE_COOKIE_NAME = "savr-font-size";
 export const FONT_FAMILY_COOKIE_NAME = "savr-font-family";
 export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
+export const TELEMETRY_ENABLED_COOKIE_NAME = "savr-telemetry-enabled";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
 export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
 export const SYNC_SETTING_EVENT = "savr:sync-setting-changed";
@@ -172,6 +173,32 @@ export const setCorsProxyInCookie = (corsProxy: string | null): void => {
     // Remove cookie if value is null or empty
     document.cookie = `${CORS_PROXY_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
   }
+};
+
+// Anonymous usage telemetry opt-out. On by default (returns true when the cookie
+// is absent); the user can turn it off in Preferences. This only governs the
+// user's *consent* — telemetry also requires being configured at build time and
+// is additionally suppressed when the browser sends DNT/GPC (see telemetry.ts).
+export const getTelemetryEnabledFromCookie = (): boolean => {
+  if (typeof document === "undefined") return true;
+
+  const cookies = document.cookie.split(";");
+  const cookie = cookies.find((c) => c.trim().startsWith(`${TELEMETRY_ENABLED_COOKIE_NAME}=`));
+
+  if (cookie) {
+    return cookie.split("=")[1].trim() !== "false";
+  }
+
+  return true; // opt-out model: default on
+};
+
+export const setTelemetryEnabledInCookie = (enabled: boolean): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${TELEMETRY_ENABLED_COOKIE_NAME}=${enabled}; expires=${expires.toUTCString()}; path=/`;
 };
 
 export type FontFamily = "sans" | "serif" | "humanist" | "mono";

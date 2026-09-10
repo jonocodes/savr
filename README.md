@@ -233,6 +233,30 @@ All content is stored locally on your device. Savr has no server side storage. T
 
 This also make it such that there is no login or account creation to use Savr. If you decide to synchronize your data across devices you will need to bring a cloud service. But that authentication is brokered through your browser and does not go through Savr's servers. In the browser your are authenticating directly to the cloud provider only.
 
+# Privacy & telemetry
+
+The hosted app at `savr.link` collects a small amount of **anonymous** usage data so we can answer basic questions like "how many people use Savr, roughly where are they, and are they installing it." It is designed to respect the project's privacy-first goals.
+
+**What is collected** (anonymous counts only, via [GoatCounter](https://www.goatcounter.com), which is cookieless and stores no persistent visitor id):
+
+- App opens, and whether the app is running as an installed PWA
+- Article captures, broken down by source (URL, bookmarklet, paste, file upload)
+- Capture failures (to detect when the CORS proxy is having trouble)
+- PWA install-prompt outcomes (accepted/dismissed — Chromium only)
+- Cloud sync connections, by provider **type** only (Dropbox / Google Drive)
+- Your **country**, derived server-side from your IP — the IP itself is discarded and never stored
+
+**What is never collected:** article URLs, titles, or content; your cloud account address or any identity; API keys; or anything that could identify you or what you read.
+
+**Opting out:** it is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Do-Not-Track](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/doNotTrack) or [Global Privacy Control](https://globalprivacycontrol.org/) signal.
+
+**Self-hosting:** telemetry is **off by default** for self-hosted builds. It only activates when a GoatCounter endpoint is provided at build time:
+
+- `VITE_GOATCOUNTER_URL` — your GoatCounter "count" endpoint, e.g. `https://yourcode.goatcounter.com/count`. Leave unset to disable telemetry entirely (the Privacy preference is then hidden).
+- `VITE_GOATCOUNTER_SCRIPT` — optional; overrides the tracker script URL (defaults to `https://gc.zgo.at/count.js`).
+
+**Excluding your own visits** (for maintainers): `localhost` and private networks are ignored by GoatCounter automatically, and you can exclude a specific browser by visiting the site once with `#toggle-goatcounter` appended to the URL. See [GoatCounter's docs](https://www.goatcounter.com/help/skip-dev).
+
 # Offline Use
 
 The Savr apps do not need an internet connection to read content, since it has all been downloaded. Additionally you don't even need the app to read the articles since the HTML archive is self contained.

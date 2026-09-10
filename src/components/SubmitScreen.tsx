@@ -45,6 +45,7 @@ import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
 import { ingestHtml, ingestPdf, ingestImage } from "lib/src/ingestion";
+import { trackCapture } from "~/utils/telemetry";
 import type { Article } from "lib/src/models";
 import {
   detectContentType,
@@ -160,6 +161,7 @@ export default function SubmitScreen() {
         const article: Article = result.article;
         console.log("About to save article to IndexedDB:", article);
         await db.articles.put(article);
+        trackCapture("paste");
         console.log("Article saved to IndexedDB successfully");
 
         // Verify the article was actually saved
@@ -250,6 +252,7 @@ export default function SubmitScreen() {
           );
 
           await db.articles.put(article);
+          trackCapture("file");
 
           setTimeout(() => {
             setIngestStatus(null);
@@ -295,6 +298,7 @@ export default function SubmitScreen() {
           );
 
           await db.articles.put(article);
+          trackCapture("file");
 
           setTimeout(() => {
             setIngestStatus(null);
