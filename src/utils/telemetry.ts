@@ -1,6 +1,9 @@
 // Anonymous, privacy-respecting usage telemetry.
 //
-// Goals (see README "Privacy & telemetry"):
+// The canonical, user-facing description of what this collects lives in
+// docs/TELEMETRY.md — keep its event table in sync when events change here.
+//
+// Goals (see docs/TELEMETRY.md):
 //   - Answer "roughly how many people use Savr, from where, are they installing
 //     it, and how are they capturing" — nothing more.
 //   - Never send article URLs, titles, content, ids, or any account identity
