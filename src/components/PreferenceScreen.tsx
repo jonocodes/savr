@@ -1277,7 +1277,7 @@ export default function PreferencesScreen() {
                   primary="Share anonymous usage statistics"
                   secondary={
                     telemetryEnabled
-                      ? "Sends anonymous counts (app opens, captures, installs) and your country. No account, no article URLs or content. Respects Do-Not-Track."
+                      ? "Sends anonymous counts (app opens, captures, installs) and your country. No account, no article URLs or content. Respects Global Privacy Control."
                       : "Off — no usage data is collected."
                   }
                 />

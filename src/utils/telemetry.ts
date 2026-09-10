@@ -7,7 +7,7 @@
 //     (no RemoteStorage userAddress). Events are bare anonymous counts.
 //   - Off unless a GoatCounter endpoint was configured at build time (so
 //     self-hosters collect nothing), the user hasn't opted out, and the browser
-//     isn't sending Do-Not-Track / Global-Privacy-Control.
+//     isn't sending Global Privacy Control.
 //
 // Backed by GoatCounter (https://www.goatcounter.com), which is cookieless and
 // has no persistent visitor id — country is derived server-side from the IP and
@@ -42,17 +42,18 @@ const pending: GoatCounterCount[] = [];
 let initialized = false;
 let scriptReady = false;
 
-// The browser is asking not to be tracked. Respected regardless of the opt-out
-// cookie, so "on by default" stays honest.
+// The browser is sending Global Privacy Control — a deliberate, legally
+// recognized (CCPA) "do not sell/share" signal. Respected regardless of the
+// opt-out cookie so "on by default" stays honest.
+//
+// We intentionally do NOT honor the legacy DNT header: it's deprecated, widely
+// ignored, frequently on by default without the user intending much by it, and
+// the explicit Preferences opt-out already covers genuine consent. Honoring DNT
+// here systematically under-counts Savr's privacy-conscious audience.
 function privacySignalsOptOut(): boolean {
   if (typeof navigator === "undefined") return false;
-  const nav = navigator as Navigator & {
-    globalPrivacyControl?: boolean;
-    msDoNotTrack?: string;
-  };
-  const win = typeof window !== "undefined" ? (window as Window & { doNotTrack?: string }) : undefined;
-  const dnt = nav.doNotTrack ?? win?.doNotTrack ?? nav.msDoNotTrack;
-  return dnt === "1" || dnt === "yes" || nav.globalPrivacyControl === true;
+  const nav = navigator as Navigator & { globalPrivacyControl?: boolean };
+  return nav.globalPrivacyControl === true;
 }
 
 // Whether telemetry may run right now: configured at build time + user consent +

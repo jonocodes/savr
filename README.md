@@ -248,7 +248,7 @@ The hosted app at `savr.link` collects a small amount of **anonymous** usage dat
 
 **What is never collected:** article URLs, titles, or content; your cloud account address or any identity; API keys; or anything that could identify you or what you read.
 
-**Opting out:** it is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Do-Not-Track](https://developer.mozilla.org/en-US/docs/Web/API/Navigator/doNotTrack) or [Global Privacy Control](https://globalprivacycontrol.org/) signal.
+**Opting out:** it is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Global Privacy Control](https://globalprivacycontrol.org/) signal.
 
 **Self-hosting:** telemetry is **off by default** for self-hosted builds. It only activates when a GoatCounter endpoint is provided at build time:
 

@@ -178,7 +178,8 @@ export const setCorsProxyInCookie = (corsProxy: string | null): void => {
 // Anonymous usage telemetry opt-out. On by default (returns true when the cookie
 // is absent); the user can turn it off in Preferences. This only governs the
 // user's *consent* — telemetry also requires being configured at build time and
-// is additionally suppressed when the browser sends DNT/GPC (see telemetry.ts).
+// is additionally suppressed when the browser sends a Global Privacy Control
+// signal (see telemetry.ts).
 export const getTelemetryEnabledFromCookie = (): boolean => {
   if (typeof document === "undefined") return true;
 
