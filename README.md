@@ -41,7 +41,6 @@ Savr is:
 | Requires minimal tech knowledge  | ✅          | ✅               | ❌       | ❌       | ❌     |
 | Own/Control Your Data            | ✅          | ❌               | ✅       | ✅       | ✅     |
 | Offline content including images | ✅          | sometimes cached  | ❌       | ❌       | ❌     |
-| Tagging and search               | ❌          | ✅                | ✅       | ✅       | ✅     |
 | Other Content Types              | md, txt, pdf, images | ❌       | pdf       | pdf, epub   | ❌   |
 | Offline mobile                   | ✅          | sometimes         | ✅       | ✅       | ❌     |
 | Text To Speach                   | ✅          | ✅                | iOS only | android only | ❌     |
@@ -77,6 +76,8 @@ Here are most of the planned features.
   - [ ] allow for deferred image loading at view time
 - [ ] media types (audio, video) - You may want to check out our sister project [StashCast](https://github.com/jonocodes/stashcast)
 
+See the [changelog](CHANGELOG.md) for the full history of shipped changes.
+
 
 # How to "install" it
 
@@ -95,6 +96,23 @@ When on the main screen you can always click the '+' button and enter a URL.
 ## Bookmarklet
 
 The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save.
+
+### Custom raw-content bookmarklets
+
+Some pages hold content Savr can't extract on its own — for example a YouTube transcript, which is injected by the page's JavaScript and would be rejected by Readability. For these, a site-specific bookmarklet can do the extraction itself and hand Savr the finished content plus metadata (title, author, url). Savr stores it verbatim — no Readability, no scraping — via the raw-ingest path.
+
+Such a bookmarklet opens Savr at `/?rawIngest=1` and, once Savr replies with a `savr-ready` message, posts:
+
+```js
+savrWindow.postMessage({
+  action: "savr-raw",
+  content,                 // the extracted text/HTML/markdown
+  contentType: "text/plain", // or text/html, text/markdown, auto
+  title, author, url,      // metadata stored as-is
+}, savrOrigin);
+```
+
+A working example that scrapes a YouTube transcript lives at [`bookmarklet/savr-youtube-transcript.unminified.js`](bookmarklet/savr-youtube-transcript.unminified.js) — edit it there if you need to change it: the Savr app imports this same file (minified at build time by a Vite plugin) for the YouTube transcript bookmarklet on the Preferences screen, so it is the single source of truth. The `SAVR_ORIGIN` placeholder is substituted with the app's origin at runtime; for standalone use, replace it with your Savr origin, minify the file, and save it as a bookmarklet.
 
 ## In browser
 
@@ -224,6 +242,30 @@ The Savr apps do not need an internet connection to read content, since it has a
 Of course you wont be able to modify your collection when the app is not running. Have a look at your data directory. It is simply organized so you can copy out single articles if needed.
 
 # FAQ
+
+## What makes Savr easier than other read-it-later apps?
+
+There is nothing to install and nothing to sign up for. You don't download an app, stand up a server, or create an account — you just [open the site](https://savr.link) and start saving.
+
+Because Savr is a [static web app with no backend](#why-not-use-an-existing-open-source-project), everything runs right in your browser:
+
+- **No account.** Your articles are saved straight to your device. Syncing across devices is optional, and if you want it you use [your own Dropbox or Google Drive](#synchronization) — there's still no Savr account to manage.
+- **No install required.** It works in any browser. If you want an app-like experience you can optionally ["install" it as a PWA](#what-is-a-pwa), but you never have to.
+- **No extension to add.** Save from any browser with the [bookmarklet](#what-is-a-bookmarklet) or by [prepending the Savr URL](#in-browser) — no store-specific extension needed.
+- **Nothing to maintain.** With no server, there's nothing for you (or a company) to keep online, patch, or pay for.
+
+## What makes Savr an app for power users?
+
+Under the simple surface there's a lot of depth for people who want more control:
+
+- **Save more than just web articles.** Beyond scraping a URL, you can [paste HTML, Markdown, or plain text, or upload PDFs and images](#features), with automatic content-type detection.
+- **Adaptive reading times.** Savr learns your reading speed over time and personalizes the estimated reading time for each article, instead of assuming a fixed words-per-minute.
+- **AI summaries, your way.** Generate summaries with [any OpenAI-compatible provider](#ai-summarization) — cloud or a local model server — and tune the detail level, format, tone, and focus, or supply your own prompt.
+- **Text-to-speech.** Have articles read aloud, cross-platform.
+- **Own your data as plain files.** Everything is stored in open, [future-proof file formats](#offline-use) you can read, back up, or process with other tools — no proprietary database to escape.
+- **Bring your own infrastructure.** Point Savr at [your own CORS proxy](#what-is-cors) for better reliability, speed, and privacy, and self-host the whole thing if you want.
+- **Publish a public copy.** Share a read-only public version of your collection.
+- **Reader or original.** Toggle between the cleaned, distraction-free reader view and the original page.
 
 ## Why another read-it-later app?
 

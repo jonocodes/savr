@@ -7,7 +7,10 @@ const connectOptions = process.env.PW_SERVER ? { wsEndpoint: process.env.PW_SERV
 const baseHost = process.env.PW_SERVER ? "host.docker.internal" : "localhost";
 const webServerPort = process.env.PLAYWRIGHT_WEB_SERVER_PORT || "3002";
 const defaultBaseURL = `http://${baseHost}:${webServerPort}`;
-const devServerCommand = `flox activate -c "npm run dev -- --port ${webServerPort} --strictPort"`;
+// Locally the dev server is launched inside a flox environment. CI has no flox
+// (and installs deps via `npm ci`), so run the dev server directly there.
+const rawDevCommand = `npm run dev -- --port ${webServerPort} --strictPort`;
+const devServerCommand = process.env.CI ? rawDevCommand : `flox activate -c "${rawDevCommand}"`;
 
 /**
  * @see https://playwright.dev/docs/test-configuration

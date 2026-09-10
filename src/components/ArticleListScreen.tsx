@@ -38,9 +38,11 @@ import {
   ArrowForward,
   Star as StarIcon,
   StarBorder as StarBorderIcon,
+  Search as SearchIcon,
+  Close as CloseIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
-import { ingestUrl, ingestHtml } from "../../lib/src/ingestion";
+import { ingestUrl, ingestHtml, ingestRaw } from "../../lib/src/ingestion";
 import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
@@ -56,6 +58,15 @@ import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
 
 import { keyframes } from "@mui/system";
+
+// Payload delivered by a site-specific bookmarklet via postMessage({action:"savr-raw", ...}).
+type RawIngestPayload = {
+  content: string;
+  contentType?: "auto" | "text/html" | "text/markdown" | "text/plain";
+  title: string;
+  author?: string | null;
+  url?: string | null;
+};
 
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
@@ -312,6 +323,8 @@ export default function ArticleListScreen() {
   // Bookmarklet messages that arrive before the RS client is ready are queued here
   // and processed once client becomes non-null (see bookmarklet useEffect below).
   const pendingBookmarkletMsg = useRef<{ html: string; url: string } | null>(null);
+  // Same idea for raw-ingest payloads (savr-raw) from a site-specific bookmarklet.
+  const pendingRawMsg = useRef<RawIngestPayload | null>(null);
 
   const articles = useLiveQuery(() => {
     console.log("useLiveQuery triggered - fetching articles from IndexedDB");
@@ -351,6 +364,9 @@ export default function ArticleListScreen() {
   });
 
   const [filter, setFilter] = useState<"unread" | "archived">("unread");
+  const [query, setQuery] = useState<string>("");
+  const [searchOpen, setSearchOpen] = useState<boolean>(false);
+  const searchFieldRef = useRef<HTMLInputElement>(null);
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
@@ -488,6 +504,13 @@ export default function ArticleListScreen() {
         setIngestPercent(100);
         setUrl("");
 
+        // Remove bookmarklet query param so the save doesn't re-trigger on reload
+        const currentUrlParams = new URLSearchParams(window.location.search);
+        currentUrlParams.delete("bookmarklet");
+        const newSearch = currentUrlParams.toString();
+        const newUrl = newSearch ? `?${newSearch}` : window.location.pathname;
+        window.history.replaceState({}, "", newUrl);
+
         const afterExternalSave = getAfterExternalSaveFromCookie();
         if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
           await waitForSyncThenClose();
@@ -538,6 +561,128 @@ export default function ArticleListScreen() {
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [client, remoteStorage, waitForSyncThenClose]);
+
+  // Raw-ingest flow (savr-raw). A site-specific bookmarklet does its own extraction
+  // (e.g. scraping a YouTube transcript that Savr cannot fetch or that Readability
+  // would reject) and posts the finished content + metadata here. We store it
+  // verbatim via ingestRaw — Readability is never run.
+  //
+  // Triggered by opening the app with ?rawIngest=1. Because the bookmarklet can't
+  // know when the app is mounted, the app pings the opener with "savr-ready" on an
+  // interval until the payload arrives; the bookmarklet replies once.
+  useEffect(() => {
+    const rawIngest = new URLSearchParams(window.location.search).get("rawIngest");
+    if (!rawIngest) {
+      return;
+    }
+
+    setDialogVisible(true);
+    setIngestStatus("Waiting for content...");
+    setIngestPercent(0);
+
+    const processRawMessage = async (payload: RawIngestPayload) => {
+      setUrl(payload.title || payload.url || "raw content");
+      setIngestStatus("Ingesting...");
+      setIngestPercent(10);
+
+      const { article } = await ingestRaw(
+        client,
+        {
+          content: payload.content,
+          contentType: payload.contentType ?? "auto",
+          title: payload.title,
+          author: payload.author ?? null,
+          url: payload.url ?? null,
+        },
+        (percent: number | null, message: string | null) => {
+          if (percent !== null) {
+            setIngestStatus(message);
+            setIngestPercent(percent);
+          }
+        },
+      );
+
+      await db.articles.put(article);
+      setIngestStatus("Syncing to remote storage...");
+      try {
+        await remoteStorage?.startSync();
+      } catch (error) {
+        console.warn("Sync after raw save failed:", error);
+      }
+
+      setTimeout(async () => {
+        setDialogVisible(false);
+        setIngestPercent(100);
+        setUrl("");
+
+        const afterExternalSave = getAfterExternalSaveFromCookie();
+        if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB) {
+          await waitForSyncThenClose();
+        } else if (afterExternalSave === AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE) {
+          setIngestStatus(null);
+          navigate({ to: `/article/${article.slug}` });
+        } else {
+          setIngestStatus(null);
+        }
+      }, 1500);
+    };
+
+    // If a payload arrived while client was still null, process it now.
+    if (client && pendingRawMsg.current) {
+      const payload = pendingRawMsg.current;
+      pendingRawMsg.current = null;
+      processRawMessage(payload);
+      return;
+    }
+
+    let ingesting = false;
+
+    // Ping the opener until the bookmarklet delivers the payload.
+    const readyPing = window.setInterval(() => {
+      window.opener?.postMessage({ action: "savr-ready" }, "*");
+    }, 250);
+    window.opener?.postMessage({ action: "savr-ready" }, "*");
+
+    const handler = async (event: MessageEvent) => {
+      if (!event.origin || event.origin === "null") return;
+      if (event.data?.action !== "savr-raw") return;
+      if (ingesting) return;
+
+      const payload: RawIngestPayload = {
+        content: event.data.content ?? "",
+        contentType: event.data.contentType,
+        title: event.data.title ?? "",
+        author: event.data.author ?? null,
+        url: event.data.url ?? null,
+      };
+
+      if (!payload.content.trim()) return;
+
+      window.clearInterval(readyPing);
+
+      if (!client) {
+        // RS client not ready yet — queue and bail; the effect re-runs when
+        // client becomes non-null and the pending check above picks it up.
+        pendingRawMsg.current = payload;
+        return;
+      }
+
+      ingesting = true;
+      try {
+        await processRawMessage(payload);
+      } catch (error) {
+        console.error("Raw ingestion error:", error);
+      } finally {
+        ingesting = false;
+      }
+    };
+
+    window.addEventListener("message", handler);
+    return () => {
+      window.clearInterval(readyPing);
+      window.removeEventListener("message", handler);
+    };
+  }, [client, remoteStorage, waitForSyncThenClose, navigate]);
 
   const saveUrl = useCallback(
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
@@ -679,7 +824,30 @@ export default function ArticleListScreen() {
     }
   }, [dialogVisible]);
 
-  const filteredArticles = articles ? articles.filter((article) => article.state === filter) : [];
+  // Focus the search field when search opens
+  useEffect(() => {
+    if (searchOpen) {
+      setTimeout(() => {
+        searchFieldRef.current?.focus();
+      }, 100);
+    }
+  }, [searchOpen]);
+
+  const closeSearch = useCallback(() => {
+    setSearchOpen(false);
+    setQuery("");
+  }, []);
+
+  const q = query.trim().toLowerCase();
+  const filteredArticles = (articles ?? [])
+    .filter((article) => article.state === filter)
+    .filter(
+      (article) =>
+        !q ||
+        [article.title, article.author, article.publication, article.summary].some((field) =>
+          field?.toLowerCase().includes(q),
+        ),
+    );
 
   const pulse = keyframes`
     0% { transform: translateX(0) scale(1); opacity: 1; }
@@ -717,26 +885,57 @@ export default function ArticleListScreen() {
         </Tooltip>
 
         <Box sx={{ flexGrow: 1, display: "flex", justifyContent: "center" }}>
-          <ToggleButtonGroup
-            value={filter}
-            exclusive
-            onChange={(_, newFilter) => {
-              if (newFilter !== null) {
-                setFilter(newFilter);
-              }
-            }}
-            size="small"
-          >
-            <ToggleButton value="unread">
-              <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Saves
-            </ToggleButton>
-            <ToggleButton value="archived">
-              <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-              Archive
-            </ToggleButton>
-          </ToggleButtonGroup>
+          {searchOpen ? (
+            <TextField
+              inputRef={searchFieldRef}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") closeSearch();
+              }}
+              placeholder="Search title, author, publication…"
+              size="small"
+              fullWidth
+              sx={{ maxWidth: 480 }}
+              InputProps={{
+                startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />,
+                endAdornment: (
+                  <IconButton size="small" onClick={closeSearch} aria-label="Close search">
+                    <CloseIcon fontSize="small" />
+                  </IconButton>
+                ),
+              }}
+            />
+          ) : (
+            <ToggleButtonGroup
+              value={filter}
+              exclusive
+              onChange={(_, newFilter) => {
+                if (newFilter !== null) {
+                  setFilter(newFilter);
+                }
+              }}
+              size="small"
+            >
+              <ToggleButton value="unread">
+                <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
+                Saves
+              </ToggleButton>
+              <ToggleButton value="archived">
+                <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
+                Archive
+              </ToggleButton>
+            </ToggleButtonGroup>
+          )}
         </Box>
+
+        {!searchOpen && (
+          <Tooltip title="Search">
+            <IconButton onClick={() => setSearchOpen(true)} aria-label="Search">
+              <SearchIcon />
+            </IconButton>
+          </Tooltip>
+        )}
 
         <Tooltip title="Settings">
           <IconButton onClick={() => navigate({ to: "/prefs" })}>
