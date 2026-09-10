@@ -52,6 +52,7 @@ import {
 } from "@mui/icons-material";
 import { setCorsProxyValue } from "~/utils/article/tools";
 import { getDefaultCorsProxy, isTelemetryConfigured } from "~/config/environment";
+import { hasGlobalPrivacyControl } from "~/utils/telemetry";
 import { getCorsProxyFromCookie } from "~/utils/cookies";
 // Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
 // minified at build time by the minify-bookmarklet Vite plugin. The placeholder
@@ -138,6 +139,8 @@ export default function PreferencesScreen() {
   const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
   const [headerHidingEnabled, setHeaderHidingEnabled] = React.useState<boolean>(false);
   const [telemetryEnabled, setTelemetryEnabled] = React.useState<boolean>(true);
+  // Browser-level GPC overrides the site preference; computed once on mount.
+  const [gpcActive] = React.useState<boolean>(() => hasGlobalPrivacyControl());
   const [afterExternalSave, setAfterExternalSave] = React.useState<AfterExternalSaveAction>(
     AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST,
   );
@@ -1276,14 +1279,17 @@ export default function PreferencesScreen() {
                 <ListItemText
                   primary="Share anonymous usage statistics"
                   secondary={
-                    telemetryEnabled
-                      ? "Sends anonymous counts (app opens, captures, installs) and your country. No account, no article URLs or content. Respects Global Privacy Control."
-                      : "Off — no usage data is collected."
+                    gpcActive
+                      ? "Disabled by your browser's Global Privacy Control signal. Savr honors that, so this setting is ignored while it's on."
+                      : telemetryEnabled
+                        ? "Sends anonymous counts (app opens, captures, installs) and your country. No account, no article URLs or content. Respects Global Privacy Control."
+                        : "Off — no usage data is collected."
                   }
                 />
                 <Switch
                   edge="end"
-                  checked={telemetryEnabled}
+                  checked={gpcActive ? false : telemetryEnabled}
+                  disabled={gpcActive}
                   onChange={handleTelemetryToggle}
                 />
               </ListItem>

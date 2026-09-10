@@ -56,6 +56,16 @@ function privacySignalsOptOut(): boolean {
   return nav.globalPrivacyControl === true;
 }
 
+/**
+ * Whether the browser is sending Global Privacy Control. When true, telemetry is
+ * suppressed regardless of the user's opt-out preference — the UI uses this to
+ * show the Preferences toggle as disabled and explain why, rather than letting
+ * it misleadingly read "on".
+ */
+export function hasGlobalPrivacyControl(): boolean {
+  return privacySignalsOptOut();
+}
+
 // Whether telemetry may run right now: configured at build time + user consent +
 // no browser privacy signal. Cheap enough to re-check on every event.
 export function isTelemetryActive(): boolean {
