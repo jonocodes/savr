@@ -237,16 +237,26 @@ This also make it such that there is no login or account creation to use Savr. I
 
 The hosted app at `savr.link` collects a small amount of **anonymous** usage data so we can answer basic questions like "how many people use Savr, roughly where are they, and are they installing it." It is designed to respect the project's privacy-first goals.
 
-**What is collected** (anonymous counts only, via [GoatCounter](https://www.goatcounter.com), which is cookieless and stores no persistent visitor id):
+Telemetry is via [GoatCounter](https://www.goatcounter.com), which is cookieless and stores no persistent visitor id. Every data point is an anonymous count — GoatCounter has no per-event properties, so the only thing sent besides the event name is your country (derived server-side from your IP; the IP itself is discarded and never stored).
 
-- App opens, and whether the app is running as an installed PWA
-- Article captures, broken down by source (URL, bookmarklet, paste, file upload)
-- Capture failures (to detect when the CORS proxy is having trouble)
-- PWA install-prompt outcomes (accepted/dismissed — Chromium only)
-- Cloud sync connections, by provider **type** only (Dropbox / Google Drive)
-- Your **country**, derived server-side from your IP — the IP itself is discarded and never stored
+**The complete list of events** — this is everything Savr ever sends:
 
-**What is never collected:** article URLs, titles, or content; your cloud account address or any identity; API keys; or anything that could identify you or what you read.
+| Event | Sent when |
+| ----- | --------- |
+| `app-open` | The app is opened or loaded |
+| `app-standalone` | The app is opened as an installed PWA (fired alongside `app-open`) |
+| `capture-url` | An article is saved from a URL |
+| `capture-bookmarklet` | An article is saved via the bookmarklet |
+| `capture-raw` | An article is saved via a site-specific bookmarklet (pre-extracted content) |
+| `capture-paste` | An article is saved by pasting text, HTML, or Markdown |
+| `capture-file` | An article is saved by uploading a PDF or image |
+| `capture-failed` | An article capture fails (used to spot CORS-proxy trouble; no URL or details attached) |
+| `pwa-install-accepted` | The user accepts the PWA install prompt (Chromium only) |
+| `pwa-install-dismissed` | The user dismisses the PWA install prompt (Chromium only) |
+| `sync-connect-dropbox` | Cloud sync is connected to Dropbox |
+| `sync-connect-googledrive` | Cloud sync is connected to Google Drive |
+
+**What is never collected:** article URLs, titles, or content; your cloud account address or any identity; API keys; or anything that could identify you or what you read. Sync events record the provider **type** only, never the account.
 
 **Opting out:** it is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Global Privacy Control](https://globalprivacycontrol.org/) signal.
 
