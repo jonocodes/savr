@@ -47,6 +47,7 @@ import { useSnackbar } from "notistack";
 import { ingestHtml, ingestPdf, ingestImage } from "lib/src/ingestion";
 import { trackCapture } from "~/utils/telemetry";
 import type { Article } from "lib/src/models";
+import { recordLog, errorMessage } from "~/utils/logging";
 import {
   detectContentType,
   convertToHtml,
@@ -202,6 +203,9 @@ export default function SubmitScreen() {
         }, 1500);
       } catch (error) {
         console.error(error);
+        recordLog("error", "ingest", "Failed to save pasted content", {
+          error: errorMessage(error),
+        });
         enqueueSnackbar("Error requesting article", { variant: "error" });
         setIngestStatus(null);
         setIngestPercent(0);
@@ -262,6 +266,10 @@ export default function SubmitScreen() {
           }, 1500);
         } catch (error) {
           console.error("Error ingesting PDF:", error);
+          recordLog("error", "ingest", "Failed to ingest PDF file", {
+            fileName: file.name,
+            error: errorMessage(error),
+          });
           enqueueSnackbar("Error uploading PDF file", { variant: "error" });
           setIngestStatus(null);
           setIngestPercent(0);
@@ -308,6 +316,10 @@ export default function SubmitScreen() {
           }, 1500);
         } catch (error) {
           console.error("Error ingesting image:", error);
+          recordLog("error", "ingest", "Failed to ingest image file", {
+            fileName: file.name,
+            error: errorMessage(error),
+          });
           enqueueSnackbar("Error uploading image file", { variant: "error" });
           setIngestStatus(null);
           setIngestPercent(0);

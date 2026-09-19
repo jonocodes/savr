@@ -18,9 +18,11 @@ import {
   CloudOff as CloudOffIcon,
   Cloud as CloudIcon,
   Refresh as RefreshIcon,
+  ContentCopy as ContentCopyIcon,
 } from "@mui/icons-material";
 import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "~/utils/db";
+import { db, type LogEntry } from "~/utils/db";
+import { clearLogs, formatLogsForCopy } from "~/utils/logging";
 import { useRemoteStorage } from "~/components/RemoteStorageProvider";
 import { useSyncStatus } from "~/components/SyncStatusProvider";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
@@ -71,6 +73,28 @@ export default function DiagnosticsScreen() {
     userAddress: null,
     backend: null,
   });
+
+  // App-level failure/event log, newest first.
+  const logs = useLiveQuery(() => db.logs.orderBy("id").reverse().limit(500).toArray(), []);
+  const [logFilter, setLogFilter] = React.useState<string>("all");
+
+  const filteredLogs = React.useMemo(() => {
+    if (!logs) return [];
+    if (logFilter === "all") return logs;
+    if (logFilter === "error" || logFilter === "warn") {
+      return logs.filter((entry) => entry.level === logFilter);
+    }
+    return logs.filter((entry) => entry.category === logFilter);
+  }, [logs, logFilter]);
+
+  const handleCopyLogs = React.useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(formatLogsForCopy(filteredLogs));
+      alert(`Copied ${filteredLogs.length} log entries to clipboard`);
+    } catch {
+      alert("Failed to copy logs to clipboard");
+    }
+  }, [filteredLogs]);
 
   const { client: remoteStorageClient, remoteStorage } = useRemoteStorage();
 
@@ -539,6 +563,134 @@ export default function DiagnosticsScreen() {
                 </Box>
               </Paper>
             </Box>
+          </Box>
+
+          <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
+            <Box
+              sx={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 1,
+              }}
+            >
+              <Typography variant="h6" component="h3">
+                App Log ({filteredLogs.length})
+              </Typography>
+              <Box sx={{ display: "flex", gap: 1 }}>
+                <Button
+                  size="small"
+                  startIcon={<ContentCopyIcon />}
+                  onClick={handleCopyLogs}
+                  disabled={filteredLogs.length === 0}
+                >
+                  Copy
+                </Button>
+                <Button
+                  size="small"
+                  startIcon={<RefreshIcon />}
+                  onClick={() => {
+                    if (confirm("Clear all app log entries?")) {
+                      void clearLogs();
+                    }
+                  }}
+                >
+                  Clear
+                </Button>
+              </Box>
+            </Box>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              Failures recorded by the app — article downloads, image/thumbnail downloads, and
+              summaries. Copy this to share when something goes wrong on a phone.
+            </Typography>
+            <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
+              {[
+                { value: "all", label: "All" },
+                { value: "error", label: "Errors" },
+                { value: "warn", label: "Warnings" },
+                { value: "ingest", label: "Ingest" },
+                { value: "image", label: "Images" },
+                { value: "thumbnail", label: "Thumbnails" },
+                { value: "summary", label: "Summaries" },
+              ].map((option) => (
+                <Chip
+                  key={option.value}
+                  label={option.label}
+                  size="small"
+                  color={logFilter === option.value ? "primary" : "default"}
+                  variant={logFilter === option.value ? "filled" : "outlined"}
+                  onClick={() => setLogFilter(option.value)}
+                />
+              ))}
+            </Box>
+            {filteredLogs.length > 0 ? (
+              <Box
+                sx={{
+                  maxHeight: 300,
+                  overflowY: "auto",
+                  backgroundColor: "grey.50",
+                  borderRadius: 1,
+                  p: 1,
+                }}
+              >
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell sx={{ fontWeight: "bold", width: "180px" }}>Time</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", width: "80px" }}>Level</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", width: "100px" }}>Category</TableCell>
+                      <TableCell sx={{ fontWeight: "bold" }}>Message</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {filteredLogs.map((entry: LogEntry) => (
+                      <TableRow key={entry.id}>
+                        <TableCell sx={{ fontFamily: "monospace", fontSize: "0.75rem" }}>
+                          {new Date(entry.timestamp).toLocaleTimeString()}
+                        </TableCell>
+                        <TableCell>
+                          <Chip
+                            label={entry.level}
+                            size="small"
+                            color={entry.level === "error" ? "error" : "warning"}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <Typography variant="caption" sx={{ fontFamily: "monospace" }}>
+                            {entry.category}
+                          </Typography>
+                        </TableCell>
+                        <TableCell>
+                          <Typography
+                            variant="body2"
+                            sx={{ fontFamily: "monospace", fontSize: "0.75rem", wordBreak: "break-word" }}
+                          >
+                            {entry.message}
+                            {entry.meta && Object.keys(entry.meta).length > 0
+                              ? ` ${JSON.stringify(entry.meta)}`
+                              : ""}
+                          </Typography>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </Box>
+            ) : (
+              <Box
+                sx={{
+                  p: 3,
+                  backgroundColor: "grey.100",
+                  borderRadius: 1,
+                  textAlign: "center",
+                }}
+              >
+                <Typography variant="body1" color="text.secondary">
+                  No log entries{logFilter === "all" ? "" : " for this filter"}.
+                </Typography>
+              </Box>
+            )}
           </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
