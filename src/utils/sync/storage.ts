@@ -209,6 +209,13 @@ function initRemote() {
     // articles (e.g. from the bookmarklet flow) whose uploads haven't reached the server yet.
     let hasTriggeredInitialReconcile = false;
 
+    // Providers already reported to telemetry this app load. RS re-emits
+    // "connected" for an already-connected backend during startup (and can emit
+    // it more than once), so without this a single app load would log several
+    // sync-connect events and inflate the backend totals. One event per
+    // provider per page load; a different provider connecting later still counts.
+    const trackedSyncProviders = new Set<string>();
+
     // Apply a single reconciler Op (progress is tracked by the caller).
     async function applyOp(op: Op): Promise<void> {
       if (op.type === "fetch") {
@@ -335,7 +342,11 @@ function initRemote() {
       console.info(`🟢 remoteStorage connected to "${remoteStorage.remote.userAddress}"`);
       // Anonymous telemetry: record which provider type connected, never the
       // account address. `backend` is "dropbox" | "googledrive" | "remotestorage".
-      trackSyncConnect((remoteStorage as unknown as { backend?: string }).backend || "unknown");
+      const provider = (remoteStorage as unknown as { backend?: string }).backend || "unknown";
+      if (!trackedSyncProviders.has(provider)) {
+        trackedSyncProviders.add(provider);
+        trackSyncConnect(provider);
+      }
       hasTriggeredInitialReconcile = false;
       // Reconcile is intentionally NOT triggered here. Running it immediately on "connected"
       // is unsafe: RS's local listing cache hasn't been refreshed from the server yet, so
