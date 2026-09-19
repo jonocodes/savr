@@ -26,6 +26,7 @@ This is everything Savr ever sends:
 | `pwa-install-dismissed` | The user dismisses the PWA install prompt (Chromium only) |
 | `sync-connect-dropbox` | Cloud sync is connected to Dropbox |
 | `sync-connect-googledrive` | Cloud sync is connected to Google Drive |
+| `sync-connect-remotestorage` | Cloud sync is connected to a remoteStorage provider (user@host account) |
 
 ## What is never collected
 
