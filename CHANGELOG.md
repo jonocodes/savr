@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-19
+
+- Added an app-level event log (IndexedDB, last 500 entries) that records failed article downloads, image/thumbnail download failures, and summarization failures
+- The log is viewable, filterable, and copyable from the Diagnostics screen — useful on mobile where the browser console isn't available
+
 ## 2026-09-09
 
 - Site-specific bookmarklets: a bookmarklet can now extract content itself and hand it to Savr as raw content (`savr-raw` postMessage), bypassing Readability — for dynamic pages that a static fetch can't see (#63)

@@ -78,6 +78,7 @@ import { recordReadingSession, useReadingWpm } from "../utils/readingSpeed";
 import { formatReadTime } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
+import { recordLog, errorMessage } from "~/utils/logging";
 import {
   summarizeText,
   buildSummarySettings,
@@ -297,6 +298,12 @@ export default function ArticleScreen(_props: Props) {
       enqueueSnackbar(successMessage);
     } catch (error) {
       console.error("Summarization failed:", error);
+      recordLog("error", "summary", "Manual summarization failed", {
+        slug: article.slug,
+        provider,
+        model,
+        error: errorMessage(error),
+      });
       const detail = error instanceof Error ? error.message : "Unknown error";
       enqueueSnackbar(`Failed to generate summary: ${detail}`, { variant: "error" });
     } finally {

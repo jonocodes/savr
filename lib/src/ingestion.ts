@@ -28,6 +28,7 @@ import {
   getApiKeyForProvider,
 } from "~/utils/cookies";
 import { convertToHtml, detectContentType } from "./contentType";
+import { recordLog, errorMessage } from "~/utils/logging";
 
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
@@ -259,6 +260,10 @@ async function downloadAndResizeImages(
       }
     } catch (e) {
       console.error("THUMB error downloading and saving image", e);
+      recordLog("warn", "image", `Failed to download image: ${url}`, {
+        slug: article.slug,
+        error: errorMessage(e),
+      });
     }
   }
 
@@ -762,6 +767,11 @@ async function persistArticle(
       }
     } catch (error) {
       console.error("Failed to generate summary during ingestion:", error);
+      recordLog("error", "summary", "Failed to generate summary during ingestion", {
+        slug: article.slug,
+        provider,
+        error: errorMessage(error),
+      });
       sendMessageWithLog(null, "summary generation skipped (API error)");
     }
   }
@@ -1021,15 +1031,26 @@ export async function ingestUrl(
   sendMessage(10, "fetching article");
 
   // TODO: create error if fetch times out. this happens if you are offline
-  const response = await fetchWithTimeout(url);
-
-  if (!response.ok) {
-    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+  let response: Response;
+  try {
+    response = await fetchWithTimeout(url);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+  } catch (error) {
+    // The article never got far enough to have a slug, so the per-article
+    // fetch.log cannot capture this — record it in the app log instead.
+    recordLog("error", "ingest", `Failed to download article`, {
+      url,
+      error: errorMessage(error),
+    });
+    throw error;
   }
 
   const contentTypeHeader = response.headers.get("content-type");
 
   if (!contentTypeHeader) {
+    recordLog("error", "ingest", `Failed to determine content type`, { url });
     throw new Error("cant determine content type");
   }
 
@@ -1087,6 +1108,10 @@ export async function ingestUrl(
     article.mimeType = mimeType;
   } catch (error) {
     console.error(error);
+    recordLog("error", "ingest", `Failed to process article`, {
+      url,
+      error: errorMessage(error),
+    });
     // Preserve the original error so the UI can show an actionable message
     // (unsupported content type vs. proxy down vs. parse failure, etc.)
     throw error instanceof Error ? error : new Error(String(error));

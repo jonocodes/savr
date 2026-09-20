@@ -7,6 +7,7 @@ import { getCorsProxyFromCookie, setCorsProxyInCookie } from "../cookies";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib";
 import { resizeImage } from "../../../lib/src/ingestion";
 import { markDirty } from "./publicExport";
+import { recordLog, errorMessage } from "../logging";
 
 // Cookie-based CORS proxy functions
 export const getCorsProxyValue = (): string => {
@@ -160,6 +161,10 @@ export async function loadThumbnail(slug: string): Promise<string> {
     }
   } catch (error) {
     console.warn(`Failed to load thumbnail for ${slug}:`, error);
+    recordLog("warn", "thumbnail", `Failed to load thumbnail for ${slug}`, {
+      slug,
+      error: errorMessage(error),
+    });
   }
 
   // Fallback to static image

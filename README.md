@@ -320,6 +320,10 @@ You can learn more about CORS on [Wikipedia](https://en.wikipedia.org/wiki/Cross
 
 If you need to setup a simple free CORS proxy, [follow these instructions](https://gist.github.com/DankTechnologies/8dd399de6a588085eea26517048b7366).
 
+## How do I find out why an article failed to save?
+
+Savr keeps an on-device app log of failures — article downloads, image and thumbnail downloads, and summarization errors. Open **Preferences → Diagnostics** to see the most recent 500 entries, filter them, and copy them as text. The log never leaves your device, and it is handy on a phone where there's no JavaScript console to check.
+
 ## What is a PWA
 
 A PWA (Progressive Web App) is a web application that can be installed on your device like a native app. PWAs work offline, can send notifications, and provide an app-like experience while running in your browser. You can "install" them from your browser's menu, and they'll appear in your app launcher alongside other apps.
