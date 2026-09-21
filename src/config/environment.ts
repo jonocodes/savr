@@ -1,3 +1,5 @@
+import packageJson from "../../package.json";
+
 // Environment configuration for different deployment modes
 export interface EnvironmentConfig {
   isDebugMode: boolean;
@@ -14,6 +16,12 @@ export interface EnvironmentConfig {
     goatCounterUrl: string;
     // The GoatCounter tracker script. Overridable but rarely needs changing.
     scriptUrl: string;
+  };
+  failureReport: {
+    // Public GitHub repo ("owner/name") that "File on GitHub" reports target.
+    // When empty (the default) the failure-report dialog is disabled entirely,
+    // so self-hosted builds get no dialog — same gating as telemetry.
+    repo: string;
   };
 }
 
@@ -59,9 +67,17 @@ export const environmentConfig: EnvironmentConfig = {
     goatCounterUrl: getEnvVar("VITE_GOATCOUNTER_URL", "") || "",
     scriptUrl: getEnvVar("VITE_GOATCOUNTER_SCRIPT", "https://gc.zgo.at/count.js") || "",
   },
+  failureReport: {
+    // Default empty => the failure-report dialog never renders.
+    repo: getEnvVar("VITE_FAILURE_REPORT_REPO", "") || "",
+  },
 };
 
 export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
+
+// App version, kept in lockstep with package.json. Included in failure reports
+// so filed issues say which build produced the failure.
+export const APP_VERSION: string = packageJson.version;
 
 // Helper functions
 export const isDebugMode = () => environmentConfig.isDebugMode;
@@ -73,3 +89,7 @@ export const shouldShowWelcome = () => environmentConfig.showWelcome;
 export const getGoatCounterUrl = () => environmentConfig.telemetry.goatCounterUrl;
 export const getGoatCounterScriptUrl = () => environmentConfig.telemetry.scriptUrl;
 export const isTelemetryConfigured = () => environmentConfig.telemetry.goatCounterUrl !== "";
+
+// The failure-report dialog is "configured" only when a public GitHub repo has
+// been provided at build time (see utils/failureReport.ts).
+export const getFailureReportRepo = () => environmentConfig.failureReport.repo;

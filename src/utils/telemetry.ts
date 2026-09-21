@@ -23,6 +23,7 @@ import {
   isTelemetryConfigured,
 } from "~/config/environment";
 import { getTelemetryEnabledFromCookie } from "~/utils/cookies";
+import { isStandalonePwa } from "~/utils/pwa";
 
 interface GoatCounterCount {
   path: string;
@@ -135,25 +136,13 @@ export function track(name: string, title?: string): void {
   }
 }
 
-// Running as an installed PWA? Covers Chromium/Android/desktop (display-mode)
-// and iOS Safari (navigator.standalone) — the only reliable cross-platform
-// install signal, since iOS never fires beforeinstallprompt/appinstalled.
-function isStandalone(): boolean {
-  if (typeof window === "undefined") return false;
-  const iosStandalone = (window.navigator as Navigator & { standalone?: boolean }).standalone;
-  return (
-    window.matchMedia?.("(display-mode: standalone)").matches === true ||
-    iosStandalone === true
-  );
-}
-
 // --- Event helpers -------------------------------------------------------
 
 /** Reach + geography, fired once per app load. Adds a standalone marker so we
  *  can compute the installed-vs-browser ratio. */
 export function trackAppOpen(): void {
   track("app-open", "App open");
-  if (isStandalone()) track("app-standalone", "App open (installed PWA)");
+  if (isStandalonePwa()) track("app-standalone", "App open (installed PWA)");
 }
 
 /** A successful capture, tagged by source: url | bookmarklet | paste | file. */

@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-09-20
+
+- Failed article loads now offer a "Report this failed article?" dialog: review (and edit) the diagnostic JSON, then open a prefilled public GitHub issue under your own account (#71)
+- Savr makes no network request for reports — the GitHub link is the only submission path; the dialog is gated by build-time `VITE_FAILURE_REPORT_REPO`, so self-hosted builds are unchanged
+- Reports are trimmed to stay within URL limits (error detail and user agent are shortened first, then dropped)
+
 ## 2026-09-19
 
 - Added an app-level event log (IndexedDB, last 500 entries) that records failed article downloads, image/thumbnail download failures, and summarization failures

@@ -107,6 +107,9 @@ export default defineConfig({
       ...process.env,
       FLOX_DISABLE_METRICS: "true",
       VITE_CORS_PROXY: "", // Disable CORS proxy for tests to allow direct localhost fetches
+      // Enable the failure-report dialog so tests can exercise it. Points at a
+      // placeholder repo; the popup is stubbed, so nothing is ever filed.
+      VITE_FAILURE_REPORT_REPO: "jonocodes/savr-failure-reports",
     },
   },
 });

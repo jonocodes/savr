@@ -57,6 +57,9 @@ import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
 import { AFTER_EXTERNAL_SAVE_ACTIONS, AfterExternalSaveAction } from "~/utils/cookies";
 import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
+import { useFailureReport } from "~/hooks/useFailureReport";
+import { errorMessage } from "~/utils/logging";
+import FailureReportDialog from "./FailureReportDialog";
 
 import { keyframes } from "@mui/system";
 
@@ -376,6 +379,7 @@ export default function ArticleListScreen() {
   const { enqueueSnackbar } = useSnackbar();
   useSyncStatus();
   const syncProgress = useSyncProgress();
+  const { pendingFailureReport, reportFailure, dismissFailureReport } = useFailureReport();
 
   // Track if we've shown the initial load message
   const hasShownInitialLoad = useRef(false);
@@ -692,16 +696,20 @@ export default function ArticleListScreen() {
       // TODO: pass in headers/cookies for downloading
 
       // Wait until URL is not empty
-      if (!url.trim()) {
+      const targetUrl = url.trim();
+      if (!targetUrl) {
         return;
       }
 
       setIngestStatus("Ingesting...");
+      // Only a failed download is reportable; a later local-save failure is not
+      // an article-load problem and must not be filed as one.
+      let ingestSucceeded = false;
       try {
         const article = await ingestUrl(
           client,
           // corsProxy,
-          url,
+          targetUrl,
           (percent: number | null, message: string | null) => {
             if (percent !== null) {
               setIngestStatus(message);
@@ -709,6 +717,7 @@ export default function ArticleListScreen() {
             }
           },
         );
+        ingestSucceeded = true;
 
         console.log("About to save article to IndexedDB:", article);
         await db.articles.put(article);
@@ -750,8 +759,10 @@ export default function ArticleListScreen() {
       } catch (error) {
         console.error(error);
         trackCaptureFailed();
-        const detail = error instanceof Error ? error.message : String(error);
-        enqueueSnackbar(`Error saving article: ${detail}`, { variant: "error" });
+        enqueueSnackbar(`Error saving article: ${errorMessage(error)}`, { variant: "error" });
+        if (!ingestSucceeded) {
+          reportFailure(targetUrl, error, "Failed to download article");
+        }
         setIngestStatus(null);
         setIngestPercent(0);
         setDialogVisible(false);
@@ -768,6 +779,7 @@ export default function ArticleListScreen() {
       enqueueSnackbar,
       navigate,
       waitForSyncThenClose,
+      reportFailure,
     ],
   );
 
@@ -1145,6 +1157,11 @@ export default function ArticleListScreen() {
           </div>
         </DialogActions>
       </Dialog>
+
+      {/* Failure report offer (only rendered on a failed URL capture) */}
+      {pendingFailureReport && (
+        <FailureReportDialog payload={pendingFailureReport} onClose={dismissFailureReport} />
+      )}
 
       {/* Floating Action Button */}
       {/* <Fab

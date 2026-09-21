@@ -32,6 +32,12 @@ This is everything Savr ever sends:
 
 Article URLs, titles, or content; your cloud account address or any identity; API keys; or anything that could identify you or what you read. Sync events record the provider **type** only, never the account.
 
+## Reporting a failed article
+
+Separately from telemetry, Savr can offer to file a **public GitHub issue** when an article fails to load. It is strictly user-initiated: only if the build was configured with `VITE_FAILURE_REPORT_REPO` (unset for self-hosted builds) does an error dialog offer **File on GitHub**. You can dismiss it, and you review and edit the diagnostic payload before anything is sent.
+
+If you choose to file, the browser opens GitHub's prefilled new-issue form **under your own GitHub account** — the issue is public and Savr itself never makes a network request for this. The payload contains the failed URL, the error message, the app version/build and PWA-vs-browser mode, and your browser's user agent. It never includes article content, your reading data, or any account credentials.
+
 ## Opting out
 
 It is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Global Privacy Control](https://globalprivacycontrol.org/) signal — in that case the preference is shown disabled, since Savr is already honoring your browser.

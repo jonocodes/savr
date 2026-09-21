@@ -28,6 +28,7 @@ Savr is:
 - Light, dark, and system themes
 - Toggle between a cleaned reader view and the original page
 - Save content by pasting HTML, Markdown, or plain text, or by uploading PDFs and images
+- Report a failed save by filing a prefilled public GitHub issue, with an editable diagnostic payload (hosted builds; off when self-hosting)
 - Publish a read-only public copy of your collection
 - Open source, cross platform (mobile and desktop/web)
 - Use the free hosted version, or self host it
@@ -323,6 +324,8 @@ If you need to setup a simple free CORS proxy, [follow these instructions](https
 ## How do I find out why an article failed to save?
 
 Savr keeps an on-device app log of failures — article downloads, image and thumbnail downloads, and summarization errors. Open **Preferences → Diagnostics** to see the most recent 500 entries, filter them, and copy them as text. The log never leaves your device, and it is handy on a phone where there's no JavaScript console to check.
+
+On the hosted app, a failed article save also offers to file a public GitHub issue: Savr shows the diagnostic payload it would send, lets you edit it, and then opens a prefilled new-issue form under your own GitHub account. Nothing is sent unless you press **File on GitHub**, and self-hosted builds don't show the offer at all (see [docs/TELEMETRY.md](docs/TELEMETRY.md) and [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)).
 
 ## What is a PWA
 
