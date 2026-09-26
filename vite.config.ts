@@ -5,6 +5,7 @@ import { transform as esbuildTransform } from "esbuild";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
+import packageJson from "./package.json";
 
 // Minifies a bookmarklet source file at build time so the bookmarklet exists
 // once on disk (the unminified file) and the prefs page can import the
@@ -71,6 +72,7 @@ export default defineConfig(() => {
     },
     define: {
       __DEV__: true,
+      __APP_VERSION__: JSON.stringify(packageJson.version),
     },
     plugins: [
       bookmarkletPlugin,

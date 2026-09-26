@@ -237,6 +237,8 @@ This also make it such that there is no login or account creation to use Savr. I
 
 The hosted app at `savr.link` collects a small amount of **anonymous** usage data — just enough to gauge how many people use Savr and roughly where they are. It only ever records **that** something happened (for example, that an article was saved), never **what** — your article URLs, titles, and content are never sent, and there is no account or identity involved. It's on by default, turned off with one switch in **Preferences → Privacy**, and off entirely for self-hosted builds.
 
+Separately, when an article fails to load Savr can offer to file a bug report. That is user-initiated and public: it opens a prefilled GitHub issue under your own account, with the article URL and diagnostic details shown — and editable — before you submit. Savr sends nothing on its own.
+
 For the full details — including the exact list of every event, how to opt out, and self-hosting options — see [docs/TELEMETRY.md](docs/TELEMETRY.md).
 
 # Offline Use

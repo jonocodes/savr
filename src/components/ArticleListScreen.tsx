@@ -50,7 +50,16 @@ import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";
 import { Article } from "../../lib/src/models";
 import { useSnackbar } from "notistack";
-import { isDebugMode } from "~/config/environment";
+import {
+  BUILD_TIMESTAMP,
+  getAppVersion,
+  getFailureReportRepo,
+  isDebugMode,
+  isFailureReportConfigured,
+} from "~/config/environment";
+import { buildFailureReportPayload, type FailureReportPayload } from "~/utils/reporting/failureReport";
+import FailureReportDialog from "./FailureReportDialog";
+import { isPWAMode } from "~/utils/net/network";
 import { generateInfoForCard, formatReadTime, getFilePathContent, getFilePathPdf, getFilePathImage, mimeToExt } from "../../lib/src/lib";
 import { useReadingWpm, bootstrapReadingSpeedIfUnseeded } from "../utils/readingSpeed";
 import { getAfterExternalSaveFromCookie } from "~/utils/cookies";
@@ -371,6 +380,7 @@ export default function ArticleListScreen() {
   const [url, setUrl] = useState<string>("");
   const [ingestPercent, setIngestPercent] = useState<number>(0);
   const [ingestStatus, setIngestStatus] = useState<string | null>(null);
+  const [failureReport, setFailureReport] = useState<FailureReportPayload | null>(null);
 
   const { client, remoteStorage } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
@@ -756,6 +766,20 @@ export default function ArticleListScreen() {
         setIngestPercent(0);
         setDialogVisible(false);
         setUrl("");
+        if (isFailureReportConfigured()) {
+          setFailureReport(
+            buildFailureReportPayload({
+              url,
+              error: { category: "ingest", message: "Failed to load article", detail },
+              app: {
+                version: getAppVersion(),
+                buildTimestamp: BUILD_TIMESTAMP,
+                mode: isPWAMode() ? "pwa" : "browser",
+              },
+              userAgent: navigator.userAgent,
+            })
+          );
+        }
       }
     },
     [
@@ -1145,6 +1169,15 @@ export default function ArticleListScreen() {
           </div>
         </DialogActions>
       </Dialog>
+
+      {isFailureReportConfigured() && (
+        <FailureReportDialog
+          open={failureReport !== null}
+          onClose={() => setFailureReport(null)}
+          payload={failureReport}
+          repo={getFailureReportRepo()}
+        />
+      )}
 
       {/* Floating Action Button */}
       {/* <Fab

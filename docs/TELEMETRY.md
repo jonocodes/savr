@@ -28,6 +28,14 @@ This is everything Savr ever sends:
 | `sync-connect-googledrive` | Cloud sync is connected to Google Drive |
 | `sync-connect-remotestorage` | Cloud sync is connected to a remoteStorage provider (user@host account) |
 
+## Failure reports are not telemetry
+
+When an article fails to load, Savr may offer a **"Report this failed article?"** dialog. Nothing is sent automatically. There are no anonymous metrics in this flow and no GoatCounter event.
+
+If you choose **File on GitHub**, your browser opens a prefilled issue on the public reports repository under **your own GitHub account**. It contains the article URL and the diagnostic details (error, app version, browser) shown in the dialog, which you can edit or delete before submitting. Savr itself makes no network request — it only builds the link.
+
+This is off for self-hosted builds unless `VITE_FAILURE_REPORT_REPO` points at their own reports repo.
+
 ## What is never collected
 
 Article URLs, titles, or content; your cloud account address or any identity; API keys; or anything that could identify you or what you read. Sync events record the provider **type** only, never the account.

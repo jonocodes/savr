@@ -123,6 +123,7 @@ rm -f tests/e2e/.test-env.json
 | `bulk-delete.spec.ts` | Delete All wipes Dexie and RemoteStorage cache | Active |
 | `widget-visibility.spec.ts` | RemoteStorage widget shown/hidden per page and sync setting | Active |
 | `text-to-speech.spec.ts` | TTS toolbar, drawer controls, speed/voice | Voice availability depends on headless env |
+| `failure-report.spec.ts` | Report dialog after a failed save: copy, dismiss, edited payload, GitHub link | Requires `VITE_FAILURE_REPORT_REPO` in the test web server env |
 
 ### Playwright Configuration
 

@@ -40,6 +40,12 @@ This document describes the environment variables used by Savr.
 - **Description**: Build timestamp for versioning
 - **Usage**: Automatically set during build process
 
+### `VITE_FAILURE_REPORT_REPO`
+
+- **Default**: empty (feature disabled)
+- **Description**: GitHub repo (`owner/name`) that the "Report this failed article?" dialog files prefilled public issues against. When empty, the dialog and report affordance do not appear — self-hosted builds stay opted out unless they point this at their own reports repo.
+- **Usage**: `VITE_FAILURE_REPORT_REPO=yourname/your-reports-repo npm run build`
+
 ## Pre-configured Scripts
 
 The following npm scripts are pre-configured with specific environment variables:

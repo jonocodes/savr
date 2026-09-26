@@ -1,11 +1,20 @@
+declare const __APP_VERSION__: string;
+
 // Environment configuration for different deployment modes
 export interface EnvironmentConfig {
   isDebugMode: boolean;
   defaultCorsProxy: string;
   showWelcome: boolean;
+  appVersion: string;
   apiKeys: {
     googleDrive?: string;
     dropbox?: string;
+  };
+  failureReport: {
+    // GitHub repo ("owner/name") that report dialogs file issues against.
+    // Empty by default: self-hosted builds (and dev) show no report UI unless
+    // they point this at their own repo.
+    repo: string;
   };
   telemetry: {
     // GoatCounter "count" endpoint, e.g. "https://savr.goatcounter.com/count".
@@ -47,12 +56,16 @@ export const environmentConfig: EnvironmentConfig = {
     const welcomeValue = getEnvVar("VITE_SHOW_WELCOME", "false") || "false";
     return welcomeValue.toLowerCase() === "true" || welcomeValue === "1";
   })(),
+  appVersion: typeof __APP_VERSION__ === "undefined" ? "0.0.0" : __APP_VERSION__,
   apiKeys: {
     googleDrive: getEnvVar(
       "VITE_GOOGLE_DRIVE_API_KEY",
       "165908882916-eg939u0ptdpbusn6pn63he9ntlspffmn.apps.googleusercontent.com",
     ),
     dropbox: getEnvVar("VITE_DROPBOX_API_KEY", "c53glfgceos23cj"),
+  },
+  failureReport: {
+    repo: getEnvVar("VITE_FAILURE_REPORT_REPO", "") || "",
   },
   telemetry: {
     // Default empty => telemetry off (self-host builds collect nothing).
@@ -67,6 +80,12 @@ export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(
 export const isDebugMode = () => environmentConfig.isDebugMode;
 export const getDefaultCorsProxy = () => environmentConfig.defaultCorsProxy;
 export const shouldShowWelcome = () => environmentConfig.showWelcome;
+export const getAppVersion = () => environmentConfig.appVersion;
+
+// Failure reports ("file a bug report" on a failed article) are enabled only
+// when a reports repo is provided at build time, so self-hosters opt in.
+export const getFailureReportRepo = () => environmentConfig.failureReport.repo;
+export const isFailureReportConfigured = () => environmentConfig.failureReport.repo !== "";
 
 // Telemetry is "configured" only when a GoatCounter endpoint has been provided
 // at build time. Self-host builds leave it empty, so nothing is ever collected.

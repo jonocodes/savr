@@ -54,6 +54,9 @@ export default defineConfig({
         connectOptions,
         // Launch args for headless containerized environments
         launchOptions: {
+          // Allow pointing Playwright at a system chromium (e.g. NixOS, where
+          // the bundled revision may not match what is installed).
+          executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE || undefined,
           args: [
             "--no-sandbox",
             "--disable-setuid-sandbox",
@@ -107,6 +110,7 @@ export default defineConfig({
       ...process.env,
       FLOX_DISABLE_METRICS: "true",
       VITE_CORS_PROXY: "", // Disable CORS proxy for tests to allow direct localhost fetches
+      VITE_FAILURE_REPORT_REPO: "jonocodes/savr-failure-reports",
     },
   },
 });

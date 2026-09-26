@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-09-25
+
+- Added a "Report this failed article?" dialog after a URL capture fails: it shows the exact payload (article URL, error, app version, browser) in an editable accordion and files a prefilled public GitHub issue under your account (#71)
+- The report path is user-initiated and public — Savr makes no network request itself, and the dialog is hidden unless `VITE_FAILURE_REPORT_REPO` is configured at build time (#71)
+
 ## 2026-09-19
 
 - Added an app-level event log (IndexedDB, last 500 entries) that records failed article downloads, image/thumbnail download failures, and summarization failures
