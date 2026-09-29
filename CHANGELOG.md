@@ -6,6 +6,7 @@
 - Savr makes no network request for reports — the GitHub link is the only submission path; the dialog is gated by build-time `VITE_FAILURE_REPORT_REPO`, so self-hosted builds are unchanged
 - Reports are trimmed to stay within URL limits (error detail and user agent are shortened first, then dropped)
 - Hand-typed URLs without a scheme (e.g. `example.com/article`) are now normalized to `https://…`, matching how people type addresses and keeping failure-report payloads valid (#71)
+- Failure reports request the `failed-url` label on the filed issue (applied when the reporter has permission on the target repo)
 
 ## 2026-09-19
 

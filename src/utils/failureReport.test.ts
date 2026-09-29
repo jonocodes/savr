@@ -116,6 +116,7 @@ describe("buildIssueUrl", () => {
     const params = new URL(url).searchParams;
     expect(params.get("title")).toBe("[report] example.com — Failed to download article");
     expect(params.get("body")).toBe(buildIssueBody(samplePayload));
+    expect(params.get("labels")).toBe("failed-url");
   });
 
   it("round-trips title and body text containing URL-hostile characters", () => {

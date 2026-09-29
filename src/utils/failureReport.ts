@@ -180,10 +180,15 @@ function trimCandidates(payload: FailureReportPayload): FailureReportPayload[] {
   return candidates;
 }
 
+// Applied to filed issues when the reporter has permission to set labels;
+// ignored otherwise. Created in the repo the reports target.
+export const FAILURE_REPORT_LABEL = "failed-url";
+
 function issueUrlFor(repo: string, payload: FailureReportPayload): string {
   const title = encodeURIComponent(buildIssueTitle(payload));
   const body = encodeURIComponent(buildIssueBody(payload));
-  return `https://github.com/${repo}/issues/new?title=${title}&body=${body}`;
+  const labels = encodeURIComponent(FAILURE_REPORT_LABEL);
+  return `https://github.com/${repo}/issues/new?title=${title}&body=${body}&labels=${labels}`;
 }
 
 /**

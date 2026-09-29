@@ -37,7 +37,7 @@ This document describes the environment variables used by Savr.
 ### `VITE_FAILURE_REPORT_REPO`
 
 - **Default**: `undefined` (disabled)
-- **Description**: Public GitHub repo (`owner/name`) that failure reports target. When set, a failed article load offers a dialog with an editable diagnostic payload and a **File on GitHub** button that opens a prefilled new-issue form under the user's own account. When unset, the dialog and the whole path are absent — self-hosted builds are unaffected. Savr itself makes no network request for this feature.
+- **Description**: Public GitHub repo (`owner/name`) that failure reports target. When set, a failed article load offers a dialog with an editable diagnostic payload and a **File on GitHub** button that opens a prefilled new-issue form under the user's own account, requesting the `failed-url` label. When unset, the dialog and the whole path are absent — self-hosted builds are unaffected. Savr itself makes no network request for this feature.
 - **Usage**: `VITE_FAILURE_REPORT_REPO=jonocodes/savr-failure-reports npm run build`
 
 ### `VITE_BUILD_TIMESTAMP`

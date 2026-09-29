@@ -38,6 +38,8 @@ Separately from telemetry, Savr can offer to file a **public GitHub issue** when
 
 If you choose to file, the browser opens GitHub's prefilled new-issue form **under your own GitHub account** — the issue is public and Savr itself never makes a network request for this. The payload contains the failed URL, the error message, the app version/build and PWA-vs-browser mode, and your browser's user agent. It never includes article content, your reading data, or any account credentials.
 
+Filing also asks GitHub to apply the `failed-url` label. GitHub only applies labels for reporters who have permission on the target repo, so reports from outside contributors usually arrive labelled only by the `[report]` title prefix.
+
 ## Opting out
 
 It is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Global Privacy Control](https://globalprivacycontrol.org/) signal — in that case the preference is shown disabled, since Savr is already honoring your browser.
