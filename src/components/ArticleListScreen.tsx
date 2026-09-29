@@ -59,6 +59,7 @@ import { shouldShowWelcome } from "../config/environment";
 import { useSyncProgress } from "~/hooks/useSyncProgress";
 import { useFailureReport } from "~/hooks/useFailureReport";
 import { errorMessage } from "~/utils/logging";
+import { normalizeUrl } from "~/utils/net/url";
 import FailureReportDialog from "./FailureReportDialog";
 
 import { keyframes } from "@mui/system";
@@ -695,8 +696,8 @@ export default function ArticleListScreen() {
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
       // TODO: pass in headers/cookies for downloading
 
-      // Wait until URL is not empty
-      const targetUrl = url.trim();
+      // Wait until URL is not empty; accept schemeless input like "example.com/x".
+      const targetUrl = normalizeUrl(url);
       if (!targetUrl) {
         return;
       }

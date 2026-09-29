@@ -80,6 +80,7 @@ import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import { recordLog, errorMessage } from "~/utils/logging";
 import { useFailureReport } from "~/hooks/useFailureReport";
+import { normalizeUrl } from "~/utils/net/url";
 import FailureReportDialog from "./FailureReportDialog";
 import {
   summarizeText,
@@ -383,7 +384,7 @@ export default function ArticleScreen(_props: Props) {
       return;
     }
 
-    const targetUrl = article.url;
+    const targetUrl = normalizeUrl(article.url);
 
     closeMenu();
     setRefetchDrawerOpen(true);

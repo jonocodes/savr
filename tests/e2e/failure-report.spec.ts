@@ -62,6 +62,24 @@ test.describe("Failure report dialog", () => {
     expect(params.get("body")).toContain(edited.url);
   });
 
+  test("normalizes a schemeless URL so the report can be filed", async ({ page }) => {
+    await page.locator('button[aria-label*="add" i]').first().click();
+    const addDialog = page.getByRole("dialog", { name: "Add Article" });
+    await expect(addDialog).toBeVisible();
+    // Drop the scheme, as a person typing a URL by hand would.
+    const schemeless = `${getContentServerUrl().replace(/^https?:\/\//, "")}/missing-article.html`;
+    await addDialog.getByLabel("URL").fill(schemeless);
+    await addDialog.getByRole("button", { name: "Save" }).click();
+
+    const reportDialog = page.getByTestId("failure-report-dialog");
+    await expect(reportDialog).toBeVisible({ timeout: 15000 });
+    await reportDialog.getByText("What gets shared").click();
+    await expect(reportDialog.getByTestId("failure-report-file")).toBeEnabled();
+    await expect(reportDialog.getByTestId("failure-report-payload")).toHaveValue(
+      new RegExp(`"url": "https://${schemeless.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`),
+    );
+  });
+
   test("keeps both actions reachable on a phone-sized screen", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
 

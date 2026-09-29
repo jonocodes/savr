@@ -77,7 +77,11 @@ export default function FailureReportDialog({ payload, onClose }: FailureReportD
                 value={text}
                 onChange={(event) => setText(event.target.value)}
                 error={parsed === null}
-                helperText={parsed === null ? "Report details must be valid JSON" : undefined}
+                helperText={
+                  parsed === null
+                    ? "Report details must be valid JSON with a full http(s) url"
+                    : undefined
+                }
                 inputProps={{ "data-testid": "failure-report-payload", spellCheck: false }}
                 sx={{ "& textarea": { fontFamily: "monospace", fontSize: 12 } }}
               />
