@@ -1,5 +1,3 @@
-import packageJson from "../../package.json";
-
 // Environment configuration for different deployment modes
 export interface EnvironmentConfig {
   isDebugMode: boolean;
@@ -74,10 +72,6 @@ export const environmentConfig: EnvironmentConfig = {
 };
 
 export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
-
-// App version, kept in lockstep with package.json. Included in failure reports
-// so filed issues say which build produced the failure.
-export const APP_VERSION: string = packageJson.version;
 
 // Helper functions
 export const isDebugMode = () => environmentConfig.isDebugMode;

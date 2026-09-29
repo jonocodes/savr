@@ -10,7 +10,6 @@ import {
 } from "./failureReport";
 
 jest.mock("~/config/environment", () => ({
-  APP_VERSION: "0.0.0-test",
   BUILD_TIMESTAMP: "1970-01-01T00:00:00.000Z",
   getFailureReportRepo: jest.fn(),
 }));
@@ -25,7 +24,6 @@ describe("buildFailureReportPayload", () => {
         detail: "HTTP 403",
       },
       {
-        version: "1.2.3",
         buildTimestamp: "2026-09-20T00:00:00.000Z",
         mode: "pwa",
         origin: "https://deploy-preview-73--savrlist.netlify.app",
@@ -42,7 +40,6 @@ describe("buildFailureReportPayload", () => {
         detail: "HTTP 403",
       },
       app: {
-        version: "1.2.3",
         buildTimestamp: "2026-09-20T00:00:00.000Z",
         mode: "pwa",
         origin: "https://deploy-preview-73--savrlist.netlify.app",
@@ -70,7 +67,6 @@ const samplePayload: FailureReportPayload = {
   url: "https://example.com/article",
   error: { category: "ingest", message: "Failed to download article", detail: "HTTP 403" },
   app: {
-    version: "1.2.3",
     buildTimestamp: "2026-09-20T00:00:00.000Z",
     mode: "browser",
     origin: "https://savr.link",
@@ -105,7 +101,6 @@ describe("buildIssueBody", () => {
       '    "detail": "HTTP 403"',
       "  },",
       '  "app": {',
-      '    "version": "1.2.3",',
       '    "buildTimestamp": "2026-09-20T00:00:00.000Z",',
       '    "mode": "browser",',
       '    "origin": "https://savr.link"',

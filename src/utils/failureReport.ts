@@ -6,11 +6,7 @@
 // Gated by VITE_FAILURE_REPORT_REPO at build time: unset (self-hosted builds,
 // local dev) means the dialog and this whole path are absent.
 
-import {
-  APP_VERSION,
-  BUILD_TIMESTAMP,
-  getFailureReportRepo,
-} from "~/config/environment";
+import { BUILD_TIMESTAMP, getFailureReportRepo } from "~/config/environment";
 import { isStandalonePwa } from "~/utils/pwa";
 
 /**
@@ -72,7 +68,6 @@ export interface FailureReportPayload {
   url: string;
   error: FailureReportError;
   app: {
-    version: string;
     buildTimestamp: string;
     mode: "pwa" | "browser";
     // The running instance, e.g. "https://savr.link" or a Netlify preview.
@@ -86,7 +81,6 @@ export interface FailureReportPayload {
 
 // Injectable environment so the builder is deterministic under test.
 export interface FailureReportContext {
-  version?: string;
   buildTimestamp?: string;
   userAgent?: string;
   mode?: "pwa" | "browser";
@@ -228,7 +222,6 @@ export function buildFailureReportPayload(
     url,
     error: error.detail ? { ...error } : { category: error.category, message: error.message },
     app: {
-      version: context.version ?? APP_VERSION,
       buildTimestamp: context.buildTimestamp ?? BUILD_TIMESTAMP,
       mode,
       origin,
