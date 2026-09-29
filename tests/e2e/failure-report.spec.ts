@@ -46,6 +46,7 @@ test.describe("Failure report dialog", () => {
     await expect(payloadInput).toHaveValue(/"url": "http/);
 
     const edited = JSON.parse(await payloadInput.inputValue());
+    expect(edited.app.origin).toBe(new URL(page.url()).origin);
     edited.error.message = "Edited by the reporter";
     await payloadInput.fill(JSON.stringify(edited, null, 2));
 

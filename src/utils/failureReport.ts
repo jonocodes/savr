@@ -75,6 +75,8 @@ export interface FailureReportPayload {
     version: string;
     buildTimestamp: string;
     mode: "pwa" | "browser";
+    // The running instance, e.g. "https://savr.link" or a Netlify preview.
+    origin: string;
   };
   browser: {
     userAgent: string;
@@ -88,15 +90,16 @@ export interface FailureReportContext {
   buildTimestamp?: string;
   userAgent?: string;
   mode?: "pwa" | "browser";
+  origin?: string;
   now?: Date;
 }
 
 /**
- * `[report] <hostname> — <message>`, e.g.
- * `[report] example.com — Failed to download article`.
+ * `[failed-url] <hostname> — <message>`, e.g.
+ * `[failed-url] example.com — Failed to download article`.
  */
 export function buildIssueTitle(payload: FailureReportPayload): string {
-  return `[report] ${hostOf(payload.url)} — ${payload.error.message}`;
+  return `[failed-url] ${hostOf(payload.url)} — ${payload.error.message}`;
 }
 
 function hostOf(url: string): string {
@@ -216,6 +219,9 @@ export function buildFailureReportPayload(
   const userAgent =
     context.userAgent ??
     (typeof navigator !== "undefined" ? navigator.userAgent : "");
+  const origin =
+    context.origin ??
+    (typeof window !== "undefined" ? window.location.origin : "");
 
   return {
     url,
@@ -224,6 +230,7 @@ export function buildFailureReportPayload(
       version: context.version ?? APP_VERSION,
       buildTimestamp: context.buildTimestamp ?? BUILD_TIMESTAMP,
       mode,
+      origin,
     },
     browser: { userAgent },
     reportedAt: (context.now ?? new Date()).toISOString(),

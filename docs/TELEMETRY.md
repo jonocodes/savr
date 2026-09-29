@@ -36,9 +36,9 @@ Article URLs, titles, or content; your cloud account address or any identity; AP
 
 Separately from telemetry, Savr can offer to file a **public GitHub issue** when an article fails to load. It is strictly user-initiated: only if the build was configured with `VITE_FAILURE_REPORT_REPO` (unset for self-hosted builds) does an error dialog offer **File on GitHub**. You can dismiss it, and you review and edit the diagnostic payload before anything is sent.
 
-If you choose to file, the browser opens GitHub's prefilled new-issue form **under your own GitHub account** — the issue is public and Savr itself never makes a network request for this. The payload contains the failed URL, the error message, the app version/build and PWA-vs-browser mode, and your browser's user agent. It never includes article content, your reading data, or any account credentials.
+If you choose to file, the browser opens GitHub's prefilled new-issue form **under your own GitHub account** — the issue is public and Savr itself never makes a network request for this. The payload contains the failed URL, the error message, the running instance's URL, the app version/build (the deploy time), PWA-vs-browser mode, and your browser's user agent. It never includes article content, your reading data, or any account credentials.
 
-Filing also asks GitHub to apply the `failed-url` label. GitHub only applies labels for reporters who have permission on the target repo, so reports from outside contributors usually arrive labelled only by the `[report]` title prefix.
+Filing also asks GitHub to apply the `failed-url` label. GitHub only applies labels for reporters who have permission on the target repo, so reports from outside contributors arrive labelled only by the `[failed-url]` title prefix.
 
 ## Opting out
 

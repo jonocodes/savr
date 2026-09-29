@@ -28,6 +28,7 @@ describe("buildFailureReportPayload", () => {
         version: "1.2.3",
         buildTimestamp: "2026-09-20T00:00:00.000Z",
         mode: "pwa",
+        origin: "https://deploy-preview-73--savrlist.netlify.app",
         userAgent: "Mozilla/5.0 (Test)",
         now: new Date("2026-09-20T12:34:56.000Z"),
       },
@@ -44,6 +45,7 @@ describe("buildFailureReportPayload", () => {
         version: "1.2.3",
         buildTimestamp: "2026-09-20T00:00:00.000Z",
         mode: "pwa",
+        origin: "https://deploy-preview-73--savrlist.netlify.app",
       },
       browser: { userAgent: "Mozilla/5.0 (Test)" },
       reportedAt: "2026-09-20T12:34:56.000Z",
@@ -67,7 +69,12 @@ describe("buildFailureReportPayload", () => {
 const samplePayload: FailureReportPayload = {
   url: "https://example.com/article",
   error: { category: "ingest", message: "Failed to download article", detail: "HTTP 403" },
-  app: { version: "1.2.3", buildTimestamp: "2026-09-20T00:00:00.000Z", mode: "browser" },
+  app: {
+    version: "1.2.3",
+    buildTimestamp: "2026-09-20T00:00:00.000Z",
+    mode: "browser",
+    origin: "https://savr.link",
+  },
   browser: { userAgent: "Mozilla/5.0 (Test)" },
   reportedAt: "2026-09-20T12:34:56.000Z",
 };
@@ -75,14 +82,14 @@ const samplePayload: FailureReportPayload = {
 describe("buildIssueTitle", () => {
   it("names the host and the failure message", () => {
     expect(buildIssueTitle(samplePayload)).toBe(
-      "[report] example.com — Failed to download article",
+      "[failed-url] example.com — Failed to download article",
     );
   });
 
   it("falls back to the raw url when it cannot be parsed", () => {
     const payload = { ...samplePayload, url: "not a url" };
     expect(buildIssueTitle(payload)).toBe(
-      "[report] not a url — Failed to download article",
+      "[failed-url] not a url — Failed to download article",
     );
   });
 });
@@ -98,7 +105,7 @@ describe("buildIssueBody", () => {
         '<summary>Diagnostic details</summary>\n' +
         '\n' +
         '```json\n' +
-        '{"url":"https://example.com/article","error":{"category":"ingest","message":"Failed to download article","detail":"HTTP 403"},"app":{"version":"1.2.3","buildTimestamp":"2026-09-20T00:00:00.000Z","mode":"browser"},"browser":{"userAgent":"Mozilla/5.0 (Test)"},"reportedAt":"2026-09-20T12:34:56.000Z"}\n' +
+        '{"url":"https://example.com/article","error":{"category":"ingest","message":"Failed to download article","detail":"HTTP 403"},"app":{"version":"1.2.3","buildTimestamp":"2026-09-20T00:00:00.000Z","mode":"browser","origin":"https://savr.link"},"browser":{"userAgent":"Mozilla/5.0 (Test)"},"reportedAt":"2026-09-20T12:34:56.000Z"}\n' +
         '```\n' +
         '\n' +
         '</details>',
@@ -114,7 +121,7 @@ describe("buildIssueUrl", () => {
       true,
     );
     const params = new URL(url).searchParams;
-    expect(params.get("title")).toBe("[report] example.com — Failed to download article");
+    expect(params.get("title")).toBe("[failed-url] example.com — Failed to download article");
     expect(params.get("body")).toBe(buildIssueBody(samplePayload));
     expect(params.get("labels")).toBe("failed-url");
   });
@@ -128,7 +135,7 @@ describe("buildIssueUrl", () => {
 
     const params = new URL(buildIssueUrl("owner/repo", payload)).searchParams;
     const body = params.get("body") ?? "";
-    expect(params.get("title")).toBe("[report] example.com — Failed to download article");
+    expect(params.get("title")).toBe("[failed-url] example.com — Failed to download article");
     expect(body).toContain("**URL:** https://example.com/a?b=1&c=2#frag");
     expect(JSON.parse(body.split("```json\n")[1].split("\n```")[0]).error.detail).toBe(
       "a & b # c\nnew line",
