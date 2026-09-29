@@ -1,5 +1,15 @@
 # Changelog
 
+## 2026-09-20
+
+- Failed article loads now offer a "Report this failed article?" dialog: review (and edit) the diagnostic JSON, then open a prefilled public GitHub issue under your own account (#71)
+- Savr makes no network request for reports — the GitHub link is the only submission path; the dialog is gated by build-time `VITE_FAILURE_REPORT_REPO`, so self-hosted builds are unchanged
+- Reports are trimmed to stay within URL limits (error detail and user agent are shortened first, then dropped)
+- Hand-typed URLs without a scheme (e.g. `example.com/article`) are now normalized to `https://…`, matching how people type addresses and keeping failure-report payloads valid (#71)
+- Failure reports use a `[failed-url]` title prefix and request the `failed-url` label on the filed issue (the label applies when the reporter has permission on the target repo)
+- Failure reports now record the running instance (`app.origin`), alongside the existing deploy timestamp (`app.buildTimestamp`) and PWA-vs-browser mode
+- The diagnostic payload is pretty-printed in the filed issue body instead of one long line (the URL builder still trims it to fit within URL limits)
+
 ## 2026-09-19
 
 - Added an app-level event log (IndexedDB, last 500 entries) that records failed article downloads, image/thumbnail download failures, and summarization failures

@@ -110,6 +110,7 @@ rm -f tests/e2e/.test-env.json
 | `smoke.spec.ts` | Basic page load verification (static HTML shell only) | Most CI-reliable; does not verify React boots |
 | `main-page.spec.ts` | Main page UI tests | Requires React hydration |
 | `add-article-dialog.spec.ts` | Add-article dialog interactions | Requires React hydration |
+| `failure-report.spec.ts` | Failed-capture report dialog: dismiss, prefilled GitHub issue, mobile reachability | Needs `VITE_FAILURE_REPORT_REPO` (set by the Playwright web-server env) |
 | `ingest-local-article.spec.ts` | Article ingestion via UI, incl. PDF/markdown/image from `test_data/input/` | Serial |
 | `article-server-persistence.spec.ts` | Persist to RemoteStorage server and restore after local wipe | Serial |
 | `edit-article-info.spec.ts` | Edit-article drawer: metadata fields, persistence | Serial |

@@ -79,6 +79,9 @@ import { formatReadTime } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
 import { recordLog, errorMessage } from "~/utils/logging";
+import { useFailureReport } from "~/hooks/useFailureReport";
+import { normalizeUrl } from "~/utils/net/url";
+import FailureReportDialog from "./FailureReportDialog";
 import {
   summarizeText,
   buildSummarySettings,
@@ -111,6 +114,7 @@ export default function ArticleScreen(_props: Props) {
   const storage = useRemoteStorage();
 
   const { enqueueSnackbar } = useSnackbar();
+  const { pendingFailureReport, reportFailure, dismissFailureReport } = useFailureReport();
 
   const navigate = useNavigate();
   const [fontSize, setFontSize] = useState(getFontSizeFromCookie());
@@ -380,15 +384,19 @@ export default function ArticleScreen(_props: Props) {
       return;
     }
 
+    const targetUrl = normalizeUrl(article.url);
+
     closeMenu();
     setRefetchDrawerOpen(true);
     setRefetchStatus("Starting refetch...");
     setRefetchPercent(0);
 
+    // Only a failed download is reportable; later local failures are not.
+    let ingestSucceeded = false;
     try {
       const updatedArticle = await ingestUrl(
         storage.client,
-        article.url,
+        targetUrl,
         (percent: number | null, message: string | null) => {
           if (percent !== null) {
             setRefetchStatus(message);
@@ -396,6 +404,7 @@ export default function ArticleScreen(_props: Props) {
           }
         },
       );
+      ingestSucceeded = true;
 
       // Preserve some metadata from the original article
       updatedArticle.progress = article.progress;
@@ -442,6 +451,9 @@ export default function ArticleScreen(_props: Props) {
         setRefetchPercent(0);
         setRefetchStatus(null);
         enqueueSnackbar("Failed to refetch article", { variant: "error" });
+        if (!ingestSucceeded) {
+          reportFailure(targetUrl, error, "Failed to refetch article");
+        }
       }, 2000);
     }
   };
@@ -1484,6 +1496,11 @@ export default function ArticleScreen(_props: Props) {
           </Box>
         </Box>
       </Drawer>
+
+      {/* Failure report offer (only rendered on a failed refetch) */}
+      {pendingFailureReport && (
+        <FailureReportDialog payload={pendingFailureReport} onClose={dismissFailureReport} />
+      )}
     </Box>
   );
 }
