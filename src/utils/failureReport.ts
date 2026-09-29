@@ -112,7 +112,8 @@ function hostOf(url: string): string {
 
 /**
  * The GitHub issue body: a one-line summary, the article URL, and the payload
- * in a collapsible diagnostics block. Minified (the body travels in the URL).
+ * in a collapsible diagnostics block. Pretty-printed so the filed issue is
+ * readable; buildIssueUrl trims the payload when that busts the URL budget.
  */
 export function buildIssueBody(payload: FailureReportPayload): string {
   return [
@@ -124,7 +125,7 @@ export function buildIssueBody(payload: FailureReportPayload): string {
     "<summary>Diagnostic details</summary>",
     "",
     "```json",
-    JSON.stringify(payload),
+    JSON.stringify(payload, null, 2),
     "```",
     "",
     "</details>",

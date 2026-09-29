@@ -95,20 +95,41 @@ describe("buildIssueTitle", () => {
 });
 
 describe("buildIssueBody", () => {
-  it("wraps the minified payload in a collapsible diagnostic block", () => {
+  it("wraps a readable payload in a collapsible diagnostic block", () => {
+    const expectedJson = [
+      "{",
+      '  "url": "https://example.com/article",',
+      '  "error": {',
+      '    "category": "ingest",',
+      '    "message": "Failed to download article",',
+      '    "detail": "HTTP 403"',
+      "  },",
+      '  "app": {',
+      '    "version": "1.2.3",',
+      '    "buildTimestamp": "2026-09-20T00:00:00.000Z",',
+      '    "mode": "browser",',
+      '    "origin": "https://savr.link"',
+      "  },",
+      '  "browser": {',
+      '    "userAgent": "Mozilla/5.0 (Test)"',
+      "  },",
+      '  "reportedAt": "2026-09-20T12:34:56.000Z"',
+      "}",
+    ].join("\n");
+
     expect(buildIssueBody(samplePayload)).toBe(
-      'Savr failed to load this article.\n' +
-        '\n' +
-        '**URL:** https://example.com/article\n' +
-        '\n' +
-        '<details>\n' +
-        '<summary>Diagnostic details</summary>\n' +
-        '\n' +
-        '```json\n' +
-        '{"url":"https://example.com/article","error":{"category":"ingest","message":"Failed to download article","detail":"HTTP 403"},"app":{"version":"1.2.3","buildTimestamp":"2026-09-20T00:00:00.000Z","mode":"browser","origin":"https://savr.link"},"browser":{"userAgent":"Mozilla/5.0 (Test)"},"reportedAt":"2026-09-20T12:34:56.000Z"}\n' +
-        '```\n' +
-        '\n' +
-        '</details>',
+      "Savr failed to load this article.\n" +
+        "\n" +
+        "**URL:** https://example.com/article\n" +
+        "\n" +
+        "<details>\n" +
+        "<summary>Diagnostic details</summary>\n" +
+        "\n" +
+        "```json\n" +
+        `${expectedJson}\n` +
+        "```\n" +
+        "\n" +
+        "</details>",
     );
   });
 });
@@ -184,7 +205,7 @@ describe("buildIssueUrl trimming", () => {
   });
 
   it("drops free-text fields, keeping the required ones, when still oversized", () => {
-    const longUrl = `https://example.com/${"p".repeat(2530)}`;
+    const longUrl = `https://example.com/${"p".repeat(2480)}`;
     const url = buildIssueUrl(
       "owner/repo",
       withLongFields("d".repeat(3000), "u".repeat(3000), longUrl),

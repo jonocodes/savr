@@ -61,6 +61,7 @@ test.describe("Failure report dialog", () => {
     expect(params.get("title")).toContain("Edited by the reporter");
     expect(params.get("body")).toContain("Savr failed to load this article.");
     expect(params.get("body")).toContain(edited.url);
+    expect(params.get("body")).toContain('```json\n{\n  "url":');
     expect(params.get("labels")).toBe("failed-url");
   });
 

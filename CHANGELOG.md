@@ -8,6 +8,7 @@
 - Hand-typed URLs without a scheme (e.g. `example.com/article`) are now normalized to `https://…`, matching how people type addresses and keeping failure-report payloads valid (#71)
 - Failure reports use a `[failed-url]` title prefix and request the `failed-url` label on the filed issue (the label applies when the reporter has permission on the target repo)
 - Failure reports now record the running instance (`app.origin`), alongside the existing deploy timestamp (`app.buildTimestamp`) and PWA-vs-browser mode
+- The diagnostic payload is pretty-printed in the filed issue body instead of one long line (the URL builder still trims it to fit within URL limits)
 
 ## 2026-09-19
 
