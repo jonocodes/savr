@@ -64,52 +64,30 @@ export async function patchArticleMetadata(
  * Error thrown by fetchWithTimeout. Carries the resolved request URL (proxy
  * included) and the HTTP status when the browser exposed one.
  *
- * Important limitation: when a cross-origin response lacks CORS headers the
- * browser reports a bare TypeError ("NetworkError when attempting to fetch
- * resource.") and hides the status entirely — so `status` stays undefined even
- * though the server may have replied, e.g. 429. `probeRequestReachable` exists
- * to at least tell "proxy unreachable" apart from "proxy replied but the
- * browser blocked the response".
+ * Limitation: when a cross-origin response fails the CORS check (no
+ * Access-Control-Allow-Origin header), the browser filters the response before
+ * JS ever sees it — fetch rejects with a bare TypeError and the status is not
+ * observable (`status` stays undefined, even though the server may have
+ * replied, e.g. 429). That is a browser security boundary; the status is only
+ * available when the response carries CORS headers.
  */
 export class FetchError extends Error {
   readonly requestUrl: string;
   readonly status?: number;
-  readonly proxyUsed: boolean;
 
   constructor(
     message: string,
-    options: { requestUrl: string; status?: number; proxyUsed: boolean; cause?: unknown }
+    options: { requestUrl: string; status?: number; cause?: unknown }
   ) {
     super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
     this.name = "FetchError";
     this.requestUrl = options.requestUrl;
     this.status = options.status;
-    this.proxyUsed = options.proxyUsed;
-  }
-}
-
-/**
- * Best-effort reachability check for a request that failed with an opaque
- * network error. A `no-cors` fetch resolves with an opaque response for any
- * HTTP status (including 4xx/5xx), so success here means the server answered
- * but the browser blocked the readable response (usually missing CORS headers,
- * e.g. a rate-limit 429). A throw means the request never reached the server.
- */
-export async function probeRequestReachable(
-  requestUrl: string,
-  timeoutMs: number = 5000
-): Promise<boolean> {
-  try {
-    await fetch(requestUrl, { mode: "no-cors", signal: AbortSignal.timeout(timeoutMs) });
-    return true;
-  } catch {
-    return false;
   }
 }
 
 export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
   const corsProxy = getCorsProxyValue();
-  const proxyUsed = Boolean(corsProxy);
   // When a proxy is set it uses a query-parameter style URL (?url=...), so
   // the target must be encoded. When no proxy is set, use the URL as-is.
   const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
@@ -120,7 +98,6 @@ export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): P
       throw new FetchError(`HTTP ${response.status} ${response.statusText}`.trim(), {
         requestUrl: fetchUrl,
         status: response.status,
-        proxyUsed,
       });
     }
     return response;
@@ -131,15 +108,13 @@ export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): P
     if ((error as Error).name === "TimeoutError") {
       throw new FetchError("Request timed out.", {
         requestUrl: fetchUrl,
-        proxyUsed,
         cause: error,
       });
     }
-    // A TypeError here is a network-layer failure. The browser hides the HTTP
-    // status for CORS-blocked responses, so preserve the URL for diagnosis.
+    // Network-layer failure. If the response failed the CORS check the browser
+    // hides the status; preserve the request URL so it can be inspected.
     throw new FetchError(`Network error: ${(error as Error).message}`, {
       requestUrl: fetchUrl,
-      proxyUsed,
       cause: error,
     });
   }
