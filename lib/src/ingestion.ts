@@ -246,6 +246,15 @@ async function downloadAndResizeImages(
 
       imgElement.src = dataUrl;
 
+      // Reserve the image's space up front. web.css styles article images as
+      // `max-width: 100%; height: auto`, so without these attributes there is
+      // no aspect ratio to go on and every image is a zero-height box until it
+      // decodes — then it pops to full size and shoves the text below it. With
+      // them the browser lays out the correct box immediately and the article
+      // never reflows, however late the decode lands.
+      imgElement.setAttribute("width", String(width));
+      imgElement.setAttribute("height", String(height));
+
       successfulDownloads += 1;
 
       percent = percent + step;
@@ -435,7 +444,12 @@ export async function resizeImage(
       canvas.toBlob(
         (resizedBlob) => {
           if (resizedBlob) {
-            resolve({ blob: resizedBlob, width, height });
+            // Report the canvas's own dimensions, not the pre-truncation
+            // floats: assigning to canvas.width/height truncates, so these are
+            // the real pixel dimensions of the blob we just produced. Callers
+            // write them onto the <img> as width/height attributes, where a
+            // sub-pixel aspect-ratio mismatch would reintroduce layout shift.
+            resolve({ blob: resizedBlob, width: canvas.width, height: canvas.height });
           } else {
             reject(new Error("Failed to resize image"));
           }

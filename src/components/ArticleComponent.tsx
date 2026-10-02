@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import DOMPurify from "dompurify";
 import { Box, Container, useTheme } from "@mui/material";
 
@@ -11,6 +11,21 @@ interface ArticleComponentProps {
 const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fontFamily }) => {
   const theme = useTheme();
   const isDark = theme.palette.mode === "dark";
+
+  // React 19 diffs dangerouslySetInnerHTML by object identity, not by the
+  // __html string (React <=18 compared the string). A fresh `{ __html }`
+  // literal therefore makes React re-assign innerHTML on EVERY re-render,
+  // tearing down and rebuilding the whole article. Harmless-looking for text,
+  // but every <img> is recreated and has to decode again — so the article
+  // momentarily collapses and the page jumps under the reader. That fired on
+  // each debounced reading-progress save, about a second after scrolling
+  // stopped. Memoizing keeps the identity stable so React leaves the DOM alone.
+  const sanitized = useMemo(
+    () => ({
+      __html: DOMPurify.sanitize(html, { ADD_TAGS: ["link"], ADD_ATTR: ["rel", "href"] }),
+    }),
+    [html]
+  );
 
   return (
     <Container
@@ -48,7 +63,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fon
             backgroundColor: isDark ? "rgba(255,255,255,0.1)" : undefined,
           },
         }}
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { ADD_TAGS: ["link"], ADD_ATTR: ["rel", "href"] }) }}
+        dangerouslySetInnerHTML={sanitized}
       />
     </Container>
   );
