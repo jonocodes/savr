@@ -585,7 +585,6 @@ export default function ArticleScreen(_props: Props) {
 
           // Always persist progress locally; also sync remotely when available.
           if (articleRef.current) {
-            console.log("[scroll-save] writing progress", scrollPercentage, "for", articleRef.current.slug, "client=", !!storage.client);
             if (storage.client) {
               await patchArticleMetadata(
                 storage.client,
@@ -599,7 +598,6 @@ export default function ArticleScreen(_props: Props) {
                 if (current) await db.articles.put({ ...current, progress: scrollPercentage });
               });
             }
-            console.log("[scroll-save] done");
           }
         }
       }, 1000);
@@ -769,18 +767,15 @@ export default function ArticleScreen(_props: Props) {
   // so later progress writes — which re-emit the article via liveQuery —
   // can never scroll the page out from under the reader.
   useEffect(() => {
-    console.log("[scroll-restore] effect fired — hasSetInitialScroll=", hasSetInitialScroll, "content=", !!content, "liveArticle=", !!liveArticle, "progress=", liveArticle?.progress);
     if (hasSetInitialScroll || !content || !liveArticle) return;
     setHasSetInitialScroll(true);
 
     const progress = liveArticle.progress ?? 0;
-    console.log("[scroll-restore] restoring to progress=", progress);
     if (progress > 0) {
       // Wait a bit for the DOM to fully render
       setTimeout(() => {
         const documentHeight = document.documentElement.scrollHeight - window.innerHeight;
         const scrollPosition = (progress / 100) * documentHeight;
-        console.log("[scroll-restore] documentHeight=", documentHeight, "scrollPosition=", scrollPosition);
         if (documentHeight > 0) {
           window.scrollTo(0, scrollPosition);
         }

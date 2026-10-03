@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-10-01
+
+- Fixed articles jumping under you a second or two after you stopped scrolling on mobile. The debounced reading-progress save re-rendered the article screen, and because React 19 diffs `dangerouslySetInnerHTML` by object identity rather than by the HTML string, that re-render re-assigned `innerHTML` and rebuilt the entire article. Text was recreated at the same size so the rebuild was invisible, but every image had to decode again — collapsing the page and shifting your reading position. Only articles with images were affected.
+- The same rebuild also discarded in-flight image downloads and restarted them from zero on every reading pause, so images that are still fetched over the network (those whose download failed at save time keep their original remote URL) could never finish on a slow connection. They now download once.
+- Saved articles now record each image's dimensions, so the browser reserves the right space before the image decodes instead of laying it out as a zero-height box and reflowing the text when it arrives. Applies to newly saved articles; re-save an existing one to pick it up.
+- Removed leftover scroll-progress debug logging from the article screen, which was writing to the console on every save in production builds.
+- Added `tests/e2e/scroll-stability.spec.ts`, which pins the reading position across progress saves, remote sync writes from another device, and late-loading images, and asserts images are not re-downloaded on every reading pause.
+
 ## 2026-09-20
 
 - Failed article loads now offer a "Report this failed article?" dialog: review (and edit) the diagnostic JSON, then open a prefilled public GitHub issue under your own account (#71)
