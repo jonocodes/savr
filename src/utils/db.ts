@@ -1,5 +1,6 @@
 import Dexie, { type EntityTable } from "dexie";
 import { Article } from "../../lib/src/models";
+import type { FetchOutcome } from "./net/fetchGovernor";
 
 // A single app-level event, recorded when something fails or is worth
 // remembering. Kept in a bounded ring buffer (see utils/logging.ts) so it
@@ -17,11 +18,13 @@ export interface LogEntry {
 type DbType = Dexie & {
   articles: EntityTable<Article, "slug">;
   logs: EntityTable<LogEntry, "id">;
+  fetchCache: EntityTable<FetchOutcome, "key">;
 };
 
 const db: DbType = new Dexie("savrDb") as Dexie & {
   articles: EntityTable<Article, "slug">;
   logs: EntityTable<LogEntry, "id">;
+  fetchCache: EntityTable<FetchOutcome, "key">;
 };
 
 // Schema declaration:
@@ -61,6 +64,14 @@ db.version(4).stores({}).upgrade((tx) =>
 db.version(5).stores({
   articles: "slug, ingestDate, state",
   logs: "++id, timestamp, level, category",
+});
+
+// v6: persist the fetch governor's failure history so a known-bad URL is not
+// re-fetched after a reload (see src/utils/net/fetchGovernor.ts).
+db.version(6).stores({
+  articles: "slug, ingestDate, state",
+  logs: "++id, timestamp, level, category",
+  fetchCache: "key, nextAttemptAt",
 });
 
 export { db };

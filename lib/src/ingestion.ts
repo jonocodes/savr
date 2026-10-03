@@ -203,6 +203,38 @@ export async function extractImageUrls(doc: Document, articleUrl: string | null)
   return imgData;
 }
 
+/**
+ * A neutral inline placeholder for an image that could not be downloaded.
+ * Preserves the element's intended box so layout doesn't jump, and keeps the
+ * saved article fully offline: a failed <img> must never keep a remote URL, or
+ * every read would re-request it from a third party.
+ */
+export function imagePlaceholderDataUrl(width?: number, height?: number): string {
+  const w = width && width > 0 ? Math.round(width) : 640;
+  const h = height && height > 0 ? Math.round(height) : 360;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">` +
+    `<rect width="${w}" height="${h}" fill="#e6e6e6"/>` +
+    `<path d="M${w * 0.35} ${h * 0.6}l${w * 0.12} -${h * 0.18}l${w * 0.1} ${h * 0.14}` +
+    `l${w * 0.08} -${h * 0.1}l${w * 0.18} ${h * 0.24}z" fill="#bdbdbd"/>` +
+    `</svg>`;
+  return `data:image/svg+xml,${encodeURIComponent(svg)}`;
+}
+
+/**
+ * Swap a failed <img> for the local placeholder. The original URL is kept in
+ * `data-orig-src` so a future retry can find it without re-parsing the page.
+ */
+export function applyImagePlaceholder(
+  img: HTMLImageElement,
+  originalUrl: string,
+  width?: number,
+  height?: number
+): void {
+  img.dataset.origSrc = originalUrl;
+  img.src = imagePlaceholderDataUrl(width, height);
+}
+
 // Download all the images and create a thumbnail. Save them to dataUrls in storage.
 async function downloadAndResizeImages(
   imageData: ImageData[],
@@ -265,6 +297,13 @@ async function downloadAndResizeImages(
       }
     } catch (e) {
       console.error("THUMB error downloading and saving image", e);
+      // Replace the dead <img> with a local placeholder so the saved article
+      // never points at a remote URL (and never re-requests it on every read).
+      const entry = imageData.find(([imgUrl]) => imgUrl === url);
+      if (entry) {
+        const [, , imgElement, width, height] = entry;
+        applyImagePlaceholder(imgElement, url, width, height);
+      }
       const meta: Record<string, unknown> = { slug: article.slug, error: errorMessage(e) };
       if (e instanceof FetchError) {
         meta.requestUrl = e.requestUrl;

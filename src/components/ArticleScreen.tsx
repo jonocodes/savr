@@ -55,7 +55,7 @@ import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article, SummaryMeta } from "../../lib/src/models";
-import { removeArticle, patchArticleMetadata } from "~/utils/article/tools";
+import { removeArticle, patchArticleMetadata, clearFetchFailures } from "~/utils/article/tools";
 import { useSnackbar } from "notistack";
 import ArticleComponent from "./ArticleComponent";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
@@ -390,6 +390,10 @@ export default function ArticleScreen(_props: Props) {
     setRefetchDrawerOpen(true);
     setRefetchStatus("Starting refetch...");
     setRefetchPercent(0);
+
+    // An explicit refetch is a deliberate "try again": forget any URLs the
+    // governor is currently backing off from (e.g. dead images).
+    await clearFetchFailures();
 
     // Only a failed download is reportable; later local failures are not.
     let ingestSucceeded = false;
