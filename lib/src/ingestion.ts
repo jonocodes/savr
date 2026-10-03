@@ -18,7 +18,12 @@ import {
 } from "./lib";
 import { DEFAULT_WPM } from "./readingSpeed";
 import { saveResource } from "~/utils/sync/storage";
-import { fetchAndResizeImage, fetchWithTimeout, imageToDataUrl } from "~/utils/article/tools";
+import {
+  fetchAndResizeImage,
+  fetchWithTimeout,
+  imageToDataUrl,
+  FetchError,
+} from "~/utils/article/tools";
 import { md5 } from "js-md5";
 import { summarizeText, buildSummarySettings, type SummaryProvider } from "~/utils/ai/summarization";
 import {
@@ -260,10 +265,12 @@ async function downloadAndResizeImages(
       }
     } catch (e) {
       console.error("THUMB error downloading and saving image", e);
-      recordLog("warn", "image", `Failed to download image: ${url}`, {
-        slug: article.slug,
-        error: errorMessage(e),
-      });
+      const meta: Record<string, unknown> = { slug: article.slug, error: errorMessage(e) };
+      if (e instanceof FetchError) {
+        meta.requestUrl = e.requestUrl;
+        meta.status = e.status;
+      }
+      recordLog("warn", "image", `Failed to download image: ${url}`, meta);
     }
   }
 
@@ -1040,10 +1047,18 @@ export async function ingestUrl(
   } catch (error) {
     // The article never got far enough to have a slug, so the per-article
     // fetch.log cannot capture this — record it in the app log instead.
-    recordLog("error", "ingest", `Failed to download article`, {
-      url,
-      error: errorMessage(error),
-    });
+    const meta: Record<string, unknown> = { url, error: errorMessage(error) };
+
+    if (error instanceof FetchError) {
+      // requestUrl is the resolved URL (proxy included). status is only set
+      // when the browser exposed it — a CORS-filtered response hides it.
+      meta.requestUrl = error.requestUrl;
+      if (error.status !== undefined) {
+        meta.status = error.status;
+      }
+    }
+
+    recordLog("error", "ingest", "Failed to download article", meta);
     throw error;
   }
 

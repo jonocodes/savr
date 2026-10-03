@@ -14,6 +14,7 @@
 
 - Added an app-level event log (IndexedDB, last 500 entries) that records failed article downloads, image/thumbnail download failures, and summarization failures
 - The log is viewable, filterable, and copyable from the Diagnostics screen — useful on mobile where the browser console isn't available
+- Failed downloads now capture the resolved request URL (proxy included) and the HTTP status when the browser exposes it (a CORS-filtered response hides the status by design)
 
 ## 2026-09-09
 

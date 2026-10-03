@@ -60,26 +60,63 @@ export async function patchArticleMetadata(
   return merged;
 }
 
-export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
-  try {
-    const corsProxy = getCorsProxyValue();
-    // When a proxy is set it uses a query-parameter style URL (?url=...), so
-    // the target must be encoded. When no proxy is set, use the URL as-is.
-    const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
+/**
+ * Error thrown by fetchWithTimeout. Carries the resolved request URL (proxy
+ * included) and the HTTP status when the browser exposed one.
+ *
+ * Limitation: when a cross-origin response fails the CORS check (no
+ * Access-Control-Allow-Origin header), the browser filters the response before
+ * JS ever sees it — fetch rejects with a bare TypeError and the status is not
+ * observable (`status` stays undefined, even though the server may have
+ * replied, e.g. 429). That is a browser security boundary; the status is only
+ * available when the response carries CORS headers.
+ */
+export class FetchError extends Error {
+  readonly requestUrl: string;
+  readonly status?: number;
 
+  constructor(
+    message: string,
+    options: { requestUrl: string; status?: number; cause?: unknown }
+  ) {
+    super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
+    this.name = "FetchError";
+    this.requestUrl = options.requestUrl;
+    this.status = options.status;
+  }
+}
+
+export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
+  const corsProxy = getCorsProxyValue();
+  // When a proxy is set it uses a query-parameter style URL (?url=...), so
+  // the target must be encoded. When no proxy is set, use the URL as-is.
+  const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
+
+  try {
     const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(timeoutMs) });
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new FetchError(`HTTP ${response.status} ${response.statusText}`.trim(), {
+        requestUrl: fetchUrl,
+        status: response.status,
+      });
     }
     return response;
   } catch (error) {
-    if ((error as Error).name === "TimeoutError") {
-      console.error("Fetch request timed out:", error);
-      throw new Error("Request timed out.");
-    } else {
-      console.error("Fetch error:", error);
+    if (error instanceof FetchError) {
       throw error;
     }
+    if ((error as Error).name === "TimeoutError") {
+      throw new FetchError("Request timed out.", {
+        requestUrl: fetchUrl,
+        cause: error,
+      });
+    }
+    // Network-layer failure. If the response failed the CORS check the browser
+    // hides the status; preserve the request URL so it can be inspected.
+    throw new FetchError(`Network error: ${(error as Error).message}`, {
+      requestUrl: fetchUrl,
+      cause: error,
+    });
   }
 }
 
