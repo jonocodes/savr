@@ -1,39 +1,11 @@
 #!/usr/bin/env node
 
 import { spawn } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
-import { dirname, resolve } from 'node:path';
+import { buildPorts, projectRoot } from './e2e-ports.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const projectRoot = resolve(__dirname, '..');
 const playwrightArgs = process.argv.slice(2);
 
 const baseHost = process.env.PW_SERVER ? 'host.docker.internal' : 'localhost';
-
-// Derive a deterministic, per-worktree port set from the project root path.
-// Git worktrees live in different directories, so each worktree gets a stable
-// set of non-overlapping ports (app / remote-storage / content server). This
-// lets several worktrees run the e2e suite concurrently without colliding or
-// killing each other's servers.
-function hashWorktree(str) {
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return h >>> 0;
-}
-
-function buildPorts() {
-  const wt = hashWorktree(projectRoot);
-  // Bands are disjoint so the three ports never collide with each other.
-  return {
-    app: 3002 + (wt % 200),       // 3002..3201
-    storage: 7606 + (wt % 900),   // 7606..8505
-    content: 9080 + (wt % 900),   // 9080..9979
-  };
-}
 
 async function main() {
   const ports = buildPorts();
