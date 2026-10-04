@@ -93,6 +93,17 @@ The React app may crash headless browsers when IndexedDB/RemoteStorage initializ
 
 **Workaround**: The smoke tests use `waitUntil: "commit"` instead of `waitUntil: "domcontentloaded"` to verify the initial HTML response without waiting for React hydration.
 
+#### Chromium fails to launch inside Paseo sessions
+
+Paseo puts its own `alsa-lib` on `LD_LIBRARY_PATH`, and that build needs a newer
+glibc than the nix-provided Playwright Chromium, so the browser dies on launch
+with ``version `GLIBC_2.43' not found (required by .../libasound.so.2)``.
+Clear the variable for the test process:
+
+```bash
+env -u LD_LIBRARY_PATH npm run test:e2e
+```
+
 #### Port Conflicts
 
 If tests fail with `EADDRINUSE` errors, clean up stale processes. Check which
@@ -133,6 +144,7 @@ rm -f tests/e2e/.test-env.json
 | `bulk-delete.spec.ts` | Delete All wipes Dexie and RemoteStorage cache | Active |
 | `widget-visibility.spec.ts` | RemoteStorage widget shown/hidden per page and sync setting | Active |
 | `text-to-speech.spec.ts` | TTS toolbar, drawer controls, speed/voice | Voice availability depends on headless env |
+| `profile-progress-rerender.spec.ts` | Profiling harness: main-thread cost of the re-render a reading-progress save causes | Opt-in (`SAVR_PROFILE=1`); run via `npm run profile:rerender` |
 
 ### Playwright Configuration
 
@@ -140,6 +152,37 @@ Key settings in `playwright.config.ts`:
 - Headless browser args for stability: `--disable-gpu`, `--disable-dev-shm-usage`, `--no-sandbox`
 - `VITE_CORS_PROXY` set to empty string for direct localhost fetches
 - Global setup/teardown manages test servers
+
+### Profiling
+
+`npm run profile:rerender` measures the main-thread cost of the re-render that a
+reading-progress save causes on the article screen. It writes progress to the
+open article (which re-renders the screen through the liveQuery) and the same
+number of writes to a different article (same IndexedDB cost, no re-render);
+the difference is the re-render. It reports per-save task/script/layout/style
+time at 1x, 4x and 6x CPU throttling, long tasks, and how many components
+re-rendered.
+
+```bash
+npm run profile:rerender                 # build, serve, profile
+npm run profile:rerender -- --no-build   # reuse the existing dist/
+npm run profile:rerender -- -g 6x        # extra args go to Playwright
+```
+
+It builds with `build:dev` (production React, debug hooks on) and serves `dist/`
+on the e2e app port, so Playwright profiles the production build. Profiling the
+dev server instead overstates the cost 5-7x, so the runner refuses to start if
+anything is already listening on that port.
+
+Baseline (2026-10, after the `dangerouslySetInnerHTML` memoization fix): ~2.5ms
+per save at 1x, ~9ms at 4x, ~12ms at 6x, no long tasks, no layout or style
+work, 125 components re-rendered.
+
+What a regression looks like: before that fix every save rebuilt the article
+DOM, and the same run showed ~10ms / ~30ms / ~46ms, with 3-13ms of **layout**
+per save. The layout column is the tell. A metadata-only re-render should never
+touch layout, so any non-zero value there means the article DOM is being
+rewritten again.
 
 ## Common Development Tasks
 
