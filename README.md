@@ -21,6 +21,7 @@ Savr is:
 - Save articles for reading later
 - Remove distractions like advertisements
 - Read content and images without an internet connection
+- Keep inline video embeds (YouTube, Vimeo, and other players Readability recognises) in the reader
 - No dependency on a service/company to do the scraping or storage
 - Authorization and cross device synchronization optional (using your Dropbox or Google Drive)
 - Learns your reading speed over time and personalizes estimated reading times

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-03
+
+- Saved articles now show their inline video embeds (YouTube, Vimeo, Twitch, Dailymotion, archive.org): Readability kept the `<iframe>` but the reader sanitiser stripped every iframe, so the player vanished silently. Iframes are now allowed only for the embed hosts Readability itself preserves, so arbitrary iframes stay blocked
+- The sanitiser policy lives in `src/utils/article/sanitize.ts` with unit tests covering allowed and rejected embeds
+
 ## 2026-09-20
 
 - Failed article loads now offer a "Report this failed article?" dialog: review (and edit) the diagnostic JSON, then open a prefilled public GitHub issue under your own account (#71)
