@@ -21,6 +21,7 @@ Savr is:
 - Save articles for reading later
 - Remove distractions like advertisements
 - Read content and images without an internet connection
+- Keep inline video embeds (YouTube, Vimeo, and other players Readability recognises) in the reader
 - No dependency on a service/company to do the scraping or storage
 - Authorization and cross device synchronization optional (using your Dropbox or Google Drive)
 - Learns your reading speed over time and personalizes estimated reading times
@@ -308,6 +309,8 @@ When you save an article, Savr needs to fetch the content from the original webs
 
 **How does Savr solve this?**  
 Savr uses a CORS proxy server that acts as a middleman. Instead of your browser directly requesting content from the original website, it requests it through the proxy server, which then fetches the content and sends it back to Savr.
+
+Savr is also polite about how it uses the proxy: identical requests in flight are de-duplicated, a URL that keeps failing is backed off (a 404 is not retried automatically), and if the proxy itself is rate-limited Savr pauses requests for a cooldown instead of hammering it. If an image can't be downloaded when you save an article, it is replaced with a local placeholder, so reading the saved article never contacts the original site again.
 
 **Why bring your own proxy?**  
 While Savr provides a default proxy, you can configure your own CORS proxy server for:

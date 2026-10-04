@@ -1,9 +1,11 @@
 # Changelog
 
-## 2026-10-01
+## 2026-10-03
 
-- Fixed articles jumping under you a second or two after you stopped scrolling on mobile. The debounced reading-progress save re-rendered the article screen, and because React 19 diffs `dangerouslySetInnerHTML` by object identity rather than by the HTML string, that re-render re-assigned `innerHTML` and rebuilt the entire article. Text was recreated at the same size so the rebuild was invisible, but every image had to decode again — collapsing the page and shifting your reading position. Only articles with images were affected.
-- The same rebuild also discarded in-flight image downloads and restarted them from zero on every reading pause, so images that are still fetched over the network (those whose download failed at save time keep their original remote URL) could never finish on a slow connection. They now download once.
+- Saved articles now show their inline video embeds (YouTube, Vimeo, Twitch, Dailymotion, archive.org): Readability kept the `<iframe>` but the reader sanitiser stripped every iframe, so the player vanished silently. Iframes are now allowed only for the embed hosts Readability itself preserves, so arbitrary iframes stay blocked
+- The sanitiser policy lives in `src/utils/article/sanitize.ts` with unit tests covering allowed and rejected embeds
+- Fixed articles jumping under you a second or two after you stopped scrolling on mobile. The debounced reading-progress save re-rendered the article screen, and because React 19 diffs `dangerouslySetInnerHTML` by object identity rather than by the HTML string, that re-render re-assigned `innerHTML` and rebuilt the entire article. Text was recreated at the same size so the rebuild was invisible, but every image had to decode again — collapsing the page and shifting your reading position. Only articles with images were affected. With inline video embeds now shown, the rebuild also reloaded every embedded player on each save; that is fixed too.
+- The same rebuild also discarded in-flight image downloads and restarted them from zero on every reading pause, so images that are still fetched over the network could never finish on a slow connection. That affects articles saved before failed images were replaced with local placeholders, which still point at the original remote URL. They now download once.
 - Saved articles now record each image's dimensions, so the browser reserves the right space before the image decodes instead of laying it out as a zero-height box and reflowing the text when it arrives. Applies to newly saved articles; re-save an existing one to pick it up.
 - Removed leftover scroll-progress debug logging from the article screen, which was writing to the console on every save in production builds.
 - Added `tests/e2e/scroll-stability.spec.ts`, which pins the reading position across progress saves, remote sync writes from another device, and late-loading images, and asserts images are not re-downloaded on every reading pause.
@@ -22,6 +24,7 @@
 
 - Added an app-level event log (IndexedDB, last 500 entries) that records failed article downloads, image/thumbnail download failures, and summarization failures
 - The log is viewable, filterable, and copyable from the Diagnostics screen — useful on mobile where the browser console isn't available
+- Failed downloads now capture the resolved request URL (proxy included) and the HTTP status when the browser exposes it (a CORS-filtered response hides the status by design)
 
 ## 2026-09-09
 

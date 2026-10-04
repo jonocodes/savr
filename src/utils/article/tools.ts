@@ -8,6 +8,30 @@ import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib"
 import { resizeImage } from "../../../lib/src/ingestion";
 import { markDirty } from "./publicExport";
 import { recordLog, errorMessage } from "../logging";
+import { createFetchGovernor, GovernorError } from "../net/fetchGovernor";
+import { createDexieOutcomeStore } from "../net/fetchGovernorStore";
+
+// One governor for the whole app: all proxied fetches (article pages and every
+// article image) share the same failure history, so a URL that is failing is
+// not hammered from several code paths at once. Persisted in Dexie, so it also
+// survives reloads.
+const fetchGovernor = createFetchGovernor({
+  store: createDexieOutcomeStore(),
+  onEvent: (event) => {
+    if (event.type === "recorded") {
+      recordLog("warn", "fetch", `Fetch failed (${event.class})`, {
+        key: event.key,
+        status: event.status,
+        attempts: event.attempts,
+        nextAttemptAt: new Date(event.nextAttemptAt).toISOString(),
+      });
+    } else if (event.type === "breaker-open") {
+      recordLog("warn", "fetch", "CORS proxy circuit breaker opened", {
+        retryAt: new Date(event.nextAttemptAt).toISOString(),
+      });
+    }
+  },
+});
 
 // Cookie-based CORS proxy functions
 export const getCorsProxyValue = (): string => {
@@ -60,26 +84,87 @@ export async function patchArticleMetadata(
   return merged;
 }
 
-export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
-  try {
-    const corsProxy = getCorsProxyValue();
-    // When a proxy is set it uses a query-parameter style URL (?url=...), so
-    // the target must be encoded. When no proxy is set, use the URL as-is.
-    const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
+/**
+ * Error thrown by fetchWithTimeout. Carries the resolved request URL (proxy
+ * included) and the HTTP status when the browser exposed one.
+ *
+ * Limitation: when a cross-origin response fails the CORS check (no
+ * Access-Control-Allow-Origin header), the browser filters the response before
+ * JS ever sees it — fetch rejects with a bare TypeError and the status is not
+ * observable (`status` stays undefined, even though the server may have
+ * replied, e.g. 429). That is a browser security boundary; the status is only
+ * available when the response carries CORS headers.
+ */
+/**
+ * Forget the fetch governor's failure history. Call before an explicit user
+ * retry (e.g. "Refetch") so URLs sitting in a backoff window are attempted
+ * again instead of being skipped.
+ */
+export async function clearFetchFailures(): Promise<void> {
+  await fetchGovernor.clearAll();
+}
 
-    const response = await fetch(fetchUrl, { signal: AbortSignal.timeout(timeoutMs) });
+export class FetchError extends Error {
+  readonly requestUrl: string;
+  readonly status?: number;
+
+  constructor(
+    message: string,
+    options: { requestUrl: string; status?: number; cause?: unknown }
+  ) {
+    super(message, options.cause !== undefined ? { cause: options.cause } : undefined);
+    this.name = "FetchError";
+    this.requestUrl = options.requestUrl;
+    this.status = options.status;
+  }
+}
+
+export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
+  const corsProxy = getCorsProxyValue();
+  // When a proxy is set it uses a query-parameter style URL (?url=...), so
+  // the target must be encoded. When no proxy is set, use the URL as-is.
+  const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
+
+  try {
+    // The governor coalesces concurrent calls, skips URLs in their backoff
+    // window, and short-circuits when the proxy itself is failing.
+    const response = await fetchGovernor.run(
+      { key: url, requestUrl: fetchUrl },
+      (requestUrl) => fetch(requestUrl, { signal: AbortSignal.timeout(timeoutMs) })
+    );
     if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
+      throw new FetchError(`HTTP ${response.status} ${response.statusText}`.trim(), {
+        requestUrl: fetchUrl,
+        status: response.status,
+      });
     }
     return response;
   } catch (error) {
-    if ((error as Error).name === "TimeoutError") {
-      console.error("Fetch request timed out:", error);
-      throw new Error("Request timed out.");
-    } else {
-      console.error("Fetch error:", error);
+    if (error instanceof FetchError) {
       throw error;
     }
+    if (error instanceof GovernorError) {
+      // The governor refused to spend a request (known-bad URL, backoff, or an
+      // open circuit breaker). Surface it with the same shape as any other
+      // fetch failure so callers keep working.
+      throw new FetchError(error.message, {
+        requestUrl: fetchUrl,
+        status: error.status,
+        cause: error,
+      });
+    }
+    if ((error as Error).name === "TimeoutError") {
+      throw new FetchError("Request timed out.", {
+        requestUrl: fetchUrl,
+        cause: error,
+      });
+    }
+    // Network-layer failure. If the response failed the CORS check the browser
+    // hides the status; preserve the request URL so it can be inspected.
+    throw new FetchError(`Network error: ${(error as Error).message}`, {
+      requestUrl: fetchUrl,
+      cause: error,
+    });
   }
 }
 

@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Failed Image Placeholder</title>
+    <meta name="author" content="Test Author">
+    <meta name="description" content="Fixture for verifying failed images become local placeholders">
+</head>
+<body>
+    <article>
+        <header>
+            <h1>Failed Image Placeholder</h1>
+            <p class="byline">By Test Author</p>
+            <time datetime="2025-02-01">February 1, 2025</time>
+        </header>
+
+        <section>
+            <p>This fixture contains one image that resolves and one that does not, so the
+            ingestion pipeline can be checked end to end. When an image cannot be downloaded
+            it must be replaced with a local placeholder rather than left pointing at a remote
+            URL. The unique marker FailedImageFixture appears here to help the test confirm it
+            loaded the right article, and there is enough prose for Readability to keep the
+            body.</p>
+
+            <p><img src="../sample-image/header-transparent.png" alt="good image"></p>
+
+            <p><img src="missing-image.png" alt="broken image"></p>
+
+            <p>Trailing paragraph so the article content is comfortably long enough to parse.</p>
+        </section>
+    </article>
+</body>
+</html>

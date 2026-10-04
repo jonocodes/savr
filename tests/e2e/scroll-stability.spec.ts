@@ -689,9 +689,9 @@ test.describe("Article scroll position stability", () => {
   });
 
   /**
-   * Images whose download failed at ingest time keep their original remote
-   * URL (ingestion only rewrites src to a data URL on success), so they are
-   * fetched over the network every time the article is read.
+   * Articles saved before failed images were swapped for local placeholders
+   * (#79) still hold the original remote URL for any image whose download
+   * failed, so those images are fetched over the network on every read.
    *
    * Combined with the innerHTML rebuild that is the bug above, each progress
    * save replaced those <img> elements and restarted their downloads from
@@ -779,5 +779,87 @@ test.describe("Article scroll position stability", () => {
       requests,
       `each image was re-requested: ${requests} requests for ${imageCount} images`
     ).toBe(imageCount);
+  });
+
+  /**
+   * Same rebuild, worse consequence once inline video embeds are rendered:
+   * re-assigning innerHTML recreates every <iframe>, which reloads the whole
+   * player (several MB) on each reading pause — and would stop a playing
+   * video. Pins one load per embed across several progress saves.
+   */
+  test("progress save does not reload video embeds", async ({ page }) => {
+    let loads = 0;
+    await page.route("**/www.youtube.com/embed/**", async (route) => {
+      loads++;
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<!doctype html><title>player</title><p>stub player</p>",
+      });
+    });
+
+    await page.waitForFunction(
+      () => !!(window as any).savrDb && !!(window as any).remoteStorageClient,
+      { timeout: 20000 }
+    );
+    await page.evaluate(async (slug) => {
+      const db = (window as any).savrDb;
+      const client = (window as any).remoteStorageClient;
+      const body = Array.from({ length: 40 }, (_, i) => {
+        const para = `<p>Paragraph ${i}. ${"The quick brown fox jumps over the lazy dog. ".repeat(10)}</p>`;
+        return i % 15 === 3
+          ? `${para}\n<iframe src="https://www.youtube.com/embed/vid${i}" width="560" height="315" allowfullscreen></iframe>`
+          : para;
+      }).join("\n");
+
+      await client.storeFile(
+        "text/html",
+        `saves/${slug}/index.html`,
+        `<link rel="stylesheet" href="/web.css"><h1>Embeds</h1>${body}`
+      );
+      await db.articles.put({
+        slug,
+        title: "Embeds",
+        url: "https://example.com/embeds",
+        state: "unread",
+        ingestDate: new Date().toISOString(),
+        mimeType: "text/html",
+        readTimeMinutes: 5,
+        progress: 0,
+        ingestPlatform: "web",
+        ingestSource: "manual",
+        publication: null,
+        author: null,
+        publishedDate: null,
+      });
+    }, SLUG);
+
+    await page.goto(`/article/${SLUG}`);
+    await expect(page.locator('[data-testid="article-content"]')).toBeVisible({ timeout: 20000 });
+    await page.waitForTimeout(1500);
+
+    const embedCount = await page.evaluate(() => document.querySelectorAll("iframe").length);
+    // Guard against a vacuous pass: the sanitiser must have kept the embeds.
+    expect(embedCount, "the sanitiser dropped the video embeds").toBeGreaterThan(0);
+
+    // Three separate reading pauses, each triggering a progress save.
+    for (let pause = 0; pause < 3; pause++) {
+      await page.mouse.move(195, 400);
+      for (let i = 0; i < 5; i++) {
+        await page.mouse.wheel(0, 200);
+        await page.waitForTimeout(40);
+      }
+      await page.waitForTimeout(1600);
+    }
+
+    console.log(`\n  embeds in article: ${embedCount}`);
+    console.log(`  player loads after 3 reading pauses: ${loads}`);
+
+    const progress = await page.evaluate(
+      async (slug) => (await (window as any).savrDb.articles.get(slug))?.progress,
+      SLUG
+    );
+    expect(progress, "progress was never saved, so no re-render happened").toBeGreaterThan(0);
+    expect(loads, `embeds were reloaded: ${loads} loads for ${embedCount} embeds`).toBe(embedCount);
   });
 });

@@ -14,19 +14,27 @@ Savr is a React/TypeScript web app for saving articles for later reading. It use
 
 ### Quick Start
 
+The e2e suite must run inside the **flox** environment: the flox manifest
+installs `playwright-test` 1.54.1 together with a matching Chromium build, and
+its `on-activate` hook exports `PLAYWRIGHT_BROWSERS_PATH` pointing at that
+build. An interactive shell activates it via `.envrc`; an agent or script can
+do the same non-interactively:
+
 ```bash
-# Install dependencies
-npm install
-
-# Install Playwright browsers
-npx playwright install chromium
-
-# Run smoke tests (recommended for CI)
-npx playwright test tests/e2e/smoke.spec.ts
-
-# Run all tests
-npx playwright test
+# Activate flox, then run the suite (ports are chosen per worktree)
+flox activate -c "node scripts/run-e2e.js"                 # all specs
+flox activate -c "node scripts/run-e2e.js tests/e2e/smoke.spec.ts"
+# or, equivalently, inside an activated shell:
+npm run test:e2e -- tests/e2e/smoke.spec.ts
 ```
+
+Do **not** run `npx playwright install` — the flox-provided browsers are already
+pinned to the revision `@playwright/test` expects (currently Chromium 1181).
+`PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true` is set by the flox manifest
+because NixOS paths confuse Playwright's host-requirement probe.
+
+If you are *not* using flox, follow the NixOS note in the repo-root `AGENTS.md`
+(drive `playwright-core` with the nix-store Chromium via `executablePath`).
 
 ### Test Infrastructure
 
@@ -112,6 +120,7 @@ rm -f tests/e2e/.test-env.json
 | `add-article-dialog.spec.ts` | Add-article dialog interactions | Requires React hydration |
 | `failure-report.spec.ts` | Failed-capture report dialog: dismiss, prefilled GitHub issue, mobile reachability | Needs `VITE_FAILURE_REPORT_REPO` (set by the Playwright web-server env) |
 | `ingest-local-article.spec.ts` | Article ingestion via UI, incl. PDF/markdown/image from `test_data/input/` | Serial |
+| `ingest-failed-image.spec.ts` | A failed image is replaced by a local placeholder in saved HTML (#75) | Serial |
 | `article-server-persistence.spec.ts` | Persist to RemoteStorage server and restore after local wipe | Serial |
 | `edit-article-info.spec.ts` | Edit-article drawer: metadata fields, persistence | Serial |
 | `bookmarklet-sync.spec.ts` | Bookmarklet `?bookmarklet=` ingestion flow via postMessage | Serial |
@@ -152,6 +161,27 @@ npm run build
 ```bash
 npm run dev
 ```
+
+## Fetch governor
+
+All proxied network requests (article pages and every article image) go through
+`fetchWithTimeout` in `src/utils/article/tools.ts`, which is wrapped by the fetch
+governor in `src/utils/net/fetchGovernor.ts`. The governor:
+
+- coalesces concurrent fetches of the same URL into one request,
+- records failures so a URL is not retried until its `nextAttemptAt` passes
+  (permanent 4xx wait days; transient 5xx/timeout/429 back off exponentially),
+- opens a circuit breaker on HTTP 429 so a capped proxy isn't hammered.
+
+Failure history is persisted in the Dexie `fetchCache` table (db version 6) via
+`src/utils/net/fetchGovernorStore.ts`. An explicit **Refetch** in the reader
+clears that history (`clearFetchFailures`) so the user can force a retry.
+Images that fail during ingest are swapped for a local placeholder
+(`applyImagePlaceholder` in `lib/src/ingestion.ts`) so saved articles never
+re-request a dead remote URL.
+
+Unit tests: `src/utils/net/fetchGovernor.test.ts`,
+`lib/__tests__/ingestion-placeholder.test.ts`.
 
 ## Code Structure
 

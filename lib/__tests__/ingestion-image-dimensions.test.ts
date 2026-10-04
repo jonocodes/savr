@@ -88,10 +88,11 @@ describe("ingestHtml - image dimensions", () => {
     expect(content).not.toMatch(/width="4000"/);
   });
 
-  it("leaves images alone when the download fails", async () => {
-    // A failed download keeps the original remote src, and we have no
-    // dimensions to claim — asserting a wrong aspect ratio would be worse
-    // than asserting none.
+  it("claims no dimensions for an image that failed to download", async () => {
+    // A failed download is swapped for a local placeholder (the original URL
+    // is kept in data-orig-src for a later retry). We never learned the real
+    // image size, so we must not write width/height for it — asserting a
+    // wrong aspect ratio would be worse than asserting none.
     fetchAndResizeImage.mockRejectedValue(new Error("offline"));
 
     await ingestHtml(
@@ -103,7 +104,8 @@ describe("ingestHtml - image dimensions", () => {
     );
 
     const content = savedContent();
-    expect(content).toContain("https://example.com/photo.jpg");
+    expect(content).toMatch(/<img[^>]*\ssrc="data:image\/svg\+xml,/);
+    expect(content).toContain(`data-orig-src="https://example.com/photo.jpg"`);
     expect(content).not.toMatch(/<img[^>]*\swidth=/);
   });
 });

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
-import DOMPurify from "dompurify";
 import { Box, Container, useTheme } from "@mui/material";
+import { sanitizeArticleHtml } from "~/utils/article/sanitize";
 
 interface ArticleComponentProps {
   html: string;
@@ -17,15 +17,11 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fon
   // literal therefore makes React re-assign innerHTML on EVERY re-render,
   // tearing down and rebuilding the whole article. Harmless-looking for text,
   // but every <img> is recreated and has to decode again — so the article
-  // momentarily collapses and the page jumps under the reader. That fired on
-  // each debounced reading-progress save, about a second after scrolling
-  // stopped. Memoizing keeps the identity stable so React leaves the DOM alone.
-  const sanitized = useMemo(
-    () => ({
-      __html: DOMPurify.sanitize(html, { ADD_TAGS: ["link"], ADD_ATTR: ["rel", "href"] }),
-    }),
-    [html]
-  );
+  // momentarily collapses and the page jumps under the reader — and every
+  // video embed <iframe> reloads its whole player. That fired on each
+  // debounced reading-progress save, about a second after scrolling stopped.
+  // Memoizing keeps the identity stable so React leaves the DOM alone.
+  const sanitized = useMemo(() => ({ __html: sanitizeArticleHtml(html) }), [html]);
 
   return (
     <Container
