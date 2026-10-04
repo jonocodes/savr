@@ -1,6 +1,6 @@
 import React from "react";
-import DOMPurify from "dompurify";
 import { Box, Container, useTheme } from "@mui/material";
+import { sanitizeArticleHtml } from "~/utils/article/sanitize";
 
 interface ArticleComponentProps {
   html: string;
@@ -48,7 +48,7 @@ const ArticleComponent: React.FC<ArticleComponentProps> = ({ html, fontSize, fon
             backgroundColor: isDark ? "rgba(255,255,255,0.1)" : undefined,
           },
         }}
-        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(html, { ADD_TAGS: ["link"], ADD_ATTR: ["rel", "href"] }) }}
+        dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(html) }}
       />
     </Container>
   );
