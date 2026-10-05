@@ -194,6 +194,7 @@ Unit tests: `src/utils/net/fetchGovernor.test.ts`,
   - `global-setup.ts` - Test server setup
   - `global-teardown.ts` - Test server cleanup
 - `lib/` - Shared library code
+- `infra/cors-worker/` - The Cloudflare CORS proxy worker (see its README)
 - `test-server/` - Armadietto server for testing
 
 ## Debugging Tips
