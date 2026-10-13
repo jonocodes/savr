@@ -23,6 +23,9 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests
         run: npm run test
+      - name: CORS proxy worker tests
+        # bash expands the glob; the worker has no dependencies to install.
+        run: node --test infra/cors-worker/*.test.mjs
 
   e2e-smoke:
     runs-on: ubuntu-latest

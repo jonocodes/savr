@@ -1,0 +1,9 @@
+# Secret token(s) that lock this proxy, comma-separated so you can rotate
+# (add the new one, update your devices, remove the old one).
+#
+# The Deploy to Cloudflare button prompts for this value. If you leave it
+# blank the worker is not configured: it serves a setup page with a freshly
+# generated token and refuses to proxy anything (it never falls back to open).
+#
+# Generate one with: openssl rand -hex 24
+PROXY_TOKENS=

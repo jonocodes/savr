@@ -50,10 +50,9 @@ import {
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
 } from "@mui/icons-material";
-import { setCorsProxyValue } from "~/utils/article/tools";
+import { getStoredCorsProxy, setCorsProxyValue } from "~/utils/net/corsProxy";
 import { getDefaultCorsProxy, isTelemetryConfigured } from "~/config/environment";
 import { hasGlobalPrivacyControl } from "~/utils/telemetry";
-import { getCorsProxyFromCookie } from "~/utils/cookies";
 // Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
 // minified at build time by the minify-bookmarklet Vite plugin. The placeholder
 // SAVR origin "__SAVR_ORIGIN__" is substituted with the app's origin below.
@@ -181,7 +180,8 @@ export default function PreferencesScreen() {
   }, []);
 
   React.useEffect(() => {
-    const customValue = getCorsProxyFromCookie();
+    // Reads localStorage, migrating (and deleting) any legacy cookie value.
+    const customValue = getStoredCorsProxy();
     const defaultValue = getDefaultCorsProxy();
 
     if (customValue) {

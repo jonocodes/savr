@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider } from "@tanstack/react-router";
 import { createRouter } from "./router";
 import { initTelemetry, trackAppOpen } from "./utils/telemetry";
+import { getStoredCorsProxy } from "./utils/net/corsProxy";
 import "./styles/app.css";
 
 const router = createRouter();
@@ -20,6 +21,10 @@ async function initApp() {
   // "app open" reach/geo beacon per load; see src/utils/telemetry.ts.
   initTelemetry();
   trackAppOpen();
+
+  // One-time: move a legacy CORS proxy cookie (which may hold a secret token)
+  // into localStorage and delete the cookie, so it stops being sent here.
+  getStoredCorsProxy();
 
   await router.load();
 

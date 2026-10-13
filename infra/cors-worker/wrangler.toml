@@ -1,4 +1,8 @@
-name = "lively-cors-proxy-b569"
+# Default config: a generic worker name for people deploying their own copy.
+# Locking it down is done with the PROXY_TOKENS secret (see README.md); with
+# neither PROXY_TOKENS nor PUBLIC set, the worker serves a setup page and
+# refuses to proxy anything.
+name = "savr-cors-proxy"
 main = "worker.js"
 compatibility_date = "2023-08-23"
 
@@ -9,3 +13,11 @@ preview_urls = false
 # itself only logs errors now (host, never the full target URL).
 [observability]
 enabled = true
+
+# The shared public instance: open (no token required), under its historical
+# name. Deploy with `npx wrangler deploy --env public`.
+[env.public]
+name = "lively-cors-proxy-b569"
+
+[env.public.vars]
+PUBLIC = "true"

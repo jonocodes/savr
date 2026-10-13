@@ -12,6 +12,7 @@ import {
 jest.mock("~/config/environment", () => ({
   BUILD_TIMESTAMP: "1970-01-01T00:00:00.000Z",
   getFailureReportRepo: jest.fn(),
+  environmentConfig: { defaultCorsProxy: "https://default.example/?url=" },
 }));
 
 describe("buildFailureReportPayload", () => {
@@ -60,6 +61,32 @@ describe("buildFailureReportPayload", () => {
       category: "ingest",
       message: "Failed to download article",
     });
+  });
+
+  it("masks a CORS proxy token in the url and error fields", () => {
+    const token = "11111111-2222-4333-8444-555555555555";
+    const proxy = `https://proxy.example/${token}/?url=`;
+    (globalThis as { localStorage?: Storage }).localStorage = {
+      getItem: (key: string) => (key === "savr-cors-proxy" ? proxy : null),
+      setItem: () => {},
+      removeItem: () => {},
+    } as unknown as Storage;
+
+    try {
+      const requestUrl = `${proxy}${encodeURIComponent("https://example.com/article")}`;
+      const payload = buildFailureReportPayload(
+        `https://example.com/${token}`,
+        { category: "ingest", message: "Failed to download article", detail: requestUrl },
+        { now: new Date(0) },
+      );
+
+      expect(payload.url).not.toContain(token);
+      expect(payload.error.detail).not.toContain(token);
+      expect(payload.error.detail).toContain("[redacted]");
+      expect(buildIssueBody(payload)).not.toContain(token);
+    } finally {
+      delete (globalThis as { localStorage?: Storage }).localStorage;
+    }
   });
 });
 

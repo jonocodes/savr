@@ -1,5 +1,14 @@
 # Changelog
 
+## 2026-10-13
+
+- The CORS proxy can now be token-locked: deploy your own copy in one click with the Deploy to Cloudflare button, and only devices holding the secret can use it (#84)
+- A locked proxy accepts the token as a path segment (`/<token>/?url=…`) or a `token=` query parameter, checks it before the edge cache, compares in constant time, and answers wrong or missing tokens with 404 so it looks dead to scanners; `PROXY_TOKENS` is a comma-separated list so tokens can be rotated (#84)
+- An unconfigured proxy (no `PROXY_TOKENS`, not public) serves a setup page with a generated token and refuses to proxy, so a missed deploy step can never leave an open proxy; `GET /<token>/health` reports `{ name, version, authRequired }` (#84)
+- The proxy worker now has a portable `handleRequest` core with a thin Cloudflare entry, ready for a Deno Deploy target (#84)
+- The CORS proxy setting moved from a cookie to localStorage (existing cookie values are migrated and deleted), so a self-hosted token is no longer sent to Savr's own host on every request (#84)
+- Proxy tokens are masked in the app log, failure reports, and the Diagnostics dump, and a saved article (or its public export) never persists a proxied URL (#84)
+
 ## 2026-10-03
 
 - Saved articles now show their inline video embeds (YouTube, Vimeo, Twitch, Dailymotion, archive.org): Readability kept the `<iframe>` but the reader sanitiser stripped every iframe, so the player vanished silently. Iframes are now allowed only for the embed hosts Readability itself preserves, so arbitrary iframes stay blocked

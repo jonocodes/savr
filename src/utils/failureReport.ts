@@ -8,6 +8,7 @@
 
 import { BUILD_TIMESTAMP, getFailureReportRepo } from "~/config/environment";
 import { isStandalonePwa } from "~/utils/pwa";
+import { maskCorsProxyInText } from "~/utils/net/corsProxy";
 
 /**
  * The failure-report dialog is "configured" only when a public GitHub repo has
@@ -219,8 +220,18 @@ export function buildFailureReportPayload(
     (typeof window !== "undefined" ? window.location.origin : "");
 
   return {
-    url,
-    error: error.detail ? { ...error } : { category: error.category, message: error.message },
+    // Proxy tokens are masked here, once, so no report can leak one.
+    url: maskCorsProxyInText(url),
+    error: error.detail
+      ? {
+          category: error.category,
+          message: maskCorsProxyInText(error.message),
+          detail: maskCorsProxyInText(error.detail),
+        }
+      : {
+          category: error.category,
+          message: maskCorsProxyInText(error.message),
+        },
     app: {
       buildTimestamp: context.buildTimestamp ?? BUILD_TIMESTAMP,
       mode,
