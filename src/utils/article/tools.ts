@@ -1,9 +1,8 @@
 import { Article } from "../../../lib/src/models";
-import { getDefaultCorsProxy } from "~/config/environment";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db } from "../db";
 import { deleteArticleStorage, init } from "../sync/storage";
-import { getCorsProxyFromCookie, setCorsProxyInCookie } from "../cookies";
+import { buildProxiedUrl } from "../net/corsProxy";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib";
 import { resizeImage } from "../../../lib/src/ingestion";
 import { markDirty } from "./publicExport";
@@ -32,16 +31,6 @@ const fetchGovernor = createFetchGovernor({
     }
   },
 });
-
-// Cookie-based CORS proxy functions
-export const getCorsProxyValue = (): string => {
-  const customValue = getCorsProxyFromCookie();
-  return customValue || getDefaultCorsProxy();
-};
-
-export const setCorsProxyValue = (value: string | null): void => {
-  setCorsProxyInCookie(value);
-};
 
 // delete the article from the db and the file system
 // deleteArticleStorage already handles deleting from both IndexedDB and RemoteStorage
@@ -120,10 +109,9 @@ export class FetchError extends Error {
 }
 
 export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): Promise<Response> {
-  const corsProxy = getCorsProxyValue();
-  // When a proxy is set it uses a query-parameter style URL (?url=...), so
-  // the target must be encoded. When no proxy is set, use the URL as-is.
-  const fetchUrl = corsProxy ? `${corsProxy}${encodeURIComponent(url)}` : url;
+  // When a proxy is set it uses a prefix style URL (path or query token, then
+  // `?url=...`), so the target must be encoded; without one, fetch directly.
+  const fetchUrl = buildProxiedUrl(url);
 
   try {
     // The governor coalesces concurrent calls, skips URLs in their backoff

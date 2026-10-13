@@ -6,7 +6,6 @@ export type ThemeMode = "light" | "dark" | "system";
 export const THEME_COOKIE_NAME = "savr-theme";
 export const FONT_SIZE_COOKIE_NAME = "savr-font-size";
 export const FONT_FAMILY_COOKIE_NAME = "savr-font-family";
-export const CORS_PROXY_COOKIE_NAME = "savr-cors-proxy";
 export const HEADER_HIDING_COOKIE_NAME = "savr-header-hiding";
 export const TELEMETRY_ENABLED_COOKIE_NAME = "savr-telemetry-enabled";
 export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
@@ -140,40 +139,8 @@ export const getFontSizeFromCookie = (): number => {
   return 16;
 };
 
-// Get CORS proxy from cookie
-export const getCorsProxyFromCookie = (): string | null => {
-  if (typeof document === "undefined") return null;
-
-  const cookies = document.cookie.split(";");
-  const corsProxyCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith(`${CORS_PROXY_COOKIE_NAME}=`)
-  );
-
-  if (corsProxyCookie) {
-    const value = corsProxyCookie.replace(`${CORS_PROXY_COOKIE_NAME}=`, "").trim();
-    // Only return the value if it's not empty (user has explicitly set a custom value)
-    return value || null;
-  }
-
-  return null;
-};
-
-// Set CORS proxy in cookie
-export const setCorsProxyInCookie = (corsProxy: string | null): void => {
-  if (typeof document === "undefined") return;
-
-  // Set cookie to expire in 1 year
-  const expires = new Date();
-  expires.setFullYear(expires.getFullYear() + 1);
-
-  if (corsProxy && corsProxy.trim()) {
-    // Only save if user has explicitly set a non-empty value
-    document.cookie = `${CORS_PROXY_COOKIE_NAME}=${corsProxy.trim()}; expires=${expires.toUTCString()}; path=/`;
-  } else {
-    // Remove cookie if value is null or empty
-    document.cookie = `${CORS_PROXY_COOKIE_NAME}=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/`;
-  }
-};
+// The CORS proxy setting moved from this cookie to localStorage — see
+// utils/net/corsProxy.ts.
 
 // Anonymous usage telemetry opt-out. On by default (returns true when the cookie
 // is absent); the user can turn it off in Preferences. This only governs the

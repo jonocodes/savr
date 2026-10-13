@@ -31,8 +31,10 @@ This document describes the environment variables used by Savr.
 ### `VITE_CORS_PROXY`
 
 - **Default**: `https://lively-cors-proxy-b569.cloudflare8899.workers.dev/?url=`
-- **Description**: URL prefix for the CORS proxy used when fetching external articles. Set to empty string to fetch directly (useful for local dev against localhost content servers).
+- **Description**: URL prefix for the CORS proxy used when fetching external articles. This is the build-time default; a user can override it in Preferences, where the value is stored in localStorage (not a cookie) and any token in it is masked in diagnostics and failure reports. Set to empty string to fetch directly (useful for local dev against localhost content servers).
 - **Usage**: `VITE_CORS_PROXY="" npm run dev`
+
+Deploy a token-locked proxy of your own from `infra/cors-worker/` (there is a Deploy to Cloudflare button in the README).
 
 ### `VITE_FAILURE_REPORT_REPO`
 
