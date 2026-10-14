@@ -2,7 +2,7 @@
 
 ## 2026-10-14
 
-- Added an optional Firefox extension: the toolbar popup's **Save current page** scrapes the loaded DOM of the active tab — no re-download, so it works behind logins and makes no CORS proxy request for the page — and hands it to Savr through the existing bookmarklet ingest path (#88)
+- Added an optional browser extension for Firefox and Chrome: the toolbar popup's **Save current page** scrapes the loaded DOM of the active tab — no re-download, so it works behind logins and makes no CORS proxy request for the page — and hands it to Savr through the existing bookmarklet ingest path (#88)
 - The app now also announces its `savr-ready` bookmarklet signal on its own window, so a sender with no opener (the extension opens the tab through the tabs API) can deliver the page; the announcement stops once a payload arrives (#88)
 - The extension keeps a pending save in session storage so a background context unloaded mid-save resumes; `browser-extension/README.md` documents install (temporary add-on), settings, the delivery protocol, and the Chrome-parity notes (#88)
 

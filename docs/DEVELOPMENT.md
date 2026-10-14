@@ -196,7 +196,7 @@ Unit tests: `src/utils/net/fetchGovernor.test.ts`,
   - `global-setup.ts` - Test server setup
   - `global-teardown.ts` - Test server cleanup
 - `lib/` - Shared library code
-- `browser-extension/` - Optional browser extension (Firefox MV3, Chrome-compatible; see its README)
+- `browser-extension/` - Optional MV3 browser extension for Firefox and Chrome (see its README)
 - `infra/cors-worker/` - The Cloudflare CORS proxy worker (see its README)
 - `test-server/` - Armadietto server for testing
 

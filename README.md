@@ -34,7 +34,7 @@ Savr is:
 - Open source, cross platform (mobile and desktop/web)
 - Use the free hosted version, or self host it
 - Non-proprietary since it integrates with any browser and does not need specific extensions installed (see bookmarklet)
-- Optional Firefox extension that saves the page you are already reading, without re-downloading it
+- Optional browser extension (Firefox and Chrome) that saves the page you are already reading, without re-downloading it
 
 # Comparison
 
@@ -49,7 +49,7 @@ Savr is:
 | Text To Speach                   | ✅          | ✅                | iOS only | android only | ❌     |
 | Summary generation               | ✅          | ❌                 | ❌       | ❌       | ❌     |
 | Cross Platform (+mobile/browser) | ✅          | ✅                 | ✅       | ✅       | ✅     |
-| Cross Browser Extension          | Optional (Firefox) | ❌ (chrome/FF)     | ❌       | ❌       | ❌       |
+| Cross Browser Extension          | Optional (Firefox/Chrome) | ❌ (chrome/FF)     | ❌       | ❌       | ❌       |
 | Does not require an account      | ✅          | ❌                  | ❌       | ❌       | ❌     |
 
 \* before service shutdown
@@ -117,11 +117,11 @@ savrWindow.postMessage({
 
 A working example that scrapes a YouTube transcript lives at [`bookmarklet/savr-youtube-transcript.unminified.js`](bookmarklet/savr-youtube-transcript.unminified.js) — edit it there if you need to change it: the Savr app imports this same file (minified at build time by a Vite plugin) for the YouTube transcript bookmarklet on the Preferences screen, so it is the single source of truth. The `SAVR_ORIGIN` placeholder is substituted with the app's origin at runtime; for standalone use, replace it with your Savr origin, minify the file, and save it as a bookmarklet.
 
-## Firefox extension (optional)
+## Browser extension (optional)
 
-On desktop Firefox, the optional [browser extension](browser-extension/) adds a toolbar button with **Save current page** and **Visit Savr**. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself.
+On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button with **Save current page** and **Visit Savr**. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself.
 
-It is not on addons.mozilla.org yet; load `browser-extension/manifest.json` as a temporary add-on from `about:debugging`. See [browser-extension/README.md](browser-extension/README.md) for install, settings, and how the delivery flow works.
+It is not on addons.mozilla.org or the Chrome Web Store yet, so it installs by sideloading: a temporary add-on in Firefox, **Load unpacked** in Chrome. See [browser-extension/README.md](browser-extension/README.md) for install, settings, and how the delivery flow works.
 
 ## In browser
 
@@ -266,7 +266,7 @@ Because Savr is a [static web app with no backend](#why-not-use-an-existing-open
 
 - **No account.** Your articles are saved straight to your device. Syncing across devices is optional, and if you want it you use [your own Dropbox or Google Drive](#synchronization) — there's still no Savr account to manage.
 - **No install required.** It works in any browser. If you want an app-like experience you can optionally ["install" it as a PWA](#what-is-a-pwa), but you never have to.
-- **No extension required.** Save from any browser with the [bookmarklet](#what-is-a-bookmarklet) or by [prepending the Savr URL](#in-browser) — no store-specific extension needed. (An optional [Firefox extension](#firefox-extension-optional) exists if you prefer a toolbar button.)
+- **No extension required.** Save from any browser with the [bookmarklet](#what-is-a-bookmarklet) or by [prepending the Savr URL](#in-browser) — no store-specific extension needed. (An optional [browser extension](#browser-extension-optional) for Firefox and Chrome exists if you prefer a toolbar button.)
 - **Nothing to maintain.** With no server, there's nothing for you (or a company) to keep online, patch, or pay for.
 
 ## What makes Savr an app for power users?

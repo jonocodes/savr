@@ -1,6 +1,6 @@
 # Savr browser extension
 
-An optional Firefox extension that saves the page you are already reading.
+An optional extension for Firefox and Chrome that saves the page you are already reading.
 
 Instead of re-downloading the article through a CORS proxy, **Save current page**
 scrapes the loaded DOM out of the tab: it works behind logins and paywalls, needs
@@ -15,24 +15,27 @@ The toolbar button opens a small popup:
 
 There is deliberately no page context-menu entry.
 
-## Install (Firefox)
+## Install
 
-The extension is not published to addons.mozilla.org yet; load it as a temporary
-add-on:
+The extension is not published to addons.mozilla.org or the Chrome Web Store
+yet, so both browsers install it by sideloading. Store listings are a follow-up.
+
+### Firefox
+
+Load it as a temporary add-on:
 
 1. Open `about:debugging#/runtime/this-firefox`.
 2. Click **Load Temporary Add-on…**.
 3. Select `browser-extension/manifest.json`.
 
-Temporary add-ons are removed when Firefox restarts. (Signing and AMO publishing
-are a follow-up.)
+Temporary add-ons are removed when Firefox restarts.
 
-### Chrome (for development)
+### Chrome (and other Chromium browsers)
 
-The same MV3 code runs in Chrome: open `chrome://extensions`, enable
-**Developer mode**, and use **Load unpacked** on this directory. This is used by
-the automated test suite (`tests/e2e/extension-save.spec.ts`), which loads the
-extension and runs a real save.
+Open `chrome://extensions`, enable **Developer mode**, and use **Load unpacked**
+on this directory. The automated test suite (`tests/e2e/extension-save.spec.ts`)
+loads this exact code into Chromium and runs a real save, so this path stays
+exercised.
 
 ## Settings
 
