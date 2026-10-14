@@ -1,21 +1,17 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <meta charset="UTF-8">
-    <title>Test Message</title>
-    <style>
-        body {
-            width: 200px;
-            padding: 10px;
-        }
-        button {
-            width: 100%;
-            padding: 8px;
-        }
-    </style>
-</head>
-<body>
-    <button id="testBtn">Send Test Message</button>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Savr</title>
+    <link rel="stylesheet" href="ui.css" />
+  </head>
+  <body>
+    <main class="panel">
+      <h1>Savr</h1>
+      <button id="save" type="button">Save current page</button>
+      <button id="visit" type="button" class="secondary">Visit Savr</button>
+      <p id="status" role="status" aria-live="polite"></p>
+    </main>
     <script src="popup.js"></script>
-</body>
+  </body>
 </html>

@@ -124,6 +124,8 @@ rm -f tests/e2e/.test-env.json
 | `article-server-persistence.spec.ts` | Persist to RemoteStorage server and restore after local wipe | Serial |
 | `edit-article-info.spec.ts` | Edit-article drawer: metadata fields, persistence | Serial |
 | `bookmarklet-sync.spec.ts` | Bookmarklet `?bookmarklet=` ingestion flow via postMessage | Serial |
+| `extension-delivery.spec.ts` | App-side extension contract: `savr-ready` announced on the app's own window with no opener, page-side `savr-html` ingested | Active |
+| `extension-save.spec.ts` | Loads `browser-extension/` into Chromium and saves a fixture page end to end | Launches its own persistent context; Firefox packaging checked via `web-ext lint` |
 | `multi-browser-sync.spec.ts` | Add/delete propagation across two browser contexts (manual sync trigger) | Active |
 | `multi-browser-archive-sync.spec.ts` | Deletion, metadata-edit, and archive-state sync across contexts | Active |
 | `natural-sync.spec.ts` | Background-interval sync with no manual trigger | Active |
@@ -194,6 +196,7 @@ Unit tests: `src/utils/net/fetchGovernor.test.ts`,
   - `global-setup.ts` - Test server setup
   - `global-teardown.ts` - Test server cleanup
 - `lib/` - Shared library code
+- `browser-extension/` - Optional browser extension (Firefox MV3, Chrome-compatible; see its README)
 - `infra/cors-worker/` - The Cloudflare CORS proxy worker (see its README)
 - `test-server/` - Armadietto server for testing
 

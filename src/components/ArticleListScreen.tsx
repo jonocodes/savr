@@ -540,12 +540,23 @@ export default function ArticleListScreen() {
 
     let ingesting = false;
 
+    // A browser extension opens this tab through the tabs API, so there is no
+    // opener to ping, and it injects a page-side bridge that waits for an
+    // explicit readiness signal on this window before delivering `savr-html`.
+    // Bookmarklets ignore it and keep posting blindly.
+    const announceReady = () => {
+      window.postMessage({ action: "savr-ready" }, window.location.origin);
+    };
+    const readyPing = window.setInterval(announceReady, 250);
+    announceReady();
+
     const handler = async (event: MessageEvent) => {
       // Reject messages from sandboxed iframes and file:// pages.
       if (!event.origin || event.origin === "null") return;
 
       if (event.data.action === "savr-html") {
         if (ingesting) return;
+        window.clearInterval(readyPing);
 
         if (!client) {
           // RS client not ready yet — queue the payload and bail. The effect will
@@ -566,7 +577,10 @@ export default function ArticleListScreen() {
       }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.clearInterval(readyPing);
+      window.removeEventListener("message", handler);
+    };
   }, [client, remoteStorage, waitForSyncThenClose]);
 
   // Raw-ingest flow (savr-raw). A site-specific bookmarklet does its own extraction

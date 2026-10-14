@@ -1,28 +1,37 @@
 {
-    "manifest_version": 2,
-    "name": "Savr Extension",
-    "version": "1.0",
-    "description": "Send messages to Savr submit page",
-    "permissions": [
-        "activeTab",
-        "storage",
-        "tabs",
-        "webNavigation",
-        "http://localhost:3000/*"
-    ],
-    "browser_action": {
-        "default_popup": "popup.html",
-        "default_title": "Savr Extension"
-    },
-    "content_scripts": [
-        {
-            "matches": [
-                "http://localhost:3000/submit*"
-            ],
-            "js": [
-                "content.js"
-            ],
-            "run_at": "document_end"
-        }
-    ]
+  "manifest_version": 3,
+  "name": "Savr",
+  "version": "1.0.0",
+  "description": "Save the page you are reading to Savr, without re-downloading it.",
+  "permissions": ["activeTab", "scripting", "storage"],
+  "host_permissions": ["http://localhost/*", "https://savr.link/*"],
+  "optional_host_permissions": ["*://*/*"],
+  "background": {
+    "scripts": ["background.js"],
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Savr",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "48": "icons/icon-48.png",
+      "96": "icons/icon-96.png"
+    }
+  },
+  "options_ui": {
+    "page": "options.html",
+    "open_in_tab": false
+  },
+  "icons": {
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "savr@jonocodes.github.io",
+      "strict_min_version": "128.0"
+    }
+  }
 }
