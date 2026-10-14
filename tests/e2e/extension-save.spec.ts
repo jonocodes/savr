@@ -54,6 +54,23 @@ test.describe("Browser extension save flow", () => {
     fs.rmSync(userDataDir, { recursive: true, force: true });
   });
 
+  test("options page exposes the Savr address and the GitHub link", async () => {
+    const extensionId = new URL(background.url()).host;
+
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    const address = optionsPage.locator("#app-url");
+    await expect(address).toBeVisible();
+    await expect(address).toHaveValue(/^https?:\/\//);
+    await expect(
+      optionsPage.locator('a[href="https://github.com/jonocodes/savr"]')
+    ).toBeVisible();
+
+    const popupPage = await context.newPage();
+    await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+    await expect(popupPage.locator("#settings")).toBeVisible();
+  });
+
   test("saves the active tab's loaded DOM into Savr", async () => {
     const articleUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
 

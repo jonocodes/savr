@@ -39,15 +39,18 @@ exercised.
 
 ## Settings
 
-The Savr address defaults to the hosted app (`https://savr.link`) and is
-configurable on the extension's options page (right-click the toolbar button →
-**Manage Extension** → **Options**). Point it at your own instance if you
-self-host — for example `http://localhost:3000`. Chrome's equivalent opens the
-options inline from the extension's details page.
+**Settings** in the popup opens the options page (also reachable from the
+browser's extension manager: right-click the toolbar button → **Manage
+Extension** → **Options** in Firefox, or the details page in Chrome).
 
+The Savr address defaults to the hosted app (`https://savr.link`). Point it at
+your own instance if you self-host — for example `http://localhost:3000`.
 Custom addresses need a one-time host-permission grant, which the options page
-requests when you save them. The hosted app and `localhost` are covered out of
+requests when you save them; the hosted app and `localhost` are covered out of
 the box.
+
+The options page also links to the project on GitHub
+([jonocodes/savr](https://github.com/jonocodes/savr)).
 
 ## How it works
 

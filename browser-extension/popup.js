@@ -2,6 +2,7 @@ const api = globalThis.browser ?? globalThis.chrome;
 
 const saveButton = document.getElementById("save");
 const visitButton = document.getElementById("visit");
+const settingsButton = document.getElementById("settings");
 const statusEl = document.getElementById("status");
 
 function setStatus(text) {
@@ -45,4 +46,10 @@ visitButton.addEventListener("click", async () => {
     setStatus("Could not open Savr.");
     setBusy(false);
   }
+});
+
+settingsButton.addEventListener("click", () => {
+  // Firefox opens the options page in a tab, Chrome in its extensions UI.
+  (api.runtime.openOptionsPage?.() ?? Promise.resolve()).catch(() => {});
+  window.close();
 });

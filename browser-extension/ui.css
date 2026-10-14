@@ -64,6 +64,16 @@ input {
   font: inherit;
 }
 
+button.quiet {
+  background: transparent;
+  border: none;
+  color: #4c6ef5;
+  padding: 4px 0;
+  justify-self: start;
+  font-size: 12px;
+  text-decoration: underline;
+}
+
 .hint,
 #status {
   margin: 0;
@@ -71,12 +81,24 @@ input {
   color: #666;
 }
 
+.links {
+  border-top: 1px solid rgba(128, 128, 128, 0.3);
+  padding-top: 8px;
+  font-size: 12px;
+}
+
+.links a {
+  color: #4c6ef5;
+}
+
 #status {
   min-height: 1.4em;
 }
 
 @media (prefers-color-scheme: dark) {
-  button.secondary {
+  button.secondary,
+  button.quiet,
+  .links a {
     color: #a5b4fc;
     border-color: #a5b4fc;
   }
