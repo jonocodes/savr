@@ -177,6 +177,7 @@ Savr can automatically generate summaries of your saved articles using an LLM to
 - **OpenAI** - GPT models for high-quality summaries
 - **Gemini** - Google's models via their OpenAI-compatible endpoint
 - **Local / Custom** - Point at any OpenAI-compatible server (llama.cpp's `llama-server`, Ollama, LM Studio, vLLM, OpenRouter, ...) by entering its URL and a model name
+- **Cloudflare Workers AI (self-hosted)** - Deploy the included worker in [`infra/cloudflare-ai`](./infra/cloudflare-ai) to use Cloudflare's free Workers AI tier behind an OpenAI-compatible URL, with a server-side model whitelist. Enter the worker's `/v1/chat/completions` URL as a **Local / Custom** provider.
 
 **Customization Options:**
 - **Detail Level** - From brief overviews to comprehensive summaries
