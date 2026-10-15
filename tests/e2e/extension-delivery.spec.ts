@@ -189,8 +189,8 @@ test.describe("Browser extension delivery contract", () => {
       const localPath = /data-local-path="([^"]+)"/.exec(stored.html ?? "")?.[1];
       expect(localPath).toBeTruthy();
       const resource = await page.evaluate(
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         async (path) =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
           (await (window as any).remoteStorageClient.getFile(path, false))?.data ?? null,
         `saves/${imageSlug}/resources/${localPath}`,
       );
