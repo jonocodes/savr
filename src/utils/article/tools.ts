@@ -2,7 +2,7 @@ import { Article } from "../../../lib/src/models";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db } from "../db";
 import { deleteArticleStorage, init } from "../sync/storage";
-import { buildProxiedUrl, getCorsProxyValue } from "../net/corsProxy";
+import { buildProxiedUrl, getCorsProxyValue, safeLocalStorage } from "../net/corsProxy";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib";
 import { markDirty } from "./publicExport";
 import { recordLog, errorMessage } from "../logging";
@@ -15,31 +15,24 @@ import {
   probeProxy,
 } from "../net/proxyHealth";
 
-function localStorageOrNull(): Storage | null {
-  try {
-    return typeof localStorage !== "undefined" ? localStorage : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Whether the CORS proxy itself is working (#86). Fed by the governor below;
  * the UI subscribes to it for the banner, Preferences and Diagnostics.
  */
 export const proxyHealth = createProxyHealthMonitor({
-  probe: () => {
-    countProxiedRequest(localStorageOrNull(), Date.now(), 2);
-    return probeProxy(getCorsProxyValue(), {
-      fetch: (url, init) => fetch(url, init),
+  probe: () =>
+    probeProxy(getCorsProxyValue(), {
+      fetch: (url, init) => {
+        countProxiedRequest(safeLocalStorage(), Date.now());
+        return fetch(url, init);
+      },
       isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
-    });
-  },
+    }),
 });
 
 /** Requests this device sent to the CORS proxy today (a hint, not a quota). */
 export function getProxiedRequestsTodayCount(): number {
-  return getProxiedRequestsToday(localStorageOrNull(), Date.now());
+  return getProxiedRequestsToday(safeLocalStorage(), Date.now());
 }
 
 // One governor for the whole app: all proxied fetches (article pages and every
@@ -169,9 +162,14 @@ export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): P
     // window, and short-circuits when the proxy itself is failing.
     const response = await fetchGovernor.run(
       { key: url, requestUrl: fetchUrl },
-      (requestUrl) => {
-        if (requestUrl !== url) countProxiedRequest(localStorageOrNull(), Date.now());
-        return fetch(requestUrl, { signal: AbortSignal.timeout(timeoutMs) });
+      async (requestUrl) => {
+        const proxied = requestUrl !== url;
+        if (proxied) countProxiedRequest(safeLocalStorage(), Date.now());
+        const response = await fetch(requestUrl, { signal: AbortSignal.timeout(timeoutMs) });
+        // Any status we can read came back through the proxy with CORS
+        // headers, so the proxy is working (a 429 is handled by the breaker).
+        if (proxied && response.status !== 429) proxyHealth.reportHealthy();
+        return response;
       }
     );
     if (!response.ok) {

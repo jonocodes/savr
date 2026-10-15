@@ -2,12 +2,8 @@ import { Alert, Box, Link, Typography } from "@mui/material";
 import { Link as RouterLink } from "@tanstack/react-router";
 import { useProxyHealth } from "~/hooks/useProxyHealth";
 import { getProxiedRequestsTodayCount } from "~/utils/article/tools";
-import { getStoredCorsProxy } from "~/utils/net/corsProxy";
+import { getStoredCorsProxy, SELF_HOST_PROXY_URL } from "~/utils/net/corsProxy";
 import { proxyProblemMessage } from "~/utils/net/proxyHealth";
-
-/** How to deploy a private, token-locked copy of the proxy worker. */
-export const SELF_HOST_PROXY_URL =
-  "https://github.com/jonocodes/savr/tree/main/infra/cors-worker#deploy-your-own-token-locked";
 
 /**
  * Non-blocking notice that the CORS proxy itself has stopped working (#86).

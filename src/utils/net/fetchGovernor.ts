@@ -121,7 +121,8 @@ export interface GovernorOptions {
   permanentTtlMs?: number;
   onEvent?: (event: GovernorEvent) => void;
   /**
-   * Called when an attempt rejects with no HTTP status (and not a timeout).
+   * Called when an attempt rejects with no HTTP status (timeouts included,
+   * deliberate aborts not).
    * Resolve `true` when the proxy itself is at fault to open the breaker.
    */
   diagnoseNetworkFailure?: (error: unknown) => Promise<boolean>;
@@ -215,9 +216,9 @@ function getErrorStatus(error: unknown): number | undefined {
   return undefined;
 }
 
-function isTimeout(error: unknown): boolean {
-  const name = (error as { name?: unknown } | null)?.name;
-  return name === "TimeoutError" || name === "AbortError";
+/** A deliberate cancellation, as opposed to a timeout or network failure. */
+function isAbort(error: unknown): boolean {
+  return (error as { name?: unknown } | null)?.name === "AbortError";
 }
 
 export function createFetchGovernor(options: GovernorOptions): FetchGovernor {
@@ -271,7 +272,9 @@ export function createFetchGovernor(options: GovernorOptions): FetchGovernor {
   }
 
   async function isProxyAtFault(error: unknown): Promise<boolean> {
-    if (!diagnoseNetworkFailure || isTimeout(error)) return false;
+    // Timeouts are diagnosed too: a hung proxy should read as unreachable, and a
+    // slow target behind a working proxy is cleared by the probe's quick 400.
+    if (!diagnoseNetworkFailure || isAbort(error)) return false;
     try {
       return await diagnoseNetworkFailure(error);
     } catch {

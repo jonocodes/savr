@@ -53,11 +53,15 @@ import {
   Extension as ExtensionIcon,
   Language as LanguageIcon,
 } from "@mui/icons-material";
-import { getStoredCorsProxy, setCorsProxyValue } from "~/utils/net/corsProxy";
+import {
+  getCorsProxyValue,
+  getStoredCorsProxy,
+  SELF_HOST_PROXY_URL,
+  setCorsProxyValue,
+} from "~/utils/net/corsProxy";
 import { proxyProblemMessage } from "~/utils/net/proxyHealth";
 import { getProxiedRequestsTodayCount, resetProxyHealth } from "~/utils/article/tools";
 import { useProxyHealth } from "~/hooks/useProxyHealth";
-import { SELF_HOST_PROXY_URL } from "./ProxyHealthBanner";
 import { getDefaultCorsProxy, getExtensionUrls, isTelemetryConfigured } from "~/config/environment";
 import { hasGlobalPrivacyControl } from "~/utils/telemetry";
 // Single source of truth: browser-extension/youtube-transcript.js — the same
@@ -224,6 +228,18 @@ export default function PreferencesScreen() {
   const [corsProxy, setCorsProxy] = React.useState<string>("");
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const proxyHealthState = useProxyHealth();
+  // The effective proxy when the field gained focus, to tell on blur whether
+  // what was observed about the proxy still applies.
+  const corsProxyAtFocus = React.useRef<string | null>(null);
+  const resetProxyHealthIfChanged = React.useCallback(() => {
+    // Whatever was observed was about the previous proxy.
+    if (corsProxyAtFocus.current !== null && corsProxyAtFocus.current !== getCorsProxyValue()) {
+      resetProxyHealth();
+    }
+    corsProxyAtFocus.current = null;
+  }, []);
+  // Leaving the screen mid-edit skips onBlur.
+  React.useEffect(() => resetProxyHealthIfChanged, [resetProxyHealthIfChanged]);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
   const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
@@ -451,11 +467,10 @@ export default function PreferencesScreen() {
       setIsCustomCorsProxy(false);
       setCorsProxyValue(null);
     }
-    // Whatever was observed was about the previous proxy.
-    resetProxyHealth();
   };
 
   const handleCorsProxyFocus = () => {
+    corsProxyAtFocus.current = getCorsProxyValue();
     // When user focuses on the field, show the current value for editing
     if (!isCustomCorsProxy) {
       setCorsProxy(getDefaultCorsProxy());
@@ -463,6 +478,7 @@ export default function PreferencesScreen() {
   };
 
   const handleCorsProxyBlur = () => {
+    resetProxyHealthIfChanged();
     // When user leaves the field, if they haven't entered a custom value, show default greyed out
     if (!isCustomCorsProxy) {
       setCorsProxy(getDefaultCorsProxy());

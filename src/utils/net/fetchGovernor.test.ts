@@ -315,7 +315,7 @@ describe("createFetchGovernor", () => {
       expect(next).toHaveBeenCalledTimes(1);
     });
 
-    it("does not diagnose timeouts or failures with a visible status", async () => {
+    it("diagnoses a timeout: a hung proxy should read as unreachable", async () => {
       const clock = fakeClock();
       const diagnoseNetworkFailure = jest.fn(async () => true);
       const governor = createFetchGovernor({ store, now: clock.now, diagnoseNetworkFailure });
@@ -324,6 +324,18 @@ describe("createFetchGovernor", () => {
         throw new DOMException("signal timed out", "TimeoutError");
       });
       await expect(governor.run({ key: "t", requestUrl: "t" }, timeout)).rejects.toThrow();
+      expect(diagnoseNetworkFailure).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not diagnose aborts or failures with a visible status", async () => {
+      const clock = fakeClock();
+      const diagnoseNetworkFailure = jest.fn(async () => true);
+      const governor = createFetchGovernor({ store, now: clock.now, diagnoseNetworkFailure });
+
+      const aborted = jest.fn(async (): Promise<Response> => {
+        throw new DOMException("aborted", "AbortError");
+      });
+      await expect(governor.run({ key: "a", requestUrl: "a" }, aborted)).rejects.toThrow();
       await governor.run(
         { key: "s", requestUrl: "s" },
         attemptReturning(new Response("", { status: 502 }))

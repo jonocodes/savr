@@ -20,7 +20,12 @@ const UUID_GLOBAL_RE = new RegExp(UUID_SOURCE, "gi");
 
 export const REDACTED = "[redacted]";
 
-function storage(): Storage | null {
+/** How to deploy a private, token-locked copy of the proxy worker (#84). */
+export const SELF_HOST_PROXY_URL =
+  "https://github.com/jonocodes/savr/tree/main/infra/cors-worker#deploy-your-own-token-locked";
+
+/** localStorage, or null where it is missing or access throws. */
+export function safeLocalStorage(): Storage | null {
   try {
     return typeof localStorage !== "undefined" ? localStorage : null;
   } catch {
@@ -53,7 +58,7 @@ function clearLegacyCookie(): void {
 
 /** The explicitly configured proxy, or null when the default is in use. */
 export function getStoredCorsProxy(): string | null {
-  const store = storage();
+  const store = safeLocalStorage();
   if (!store) return readLegacyCookie();
 
   const stored = store.getItem(CORS_PROXY_STORAGE_KEY);
@@ -75,7 +80,7 @@ export function getStoredCorsProxy(): string | null {
 
 export function setStoredCorsProxy(value: string | null): void {
   const trimmed = value?.trim() || null;
-  const store = storage();
+  const store = safeLocalStorage();
   if (store) {
     try {
       if (trimmed) store.setItem(CORS_PROXY_STORAGE_KEY, trimmed);

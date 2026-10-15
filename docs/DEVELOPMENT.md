@@ -176,7 +176,10 @@ governor in `src/utils/net/fetchGovernor.ts`. The governor:
 - coalesces concurrent fetches of the same URL into one request,
 - records failures so a URL is not retried until its `nextAttemptAt` passes
   (permanent 4xx wait days; transient 5xx/timeout/429 back off exponentially),
-- opens a circuit breaker on HTTP 429 so a capped proxy isn't hammered.
+- opens a circuit breaker on HTTP 429 so a capped proxy isn't hammered,
+- on a network-level failure with no visible status (incl. timeouts), asks
+  `diagnoseNetworkFailure` whether the proxy itself is at fault, and opens the
+  same breaker if so.
 
 Failure history is persisted in the Dexie `fetchCache` table (db version 6) via
 `src/utils/net/fetchGovernorStore.ts`. An explicit **Refetch** in the reader
@@ -185,8 +188,23 @@ Images that fail during ingest are swapped for a local placeholder
 (`applyImagePlaceholder` in `lib/src/ingestion.ts`) so saved articles never
 re-request a dead remote URL.
 
-Unit tests: `src/utils/net/fetchGovernor.test.ts`,
+Unit tests: `src/utils/net/fetchGovernor.test.ts`, `src/utils/net/proxyHealth.test.ts`,
 `lib/__tests__/ingestion-placeholder.test.ts`.
+
+### Proxy health (#86)
+
+A capped Cloudflare worker (error 1027) is answered by the edge without CORS
+headers, so the browser hides its status. `src/utils/net/proxyHealth.ts` (pure,
+injected fetch/clock/storage) probes the proxy prefix with an empty target, once
+with CORS and once with `no-cors`: CORS answer → running; only no-cors answers →
+"responding but not working"; neither while online → unreachable; offline → no
+verdict. Probes are coalesced and throttled (one per minute, i.e. one per
+breaker cycle). The monitor instance (`proxyHealth`) and its wiring to the
+governor live next to the governor in `src/utils/article/tools.ts`; the UI reads
+it via `useProxyHealth` (`ProxyHealthBanner`, Preferences, Diagnostics). A
+response that came back through the proxy with CORS headers clears it; changing
+the proxy setting resets it (`resetProxyHealth`). It also keeps a per-device
+daily count of proxied requests in localStorage (`savr-proxy-requests`).
 
 ## Image sources and downloader logging
 

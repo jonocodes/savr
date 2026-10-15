@@ -32,6 +32,7 @@ import { isPWAMode } from "~/utils/net/network";
 import { getCorsProxyValue, maskCorsProxyInText } from "~/utils/net/corsProxy";
 import { useTranslation } from "react-i18next";
 import { useProxyHealth } from "~/hooks/useProxyHealth";
+import { proxyProblemMessage } from "~/utils/net/proxyHealth";
 import { getProxiedRequestsTodayCount } from "~/utils/article/tools";
 import React from "react";
 
@@ -1056,6 +1057,16 @@ export default function DiagnosticsScreen() {
               proxy prefix with an empty target twice: with CORS (our worker answers with
               CORS headers, even on errors) and with no-cors (resolves whenever anything
               answered).
+            </Typography>
+            <Typography
+              variant="body2"
+              data-testid="proxy-health-diagnostics-status"
+              color={proxyHealthState.problem ? "warning.main" : "text.primary"}
+              sx={{ mb: 1 }}
+            >
+              {proxyHealthState.problem
+                ? proxyProblemMessage(proxyHealthState.problem, proxyHealthState.status)
+                : "No problems observed."}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {maskCorsProxyInText(
