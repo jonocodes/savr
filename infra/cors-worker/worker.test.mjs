@@ -2,6 +2,14 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "./worker.js";
 import { handleRequest, parseTokens } from "./core.js";
+import {
+  BLOB_FIELDS,
+  CACHE_OUTCOMES,
+  CLIENT_CLASSES,
+  FETCH_ERROR_KINDS,
+  MIME_BUCKETS,
+  toDataPoint,
+} from "./stats-schema.js";
 
 const PROXY = "https://proxy.test/";
 const TOKEN = "11111111-2222-4333-8444-555555555555";
@@ -553,6 +561,96 @@ test("classifies redirect failures for the 502 breakdown", async () => {
 
   assert.equal(points[0].blobs[2], "502");
   assert.equal(points[0].blobs[7], "blocked-redirect");
+});
+
+test("a failing stats write never costs the proxied response", async () => {
+  stubGlobals();
+  const logged = [];
+  console.log = (...args) => logged.push(args.join(" "));
+  try {
+    const env = {
+      PUBLIC: "true",
+      STATS: {
+        writeDataPoint() {
+          throw new Error("AE unavailable");
+        },
+      },
+    };
+    const response = await callWorker(proxyRequest("https://example.com/a"), { env });
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "ok");
+    assert.ok(logged.some((line) => line.includes("stats write failed")));
+  } finally {
+    console.log = originalConsoleLog;
+  }
+});
+
+test("buckets dev and LAN caller origins as local", async () => {
+  stubGlobals();
+  const { points, env } = makeStatsEnv();
+  for (const origin of [
+    "http://localhost:5173",
+    "http://192.168.1.20:3000",
+    "http://[::1]:5173",
+    "http://nas.local",
+    "https://reader.example.org",
+  ]) {
+    const request = proxyRequest("https://example.com/a");
+    request.headers.set("origin", origin);
+    await callWorker(request, { env });
+  }
+  assert.deepEqual(
+    points.map((point) => point.blobs[BLOB_FIELDS.indexOf("origin")]),
+    ["local", "local", "local", "local", "reader.example.org"]
+  );
+});
+
+test("only emits values from the shared stats vocabularies", async () => {
+  const types = [
+    "text/html", "application/xhtml+xml", "image/webp", "video/mp4", "audio/ogg",
+    "font/woff2", "application/font-woff", "text/css", "application/javascript",
+    "application/pdf", "application/ld+json", "application/rss+xml", "text/plain",
+    "application/octet-stream", "",
+  ];
+  const { points, env } = makeStatsEnv();
+  for (const type of types) {
+    stubGlobals({
+      fetchImpl: async () =>
+        new Response(new Uint8Array([1]), { status: 200, headers: type ? { "content-type": type } : {} }),
+    });
+    const request = proxyRequest(`https://example.com/${encodeURIComponent(type)}`);
+    request.headers.set("user-agent", type ? "Mozilla/5.0" : "curl/8");
+    await callWorker(request, { env });
+  }
+  for (const message of ["blocked redirect target", "too many redirects", "timed out", "dns lookup failed", "boom"]) {
+    stubGlobals({ fetchImpl: async () => { throw new Error(message); } });
+    console.log = () => {};
+    try {
+      await callWorker(proxyRequest("https://example.com/fail"), { env });
+    } finally {
+      console.log = originalConsoleLog;
+    }
+  }
+  const field = (name) => points.map((point) => point.blobs[BLOB_FIELDS.indexOf(name)]);
+  const emitted = (name) => new Set(field(name).filter(Boolean));
+
+  assert.deepEqual([...emitted("mime")].sort(), [...MIME_BUCKETS].sort(), "every bucket reachable, none extra");
+  for (const value of emitted("cache")) assert.ok(CACHE_OUTCOMES.includes(value), value);
+  for (const value of emitted("client")) assert.ok(CLIENT_CLASSES.includes(value), value);
+  assert.deepEqual([...emitted("errorKind")].sort(), [...FETCH_ERROR_KINDS].sort());
+});
+
+test("toDataPoint lays fields out in schema order", () => {
+  const point = toDataPoint(
+    {
+      status: 404, mime: "html", cache: "miss", host: "example.com", origin: "savr.link",
+      client: "browser", errorKind: "", durationMs: 12, bytes: 34,
+    },
+    "NZ"
+  );
+  assert.deepEqual(point.blobs, ["NZ", "html", "404", "miss", "example.com", "savr.link", "browser", ""]);
+  assert.deepEqual(point.doubles, [1, 12, 34]);
+  assert.equal(toDataPoint({ status: 200 }, undefined).blobs[0], "XX");
 });
 
 test("deploys without the stats binding still proxy", async () => {

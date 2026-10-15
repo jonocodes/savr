@@ -11,34 +11,25 @@
  */
 
 import { handleRequest, parseTokens } from "./core.js";
+import { toDataPoint } from "./stats-schema.js";
 
 /**
- * Write one aggregate data point (Analytics Engine, fire-and-forget). Blob
- * order is the schema — the stats worker (infra/cors-stats) queries
- * blob1..blob8 positionally:
- *   blob1 country, blob2 MIME class, blob3 status, blob4 cache (hit/miss/
- *   bypass), blob5 host, blob6 caller origin, blob7 client class, blob8 fetch
- *   error kind. `host` is only emitted for failures and `errorKind` only for
- *   502s, mirroring the error-log hygiene. The binding exists only on the
- *   shared public instance ([env.public] in wrangler.toml); self-hosted
- *   deploys have no binding and write nothing.
+ * Write one aggregate data point to Analytics Engine. The field order lives in
+ * stats-schema.js, shared with the stats worker (infra/cors-stats). `host` is
+ * only emitted for failures and `errorKind` only for 502s, mirroring the
+ * error-log hygiene. The binding exists only on the shared public instance
+ * ([env.public] in wrangler.toml); self-hosted deploys write nothing.
+ *
+ * Statistics must never cost a proxied response, so a failing write is logged
+ * and swallowed.
  */
 function recordStat(env, request, event) {
   if (!env.STATS) return;
-  env.STATS.writeDataPoint({
-    indexes: ["proxy"],
-    blobs: [
-      (request.cf && request.cf.country) || "XX",
-      event.mime,
-      String(event.status),
-      event.cache,
-      event.host,
-      event.origin,
-      event.client,
-      event.errorKind,
-    ],
-    doubles: [1, event.durationMs, event.bytes],
-  });
+  try {
+    env.STATS.writeDataPoint(toDataPoint(event, request.cf && request.cf.country));
+  } catch (error) {
+    console.log(`stats write failed error=${error && error.message}`);
+  }
 }
 
 export default {

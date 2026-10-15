@@ -5,6 +5,10 @@
 - The shared CORS proxy now keeps anonymous aggregate usage statistics, and a separate stats worker (`infra/cors-stats`) serves a small dashboard: requests over time, countries, caller apps, client classes, statuses, cache hit rate, failing hosts, and a pure "article count" filter
 - Each request records only country, content class, status, cache outcome, caller app/class, and on failures the host and fetch-error kind — no URLs, IPs, or raw user agents; retained 90 days
 - The portable proxy core emits neutral statistics events through an `onRequest` port; only the public instance carries the Analytics Engine binding, so self-hosted proxies write nothing
+- The stats dashboard is unlocked with a POSTed key and a derived session cookie — the key is no longer accepted in the URL, so it cannot land in logs or history
+- The dashboard adds a 502 failure-reason breakdown, average origin fetch time, and data served
+- A failing statistics write can no longer fail a proxied request; dev/LAN caller origins are recorded only as `local`
+- The statistics schema lives in one module shared by the proxy and the stats worker, with tests that every emitted value has a dashboard filter and label
 - Sharing an article out (⋮ → Share) now opens the system share sheet on Android and other Web Share-capable platforms, sending the title and URL to any app; where the Web Share API is unavailable (most desktop Linux browsers) it still copies the URL to the clipboard
 - Dismissing the share sheet is treated as a cancellation rather than a failure, and the clipboard fallback reports itself with a snackbar instead of an alert
 

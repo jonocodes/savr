@@ -29,13 +29,16 @@ and the IP itself is discarded.
 | 3 | status | `200`, `404`, `502` |
 | 4 | cache | `hit` (edge cache), `miss` (origin fetch), `bypass` (HEAD / invalid) |
 | 5 | host | **failures only** (`status >= 400`), otherwise empty |
-| 6 | caller origin | `savr.link`, a self-hoster's host, `chrome-extension`, `""` (none) |
+| 6 | caller origin | `savr.link`, a self-hoster's host, `chrome-extension`, `local` (localhost / LAN / IP), `""` (none) |
 | 7 | client class | `browser`, `bot`, `other`, `none` (raw UA never stored) |
 | 8 | fetch error kind | **502s only**: `dns`, `timeout`, `blocked-redirect`, `redirect-loop`, `other` |
 
 Doubles: `[1, duration_ms, bytes]` (`bytes` is the advertised
 `content-length`, or `-1` when unknown/chunked). The single index value is
-`proxy`. Blob order is the schema — keep `worker.js` in both workers in sync.
+`proxy`. Field order, vocabularies, and the dataset name live in
+`infra/cors-worker/stats-schema.js`, which both workers import — append new
+fields there, never reorder. Tests fail if the proxy can emit a value the
+dashboard has no filter or label for.
 
 Because the proxy is public, totals include any non-Savr callers; the caller
 origin card is what separates the hosted app from self-hosted instances,
@@ -45,8 +48,9 @@ protocol overhead, not usage.
 ## The dashboard
 
 `/` serves a tiny no-build, no-CDN page: totals (articles, requests, errors,
-error rate, edge-cache hit rate), a time series, and breakdowns by country,
-caller origin, client class, MIME class, cache, status, and failing host.
+error rate, edge-cache hit rate, average origin fetch time, data served), a
+time series, and breakdowns by country, caller origin, client class, MIME
+class, cache, status, 502 failure reason, and failing host.
 Filters (`24h`/`7d`/`30d`/`90d`, type, cache) are URL params, so views are
 bookmarkable.
 
@@ -58,9 +62,12 @@ bookmarkable.
   the whole point of storing it, so error triage is possible without recording
   what was read.
 
-Access is gated by `STATS_KEY` (bearer header, `?key=`, or a 30-day HttpOnly
-cookie set after a successful `?key=`). When `STATS_KEY` is unset the worker
-fails closed.
+Access is gated by `STATS_KEY`: either a `Authorization: Bearer <key>` header
+(scripts), or the unlock form, which POSTs the key and sets a 30-day HttpOnly
+session cookie holding a value derived from the key (not the key itself). The
+key is never accepted in the URL, so it can't land in Workers Logs or browser
+history; rotating `STATS_KEY` signs every browser out. When `STATS_KEY` is
+unset the worker fails closed.
 
 ## Deploy
 
@@ -80,7 +87,7 @@ fails closed.
    ```
 
 5. Open the worker URL, enter the access key, and bookmark it. The key is
-   exchanged for a cookie and does not stay in the URL.
+   exchanged for a session cookie.
 
 ## Test
 
@@ -91,7 +98,7 @@ node --test 'infra/cors-stats/*.test.mjs'
 ## Limits and caveats
 
 - Analytics Engine free plan: 100,000 data points written and 10,000 read
-  queries per day; 90-day retention. Each dashboard load runs 9 read queries.
+  queries per day; 90-day retention. Each dashboard load runs 12 read queries.
 - Analytics Engine samples busy series automatically; every query therefore
   counts with `SUM(_sample_interval)`, and the numbers are **estimates**
   (accurate to the rough "how are things going" level, not billing-grade).

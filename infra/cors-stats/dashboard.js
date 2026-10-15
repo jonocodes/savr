@@ -55,30 +55,35 @@ export function renderUnlock(message = "") {
     "Savr CORS proxy — sign in",
     `<h1>CORS proxy usage</h1>
 <p class="note">This dashboard is private. Enter the access key to continue.</p>
-<form id="unlock" class="card" style="margin-top:16px;max-width:360px;display:flex;gap:8px;flex-wrap:wrap">
-  <input id="key" type="password" name="key" placeholder="Access key" autocomplete="current-password"
+<form method="post" action="/" class="card" style="margin-top:16px;max-width:360px;display:flex;gap:8px;flex-wrap:wrap">
+  <input type="password" name="key" placeholder="Access key" autocomplete="current-password" required
     style="flex:1 1 180px;padding:9px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)">
   <button type="submit" style="padding:9px 14px;border:0;border-radius:8px;background:var(--accent);color:#fff;cursor:pointer">Unlock</button>
-  <p id="msg" class="note" style="flex-basis:100%;margin:0;color:var(--bad)">${message}</p>
-</form>
-<script>
-  var form = document.getElementById("unlock");
-  var input = document.getElementById("key");
-  var msg = document.getElementById("msg");
-  form.addEventListener("submit", function (event) {
-    event.preventDefault();
-    var key = input.value.trim();
-    if (!key) return;
-    fetch("/api/stats?range=24h&key=" + encodeURIComponent(key), { headers: { accept: "application/json" } })
-      .then(function (response) {
-        if (response.ok) { location.replace("/"); return; }
-        msg.textContent = response.status === 401 ? "That key was not accepted." : "Error " + response.status;
-      })
-      .catch(function () { msg.textContent = "Request failed."; });
-  });
-</script>`
+  <p class="note" style="flex-basis:100%;margin:0;color:var(--bad)">${message}</p>
+</form>`
   );
 }
+
+// Human labels for the shared stats vocabularies (infra/cors-worker/
+// stats-schema.js); the tests check every vocabulary value has one.
+export const MIME_LABELS = {
+  all: "All types", html: "HTML (articles)", image: "Images", video: "Video",
+  audio: "Audio", font: "Fonts", css: "CSS", js: "JavaScript", pdf: "PDF",
+  json: "JSON", xml: "XML", text: "Text", other: "Other", none: "Unknown",
+};
+export const CACHE_LABELS = {
+  all: "All", hit: "Edge-cache hits", miss: "Origin fetches (misses)",
+  bypass: "Not cached (HEAD / invalid)",
+};
+export const CLIENT_LABELS = {
+  browser: "Browser (Savr app / PWA)", bot: "Bot / script / CLI", other: "Other",
+  none: "No user agent",
+};
+export const ERROR_LABELS = {
+  dns: "DNS lookup failed", timeout: "Timed out",
+  "blocked-redirect": "Redirect to a blocked host", "redirect-loop": "Too many redirects",
+  other: "Other network error",
+};
 
 export function renderDashboard({ ranges, mimes, caches } = {}) {
   return shell(
@@ -116,6 +121,7 @@ include any non-Savr callers. Retained 90 days.</p>
   <section class="card"><h2>Types</h2><div id="mimes"></div></section>
   <section class="card"><h2>Cache</h2><div id="caches"></div></section>
   <section class="card"><h2>Statuses</h2><div id="statuses"></div></section>
+  <section class="card"><h2>Fetch failures (502)</h2><div id="errors"></div></section>
 </div>
 
 <section class="card" style="margin-top:14px">
@@ -126,13 +132,10 @@ include any non-Savr callers. Retained 90 days.</p>
 <script>
 (() => {
   var CFG = ${JSON.stringify({ ranges: ranges || [], mimes: mimes || [], caches: caches || [] })};
-  var MIME_LABELS = {
-    all: "All types", html: "HTML (articles)", image: "Images", video: "Video",
-    audio: "Audio", font: "Fonts", css: "CSS", js: "JavaScript", pdf: "PDF",
-    json: "JSON", xml: "XML", text: "Text", other: "Other", none: "Unknown"
-  };
-  var CACHE_LABELS = { all: "All", hit: "Edge-cache hits", miss: "Origin fetches (misses)", bypass: "Not cached (HEAD / invalid)" };
-  var CLIENT_LABELS = { browser: "Browser (Savr app / PWA)", bot: "Bot / script / CLI", other: "Other", none: "No user agent" };
+  var MIME_LABELS = ${JSON.stringify(MIME_LABELS)};
+  var CACHE_LABELS = ${JSON.stringify(CACHE_LABELS)};
+  var CLIENT_LABELS = ${JSON.stringify(CLIENT_LABELS)};
+  var ERROR_LABELS = ${JSON.stringify(ERROR_LABELS)};
   var state = { range: "7d", mime: "all", cache: "all" };
   try {
     var params = new URLSearchParams(location.search);
@@ -156,6 +159,7 @@ include any non-Savr callers. Retained 90 days.</p>
   function originLabel(origin) {
     if (!origin) return "No origin header";
     if (origin === "savr.link") return "savr.link (hosted app)";
+    if (origin === "local") return "Local / LAN (dev)";
     if (origin === "chrome-extension") return "Extension (Chrome)";
     if (origin === "moz-extension") return "Extension (Firefox)";
     if (origin === "safari-web-extension") return "Extension (Safari)";
@@ -173,6 +177,13 @@ include any non-Savr callers. Retained 90 days.</p>
     return rows.reduce((sum, row) => sum + Number(row.n || 0), 0);
   }
 
+  function sizeLabel(bytes) {
+    if (!bytes) return "–";
+    var units = ["B", "KB", "MB", "GB", "TB"];
+    var i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+    return (bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + units[i];
+  }
+
   function renderTiles(data) {
     var requests = total(data.statuses || []);
     var errors = (data.statuses || []).reduce((sum, row) => Number(row.status) >= 400 ? sum + Number(row.n) : sum, 0);
@@ -187,6 +198,8 @@ include any non-Savr callers. Retained 90 days.</p>
       ["Errors", errors, "responses with status >= 400"],
       ["Error rate", requests ? (100 * errors / requests).toFixed(2) + "%" : "–", ""],
       ["Edge-cache hit rate", hits + misses ? (100 * hits / (hits + misses)).toFixed(1) + "%" : "–", ""],
+      ["Avg origin fetch", data.originMs ? Math.round(data.originMs) + " ms" : "–", "mean time to answer an edge-cache miss"],
+      ["Data served", sizeLabel(data.bytes), "advertised bytes; chunked responses are not counted"],
     ];
     var root = $("tiles");
     root.textContent = "";
@@ -265,6 +278,10 @@ include any non-Savr callers. Retained 90 days.</p>
     renderList("statuses", data.statuses || [], {
       label: (row) => row.status,
       bad: (row) => Number(row.status) >= 400,
+    });
+    renderList("errors", data.errors || [], {
+      label: (row) => ERROR_LABELS[row.kind] || row.kind,
+      bad: () => true,
     });
     renderList("hosts", data.hosts || [], {
       label: (row) => row.host + "  [" + row.status + "]",
