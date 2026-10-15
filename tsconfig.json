@@ -3,6 +3,11 @@
     "**/*.ts",
     "**/*.tsx"
   ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "infra"
+  ],
   "compilerOptions": {
     "types": [
       "vite/client",

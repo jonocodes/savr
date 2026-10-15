@@ -100,7 +100,7 @@ When on the main screen you can always click the '+' button and enter a URL.
 
 ## Bookmarklet
 
-The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save.
+The bookmarklet is the recommended way to save when using a desktop browser. Once you install it, you can click its link when you are on a page you want to save. The bookmarklet and extension links appear in **Preferences** only in a desktop browser — they are hidden in the installed app and on touch-only devices (phones, tablets without a mouse), where neither can be used.
 
 ### Custom raw-content bookmarklets
 
@@ -177,6 +177,7 @@ Savr can automatically generate summaries of your saved articles using an LLM to
 - **OpenAI** - GPT models for high-quality summaries
 - **Gemini** - Google's models via their OpenAI-compatible endpoint
 - **Local / Custom** - Point at any OpenAI-compatible server (llama.cpp's `llama-server`, Ollama, LM Studio, vLLM, OpenRouter, ...) by entering its URL and a model name
+- **Cloudflare Workers AI (self-hosted)** - Deploy the included worker in [`infra/cloudflare-ai`](./infra/cloudflare-ai) to use Cloudflare's free Workers AI tier behind an OpenAI-compatible URL, with a server-side model whitelist. Enter the worker's `/v1/chat/completions` URL as a **Local / Custom** provider.
 
 **Customization Options:**
 - **Detail Level** - From brief overviews to comprehensive summaries
@@ -185,9 +186,9 @@ Savr can automatically generate summaries of your saved articles using an LLM to
 - **Focus** - General summary, key facts, action items, main themes, or arguments
 - **Custom Prompt** - Advanced users can define their own summarization prompt
 
-To enable summarization, go to Preferences and toggle on "Enable AI Summarization". For cloud providers you'll need to provide an API key from your chosen provider (Groq offers free API keys). For the **Local / Custom** provider, enter the server's chat-completions URL (e.g. `http://localhost:8080/v1/chat/completions`) and the model name; an API key is usually optional.
+To enable summarization, go to Preferences and toggle on "Enable summarization". For cloud providers you'll need to provide an API key from your chosen provider (Groq offers free API keys). For the **Local / Custom** provider, enter the server's chat-completions URL (e.g. `http://localhost:8080/v1/chat/completions`) and the model name; an API key is usually optional.
 
-To choose a model, either type its id directly or press the **refresh** button beside the model field to fetch the provider's current model list live from its `/v1/models` endpoint (requires the API key/URL to be set first, and a key for cloud providers). Model lists are fetched on demand rather than hardcoded, so they never go stale.
+To choose a model, either type its id directly or pick from the provider's current model list, fetched live from its `/v1/models` endpoint. The list loads automatically once credentials are set (when the API key or server URL changes, when Preferences opens with a saved key, and when **Test** is pressed); the **refresh** button beside the model field re-fetches it on demand. If no model is chosen yet, or the saved one is no longer listed, Savr picks one: the first of a short per-provider list of good summarization models that the provider actually lists, otherwise the model with the most summaries/day, otherwise the first chat model. The choice is remembered per provider, like API keys. Model lists themselves are never hardcoded, so they never go stale.
 
 > **Note:** summaries are requested directly from your browser, so the provider must send permissive CORS headers. The major cloud providers and llama.cpp's `llama-server` do this by default. Ollama needs `OLLAMA_ORIGINS=*` (or your app's origin) set in its environment to allow browser requests.
 

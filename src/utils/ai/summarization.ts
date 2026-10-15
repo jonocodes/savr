@@ -6,7 +6,7 @@
 // table of endpoints covers all of them — adding a provider is a data edit here,
 // not new code. The "custom" provider lets the user point at any base URL and
 // type a model name by hand (e.g. a local llama-server or a self-hosted model).
-import { getSummarySettingsFromCookie } from "../cookies";
+import { getSummaryModelForProvider, getSummarySettingsFromCookie } from "../cookies";
 
 // Provider ids are open-ended now that providers are just data, so this is a
 // plain string alias rather than a closed union.
@@ -25,6 +25,10 @@ export type SummaryProviderConfig = {
   isCustom?: boolean;
   // Hint shown under the API key field in preferences.
   apiKeyHint?: string;
+  // Good summarization models, best first. Only used when the provider's live
+  // model list actually contains them (see pickDefaultModel), so a retired
+  // entry here is skipped rather than breaking anything.
+  preferredModels?: string[];
 };
 
 export const PROVIDERS: SummaryProviderConfig[] = [
@@ -34,6 +38,7 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     baseUrl: "https://api.groq.com/openai/v1/chat/completions",
     requiresApiKey: true,
     apiKeyHint: "Get a free key at console.groq.com",
+    preferredModels: ["qwen/qwen3-32b", "llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
   },
   {
     id: "openai",
@@ -41,6 +46,7 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     baseUrl: "https://api.openai.com/v1/chat/completions",
     requiresApiKey: true,
     apiKeyHint: "Get a key at platform.openai.com",
+    preferredModels: ["gpt-5-mini", "gpt-4.1-mini", "gpt-4o-mini"],
   },
   {
     id: "gemini",
@@ -48,6 +54,7 @@ export const PROVIDERS: SummaryProviderConfig[] = [
     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
     requiresApiKey: true,
     apiKeyHint: "Get a key at aistudio.google.com/apikey",
+    preferredModels: ["gemini-flash-latest", "gemini-2.5-flash", "gemini-2.0-flash"],
   },
   {
     id: "custom",
@@ -313,11 +320,34 @@ export async function testApiConnection(
   }
 }
 
+// Optional per-model estimate published by a provider under a non-standard
+// `x_savr` extension (our self-hosted Cloudflare worker does this). Generic
+// OpenAI-compatible providers omit it.
+export interface ModelSummaryEstimate {
+  neuronsPerSummary: number;
+  summariesPerDay: number;
+}
+
+export interface AvailableModel {
+  id: string;
+  estimate?: ModelSummaryEstimate;
+}
+
+function parseModelEstimate(raw: unknown): ModelSummaryEstimate | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const e = raw as { neurons_per_summary?: unknown; summaries_per_day?: unknown };
+  if (typeof e.neurons_per_summary !== "number" || typeof e.summaries_per_day !== "number") {
+    return undefined;
+  }
+  return { neuronsPerSummary: e.neurons_per_summary, summariesPerDay: e.summaries_per_day };
+}
+
 /**
- * Fetch the list of model ids a provider currently offers via its
- * OpenAI-compatible `GET /v1/models` endpoint (derived from the chat-completions
- * URL by swapping the path). Works for Groq, OpenAI, Gemini's compat layer and
- * local servers. Returns a sorted list of model ids.
+ * Fetch the models a provider currently offers via its OpenAI-compatible
+ * `GET /v1/models` endpoint (derived from the chat-completions URL by swapping
+ * the path). Works for Groq, OpenAI, Gemini's compat layer and local servers.
+ * Returns a sorted, de-duplicated list; models that publish an `x_savr`
+ * extension also carry an estimate.
  *
  * @param baseUrl Endpoint override for custom providers (ignored for built-ins).
  */
@@ -325,7 +355,7 @@ export async function fetchAvailableModels(
   provider: SummaryProvider,
   apiKey: string,
   baseUrl?: string
-): Promise<string[]> {
+): Promise<AvailableModel[]> {
   const endpoint = resolveEndpoint(provider, baseUrl);
   const modelsUrl = endpoint.replace(/\/chat\/completions\/?$/, "/models");
   if (modelsUrl === endpoint) {
@@ -347,12 +377,67 @@ export async function fetchAvailableModels(
 
   const data = await res.json();
   const list: unknown[] = Array.isArray(data?.data) ? data.data : [];
-  const ids = list
-    .map((m) => (m && typeof m === "object" ? (m as { id?: unknown }).id : undefined))
+
+  const models = new Map<string, AvailableModel>();
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const rawId = (item as { id?: unknown }).id;
+    if (typeof rawId !== "string") continue;
     // Gemini's compat endpoint prefixes ids with "models/"; strip it so the id
     // matches what the chat-completions call expects.
-    .map((id) => (typeof id === "string" ? id.replace(/^models\//, "") : ""))
-    .filter((id): id is string => id.length > 0);
+    const id = rawId.replace(/^models\//, "");
+    if (!id) continue;
+    const estimate = parseModelEstimate((item as { x_savr?: unknown }).x_savr);
+    const existing = models.get(id);
+    if (!existing) {
+      models.set(id, estimate ? { id, estimate } : { id });
+    } else if (!existing.estimate && estimate) {
+      existing.estimate = estimate;
+    }
+  }
 
-  return Array.from(new Set(ids)).sort();
+  return [...models.values()].sort((a, b) => a.id.localeCompare(b.id));
+}
+
+// Ids of models that can't do chat completions (audio, images, embeddings,
+// moderation). Used only when guessing a default from an unfamiliar list.
+const NON_CHAT_MODEL = /whisper|tts|dall-e|image|embed|moderation|guard|audio|transcribe|aqa/i;
+
+/**
+ * Choose the model to use from a provider's live model list:
+ * keep `current` if still listed, else the provider's first listed preferred
+ * model, else the one with the most summaries/day, else the first chat-capable
+ * looking id. An empty list (nothing fetched) leaves `current` unchanged.
+ */
+export function pickDefaultModel(
+  provider: SummaryProvider,
+  models: AvailableModel[],
+  current: string,
+): string {
+  if (models.length === 0) return current;
+  const listed = new Set(models.map((m) => m.id));
+  if (current && listed.has(current)) return current;
+
+  const preferred = getProviderConfig(provider)?.preferredModels?.find((id) => listed.has(id));
+  if (preferred) return preferred;
+
+  const withEstimates = models.filter((m) => m.estimate);
+  if (withEstimates.length > 0) {
+    return withEstimates.reduce((best, m) =>
+      m.estimate!.summariesPerDay > best.estimate!.summariesPerDay ? m : best,
+    ).id;
+  }
+
+  return (models.find((m) => !NON_CHAT_MODEL.test(m.id)) ?? models[0]).id;
+}
+
+/**
+ * The model to summarize with: the user's saved choice for this provider, or
+ * the provider's first preferred model if they never picked one (e.g. the
+ * model list couldn't be fetched).
+ */
+export function getEffectiveSummaryModel(provider: SummaryProvider): string {
+  return (
+    getSummaryModelForProvider(provider) || getProviderConfig(provider)?.preferredModels?.[0] || ""
+  );
 }

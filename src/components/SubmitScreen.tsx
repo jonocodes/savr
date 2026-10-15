@@ -31,7 +31,6 @@ import {
   AFTER_EXTERNAL_SAVE_ACTIONS,
   AfterExternalSaveAction,
   getSummaryProviderFromCookie,
-  getSummaryModelFromCookie,
   getSummaryCustomBaseUrlFromCookie,
   getApiKeyForProvider,
 } from "~/utils/cookies";
@@ -39,6 +38,7 @@ import {
   summarizeText,
   buildSummarySettings,
   getProviderConfig,
+  getEffectiveSummaryModel,
   type SummarizationProgress,
 } from "~/utils/ai/summarization";
 import { db } from "~/utils/db";
@@ -371,7 +371,7 @@ export default function SubmitScreen() {
 
     // Get summarization config from cookies
     const provider = getSummaryProviderFromCookie();
-    const model = getSummaryModelFromCookie();
+    const model = getEffectiveSummaryModel(provider);
     const apiKey = getApiKeyForProvider(provider) || "";
     const baseUrl = getSummaryCustomBaseUrlFromCookie();
     const providerConfig = getProviderConfig(provider);

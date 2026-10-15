@@ -1,0 +1,4 @@
+# Copy to .dev.vars for `wrangler dev` (git-ignored).
+# `wrangler secret put AI_API_KEYS` does the same for deployed workers.
+# One or more keys, comma- or newline-separated.
+AI_API_KEYS=change-me,also-change-me

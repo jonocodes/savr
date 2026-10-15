@@ -30,11 +30,10 @@ import {
 } from "~/utils/net/imageSources";
 import { getCorsProxyValue } from "~/utils/net/corsProxy";
 import { md5 } from "js-md5";
-import { summarizeText, buildSummarySettings, type SummaryProvider } from "~/utils/ai/summarization";
+import { summarizeText, buildSummarySettings, getEffectiveSummaryModel, type SummaryProvider } from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
-  getSummaryModelFromCookie,
   getApiKeyForProvider,
 } from "~/utils/cookies";
 import { convertToHtml, detectContentType } from "./contentType";
@@ -855,7 +854,7 @@ async function persistArticle(
     try {
       const plainText = extractTextFromHtml(content);
       if (plainText.length > 100) {
-        const model = getSummaryModelFromCookie();
+        const model = getEffectiveSummaryModel(provider);
         const summary = await summarizeText(plainText, buildSummarySettings(), provider, apiKey, model);
         if (summary) {
           article.summary = summary;
