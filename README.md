@@ -123,7 +123,7 @@ A working example lives in [`browser-extension/youtube-transcript.js`](browser-e
 
 On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button with **Save current page** and **Visit Savr**. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself.
 
-It is not on addons.mozilla.org or the Chrome Web Store yet, so it installs by sideloading: a temporary add-on in Firefox, **Load unpacked** in Chrome. See [browser-extension/README.md](browser-extension/README.md) for install, settings, and how the delivery flow works.
+It is not on addons.mozilla.org or the Chrome Web Store yet, so it installs by sideloading: a temporary add-on in Firefox, **Load unpacked** in Chrome. See [browser-extension/README.md](browser-extension/README.md) for install, settings, and how the delivery flow works — or use the links in **Preferences**, which point at the install targets (configurable at build time once store listings exist).
 
 ## In browser
 

@@ -44,6 +44,23 @@ on this directory. The automated test suite (`tests/e2e/extension-save.spec.ts`)
 loads this exact code into Chromium and runs a real save, so this path stays
 exercised.
 
+## Distribution
+
+Sideloading (above) is the only install path today. The plan:
+
+- **Firefox**: publish to addons.mozilla.org, or sign an unlisted build
+  (`npx web-ext sign --channel unlisted`) and host the signed `.xpi` yourself
+  (e.g. a GitHub release) — Firefox installs it from a direct link with a
+  permission prompt. AMO submission also needs the `data_collection_permissions`
+  manifest declaration that `web-ext lint` currently warns about.
+- **Chrome**: the Chrome Web Store is the only install path for normal users
+  (self-hosted `.crx` files are blocked); a repo zip only works through
+  **Load unpacked**.
+
+The app's Preferences screen links to these targets next to the bookmarklets;
+the URLs are build-time configurable (`VITE_FIREFOX_EXTENSION_URL`,
+`VITE_CHROME_EXTENSION_URL`) and default to this README.
+
 ## Settings
 
 **Settings** in the popup opens the options page (also reachable from the

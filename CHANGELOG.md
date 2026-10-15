@@ -17,6 +17,7 @@
 - The `?rawIngest=1` listener also announces `savr-ready` on its own window now, so a sender with no opener (the extension) can deliver raw content
 - The app now also announces its `savr-ready` bookmarklet signal on its own window, so a sender with no opener (the extension opens the tab through the tabs API) can deliver the page; the announcement stops once a payload arrives (#88)
 - The extension keeps a pending save in session storage so a background context unloaded mid-save resumes; `browser-extension/README.md` documents install (temporary add-on), settings, the delivery protocol, and the Chrome-parity notes (#88)
+- Preferences now links to the browser extension next to the bookmarklets; the install targets are build-configurable (`VITE_FIREFOX_EXTENSION_URL` / `VITE_CHROME_EXTENSION_URL`) and default to the extension's install instructions
 
 ## 2026-10-13
 
