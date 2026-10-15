@@ -313,11 +313,34 @@ export async function testApiConnection(
   }
 }
 
+// Optional per-model estimate published by a provider under a non-standard
+// `x_savr` extension (our self-hosted Cloudflare worker does this). Generic
+// OpenAI-compatible providers omit it.
+export interface ModelSummaryEstimate {
+  neuronsPerSummary: number;
+  summariesPerDay: number;
+}
+
+export interface AvailableModel {
+  id: string;
+  estimate?: ModelSummaryEstimate;
+}
+
+function parseModelEstimate(raw: unknown): ModelSummaryEstimate | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const e = raw as { neurons_per_summary?: unknown; summaries_per_day?: unknown };
+  if (typeof e.neurons_per_summary !== "number" || typeof e.summaries_per_day !== "number") {
+    return undefined;
+  }
+  return { neuronsPerSummary: e.neurons_per_summary, summariesPerDay: e.summaries_per_day };
+}
+
 /**
- * Fetch the list of model ids a provider currently offers via its
- * OpenAI-compatible `GET /v1/models` endpoint (derived from the chat-completions
- * URL by swapping the path). Works for Groq, OpenAI, Gemini's compat layer and
- * local servers. Returns a sorted list of model ids.
+ * Fetch the models a provider currently offers via its OpenAI-compatible
+ * `GET /v1/models` endpoint (derived from the chat-completions URL by swapping
+ * the path). Works for Groq, OpenAI, Gemini's compat layer and local servers.
+ * Returns a sorted, de-duplicated list; models that publish an `x_savr`
+ * extension also carry an estimate.
  *
  * @param baseUrl Endpoint override for custom providers (ignored for built-ins).
  */
@@ -325,7 +348,7 @@ export async function fetchAvailableModels(
   provider: SummaryProvider,
   apiKey: string,
   baseUrl?: string
-): Promise<string[]> {
+): Promise<AvailableModel[]> {
   const endpoint = resolveEndpoint(provider, baseUrl);
   const modelsUrl = endpoint.replace(/\/chat\/completions\/?$/, "/models");
   if (modelsUrl === endpoint) {
@@ -347,12 +370,24 @@ export async function fetchAvailableModels(
 
   const data = await res.json();
   const list: unknown[] = Array.isArray(data?.data) ? data.data : [];
-  const ids = list
-    .map((m) => (m && typeof m === "object" ? (m as { id?: unknown }).id : undefined))
+
+  const models = new Map<string, AvailableModel>();
+  for (const item of list) {
+    if (!item || typeof item !== "object") continue;
+    const rawId = (item as { id?: unknown }).id;
+    if (typeof rawId !== "string") continue;
     // Gemini's compat endpoint prefixes ids with "models/"; strip it so the id
     // matches what the chat-completions call expects.
-    .map((id) => (typeof id === "string" ? id.replace(/^models\//, "") : ""))
-    .filter((id): id is string => id.length > 0);
+    const id = rawId.replace(/^models\//, "");
+    if (!id) continue;
+    const estimate = parseModelEstimate((item as { x_savr?: unknown }).x_savr);
+    const existing = models.get(id);
+    if (!existing) {
+      models.set(id, estimate ? { id, estimate } : { id });
+    } else if (!existing.estimate && estimate) {
+      existing.estimate = estimate;
+    }
+  }
 
-  return Array.from(new Set(ids)).sort();
+  return [...models.values()].sort((a, b) => a.id.localeCompare(b.id));
 }
