@@ -159,3 +159,16 @@ export function createExtensionImageSource(
     },
   };
 }
+
+/**
+ * The telemetry capture source for an externally delivered save: the
+ * extension reuses the bookmarklet ingest paths, so without this its saves
+ * would be counted as bookmarklet ones.
+ */
+export function externalCaptureSource(
+  payload: "html" | "raw",
+  extension: ExtensionInfo | null
+): string {
+  if (payload === "raw") return extension ? "extension-raw" : "raw";
+  return extension ? "extension" : "bookmarklet";
+}

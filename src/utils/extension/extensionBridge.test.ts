@@ -3,6 +3,7 @@ import {
   dataUrlToBlob,
   extensionDownloaderLabel,
   extensionFromMessageEvent,
+  externalCaptureSource,
   parseExtensionHandshake,
   type BridgeChannel,
 } from "./extensionBridge";
@@ -205,5 +206,19 @@ describe("createExtensionImageSource after a timeout", () => {
     } finally {
       jest.useRealTimers();
     }
+  });
+});
+
+describe("externalCaptureSource", () => {
+  const extension = { version: "1.0.0" };
+
+  it("names extension saves apart from bookmarklet saves", () => {
+    expect(externalCaptureSource("html", null)).toBe("bookmarklet");
+    expect(externalCaptureSource("html", extension)).toBe("extension");
+  });
+
+  it("does the same for pre-extracted (raw) content", () => {
+    expect(externalCaptureSource("raw", null)).toBe("raw");
+    expect(externalCaptureSource("raw", extension)).toBe("extension-raw");
   });
 });
