@@ -281,6 +281,23 @@ test("rejects a missing url", async () => {
   assert.equal(response.status, 400);
 });
 
+// The app's proxy-health probe (#86) fetches the configured prefix with an
+// empty target and reads "answered with CORS headers" as "our code is
+// running". Every shape of prefix must get that CORS 400.
+test("answers the empty-target health probe with a CORS 400", async () => {
+  stubGlobals();
+  const cases = [
+    [`${PROXY}?url=`, { PUBLIC: "true" }],
+    [`${PROXY}${TOKEN}/?url=`, { PROXY_TOKENS: TOKEN }],
+    [`${PROXY}?token=${TOKEN}&url=`, { PROXY_TOKENS: TOKEN }],
+  ];
+  for (const [prefix, env] of cases) {
+    const response = await callWorker(urlRequest(prefix), { env });
+    assert.equal(response.status, 400, prefix);
+    assert.equal(response.headers.get("access-control-allow-origin"), "*", prefix);
+  }
+});
+
 test("rejects malformed and non-http urls", async () => {
   stubGlobals();
   const invalid = await callWorker(proxyRequest("not a url"), { env: { PUBLIC: "true" } });

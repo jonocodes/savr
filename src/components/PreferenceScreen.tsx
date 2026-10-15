@@ -28,6 +28,7 @@ import {
   FormControl,
   InputAdornment,
   CircularProgress,
+  Link,
 } from "@mui/material";
 import { Visibility, VisibilityOff } from "@mui/icons-material";
 import {
@@ -53,6 +54,10 @@ import {
   Language as LanguageIcon,
 } from "@mui/icons-material";
 import { getStoredCorsProxy, setCorsProxyValue } from "~/utils/net/corsProxy";
+import { proxyProblemMessage } from "~/utils/net/proxyHealth";
+import { getProxiedRequestsTodayCount, resetProxyHealth } from "~/utils/article/tools";
+import { useProxyHealth } from "~/hooks/useProxyHealth";
+import { SELF_HOST_PROXY_URL } from "./ProxyHealthBanner";
 import { getDefaultCorsProxy, getExtensionUrls, isTelemetryConfigured } from "~/config/environment";
 import { hasGlobalPrivacyControl } from "~/utils/telemetry";
 // Single source of truth: browser-extension/youtube-transcript.js — the same
@@ -218,6 +223,7 @@ export default function PreferencesScreen() {
   const [language, setLanguage] = React.useState<AppLanguage>(getAppLanguage);
   const [corsProxy, setCorsProxy] = React.useState<string>("");
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
+  const proxyHealthState = useProxyHealth();
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
   const [syncEnabled, setSyncEnabled] = React.useState<boolean>(true);
   const [syncInterval, setSyncInterval] = React.useState<number>(DEFAULT_SYNC_INTERVAL_MS);
@@ -445,6 +451,8 @@ export default function PreferencesScreen() {
       setIsCustomCorsProxy(false);
       setCorsProxyValue(null);
     }
+    // Whatever was observed was about the previous proxy.
+    resetProxyHealth();
   };
 
   const handleCorsProxyFocus = () => {
@@ -786,7 +794,7 @@ export default function PreferencesScreen() {
               </ListItem>
             )}
 
-            <ListItem sx={wrappingRowSx}>
+            <ListItem sx={wrappingRowSx} id="cors-proxy">
               <ListItemIcon>
                 <WebIcon />
               </ListItemIcon>
@@ -804,6 +812,28 @@ export default function PreferencesScreen() {
                     <Typography variant="body2" component="span">
                       {t("prefs.corsProxyHint")}
                     </Typography>
+                    <Typography
+                      variant="body2"
+                      component="div"
+                      data-testid="proxy-health-status"
+                      color={proxyHealthState.problem ? "warning.main" : "text.secondary"}
+                      sx={{ mt: 0.5 }}
+                    >
+                      {proxyHealthState.problem
+                        ? proxyProblemMessage(proxyHealthState.problem, proxyHealthState.status)
+                        : "No problems observed."}{" "}
+                      ~{getProxiedRequestsTodayCount()} requests from this device today.
+                    </Typography>
+                    {proxyHealthState.problem && !isCustomCorsProxy && (
+                      <Link
+                        href={SELF_HOST_PROXY_URL}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        variant="body2"
+                      >
+                        Set up your own proxy
+                      </Link>
+                    )}
                   </Box>
                 }
               />

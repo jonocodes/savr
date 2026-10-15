@@ -156,3 +156,12 @@ cap. The primary defense is the **browser** cache (the `Cache-Control` above
 makes browsers stop re-requesting) plus the app-side fetch governor
 (`src/utils/net/fetchGovernor.ts`), which de-dupes, negative-caches and backs
 off so the app never generates the retry storm in the first place.
+
+When the cap is hit anyway, the app notices (#86): the 1027 page comes from
+Cloudflare's edge, not this worker, so it lacks the CORS headers that every
+response from `core.js` carries (its own 4xx/5xx included). The app probes the
+configured prefix with an empty target — this worker answers that with a CORS
+`400` — once with CORS and once with `no-cors`, and reads "CORS fails, no-cors
+succeeds" as "reachable but not running our code". Keep CORS headers on every
+response the worker produces, or that probe will misread the worker as down.
+See `src/utils/net/proxyHealth.ts`.

@@ -2,12 +2,45 @@ import { Article } from "../../../lib/src/models";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import { db } from "../db";
 import { deleteArticleStorage, init } from "../sync/storage";
-import { buildProxiedUrl } from "../net/corsProxy";
+import { buildProxiedUrl, getCorsProxyValue } from "../net/corsProxy";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib";
 import { markDirty } from "./publicExport";
 import { recordLog, errorMessage } from "../logging";
 import { createFetchGovernor, GovernorError } from "../net/fetchGovernor";
 import { createDexieOutcomeStore } from "../net/fetchGovernorStore";
+import {
+  countProxiedRequest,
+  createProxyHealthMonitor,
+  getProxiedRequestsToday,
+  probeProxy,
+} from "../net/proxyHealth";
+
+function localStorageOrNull(): Storage | null {
+  try {
+    return typeof localStorage !== "undefined" ? localStorage : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Whether the CORS proxy itself is working (#86). Fed by the governor below;
+ * the UI subscribes to it for the banner, Preferences and Diagnostics.
+ */
+export const proxyHealth = createProxyHealthMonitor({
+  probe: () => {
+    countProxiedRequest(localStorageOrNull(), Date.now(), 2);
+    return probeProxy(getCorsProxyValue(), {
+      fetch: (url, init) => fetch(url, init),
+      isOnline: () => typeof navigator === "undefined" || navigator.onLine !== false,
+    });
+  },
+});
+
+/** Requests this device sent to the CORS proxy today (a hint, not a quota). */
+export function getProxiedRequestsTodayCount(): number {
+  return getProxiedRequestsToday(localStorageOrNull(), Date.now());
+}
 
 // One governor for the whole app: all proxied fetches (article pages and every
 // article image) share the same failure history, so a URL that is failing is
@@ -15,6 +48,8 @@ import { createDexieOutcomeStore } from "../net/fetchGovernorStore";
 // survives reloads.
 const fetchGovernor = createFetchGovernor({
   store: createDexieOutcomeStore(),
+  // Direct fetches (no proxy configured) have no proxy to blame.
+  diagnoseNetworkFailure: async () => (getCorsProxyValue() ? proxyHealth.diagnose() : false),
   onEvent: (event) => {
     if (event.type === "recorded") {
       recordLog("warn", "fetch", `Fetch failed (${event.class})`, {
@@ -25,11 +60,28 @@ const fetchGovernor = createFetchGovernor({
       });
     } else if (event.type === "breaker-open") {
       recordLog("warn", "fetch", "CORS proxy circuit breaker opened", {
+        reason: event.reason,
+        status: event.status,
         retryAt: new Date(event.nextAttemptAt).toISOString(),
+        probe: proxyHealth.getState().lastProbe,
       });
+      if (event.reason === "rate-limited" && getCorsProxyValue()) {
+        proxyHealth.reportRateLimited(event.status ?? 429);
+      }
+    } else if (event.type === "breaker-close") {
+      proxyHealth.reportHealthy();
     }
   },
 });
+
+/**
+ * Start over after the proxy setting changed: close the breaker and forget
+ * what was observed about the previous proxy.
+ */
+export function resetProxyHealth(): void {
+  fetchGovernor.resetBreaker();
+  proxyHealth.reset();
+}
 
 // delete the article from the db and the file system
 // deleteArticleStorage already handles deleting from both IndexedDB and RemoteStorage
@@ -117,7 +169,10 @@ export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): P
     // window, and short-circuits when the proxy itself is failing.
     const response = await fetchGovernor.run(
       { key: url, requestUrl: fetchUrl },
-      (requestUrl) => fetch(requestUrl, { signal: AbortSignal.timeout(timeoutMs) })
+      (requestUrl) => {
+        if (requestUrl !== url) countProxiedRequest(localStorageOrNull(), Date.now());
+        return fetch(requestUrl, { signal: AbortSignal.timeout(timeoutMs) });
+      }
     );
     if (!response.ok) {
       throw new FetchError(`HTTP ${response.status} ${response.statusText}`.trim(), {

@@ -31,6 +31,8 @@ import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import { isPWAMode } from "~/utils/net/network";
 import { getCorsProxyValue, maskCorsProxyInText } from "~/utils/net/corsProxy";
 import { useTranslation } from "react-i18next";
+import { useProxyHealth } from "~/hooks/useProxyHealth";
+import { getProxiedRequestsTodayCount } from "~/utils/article/tools";
 import React from "react";
 
 interface RemoteStorageEvent {
@@ -45,6 +47,7 @@ export default function DiagnosticsScreen() {
   const articles = useLiveQuery(() => db.articles.toArray());
   const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
   const syncProgress = useSyncProgress();
+  const proxyHealthState = useProxyHealth();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -1039,6 +1042,46 @@ export default function DiagnosticsScreen() {
                 </Typography>
               </Box>
             </Box>
+          </Box>
+
+          <Box
+            sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}
+            data-testid="proxy-health-diagnostics"
+          >
+            <Typography variant="h6" component="h3" gutterBottom>
+              CORS Proxy Health
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              What Savr observed about the proxy, and why it said so. The probe fetches the
+              proxy prefix with an empty target twice: with CORS (our worker answers with
+              CORS headers, even on errors) and with no-cors (resolves whenever anything
+              answered).
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {maskCorsProxyInText(
+                JSON.stringify(
+                  {
+                    problem: proxyHealthState.problem,
+                    observedAt: proxyHealthState.observedAt
+                      ? new Date(proxyHealthState.observedAt).toISOString()
+                      : null,
+                    status: proxyHealthState.status ?? null,
+                    lastProbe: proxyHealthState.lastProbe
+                      ? {
+                          ...proxyHealthState.lastProbe,
+                          evidence: {
+                            ...proxyHealthState.lastProbe.evidence,
+                            at: new Date(proxyHealthState.lastProbe.evidence.at).toISOString(),
+                          },
+                        }
+                      : null,
+                    proxiedRequestsToday: getProxiedRequestsTodayCount(),
+                  },
+                  null,
+                  2
+                )
+              )}
+            </Typography>
           </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>

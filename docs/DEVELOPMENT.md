@@ -119,6 +119,7 @@ rm -f tests/e2e/.test-env.json
 | `main-page.spec.ts` | Main page UI tests | Requires React hydration |
 | `add-article-dialog.spec.ts` | Add-article dialog interactions | Requires React hydration |
 | `failure-report.spec.ts` | Failed-capture report dialog: dismiss, prefilled GitHub issue, mobile reachability | Needs `VITE_FAILURE_REPORT_REPO` (set by the Playwright web-server env) |
+| `proxy-health.spec.ts` | CORS proxy health banner (#86): visible 429, capped-edge answer without CORS headers (real local server — `route.fulfill` adds CORS headers itself), unreachable, and a failing target behind a working proxy (no banner) | Active |
 | `share-article.spec.ts` | Share menu on a list article: system share sheet (Web Share stubbed) and clipboard fallback | Active |
 | `ingest-local-article.spec.ts` | Article ingestion via UI, incl. PDF/markdown/image from `test_data/input/` | Serial |
 | `ingest-failed-image.spec.ts` | A failed image is replaced by a local placeholder in saved HTML (#75) | Serial |

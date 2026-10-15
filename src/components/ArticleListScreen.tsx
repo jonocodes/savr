@@ -69,6 +69,7 @@ import { normalizeUrl } from "~/utils/net/url";
 import { shareArticle } from "~/utils/share";
 import FailureReportDialog from "./FailureReportDialog";
 import { useTranslation } from "react-i18next";
+import ProxyHealthBanner from "./ProxyHealthBanner";
 
 import { keyframes } from "@mui/system";
 
@@ -1080,6 +1081,7 @@ export default function ArticleListScreen() {
         maxWidth="sm"
         sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
       >
+        <ProxyHealthBanner />
         {/* Article count and reading time info */}
         {filteredArticles.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>
