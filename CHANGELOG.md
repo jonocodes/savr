@@ -12,6 +12,13 @@
 - Unresolvable hosts, which Cloudflare answers with its own 530 page (`error code: 1016`) instead of a fetch error, are now counted as DNS failures in the stats; the 530 still passes through to the app unchanged
 - Sharing an article out (⋮ → Share) now opens the system share sheet on Android and other Web Share-capable platforms, sending the title and URL to any app; where the Web Share API is unavailable (most desktop Linux browsers) it still copies the URL to the clipboard
 - Dismissing the share sheet is treated as a cancellation rather than a failure, and the clipboard fallback reports itself with a snackbar instead of an alert
+- Added an optional browser extension for Firefox and Chrome: the toolbar popup's **Save current page** scrapes the loaded DOM of the active tab — no re-download, so it works behind logins and makes no CORS proxy request for the page — and hands it to Savr through the existing bookmarklet ingest path (#88)
+- YouTube watch pages saved through the extension now capture the transcript plus the video thumbnail, delivered as raw content just like the YouTube transcript bookmarklet; a video without a transcript falls back to the normal page scrape, and the behavior can be turned off in Settings (on by default)
+- The YouTube extraction now lives in `browser-extension/youtube-transcript.js` as the single source of truth — the extension serializes it into the watch tab and the app's build wraps the same function into the Preferences bookmarklet
+- The `?rawIngest=1` listener also announces `savr-ready` on its own window now, so a sender with no opener (the extension) can deliver raw content
+- The app now also announces its `savr-ready` bookmarklet signal on its own window, so a sender with no opener (the extension opens the tab through the tabs API) can deliver the page; the announcement stops once a payload arrives (#88)
+- The extension keeps a pending save in session storage so a background context unloaded mid-save resumes; `browser-extension/README.md` documents install (temporary add-on), settings, the delivery protocol, and the Chrome-parity notes (#88)
+- Preferences now links to the browser extension next to the bookmarklets; the install targets are build-configurable (`VITE_FIREFOX_EXTENSION_URL` / `VITE_CHROME_EXTENSION_URL`) and default to the extension's install instructions
 
 ## 2026-10-13
 

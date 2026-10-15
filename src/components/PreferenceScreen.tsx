@@ -49,14 +49,17 @@ import {
   Insights as InsightsIcon,
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
+  Extension as ExtensionIcon,
 } from "@mui/icons-material";
 import { getStoredCorsProxy, setCorsProxyValue } from "~/utils/net/corsProxy";
-import { getDefaultCorsProxy, isTelemetryConfigured } from "~/config/environment";
+import { getDefaultCorsProxy, getExtensionUrls, isTelemetryConfigured } from "~/config/environment";
 import { hasGlobalPrivacyControl } from "~/utils/telemetry";
-// Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
-// minified at build time by the minify-bookmarklet Vite plugin. The placeholder
-// SAVR origin "__SAVR_ORIGIN__" is substituted with the app's origin below.
-import ytTranscriptBookmarkletSource from "../../bookmarklet/savr-youtube-transcript.unminified.js?bookmarklet";
+// Single source of truth: browser-extension/youtube-transcript.js — the same
+// function the extension serializes into YouTube tabs — wrapped into a
+// bookmarklet at build time by the minify-bookmarklet Vite plugin. The
+// placeholder SAVR origin "__SAVR_ORIGIN__" is substituted with the app's
+// origin below.
+import ytTranscriptBookmarkletSource from "../../browser-extension/youtube-transcript.js?bookmarklet";
 import {
   getThemeFromCookie,
   toggleTheme,
@@ -128,6 +131,21 @@ import {
   publishNow,
   type PublicExportState,
 } from "~/utils/article/publicExport";
+
+// Where to install the browser extension (build-configurable, see environment.ts).
+const extensionUrls = getExtensionUrls();
+
+// Small pill links for the extension install targets.
+const extensionLinkStyle: React.CSSProperties = {
+  color: "inherit",
+  textDecoration: "none",
+  fontWeight: "bold",
+  padding: "8px 12px",
+  border: "1px solid",
+  borderColor: "currentColor",
+  borderRadius: "4px",
+  display: "inline-block",
+};
 
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
@@ -261,7 +279,7 @@ export default function PreferencesScreen() {
 
     // YouTube transcript bookmarklet: scrapes the transcript on the page and
     // sends it to Savr as raw content (savr-raw), bypassing Readability.
-    // Script body comes from bookmarklet/savr-youtube-transcript.unminified.js.
+    // Script body comes from browser-extension/youtube-transcript.js.
     if (ytTranscriptBookmarkletRef.current) {
       const origin = window.location.origin;
       ytTranscriptBookmarkletRef.current.href = `javascript:${ytTranscriptBookmarkletSource.replace(
@@ -625,6 +643,42 @@ export default function PreferencesScreen() {
                   >
                     savr yt transcript 🔴
                   </a>
+                </Box>
+              </ListItem>
+            )}
+
+            {!isInstalledPWA && (extensionUrls.firefoxUrl || extensionUrls.chromeUrl) && (
+              <ListItem>
+                <ListItemIcon>
+                  <ExtensionIcon />
+                </ListItemIcon>
+                <ListItemText
+                  primary="Browser extension"
+                  secondary="Save the page you're reading from your browser's toolbar"
+                />
+                <Box sx={{ ml: 2, display: "flex", gap: 1 }}>
+                  {extensionUrls.firefoxUrl && (
+                    <a
+                      href={extensionUrls.firefoxUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={extensionLinkStyle}
+                      data-testid="extension-firefox-link"
+                    >
+                      Firefox
+                    </a>
+                  )}
+                  {extensionUrls.chromeUrl && (
+                    <a
+                      href={extensionUrls.chromeUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={extensionLinkStyle}
+                      data-testid="extension-chrome-link"
+                    >
+                      Chrome
+                    </a>
+                  )}
                 </Box>
               </ListItem>
             )}

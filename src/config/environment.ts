@@ -21,7 +21,17 @@ export interface EnvironmentConfig {
     // so self-hosted builds get no dialog — same gating as telemetry.
     repo: string;
   };
+  extension: {
+    // Where Preferences links to install the browser extension, per browser.
+    // Defaults to the extension's README (install instructions); the hosted
+    // build can point these at the AMO listing / a hosted signed XPI and the
+    // Chrome Web Store once published. An empty value hides that link.
+    firefoxUrl: string;
+    chromeUrl: string;
+  };
 }
+
+const EXTENSION_README_URL = "https://github.com/jonocodes/savr/tree/main/browser-extension";
 
 // Get environment variables
 const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
@@ -69,6 +79,10 @@ export const environmentConfig: EnvironmentConfig = {
     // Default empty => the failure-report dialog never renders.
     repo: getEnvVar("VITE_FAILURE_REPORT_REPO", "") || "",
   },
+  extension: {
+    firefoxUrl: getEnvVar("VITE_FIREFOX_EXTENSION_URL", EXTENSION_README_URL) || "",
+    chromeUrl: getEnvVar("VITE_CHROME_EXTENSION_URL", EXTENSION_README_URL) || "",
+  },
 };
 
 export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
@@ -87,3 +101,6 @@ export const isTelemetryConfigured = () => environmentConfig.telemetry.goatCount
 // The failure-report dialog is "configured" only when a public GitHub repo has
 // been provided at build time (see utils/failureReport.ts).
 export const getFailureReportRepo = () => environmentConfig.failureReport.repo;
+
+// Where Preferences links to install the browser extension, per browser.
+export const getExtensionUrls = () => environmentConfig.extension;

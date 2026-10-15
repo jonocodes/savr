@@ -74,6 +74,18 @@ type RawIngestPayload = {
   url?: string | null;
 };
 
+/**
+ * Announce that this page is ready to receive an externally delivered payload
+ * (bookmarklet or browser extension). Sent to the opener — bookmarklets open a
+ * window and listen there — and to this window itself, because the browser
+ * extension opens the tab through the tabs API, so there is no opener and its
+ * injected bridge only hears messages on the page's own window.
+ */
+function announceSavrReady(): void {
+  window.opener?.postMessage({ action: "savr-ready" }, "*");
+  window.postMessage({ action: "savr-ready" }, window.location.origin);
+}
+
 const sampleArticleUrls = [
   "https://www.apalrd.net/posts/2023/network_ipv6/",
   "https://getpocket.com/explore/item/is-matter-conscious",
@@ -545,12 +557,18 @@ export default function ArticleListScreen() {
 
     let ingesting = false;
 
+    // Bookmarklets post blindly while the extension's injected bridge waits for
+    // an explicit readiness signal before delivering `savr-html`.
+    const readyPing = window.setInterval(announceSavrReady, 250);
+    announceSavrReady();
+
     const handler = async (event: MessageEvent) => {
       // Reject messages from sandboxed iframes and file:// pages.
       if (!event.origin || event.origin === "null") return;
 
       if (event.data.action === "savr-html") {
         if (ingesting) return;
+        window.clearInterval(readyPing);
 
         if (!client) {
           // RS client not ready yet — queue the payload and bail. The effect will
@@ -571,7 +589,10 @@ export default function ArticleListScreen() {
       }
     };
     window.addEventListener("message", handler);
-    return () => window.removeEventListener("message", handler);
+    return () => {
+      window.clearInterval(readyPing);
+      window.removeEventListener("message", handler);
+    };
   }, [client, remoteStorage, waitForSyncThenClose]);
 
   // Raw-ingest flow (savr-raw). A site-specific bookmarklet does its own extraction
@@ -650,11 +671,10 @@ export default function ArticleListScreen() {
 
     let ingesting = false;
 
-    // Ping the opener until the bookmarklet delivers the payload.
-    const readyPing = window.setInterval(() => {
-      window.opener?.postMessage({ action: "savr-ready" }, "*");
-    }, 250);
-    window.opener?.postMessage({ action: "savr-ready" }, "*");
+    // The YouTube transcript bookmarklet waits for readiness on its opener; the
+    // extension's bridge waits on this window (see announceSavrReady).
+    const readyPing = window.setInterval(announceSavrReady, 250);
+    announceSavrReady();
 
     const handler = async (event: MessageEvent) => {
       if (!event.origin || event.origin === "null") return;

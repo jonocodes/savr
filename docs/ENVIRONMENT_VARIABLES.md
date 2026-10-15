@@ -42,6 +42,12 @@ Deploy a token-locked proxy of your own from `infra/cors-worker/` (there is a De
 - **Description**: Public GitHub repo (`owner/name`) that failure reports target. When set, a failed article load offers a dialog with an editable diagnostic payload and a **File on GitHub** button that opens a prefilled new-issue form under the user's own account, requesting the `failed-url` label. When unset, the dialog and the whole path are absent — self-hosted builds are unaffected. Savr itself makes no network request for this feature.
 - **Usage**: `VITE_FAILURE_REPORT_REPO=jonocodes/savr-failure-reports npm run build`
 
+### `VITE_FIREFOX_EXTENSION_URL` / `VITE_CHROME_EXTENSION_URL`
+
+- **Default**: the [browser extension README](https://github.com/jonocodes/savr/tree/main/browser-extension) (install instructions)
+- **Description**: Where the Preferences screen links to install the browser extension. Point them at the AMO listing (or a hosted signed XPI) and the Chrome Web Store listing once published; set one to an empty string to hide that link.
+- **Usage**: `VITE_FIREFOX_EXTENSION_URL=https://addons.mozilla.org/firefox/addon/savr/ VITE_CHROME_EXTENSION_URL=https://chromewebstore.google.com/detail/… npm run build`
+
 ### `VITE_BUILD_TIMESTAMP`
 
 - **Default**: Current timestamp

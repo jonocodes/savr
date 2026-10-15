@@ -1,54 +1,60 @@
-console.log('Popup script loaded');
+const api = globalThis.browser ?? globalThis.chrome;
 
-document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded');
-    const testBtn = document.getElementById('testBtn');
-    
-    testBtn.addEventListener('click', async () => {
-        console.log('Test button clicked');
-        
-        try {
-            // Create new tab with submit page
-            const tab = await browser.tabs.create({
-                url: 'http://localhost:3000/submit'
-            });
-            
-            console.log('Created tab:', tab.id);
-            
-            // Function to try sending a ping message
-            const tryPing = async () => {
-                try {
-                    const response = await browser.tabs.sendMessage(tab.id, { type: 'PING' });
-                    return response && response.ready;
-                } catch (e) {
-                    return false;
-                }
-            };
-            
-            // Wait for content script to be ready
-            console.log('Waiting for content script...');
-            let attempts = 0;
-            while (attempts < 10) {
-                if (await tryPing()) {
-                    // Content script is ready, send the actual message
-                    console.log('Content script ready, sending message...');
-                    await browser.tabs.sendMessage(tab.id, {
-                        type: 'TEST_MESSAGE',
-                        text: 'test message'
-                    });
-                    console.log('Message sent');
-                    break;
-                }
-                attempts++;
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
-            
-            if (attempts >= 10) {
-                throw new Error('Timed out waiting for content script');
-            }
-            
-        } catch (error) {
-            console.error('Error:', error);
-        }
-    });
+const saveButton = document.getElementById("save");
+const visitButton = document.getElementById("visit");
+const settingsButton = document.getElementById("settings");
+const statusEl = document.getElementById("status");
+
+function setStatus(text) {
+  statusEl.textContent = text ?? "";
+}
+
+function setBusy(busy) {
+  saveButton.disabled = busy;
+  visitButton.disabled = busy;
+}
+
+saveButton.addEventListener("click", async () => {
+  setBusy(true);
+  setStatus("Saving…");
+  try {
+    const response = await api.runtime.sendMessage({ type: "SAVE_ACTIVE_PAGE" });
+    if (response?.ok) {
+      const status = response.fallback
+        ? "No transcript found — saving the page instead…"
+        : response.mode === "raw"
+          ? "Saving the transcript…"
+          : "Opening the Savr save dialog…";
+      setStatus(status);
+      window.setTimeout(() => window.close(), 900);
+    } else {
+      setStatus(response?.error || "Could not save this page.");
+      setBusy(false);
+    }
+  } catch {
+    setStatus("Could not reach the extension background.");
+    setBusy(false);
+  }
+});
+
+visitButton.addEventListener("click", async () => {
+  setBusy(true);
+  try {
+    const response = await api.runtime.sendMessage({ type: "VISIT_SAVR" });
+    if (response?.ok === false) {
+      setStatus(response.error || "Could not open Savr.");
+      setBusy(false);
+      return;
+    }
+    window.close();
+  } catch {
+    setStatus("Could not open Savr.");
+    setBusy(false);
+  }
+});
+
+settingsButton.addEventListener("click", () => {
+  // Firefox opens the options page in a tab, Chrome in its extensions UI.
+  (api.runtime.openOptionsPage?.() ?? Promise.resolve()).catch(() => {});
+  window.close();
 });
