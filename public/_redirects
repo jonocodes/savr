@@ -1,4 +1,4 @@
 # Stable install link for the self-hosted Firefox extension. Rewritten by
 # scripts/extension-release.mjs to point at the newest signed XPI on GitHub
 # Releases; until the first release it falls back to the install docs.
-/extension/firefox.xpi  https://github.com/jonocodes/savr/tree/main/browser-extension#install  302
+/extension/firefox.xpi  https://github.com/jonocodes/savr/releases/download/ext-v0.1.0/savr-firefox-0.1.0.xpi  302
