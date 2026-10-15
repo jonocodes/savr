@@ -76,16 +76,35 @@ function scrapePage() {
 function deliverWhenReady(message) {
   let delivered = false;
   const onMessage = (event) => {
-    if (event.source !== window) return;
     if (!event.data || event.data.action !== "savr-ready") return;
     if (delivered) return;
     delivered = true;
     window.removeEventListener("message", onMessage);
     window.postMessage({ ...message, source: "extension" }, window.location.origin);
+    console.info("[savr] delivered", message.action);
   };
   window.addEventListener("message", onMessage);
+  console.info("[savr] delivery bridge listening");
   // Do not keep a listener alive forever if the app never announces itself.
   setTimeout(() => window.removeEventListener("message", onMessage), 5 * 60 * 1000);
+}
+
+/**
+ * Inject the bridge into the app tab. The page (MAIN) world is preferred: its
+ * messages behave exactly like the bookmarklet's, which sidesteps the isolated
+ * world's message quirks across browsers (Firefox 128+ and Chromium both
+ * support MAIN). The isolated world stays as a fallback.
+ */
+async function injectDeliveryBridge(tabId, message) {
+  const injection = { target: { tabId }, func: deliverWhenReady, args: [message] };
+  try {
+    await api.scripting.executeScript({ ...injection, world: "MAIN" });
+    console.info("[savr] delivery bridge injected into app tab", tabId, message.action);
+  } catch (error) {
+    console.info("[savr] MAIN-world injection failed, retrying isolated:", error);
+    await api.scripting.executeScript(injection);
+    console.info("[savr] delivery bridge injected into app tab", tabId, message.action);
+  }
 }
 
 /**
@@ -174,11 +193,7 @@ async function tryDeliver(tabId) {
   try {
     const payload = await peekPending(tabId);
     if (!payload) return;
-    await api.scripting.executeScript({
-      target: { tabId },
-      func: deliverWhenReady,
-      args: [payload],
-    });
+    await injectDeliveryBridge(tabId, payload);
     // Forget the payload only after the bridge is in the page. If injection
     // fails it stays queued for the next retry (tab reload or background
     // restart); a duplicate bridge after a crash is harmless because the app
@@ -205,6 +220,7 @@ async function openApp(mode, message) {
 
   const appTab = await api.tabs.create({ url: target });
   if (appTab.id !== undefined) {
+    console.info("[savr] opened app tab", appTab.id, "at", target);
     await queueDelivery(appTab.id, message);
   }
   return { ok: true, mode };

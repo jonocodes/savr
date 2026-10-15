@@ -104,6 +104,8 @@ background being unloaded mid-save (Chrome service workers especially).
   build step. After editing, reload the temporary add-on in `about:debugging`
   (or the unpacked extension in Chrome).
 - Validate with `npx web-ext lint --source-dir=browser-extension`.
+- Icons come from the app: `public/favicon-16x16.png` and `favicon-32x32.png`
+  are used as-is, and 48/96/128 are resized from `public/icon.png`.
 
 ### Tests
 
