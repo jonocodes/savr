@@ -9,3 +9,10 @@ preview_urls = false
 # itself only logs errors now (host, never the full target URL).
 [observability]
 enabled = true
+
+# Aggregate usage statistics (country, MIME class, status, cache hit/miss and,
+# on failures only, the host). One point per non-preflight request. Read and
+# presented by the separate stats worker (infra/cors-stats); see its README.
+[[analytics_engine_datasets]]
+binding = "STATS"
+dataset = "savr_cors_stats"

@@ -39,6 +39,17 @@ with `Access-Control-Allow-Origin: *`. `OPTIONS` answers preflight.
 There is intentionally **no host allowlist** — it must work for arbitrary
 public sites.
 
+## Usage statistics
+
+Each non-preflight request writes one Analytics Engine point (binding `STATS`,
+dataset `savr_cors_stats`): country, MIME class, status, cache outcome
+(hit/miss/bypass), the caller app (Origin hostname or scheme) and client class
+(browser/bot/other, from a bucketed UA) — plus, on failures only, the host, and
+on 502s the fetch-error kind. Response size and duration are recorded as
+numbers. No URLs, no IPs, no raw user agent. Preflights are skipped — they are
+protocol overhead, not usage. The separate stats worker (`infra/cors-stats`)
+queries and displays these; see its README for the schema and the dashboard.
+
 ## Deploy
 
 ```bash
@@ -46,10 +57,12 @@ cd infra/cors-worker
 npx wrangler deploy          # requires Cloudflare auth (CLOUDFLARE_API_TOKEN / login)
 ```
 
+The deploy adds the `STATS` binding; the dataset is created on first write.
+
 ## Test
 
 ```bash
-node --test infra/cors-worker/
+node --test 'infra/cors-worker/*.test.mjs'
 ```
 
 ## What this does *not* fix

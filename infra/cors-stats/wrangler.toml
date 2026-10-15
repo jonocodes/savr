@@ -1,0 +1,16 @@
+name = "savr-cors-stats"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# An admin dashboard should not expose extra per-version preview endpoints.
+preview_urls = false
+
+[vars]
+# 32-character Cloudflare account ID (dashboard). The API token
+# (Account Analytics: Read) and the dashboard access key are secrets:
+#   npx wrangler secret put CF_API_TOKEN
+#   npx wrangler secret put STATS_KEY
+ACCOUNT_ID = "REPLACE_ME"
+
+[observability]
+enabled = true

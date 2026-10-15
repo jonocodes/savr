@@ -14,6 +14,11 @@
  *    redirect is re-validated.
  *  - size cap: refuses oversized responses.
  *  - log hygiene: never logs the full `?url=` (it can contain API keys).
+ *  - aggregate stats: one Analytics Engine point per non-preflight request
+ *    (country, MIME class, status, cache outcome, caller app/class, and — on
+ *    failures only — the host and fetch-error kind) so the stats worker
+ *    (infra/cors-stats) can show usage without ever storing a URL.
+ *    Preflights are skipped: protocol overhead, not usage.
  *
  * Deploy: `npx wrangler deploy` from this directory (see README.md).
  */
@@ -102,6 +107,103 @@ function cacheControlFor(status, contentType) {
   return "public, max-age=60";
 }
 
+/**
+ * Coarse content class for statistics. The dashboard counts "articles" as
+ * `html` fetches, so HTML must be distinguishable from the image/CSS/JS noise
+ * a single article generates. Never stores or derives anything URL-specific.
+ */
+function mimeBucket(contentType) {
+  const type = (contentType || "").split(";")[0].trim().toLowerCase();
+  if (!type) return "none";
+  if (type === "text/html" || type === "application/xhtml+xml") return "html";
+  if (type.startsWith("image/")) return "image";
+  if (type.startsWith("video/")) return "video";
+  if (type.startsWith("audio/")) return "audio";
+  if (type.startsWith("font/") || type.includes("font")) return "font";
+  if (type === "text/css") return "css";
+  if (type.includes("javascript")) return "js";
+  if (type === "application/pdf") return "pdf";
+  if (type === "application/json" || type.endsWith("+json")) return "json";
+  if (type.includes("xml")) return "xml";
+  if (type.startsWith("text/")) return "text";
+  return "other";
+}
+
+/** Advertised response size, or -1 when unknown (chunked/streamed). */
+function responseBytes(headers) {
+  const value = Number(headers.get("content-length"));
+  return Number.isFinite(value) && value >= 0 ? value : -1;
+}
+
+/**
+ * Coarse caller-app identity: the Origin header's hostname, or its scheme for
+ * non-web origins (`chrome-extension`, `capacitor`, …). It identifies the app,
+ * never the person — no URL, no path, and extension ids are not stored.
+ */
+function callerOrigin(request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return "";
+  if (origin === "null") return "null";
+  try {
+    const url = new URL(origin);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return url.hostname.slice(0, 100);
+    }
+    return url.protocol.replace(":", "").slice(0, 40);
+  } catch {
+    return "invalid";
+  }
+}
+
+/** Coarse client class from the UA; the raw UA is never stored. */
+function clientClass(request) {
+  const ua = request.headers.get("user-agent") || "";
+  if (!ua) return "none";
+  if (/bot|crawler|spider|slurp|curl|wget|python|go-http|okhttp|java|headless|node-fetch|axios|httpclient|libwww/i.test(ua)) {
+    return "bot";
+  }
+  if (ua.startsWith("Mozilla/")) return "browser";
+  return "other";
+}
+
+/** Why an upstream fetch failed, for the 502 breakdown. */
+function fetchErrorKind(error) {
+  const message = String((error && error.message) || "").toLowerCase();
+  if (message.includes("blocked redirect")) return "blocked-redirect";
+  if (message.includes("too many redirects")) return "redirect-loop";
+  if (message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (message.includes("dns") || message.includes("getaddrinfo") || message.includes("resolve")) return "dns";
+  return "other";
+}
+
+/**
+ * Record one aggregate data point (Analytics Engine, fire-and-forget). Blob
+ * order is the schema — the stats worker queries blob1..blob8 positionally:
+ *   blob1 country, blob2 MIME class, blob3 status, blob4 cache (hit/miss/
+ *   bypass), blob5 host, blob6 caller origin, blob7 client class, blob8 fetch
+ *   error kind. `host` is only ever passed for failures and `errorKind` only
+ *   for 502s, mirroring the error-log hygiene. Streams are all tracked; there
+ *   is no sampling here (AE samples adaptively on its own). Preflights are not
+ *   recorded — they are protocol overhead, not usage.
+ */
+function recordStat(env, request, { status, contentType, cache, host, errorKind, bytes, startedAt }) {
+  if (!env || !env.STATS) return;
+  env.STATS.writeDataPoint({
+    indexes: ["proxy"],
+    blobs: [
+      (request.cf && request.cf.country) || "XX",
+      mimeBucket(contentType),
+      String(status),
+      cache || "",
+      host || "",
+      callerOrigin(request),
+      clientClass(request),
+      errorKind || "",
+    ],
+    doubles: [1, Date.now() - startedAt, bytes ?? -1],
+  });
+}
+
 /** Fetch, following redirects manually so each hop is SSRF-checked. */
 async function safeFetch(target, method, headers) {
   let current = target;
@@ -131,34 +233,50 @@ function withCors(response) {
 
 export default {
   async fetch(request, env, ctx) {
+    const startedAt = Date.now();
+    const respond = (body, status, fields = {}) => {
+      recordStat(env, request, { status, startedAt, ...fields });
+      return new Response(body, { status, headers: CORS_HEADERS });
+    };
+
     if (request.method === "OPTIONS") {
       return new Response(null, { headers: CORS_HEADERS });
     }
 
     if (request.method !== "GET" && request.method !== "HEAD") {
-      return new Response("Method not allowed", { status: 405, headers: CORS_HEADERS });
+      return respond("Method not allowed", 405, { cache: "bypass" });
     }
 
     const targetUrl = new URL(request.url).searchParams.get("url");
     if (!targetUrl) {
-      return new Response("Missing 'url' parameter", { status: 400, headers: CORS_HEADERS });
+      return respond("Missing 'url' parameter", 400, { cache: "bypass" });
     }
 
     let target;
     try {
       target = new URL(targetUrl);
     } catch {
-      return new Response("Invalid 'url' parameter", { status: 400, headers: CORS_HEADERS });
+      return respond("Invalid 'url' parameter", 400, { cache: "bypass" });
     }
     if (isBlockedTarget(target)) {
-      return new Response("Target not allowed", { status: 403, headers: CORS_HEADERS });
+      return respond("Target not allowed", 403, { cache: "bypass", host: target.hostname });
     }
 
     const cache = caches.default;
     const cacheKey = new Request(target.toString(), { method: "GET" });
     if (request.method === "GET") {
       const hit = await cache.match(cacheKey);
-      if (hit) return withCors(hit);
+      if (hit) {
+        recordStat(env, request, {
+          status: hit.status,
+          contentType: hit.headers.get("content-type"),
+          cache: "hit",
+          host: hit.status >= 400 ? target.hostname : "",
+          bytes: responseBytes(hit.headers),
+          startedAt,
+        });
+        return withCors(hit);
+      }
     }
 
     // Forward only what the target genuinely needs. In particular, never leak
@@ -177,12 +295,21 @@ export default {
     } catch (error) {
       // Log the host and error only, never the full URL (it may contain secrets).
       console.log(`proxy fetch failed host=${target.hostname} error=${error && error.message}`);
-      return new Response("Upstream fetch failed", { status: 502, headers: CORS_HEADERS });
+      return respond("Upstream fetch failed", 502, {
+        cache: "miss",
+        host: target.hostname,
+        errorKind: fetchErrorKind(error),
+      });
     }
 
     const contentLength = Number(upstream.headers.get("content-length") || "0");
     if (contentLength > MAX_BYTES) {
-      return new Response("Response too large", { status: 413, headers: CORS_HEADERS });
+      return respond("Response too large", 413, {
+        contentType: upstream.headers.get("content-type"),
+        cache: "miss",
+        host: target.hostname,
+        bytes: responseBytes(upstream.headers),
+      });
     }
 
     const responseHeaders = new Headers(upstream.headers);
@@ -204,6 +331,15 @@ export default {
     if (request.method === "GET" && upstream.status < 500 && upstream.status !== 206) {
       ctx.waitUntil(cache.put(cacheKey, response.clone()));
     }
+
+    recordStat(env, request, {
+      status: upstream.status,
+      contentType: upstream.headers.get("content-type"),
+      cache: request.method === "GET" ? "miss" : "bypass",
+      host: upstream.status >= 400 ? target.hostname : "",
+      bytes: responseBytes(upstream.headers),
+      startedAt,
+    });
 
     return response;
   },

@@ -35,6 +35,23 @@ function stubGlobals({ fetchImpl, cache = makeCache() } = {}) {
   return cache;
 }
 
+function makeEnv() {
+  const points = [];
+  return {
+    points,
+    STATS: {
+      writeDataPoint(point) {
+        points.push(point);
+      },
+    },
+  };
+}
+
+function withCountry(request, country) {
+  Object.defineProperty(request, "cf", { value: { country } });
+  return request;
+}
+
 test.afterEach(() => {
   globalThis.fetch = originalFetch;
   console.log = originalConsoleLog;
@@ -169,4 +186,148 @@ test("never logs the full target url", async () => {
   const joined = logged.join("\n");
   assert.ok(!joined.includes("SUPERSECRET"), "secret must not be logged");
   assert.ok(joined.includes("example.com"), "host should be logged for diagnosis");
+});
+
+test("records an aggregate stat for a proxied article html fetch", async () => {
+  stubGlobals({
+    fetchImpl: async () =>
+      new Response("<html>", {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8", "content-length": "6" },
+      }),
+  });
+  const env = makeEnv();
+  const request = withCountry(proxyRequest("https://example.com/article"), "NZ");
+  const response = await worker.fetch(request, env, makeCtx());
+
+  assert.equal(response.status, 200);
+  assert.equal(env.points.length, 1);
+  const [point] = env.points;
+  assert.deepEqual(point.indexes, ["proxy"]);
+  assert.equal(point.blobs[0], "NZ", "country");
+  assert.equal(point.blobs[1], "html", "MIME class");
+  assert.equal(point.blobs[2], "200", "status");
+  assert.equal(point.blobs[3], "miss", "cache");
+  assert.equal(point.blobs[4], "", "no host on success");
+  assert.equal(point.blobs[5], "", "no origin header");
+  assert.equal(point.blobs[6], "none", "no user agent");
+  assert.equal(point.blobs[7], "", "no error kind on success");
+  assert.equal(point.doubles[0], 1);
+  assert.ok(point.doubles[1] >= 0, "duration in ms");
+  assert.equal(point.doubles[2], 6, "advertised bytes");
+});
+
+test("records caller origin and client class without storing the raw UA", async () => {
+  stubGlobals();
+  const env = makeEnv();
+
+  const webApp = proxyRequest("https://example.com/a");
+  webApp.headers.set("origin", "https://savr.link");
+  webApp.headers.set("user-agent", "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/136.0");
+  await worker.fetch(webApp, env, makeCtx());
+
+  const extension = proxyRequest("https://example.com/b");
+  extension.headers.set("origin", "chrome-extension://abcdefghijklmnop");
+  extension.headers.set("user-agent", "Mozilla/5.0 Chrome/130.0.0.0");
+  await worker.fetch(extension, env, makeCtx());
+
+  const script = proxyRequest("https://example.com/c");
+  script.headers.set("user-agent", "curl/8.5.0");
+  await worker.fetch(script, env, makeCtx());
+
+  assert.deepEqual(
+    env.points.map((point) => [point.blobs[5], point.blobs[6]]),
+    [
+      ["savr.link", "browser"],
+      ["chrome-extension", "browser"],
+      ["", "bot"],
+    ]
+  );
+  assert.ok(
+    env.points.every((point) => point.blobs.every((blob) => !blob.includes("Mozilla") && !blob.includes("abcdefghijklmnop"))),
+    "raw UA and extension id must never be stored"
+  );
+});
+
+test("records a cache hit separately, with no upstream fetch", async () => {
+  const cache = stubGlobals();
+  cache.store.set(
+    "https://example.com/hit.jpg",
+    new Response("cached", {
+      status: 200,
+      headers: { "content-type": "image/jpeg", "content-length": "6" },
+    })
+  );
+  const env = makeEnv();
+  await worker.fetch(withCountry(proxyRequest("https://example.com/hit.jpg"), "DE"), env, makeCtx());
+
+  assert.equal(env.points.length, 1);
+  const [point] = env.points;
+  assert.equal(point.blobs[1], "image");
+  assert.equal(point.blobs[3], "hit");
+  assert.equal(point.blobs[4], "");
+  assert.equal(point.doubles[2], 6, "cached size");
+});
+
+test("records the host only on failures", async () => {
+  stubGlobals({
+    fetchImpl: async () => new Response("gone", { status: 404 }),
+  });
+  const env = makeEnv();
+  const response = await worker.fetch(
+    withCountry(proxyRequest("https://example.com/missing"), "US"),
+    env,
+    makeCtx()
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(env.points.length, 1);
+  const [point] = env.points;
+  assert.equal(point.blobs[2], "404");
+  assert.equal(point.blobs[4], "example.com", "failing host recorded");
+});
+
+test("does not record preflights or requests without a url", async () => {
+  stubGlobals();
+  const env = makeEnv();
+
+  await worker.fetch(new Request(PROXY, { method: "OPTIONS" }), env, makeCtx());
+  await worker.fetch(new Request(PROXY), env, makeCtx());
+  await worker.fetch(proxyRequest("http://127.0.0.1/"), env, makeCtx());
+
+  assert.equal(env.points.length, 2, "only the missing-url and blocked-target errors");
+  assert.deepEqual(
+    env.points.map((point) => point.blobs[2]),
+    ["400", "403"]
+  );
+  assert.equal(env.points[1].blobs[3], "bypass", "no cache consult");
+  assert.equal(env.points[1].blobs[4], "127.0.0.1", "blocked target host is diagnostic");
+});
+
+test("records blocked and failed upstreams with fallback country", async () => {
+  stubGlobals({
+    fetchImpl: async () => { throw new Error("boom"); },
+  });
+  const env = makeEnv();
+  await worker.fetch(proxyRequest("https://example.com/x"), env, makeCtx());
+
+  assert.equal(env.points.length, 1);
+  assert.equal(env.points[0].blobs[0], "XX", "no cf.country -> XX");
+  assert.equal(env.points[0].blobs[2], "502");
+  assert.equal(env.points[0].blobs[3], "miss", "cache was consulted before the failure");
+  assert.equal(env.points[0].blobs[4], "example.com");
+  assert.equal(env.points[0].blobs[7], "other", "unclassified fetch error");
+  assert.equal(env.points[0].doubles[2], -1, "unknown size");
+});
+
+test("classifies redirect failures for the 502 breakdown", async () => {
+  stubGlobals({
+    fetchImpl: async () =>
+      new Response(null, { status: 302, headers: { location: "http://127.0.0.1/secret" } }),
+  });
+  const env = makeEnv();
+  await worker.fetch(proxyRequest("https://example.com/redirect"), env, makeCtx());
+
+  assert.equal(env.points[0].blobs[2], "502");
+  assert.equal(env.points[0].blobs[7], "blocked-redirect");
 });
