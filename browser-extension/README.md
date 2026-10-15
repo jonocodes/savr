@@ -230,9 +230,9 @@ and `extensionVersion`, which the app takes as "the image bridge is here".
    directly) as usual, so a broken or slow extension never blocks a save.
 
 Every download is logged in the article's `fetch.log` and the app's
-Diagnostics log with the downloader that delivered it — `extension 1.0.0`,
+Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
 `proxy <hostname>` or `direct` — and the full fallback chain, e.g.
-`extension 1.0.0 failed (HTTP 404) -> direct failed (...)`.
+`extension 0.1.0 failed (HTTP 404) -> direct failed (...)`.
 
 ## Permissions
 
