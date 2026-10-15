@@ -12,7 +12,8 @@ this version.)
 the panel if needed) and delivered as raw content, exactly like the YouTube
 transcript bookmarklet — including the video thumbnail, which the app downloads
 like any article image. A video without a transcript falls back to the normal
-page scrape.
+page scrape. This is on by default; **Settings → On YouTube, fetch the
+transcript instead of the page** turns it off.
 
 The toolbar button opens a small popup:
 

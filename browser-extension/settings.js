@@ -6,6 +6,12 @@
 
 export const DEFAULT_APP_URL = "https://savr.link";
 export const APP_URL_KEY = "savrAppUrl";
+export const YOUTUBE_TRANSCRIPTS_KEY = "youtubeTranscriptsEnabled";
+
+/** The YouTube transcript setting with its default applied: on unless off. */
+export function resolveYoutubeTranscripts(value) {
+  return value !== false;
+}
 
 /**
  * Strict parse: null when `value` is not a usable http(s) address, so callers

@@ -53,6 +53,28 @@ label {
   font-weight: 600;
 }
 
+.choice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.choice input {
+  width: auto;
+  margin: 1px 0 0;
+}
+
+.choice label {
+  font-weight: 400;
+}
+
+hr {
+  width: 100%;
+  margin: 2px 0;
+  border: none;
+  border-top: 1px solid rgba(128, 128, 128, 0.3);
+}
+
 input {
   width: 100%;
   box-sizing: border-box;

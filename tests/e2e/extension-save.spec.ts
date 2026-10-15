@@ -66,6 +66,14 @@ test.describe("Browser extension save flow", () => {
       optionsPage.locator('a[href="https://github.com/jonocodes/savr"]')
     ).toBeVisible();
 
+    // The YouTube transcript toggle is on by default and persists with Save.
+    await expect(optionsPage.locator("#youtube-transcripts")).toBeChecked();
+    await optionsPage.locator("#youtube-transcripts").uncheck();
+    await optionsPage.getByRole("button", { name: "Save" }).click();
+    await expect(optionsPage.locator("#status")).toHaveText("Saved.");
+    await optionsPage.reload();
+    await expect(optionsPage.locator("#youtube-transcripts")).not.toBeChecked();
+
     const popupPage = await context.newPage();
     await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
     await expect(popupPage.locator("#settings")).toBeVisible();

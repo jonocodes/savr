@@ -18,7 +18,13 @@
  * payload.
  */
 
-import { APP_URL_KEY, hostPatternFor, normalizeAppUrl } from "./settings.js";
+import {
+  APP_URL_KEY,
+  YOUTUBE_TRANSCRIPTS_KEY,
+  hostPatternFor,
+  normalizeAppUrl,
+  resolveYoutubeTranscripts,
+} from "./settings.js";
 import { scrapeYouTubeTranscript } from "./youtube-transcript.js";
 
 const api = globalThis.browser ?? globalThis.chrome;
@@ -32,6 +38,11 @@ const PENDING_DELIVERY_KEY = "pendingDelivery";
 async function getAppUrl() {
   const stored = await api.storage.local.get(APP_URL_KEY);
   return normalizeAppUrl(stored[APP_URL_KEY]);
+}
+
+async function youtubeTranscriptsEnabled() {
+  const stored = await api.storage.local.get(YOUTUBE_TRANSCRIPTS_KEY);
+  return resolveYoutubeTranscripts(stored[YOUTUBE_TRANSCRIPTS_KEY]);
 }
 
 /* ------------------------------------------------------------------------ */
@@ -86,9 +97,20 @@ const SITE_HANDLERS = [
   {
     id: "youtube",
     matches: (url) => /^https:\/\/(www\.|m\.)?youtube\.com\/watch\b/.test(url),
+    isEnabled: youtubeTranscriptsEnabled,
     extract: scrapeYouTubeTranscript,
   },
 ];
+
+/** The first enabled site handler matching this URL, if any. */
+async function findSiteHandler(url) {
+  for (const handler of SITE_HANDLERS) {
+    if (!handler.matches(url)) continue;
+    if (handler.isEnabled && !(await handler.isEnabled())) continue;
+    return handler;
+  }
+  return undefined;
+}
 
 /* ------------------------------------------------------------------------ */
 /* Save flow                                                                 */
@@ -194,7 +216,7 @@ async function saveActivePage() {
     return { ok: false, error: "No active tab to save." };
   }
 
-  const handler = SITE_HANDLERS.find((candidate) => candidate.matches(tab.url ?? ""));
+  const handler = await findSiteHandler(tab.url ?? "");
   if (handler) {
     try {
       const [result] = await api.scripting.executeScript({
