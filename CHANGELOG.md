@@ -1,5 +1,10 @@
 # Changelog
 
+## 2026-10-14
+
+- Sharing an article out (⋮ → Share) now opens the system share sheet on Android and other Web Share-capable platforms, sending the title and URL to any app; where the Web Share API is unavailable (most desktop Linux browsers) it still copies the URL to the clipboard
+- Dismissing the share sheet is treated as a cancellation rather than a failure, and the clipboard fallback reports itself with a snackbar instead of an alert
+
 ## 2026-10-13
 
 - The CORS proxy can now be token-locked: deploy your own copy in one click with the Deploy to Cloudflare button, and only devices holding the secret can use it (#84)

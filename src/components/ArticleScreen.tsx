@@ -81,6 +81,7 @@ import { ingestUrl } from "../../lib/src/ingestion";
 import { recordLog, errorMessage } from "~/utils/logging";
 import { useFailureReport } from "~/hooks/useFailureReport";
 import { normalizeUrl } from "~/utils/net/url";
+import { shareArticle } from "~/utils/share";
 import FailureReportDialog from "./FailureReportDialog";
 import {
   summarizeText,
@@ -234,12 +235,16 @@ export default function ArticleScreen(_props: Props) {
     }
   };
 
-  const handleShare = () => {
-    if (article.url) {
-      navigator.clipboard.writeText(article.url);
-      alert("Url copied to clipboard: " + article.url);
-    }
+  const handleShare = async () => {
     closeMenu();
+    if (!article.url) return;
+
+    const outcome = await shareArticle(article.url, article.title);
+    if (outcome === "copied") {
+      enqueueSnackbar("URL copied to clipboard");
+    } else if (outcome === "failed") {
+      enqueueSnackbar("Failed to share article", { variant: "error" });
+    }
   };
 
   const handleDelete = async () => {
@@ -1006,7 +1011,7 @@ export default function ArticleScreen(_props: Props) {
               <ListItemText>{article.favorite ? "Unmark favorite" : "Mark favorite"}</ListItemText>
             </MenuItem>
 
-            <MenuItem onClick={handleShare} sx={{ py: 1 }}>
+            <MenuItem onClick={handleShare} sx={{ py: 1 }} data-testid="article-page-menu-share">
               <ListItemIcon>
                 <ShareIcon fontSize="small" />
               </ListItemIcon>
