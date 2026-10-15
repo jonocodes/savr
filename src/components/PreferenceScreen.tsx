@@ -53,10 +53,12 @@ import {
 import { getStoredCorsProxy, setCorsProxyValue } from "~/utils/net/corsProxy";
 import { getDefaultCorsProxy, isTelemetryConfigured } from "~/config/environment";
 import { hasGlobalPrivacyControl } from "~/utils/telemetry";
-// Single source of truth: bookmarklet/savr-youtube-transcript.unminified.js,
-// minified at build time by the minify-bookmarklet Vite plugin. The placeholder
-// SAVR origin "__SAVR_ORIGIN__" is substituted with the app's origin below.
-import ytTranscriptBookmarkletSource from "../../bookmarklet/savr-youtube-transcript.unminified.js?bookmarklet";
+// Single source of truth: browser-extension/youtube-transcript.js — the same
+// function the extension serializes into YouTube tabs — wrapped into a
+// bookmarklet at build time by the minify-bookmarklet Vite plugin. The
+// placeholder SAVR origin "__SAVR_ORIGIN__" is substituted with the app's
+// origin below.
+import ytTranscriptBookmarkletSource from "../../browser-extension/youtube-transcript.js?bookmarklet";
 import {
   getThemeFromCookie,
   toggleTheme,
@@ -261,7 +263,7 @@ export default function PreferencesScreen() {
 
     // YouTube transcript bookmarklet: scrapes the transcript on the page and
     // sends it to Savr as raw content (savr-raw), bypassing Readability.
-    // Script body comes from bookmarklet/savr-youtube-transcript.unminified.js.
+    // Script body comes from browser-extension/youtube-transcript.js.
     if (ytTranscriptBookmarkletRef.current) {
       const origin = window.location.origin;
       ytTranscriptBookmarkletRef.current.href = `javascript:${ytTranscriptBookmarkletSource.replace(

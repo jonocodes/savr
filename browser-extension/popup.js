@@ -20,8 +20,13 @@ saveButton.addEventListener("click", async () => {
   try {
     const response = await api.runtime.sendMessage({ type: "SAVE_ACTIVE_PAGE" });
     if (response?.ok) {
-      setStatus("Opening the Savr save dialog…");
-      window.setTimeout(() => window.close(), 800);
+      const status = response.fallback
+        ? "No transcript found — saving the page instead…"
+        : response.mode === "raw"
+          ? "Saving the transcript…"
+          : "Opening the Savr save dialog…";
+      setStatus(status);
+      window.setTimeout(() => window.close(), 900);
     } else {
       setStatus(response?.error || "Could not save this page.");
       setBusy(false);

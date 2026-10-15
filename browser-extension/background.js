@@ -8,6 +8,10 @@
  * never touches the network — it clones the loaded DOM — so it works behind
  * logins and needs no CORS proxy for the page.
  *
+ * YouTube watch pages are special-cased: the transcript extractor runs first
+ * and, when it finds one, delivers raw content (`?rawIngest=1` → `savr-raw`)
+ * exactly like the YouTube transcript bookmarklet.
+ *
  * Delivery is queued in `storage.session` and retried when the app tab reports
  * `complete`, so a background context that is unloaded mid-save (Chrome
  * service workers are recycled aggressively) resumes instead of dropping the
@@ -15,6 +19,7 @@
  */
 
 import { APP_URL_KEY, hostPatternFor, normalizeAppUrl } from "./settings.js";
+import { scrapeYouTubeTranscript } from "./youtube-transcript.js";
 
 const api = globalThis.browser ?? globalThis.chrome;
 
@@ -55,9 +60,9 @@ function scrapePage() {
 
 /**
  * Runs in the app tab. Waits for the app's `savr-ready` announcement, replies
- * once with the payload, and stops listening.
+ * once with the message, and stops listening.
  */
-function deliverWhenReady(payload) {
+function deliverWhenReady(message) {
   let delivered = false;
   const onMessage = (event) => {
     if (event.source !== window) return;
@@ -65,20 +70,25 @@ function deliverWhenReady(payload) {
     if (delivered) return;
     delivered = true;
     window.removeEventListener("message", onMessage);
-    window.postMessage(
-      {
-        action: "savr-html",
-        url: payload.url,
-        html: payload.html,
-        source: "extension",
-      },
-      window.location.origin
-    );
+    window.postMessage({ ...message, source: "extension" }, window.location.origin);
   };
   window.addEventListener("message", onMessage);
   // Do not keep a listener alive forever if the app never announces itself.
   setTimeout(() => window.removeEventListener("message", onMessage), 5 * 60 * 1000);
 }
+
+/**
+ * Site-specific extractors. A handler runs in the active tab before the generic
+ * DOM scrape; a successful extraction is delivered as raw content (no
+ * Readability), a failed one falls back to the scrape so Save never dead-ends.
+ */
+const SITE_HANDLERS = [
+  {
+    id: "youtube",
+    matches: (url) => /^https:\/\/(www\.|m\.)?youtube\.com\/watch\b/.test(url),
+    extract: scrapeYouTubeTranscript,
+  },
+];
 
 /* ------------------------------------------------------------------------ */
 /* Save flow                                                                 */
@@ -159,10 +169,52 @@ async function tryDeliver(tabId) {
   }
 }
 
+/**
+ * Open the app at the entry point for a delivery mode (`raw` → the raw-ingest
+ * listener, anything else → the bookmarklet listener) and queue the message for
+ * the injected bridge.
+ */
+async function openApp(mode, message) {
+  const appUrl = await getAppUrl();
+  const target =
+    mode === "raw"
+      ? `${appUrl}/?rawIngest=1`
+      : `${appUrl}/?bookmarklet=${encodeURIComponent(message.url)}`;
+
+  const appTab = await api.tabs.create({ url: target });
+  if (appTab.id !== undefined) {
+    await queueDelivery(appTab.id, message);
+  }
+  return { ok: true, mode };
+}
+
 async function saveActivePage() {
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id === undefined) {
     return { ok: false, error: "No active tab to save." };
+  }
+
+  const handler = SITE_HANDLERS.find((candidate) => candidate.matches(tab.url ?? ""));
+  if (handler) {
+    try {
+      const [result] = await api.scripting.executeScript({
+        target: { tabId: tab.id },
+        func: handler.extract,
+      });
+      const extracted = result?.result;
+      if (extracted?.ok) {
+        return await openApp("raw", {
+          action: "savr-raw",
+          content: extracted.content,
+          contentType: extracted.contentType,
+          title: extracted.title,
+          author: extracted.author ?? null,
+          url: extracted.url,
+        });
+      }
+    } catch (error) {
+      console.warn("[savr] site extractor failed, falling back to the page scrape:", error);
+    }
   }
 
   let page = null;
@@ -182,14 +234,14 @@ async function saveActivePage() {
     return { ok: false, error: "Could not read this page's content." };
   }
 
-  const appUrl = await getAppUrl();
-  const appTab = await api.tabs.create({
-    url: `${appUrl}/?bookmarklet=${encodeURIComponent(page.url)}`,
+  const outcome = await openApp("html", {
+    action: "savr-html",
+    url: page.url,
+    html: page.html,
   });
-  if (appTab.id !== undefined) {
-    await queueDelivery(appTab.id, page);
-  }
-  return { ok: true };
+  // Tell the popup when a site-specific extraction came up empty, so the user
+  // knows they got the page instead of the transcript.
+  return handler ? { ...outcome, fallback: true } : outcome;
 }
 
 async function visitSavr() {

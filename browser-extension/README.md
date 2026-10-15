@@ -8,6 +8,12 @@ no proxy request for the page, and produces the same reader view as a bookmarkle
 save. (Article images are still fetched by the app through its usual path in
 this version.)
 
+**YouTube watch pages** are special-cased: the transcript is extracted (opening
+the panel if needed) and delivered as raw content, exactly like the YouTube
+transcript bookmarklet — including the video thumbnail, which the app downloads
+like any article image. A video without a transcript falls back to the normal
+page scrape.
+
 The toolbar button opens a small popup:
 
 - **Save current page** — scrapes the active tab and hands it to Savr.
@@ -54,17 +60,23 @@ The options page also links to the project on GitHub
 
 ## How it works
 
-The extension reuses the app's bookmarklet ingest path, minus the opener:
+The extension reuses the app's bookmarklet ingest paths, minus the opener:
 
-1. The background scrapes the active tab (`document.documentElement` clone with
-   `<script>` tags and inline event handlers removed) and opens a Savr tab at
-   `/?bookmarklet=<page url>`.
-2. The app announces `savr-ready` on its own window until a payload arrives.
-3. The background injects a small bridge into the Savr tab once it finishes
-   loading; the bridge waits for the announce and replies once with
-   `{action: "savr-html", url, html}`.
-4. The app runs its normal ingest (Readability, images, sync) and shows the same
-   progress dialog a bookmarklet save does.
+1. A site-specific extractor runs first when one matches — today only YouTube
+   watch pages, which share their extraction with the transcript bookmarklet
+   (`youtube-transcript.js`). A successful extraction opens the app at
+   `/?rawIngest=1`.
+2. Otherwise the background scrapes the active tab
+   (`document.documentElement` clone with `<script>` tags and inline event
+   handlers removed) and opens a Savr tab at `/?bookmarklet=<page url>`.
+3. The app announces `savr-ready` on its own window until a payload arrives.
+4. The background injects a small bridge into the Savr tab once it finishes
+   loading; the bridge waits for the announce and replies once with the
+   payload — `{action: "savr-html", url, html}` or
+   `{action: "savr-raw", content, contentType, title, author, url}`.
+5. The app runs its normal ingest (Readability for `savr-html`, verbatim
+   storage for `savr-raw`) and shows the same progress dialog a bookmarklet
+   save does.
 
 The pending payload is kept in `storage.session` (with an in-memory fast path)
 and is cleared only after the bridge is injected, so the flow survives the
@@ -95,7 +107,8 @@ background being unloaded mid-save (Chrome service workers especially).
 ### Tests
 
 - `tests/e2e/extension-save.spec.ts` — loads the real extension in Chromium and
-  saves a fixture page end to end.
+  saves a fixture page end to end, plus the YouTube extractor against fixture
+  DOMs (modern and legacy segment markup, panel opening, no-transcript).
 - `tests/e2e/extension-delivery.spec.ts` — pins the app-side delivery contract
   (the `savr-ready` announcement and `savr-html` ingest) that this extension
   depends on.

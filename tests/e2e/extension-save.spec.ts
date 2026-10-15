@@ -96,7 +96,7 @@ test.describe("Browser extension save flow", () => {
       return await (globalThis as any).chrome.runtime.sendMessage({ type: "SAVE_ACTIVE_PAGE" });
     });
     await popupPage.close();
-    expect(response).toEqual({ ok: true });
+    expect(response).toMatchObject({ ok: true });
 
     // The extension opens the app with the bookmarklet entry point and
     // delivers the scraped DOM once the app announces it is listening.
@@ -122,5 +122,151 @@ test.describe("Browser extension save flow", () => {
     const article = await getArticleFromDB(appPage!, slug);
     expect(article?.url).toBe(articleUrl);
     expect(article?.ingestSource).toBe("bookmarklet");
+  });
+});
+
+/**
+ * The YouTube extractor is shared source (browser-extension/youtube-transcript.js):
+ * the background serializes it into the watch tab, and the app's build inlines
+ * the same function into the Preferences bookmarklet. These tests load the real
+ * module in the extension's own context and run it against fixture DOMs — both
+ * YouTube DOM generations, the panel-opening path, and the no-transcript case.
+ */
+test.describe("YouTube transcript extractor", () => {
+  let context: BrowserContext;
+  let background: Worker;
+
+  test.beforeAll(async () => {
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), "savr-youtube-"));
+    context = await chromium.launchPersistentContext(userDataDir, {
+      channel: "chromium",
+      headless: true,
+      args: [
+        `--disable-extensions-except=${EXTENSION_PATH}`,
+        `--load-extension=${EXTENSION_PATH}`,
+        "--no-sandbox",
+        "--disable-setuid-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu",
+      ],
+    });
+    background = context.serviceWorkers()[0] ?? (await context.waitForEvent("serviceworker"));
+  });
+
+  test.afterAll(async () => {
+    await context?.close();
+  });
+
+  /** A fresh extension page to evaluate the extractor in (real module load). */
+  async function withPopupPage<T>(fn: (page: Page) => Promise<T>): Promise<T> {
+    const extensionId = new URL(background.url()).host;
+    const page = await context.newPage();
+    await page.goto(`chrome-extension://${extensionId}/popup.html`);
+    try {
+      return await fn(page);
+    } finally {
+      await page.close();
+    }
+  }
+
+  test("scrapes the modern segment DOM, strips timestamps, and embeds the og:image thumbnail", async () => {
+    const result = await withPopupPage((page) =>
+      page.evaluate(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chromeApi = (globalThis as any).chrome;
+        const mod = await import(chromeApi.runtime.getURL("youtube-transcript.js"));
+        document.body.innerHTML = `
+          <meta property="og:image" content="https://i.ytimg.com/vi/fixture/maxresdefault.jpg">
+          <h1 class="ytd-watch-metadata">Fixture Video Title</h1>
+          <ytd-channel-name><div id="text"><a>Fixture Channel</a></div></ytd-channel-name>
+          <transcript-segment-view-model>
+            <div class="ytwTranscriptSegmentViewModelTimestamp">0:05</div>
+            <span class="ytAttributedStringHost">Hello world &amp; friends</span>
+          </transcript-segment-view-model>
+          <transcript-segment-view-model>
+            <div class="ytwTranscriptSegmentViewModelTimestamp">0:12</div>
+            <span class="ytAttributedStringHost">Second line</span>
+          </transcript-segment-view-model>
+        `;
+        return await mod.scrapeYouTubeTranscript();
+      })
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.title).toBe("Fixture Video Title");
+    expect(result.author).toBe("Fixture Channel");
+    expect(result.contentType).toBe("text/html");
+    expect(result.content).toContain("https://i.ytimg.com/vi/fixture/maxresdefault.jpg");
+    expect(result.content).toContain("Hello world &amp; friends");
+    expect(result.content).toContain("Second line");
+    expect(result.content).not.toContain("0:05");
+  });
+
+  test("scrapes the legacy segment DOM and falls back to the hqdefault thumbnail", async () => {
+    const result = await withPopupPage((page) =>
+      page.evaluate(async () => {
+        window.history.replaceState({}, "", "?v=abcdefghijk");
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chromeApi = (globalThis as any).chrome;
+        const mod = await import(chromeApi.runtime.getURL("youtube-transcript.js"));
+        document.body.innerHTML = `
+          <h1 class="ytd-watch-metadata">Legacy Fixture</h1>
+          <ytd-transcript-segment-renderer>
+            <div class="segment-timestamp">1:00</div>
+            <div class="segment-text">Legacy line</div>
+          </ytd-transcript-segment-renderer>
+        `;
+        return await mod.scrapeYouTubeTranscript();
+      })
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.title).toBe("Legacy Fixture");
+    expect(result.content).toContain("Legacy line");
+    expect(result.content).toContain("https://i.ytimg.com/vi/abcdefghijk/hqdefault.jpg");
+  });
+
+  test("opens the transcript panel when segments are not present yet", async () => {
+    const result = await withPopupPage((page) =>
+      page.evaluate(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chromeApi = (globalThis as any).chrome;
+        const mod = await import(chromeApi.runtime.getURL("youtube-transcript.js"));
+        document.body.innerHTML = `
+          <h1 class="ytd-watch-metadata">Panel Fixture</h1>
+          <button aria-label="Show transcript" id="open-transcript">Show transcript</button>
+          <div id="panel"></div>
+        `;
+        const openButton = document.getElementById("open-transcript");
+        openButton?.addEventListener("click", () => {
+          const panel = document.getElementById("panel");
+          if (!panel || panel.querySelector("transcript-segment-view-model")) return;
+          panel.innerHTML = `
+            <transcript-segment-view-model>
+              <span class="ytAttributedStringHost">Opened panel line</span>
+            </transcript-segment-view-model>
+          `;
+        });
+        return await mod.scrapeYouTubeTranscript();
+      })
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.content).toContain("Opened panel line");
+  });
+
+  test("reports failure when there is no transcript", async () => {
+    const result = await withPopupPage((page) =>
+      page.evaluate(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const chromeApi = (globalThis as any).chrome;
+        const mod = await import(chromeApi.runtime.getURL("youtube-transcript.js"));
+        document.body.innerHTML = `<h1 class="ytd-watch-metadata">No Transcript</h1>`;
+        return await mod.scrapeYouTubeTranscript();
+      })
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBeTruthy();
   });
 });

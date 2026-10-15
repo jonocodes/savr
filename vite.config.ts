@@ -1,27 +1,67 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import path from "node:path";
 import { transform as esbuildTransform } from "esbuild";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
 
-// Minifies a bookmarklet source file at build time so the bookmarklet exists
-// once on disk (the unminified file) and the prefs page can import the
-// minified form. Import it as: <file>?bookmarklet -> `export default "..."`
-const bookmarkletFile = path.resolve(
+// The browser extension owns the YouTube extraction (it serializes the same
+// function into the watch tab), and the prefs page imports that module with
+// ?bookmarklet so the minify-bookmarklet plugin can assemble the bookmarklet
+// around it. One source, two transports. Import it as:
+//   browser-extension/youtube-transcript.js?bookmarklet -> `export default "..."`
+const youtubeExtractorFile = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
-  "bookmarklet/savr-youtube-transcript.unminified.js"
+  "browser-extension/youtube-transcript.js"
 );
+
+/** The bookmarklet transport around the shared extraction function. */
+function buildTranscriptBookmarklet(extractionSource: string): string {
+  return `(async () => {
+  const SAVR_ORIGIN = "__SAVR_ORIGIN__";
+  const result = await (${extractionSource})();
+  if (!result.ok) {
+    alert(result.reason || "Could not extract the YouTube transcript.");
+    return;
+  }
+  const savrWindow = window.open(SAVR_ORIGIN + "/?rawIngest=1", "_blank");
+  if (!savrWindow) {
+    alert("Could not open the Savr window. Please allow pop-ups for this site.");
+    return;
+  }
+  let sent = false;
+  const onMessage = (event) => {
+    if (event.source !== savrWindow) return;
+    if (!event.data || event.data.action !== "savr-ready" || sent) return;
+    sent = true;
+    window.removeEventListener("message", onMessage);
+    savrWindow.postMessage({
+      action: "savr-raw",
+      content: result.content,
+      contentType: result.contentType,
+      title: result.title,
+      author: result.author,
+      url: result.url,
+    }, SAVR_ORIGIN);
+  };
+  window.addEventListener("message", onMessage);
+})();`;
+}
+
 const bookmarkletPlugin = {
   name: "minify-bookmarklet",
   enforce: "pre" as const,
-  load(id: string) {
-    if (id !== `${bookmarkletFile}?bookmarklet`) return;
-    const source = readFileSync(bookmarkletFile, "utf8");
-    return esbuildTransform(source, { minify: true }).then((r) =>
-      `export default ${JSON.stringify(r.code)};`
-    );
+  async load(id: string) {
+    if (id !== `${youtubeExtractorFile}?bookmarklet`) return;
+    // Cache-bust the import so edits to the extractor show up without a
+    // dev-server restart.
+    const moduleUrl = `${pathToFileURL(youtubeExtractorFile).href}?t=${Date.now()}`;
+    const extractor = (await import(moduleUrl)) as {
+      scrapeYouTubeTranscript: () => Promise<unknown>;
+    };
+    const wrapper = buildTranscriptBookmarklet(extractor.scrapeYouTubeTranscript.toString());
+    const result = await esbuildTransform(wrapper, { minify: true });
+    return `export default ${JSON.stringify(result.code)};`;
   },
 };
 

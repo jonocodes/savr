@@ -6,17 +6,20 @@ import {
 } from "./utils/remotestorage-helper";
 
 /**
- * The Firefox extension (browser-extension/) does not use `window.opener`: it
+ * The browser extension (browser-extension/) does not use `window.opener`: it
  * opens the app in a tab through the tabs API and injects a page-side bridge
- * into that tab. For the bridge to deliver the page HTML it must hear the app
- * announce `savr-ready` on the page's own window. This spec pins that contract:
- * with no opener, the app still announces readiness and ingests a page-side
- * `savr-html` payload exactly like a bookmarklet payload.
+ * into that tab. For the bridge to deliver a payload it must hear the app
+ * announce `savr-ready` on the page's own window. This spec pins that contract
+ * for both ingest paths: scraped page HTML (`savr-html`, `?bookmarklet=`) and
+ * already-extracted content (`savr-raw`, `?rawIngest=1`, e.g. a YouTube
+ * transcript) — with no opener, the app still announces readiness and ingests
+ * the page-side payload exactly like the corresponding bookmarklet.
  */
 test.describe("Browser extension delivery contract", () => {
   test.setTimeout(120000);
 
   const slug = "test-article-for-local-ingestion";
+  const rawSlug = "raw-contract-fixture";
 
   test.beforeEach(async ({ page }) => {
     await page.goto("/");
@@ -32,6 +35,7 @@ test.describe("Browser extension delivery contract", () => {
 
   test.afterEach(async ({ page }) => {
     await deleteArticleFromDB(page, slug);
+    await deleteArticleFromDB(page, rawSlug);
   });
 
   test("announces savr-ready on its own window and accepts a page-side savr-html payload with no opener", async ({
@@ -85,5 +89,60 @@ test.describe("Browser extension delivery contract", () => {
     const article = await getArticleFromDB(page, slug);
     expect(article?.ingestSource).toBe("bookmarklet");
     expect(article?.url).toBe(articleUrl);
+  });
+
+  test("announces savr-ready on its own window for raw ingest and accepts a page-side savr-raw payload with no opener", async ({
+    page,
+  }) => {
+    // Capture messages the app addresses to its own window, as above.
+    await page.addInitScript(() => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__savrReadyCount = 0;
+      window.addEventListener("message", (event) => {
+        if (event.source !== window) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        if (event.data?.action === "savr-ready") (window as any).__savrReadyCount += 1;
+      });
+    });
+
+    await page.goto("/?rawIngest=1");
+    await page.waitForLoadState("networkidle");
+
+    const dialog = page.locator('.MuiDialog-root, [role="dialog"]');
+    await expect(dialog.first()).toBeVisible({ timeout: 10000 });
+
+    await expect
+      .poll(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        () => page.evaluate(() => (window as any).__savrReadyCount),
+        { timeout: 15000 }
+      )
+      .toBeGreaterThan(0);
+
+    // A page-side bridge (the extension's YouTube transcript path) replies with
+    // already-extracted content; the app stores it verbatim via ingestRaw.
+    await page.evaluate(() => {
+      window.postMessage(
+        {
+          action: "savr-raw",
+          content: "Raw delivery contract fixture text.",
+          contentType: "text/plain",
+          title: "Raw Contract Fixture",
+          author: "Test Author",
+          url: "https://example.com/watch?v=abc123",
+        },
+        window.location.origin
+      );
+    });
+
+    await expect
+      .poll(async () => (await getArticleFromDB(page, rawSlug))?.ingestSource ?? null, {
+        timeout: 60000,
+      })
+      .toBe("raw");
+
+    const article = await getArticleFromDB(page, rawSlug);
+    expect(article?.slug).toBe(rawSlug);
+    expect(article?.title).toBe("Raw Contract Fixture");
   });
 });
