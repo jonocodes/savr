@@ -19,17 +19,17 @@ Added anonymous aggregate usage statistics to the shared CORS proxy (Analytics E
 - Recording preflights to count quota — the CF dashboard already shows invocations; would double data points.
 
 **Gotchas**
-- Blob order is a positional schema shared by `core.js`/`worker.js` and `infra/cors-stats/worker.js`; changing a field means updating both workers and the READMEs.
+- Blob order is a positional schema; since the review follow-up it lives only in `infra/cors-worker/stats-schema.js` (imported by both workers — wrangler bundles the cross-directory import). Append fields, never reorder.
 - AE queries must use `SUM(_sample_interval)`, never `count()` — AE samples automatically and the dashboard numbers are estimates.
 - Node 24 removed directory arguments for `node --test`; use quoted globs (`node --test 'infra/*/*.test.mjs'`).
 - `request.cf.country` is absent in local dev — points record "XX".
-- The stats worker's SQL reads are 9 per dashboard load; free tier allows 10k read queries/day.
+- The stats worker's SQL reads are 12 per dashboard load; free tier allows 10k read queries/day.
 - `wrangler deploy` for the stats worker needs `ACCOUNT_ID` in its wrangler.toml plus two secrets (`CF_API_TOKEN`, `STATS_KEY`); the AE dataset auto-creates on first write.
 - The public instance deploy is `npx wrangler deploy --env public` (default deploy would create an open `savr-cors-proxy` instead).
 - Analytics Engine must be enabled once per account in the dashboard before any AE binding can deploy (`wrangler` fails with error `10089` otherwise).
 
 **Open threads**
-- Response `bytes` is recorded but not surfaced in the dashboard UI — only queryable via the SQL API.
+- Dashboard unlock no longer accepts `?key=` (POST form + derived `stats_session` cookie); old `stats_key` cookies stop working, so re-unlock once after deploy.
 - Release attribution remains unsolved without a preflight-free mechanism.
 
 **Notes**

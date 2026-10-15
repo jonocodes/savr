@@ -1,16 +1,28 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import worker, { buildQueries } from "./worker.js";
+import worker, { CACHES, MIMES, buildQueries, sessionToken } from "./worker.js";
+import { CACHE_LABELS, CLIENT_LABELS, ERROR_LABELS, MIME_LABELS } from "./dashboard.js";
+import {
+  CACHE_OUTCOMES,
+  CLIENT_CLASSES,
+  FETCH_ERROR_KINDS,
+  MIME_BUCKETS,
+} from "../cors-worker/stats-schema.js";
 
 const BASE = "https://stats.test/";
 const KEY = "test-key";
+const SESSION = await sessionToken(KEY);
 
 function env(overrides = {}) {
   return { STATS_KEY: KEY, ACCOUNT_ID: "account-123", CF_API_TOKEN: "api-token", ...overrides };
 }
 
 function authed(path) {
-  return new Request(`${BASE}${path}`, { headers: { cookie: `stats_key=${KEY}` } });
+  return new Request(`${BASE}${path}`, { headers: { cookie: `stats_session=${SESSION}` } });
+}
+
+function unlockRequest(key) {
+  return new Request(BASE, { method: "POST", body: new URLSearchParams({ key }) });
 }
 
 const originalFetch = globalThis.fetch;
@@ -37,20 +49,46 @@ test("serves an unlock page when unauthenticated", async () => {
   assert.ok(!body.includes("Requests over time"), "no dashboard content");
 });
 
-test("rejects a wrong key on the root without unlocking", async () => {
-  const response = await worker.fetch(new Request(`${BASE}?key=nope`), env());
+test("rejects a wrong key without unlocking", async () => {
+  const response = await worker.fetch(unlockRequest("nope"), env());
   assert.equal(response.status, 401);
   const body = await response.text();
   assert.ok(body.includes("not accepted"));
   assert.equal(response.headers.get("set-cookie"), null);
 });
 
-test("bootstraps a session cookie from a correct ?key= and redirects", async () => {
-  const response = await worker.fetch(new Request(`${BASE}?key=${KEY}`), env());
+test("unlocks via a POSTed key with a derived session cookie, never the raw key", async () => {
+  const response = await worker.fetch(unlockRequest(KEY), env());
   assert.equal(response.status, 303);
   assert.equal(response.headers.get("location"), "/");
-  assert.match(response.headers.get("set-cookie"), new RegExp(`^stats_key=${KEY};`));
-  assert.match(response.headers.get("set-cookie"), /HttpOnly/);
+  const cookie = response.headers.get("set-cookie");
+  assert.match(cookie, new RegExp(`^stats_session=${SESSION};`));
+  assert.match(cookie, /HttpOnly/);
+  assert.ok(!cookie.includes(KEY), "raw key must not be stored in the cookie");
+});
+
+test("never accepts the key from the URL", async () => {
+  const root = await worker.fetch(new Request(`${BASE}?key=${KEY}`), env());
+  assert.equal(root.status, 200);
+  assert.ok((await root.text()).includes("Access key"), "still the unlock page");
+  assert.equal(root.headers.get("set-cookie"), null);
+
+  stubSqlApi();
+  const api = await worker.fetch(new Request(`${BASE}api/stats?key=${KEY}`), env());
+  assert.equal(api.status, 401);
+});
+
+test("the session cookie is not a bearer token, and the raw key is not a cookie", async () => {
+  const sessionAsBearer = await worker.fetch(
+    new Request(`${BASE}api/stats`, { headers: { authorization: `Bearer ${SESSION}` } }),
+    env()
+  );
+  assert.equal(sessionAsBearer.status, 401);
+  const keyAsCookie = await worker.fetch(
+    new Request(`${BASE}api/stats`, { headers: { cookie: `stats_session=${KEY}` } }),
+    env()
+  );
+  assert.equal(keyAsCookie.status, 401);
 });
 
 test("unlocks the dashboard with the cookie or a bearer token", async () => {
@@ -90,12 +128,12 @@ test("queries the SQL API with the filters and returns aggregated JSON", async (
   const response = await worker.fetch(authed("api/stats?range=24h&mime=html&cache=miss"), env());
   assert.equal(response.status, 200);
 
-  assert.equal(calls.length, 9, "series, countries, origins, clients, mimes, caches, statuses, hosts, articles");
+  assert.equal(calls.length, 12, "series, countries, origins, clients, mimes, caches, statuses, errors, hosts, timing, volume, articles");
   for (const call of calls) {
     assert.equal(call.url, "https://api.cloudflare.com/client/v4/accounts/account-123/analytics_engine/sql");
     assert.equal(call.init.headers.authorization, "Bearer api-token");
     assert.match(call.init.body, /FROM savr_cors_stats/);
-    assert.match(call.init.body, /SUM\(_sample_interval\)/);
+    assert.match(call.init.body, /SUM\(_sample_interval\b/, "sample-weighted");
   }
   const bodies = calls.map((call) => call.init.body).join("\n");
   assert.match(bodies, /blob6 AS origin/);
@@ -106,13 +144,43 @@ test("queries the SQL API with the filters and returns aggregated JSON", async (
   const body = await response.json();
   assert.equal(body.articles, 7);
   assert.deepEqual(body.series, [{ n: 7 }]);
+  assert.deepEqual(body.errors, [{ n: 7 }], "502 breakdown");
+  assert.equal(body.timing, undefined, "scalar queries are unwrapped");
+  assert.equal(body.volume, undefined);
+  assert.equal(body.originMs, 0, "missing ms column reads as 0");
+  assert.equal(body.bytes, 0);
 });
 
-test("sets a session cookie when the API is called with ?key=", async () => {
-  stubSqlApi();
-  const response = await worker.fetch(new Request(`${BASE}api/stats?key=${KEY}`), env());
-  assert.equal(response.status, 200);
-  assert.match(response.headers.get("set-cookie"), /HttpOnly/);
+test("unwraps the timing and data-served scalars", async () => {
+  globalThis.fetch = async (url, init) => {
+    const data = init.body.includes(" AS ms ")
+      ? [{ ms: 123.4 }]
+      : init.body.includes(" AS bytes ")
+        ? [{ bytes: 2048 }]
+        : [{ n: 1 }];
+    return new Response(JSON.stringify({ data }), { status: 200 });
+  };
+  const body = await (await worker.fetch(authed("api/stats"), env())).json();
+  assert.equal(body.originMs, 123.4);
+  assert.equal(body.bytes, 2048);
+});
+
+test("the reader is built from the shared schema", () => {
+  assert.deepEqual(MIMES, ["all", ...MIME_BUCKETS]);
+  assert.deepEqual(CACHES, ["all", ...CACHE_OUTCOMES]);
+  const queries = buildQueries({ range: "7d" });
+  assert.match(queries.errors, /blob8 AS kind/);
+  assert.match(queries.errors, /blob8 != ''/);
+  assert.match(queries.timing, /double2/);
+  assert.match(queries.timing, /blob4 = 'miss'/);
+  assert.match(queries.volume, /double3 >= 0/);
+});
+
+test("every vocabulary value has a dashboard label", () => {
+  for (const value of MIME_BUCKETS) assert.ok(MIME_LABELS[value], `mime ${value}`);
+  for (const value of CACHE_OUTCOMES) assert.ok(CACHE_LABELS[value], `cache ${value}`);
+  for (const value of CLIENT_CLASSES) assert.ok(CLIENT_LABELS[value], `client ${value}`);
+  for (const value of FETCH_ERROR_KINDS) assert.ok(ERROR_LABELS[value], `error ${value}`);
 });
 
 test("surfaces SQL API failures as 502 without leaking the token", async () => {
@@ -134,8 +202,10 @@ test("reports misconfiguration instead of calling upstream", async () => {
 });
 
 test("rejects non-GET and unknown paths", async () => {
-  const post = await worker.fetch(new Request(BASE, { method: "POST" }), env());
+  const post = await worker.fetch(new Request(`${BASE}api/stats`, { method: "POST" }), env());
   assert.equal(post.status, 405);
+  const unconfigured = await worker.fetch(unlockRequest(""), env({ STATS_KEY: undefined }));
+  assert.equal(unconfigured.status, 401, "fails closed when STATS_KEY is unset");
   const missing = await worker.fetch(authed("nope"), env());
   assert.equal(missing.status, 404);
 });

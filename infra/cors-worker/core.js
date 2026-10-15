@@ -157,8 +157,10 @@ function responseBytes(headers) {
 }
 
 /**
- * Coarse caller-app identity for statistics: the Origin header's hostname, or
- * its scheme for non-web origins (`chrome-extension`, `capacitor`, …). It
+ * Coarse caller-app identity for statistics: the calling site's hostname, its
+ * scheme for non-web origins (`chrome-extension`, `capacitor`, …), or `local`
+ * for dev/LAN origins (localhost, IP literals, `.local`/`.lan`), which say
+ * nothing useful about deployments and can point at a person's network. It
  * identifies the app, never the person — no URL, no path, and extension ids
  * are not stored.
  */
@@ -169,7 +171,18 @@ function callerOrigin(request) {
   try {
     const url = new URL(origin);
     if (url.protocol === "http:" || url.protocol === "https:") {
-      return url.hostname.slice(0, 100);
+      const host = url.hostname;
+      if (
+        host === "localhost" ||
+        host.endsWith(".localhost") ||
+        host.endsWith(".local") ||
+        host.endsWith(".lan") ||
+        host.startsWith("[") ||
+        /^\d{1,3}(\.\d{1,3}){3}$/.test(host)
+      ) {
+        return "local";
+      }
+      return host.slice(0, 100);
     }
     return url.protocol.replace(":", "").slice(0, 40);
   } catch {
@@ -403,6 +416,15 @@ export async function handleRequest(request, options = {}) {
       durationMs: Date.now() - startedAt,
       ...fields,
     });
+  // A response that reached the client (cache hit, upstream, or too large):
+  // its MIME class and size, plus the target host when it failed.
+  const recordResponse = (response, cacheOutcome, hostname) =>
+    record(response.status, {
+      mime: mimeBucket(response.headers.get("content-type")),
+      cache: cacheOutcome,
+      host: response.status >= 400 ? hostname : "",
+      bytes: responseBytes(response.headers),
+    });
 
   if (request.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
@@ -464,12 +486,7 @@ export async function handleRequest(request, options = {}) {
   if (cache && request.method === "GET") {
     const hit = await cache.match(cacheKey);
     if (hit) {
-      record(hit.status, {
-        mime: mimeBucket(hit.headers.get("content-type")),
-        cache: "hit",
-        host: hit.status >= 400 ? target.hostname : "",
-        bytes: responseBytes(hit.headers),
-      });
+      recordResponse(hit, "hit", target.hostname);
       return withCors(hit);
     }
   }
@@ -529,12 +546,7 @@ export async function handleRequest(request, options = {}) {
     waitUntil(cache.put(cacheKey, response.clone()));
   }
 
-  record(upstream.status, {
-    mime: mimeBucket(upstream.headers.get("content-type")),
-    cache: request.method === "GET" ? "miss" : "bypass",
-    host: upstream.status >= 400 ? target.hostname : "",
-    bytes: responseBytes(upstream.headers),
-  });
+  recordResponse(upstream, request.method === "GET" ? "miss" : "bypass", target.hostname);
 
   return response;
 }

@@ -4,8 +4,9 @@
  * The read side of the proxy statistics pipeline:
  *
  *  - the proxy worker (infra/cors-worker) writes one Analytics Engine point
- *    per non-preflight request: country, MIME class, status, cache hit/miss,
- *    and the host — but only on failures. No URLs, no IPs;
+ *    per recorded request: country, MIME class, status, cache outcome, caller
+ *    origin, client class, and — only on failures — the host and fetch-error
+ *    kind, plus duration and size. No URLs, no IPs;
  *  - this worker queries those points through the Analytics Engine SQL API and
  *    serves a small usage dashboard.
  *
@@ -13,17 +14,21 @@
  * API token; it lives only here (as a secret), next to the dashboard's own
  * access key.
  *
- * Schema (blob order is load-bearing — keep in sync with the proxy worker):
- *   blob1 country, blob2 MIME class, blob3 status, blob4 cache, blob5 host,
- *   blob6 caller origin, blob7 client class, blob8 fetch error kind
- *   doubles [count=1, duration ms, bytes], index "proxy", implicit timestamp.
+ * The schema (field order, vocabularies, dataset name) is imported from
+ * infra/cors-worker/stats-schema.js, so the reader can't drift from the writer.
  *
  * Deploy: see README.md. `npx wrangler deploy` plus two secrets.
  */
 
 import { renderDashboard, renderUnlock } from "./dashboard.js";
+import {
+  CACHE_OUTCOMES,
+  DATASET,
+  MIME_BUCKETS,
+  blob,
+  double,
+} from "../cors-worker/stats-schema.js";
 
-const DATASET = "savr_cors_stats";
 const SQL_API = "https://api.cloudflare.com/client/v4/accounts";
 
 // Time ranges the dashboard offers: window in days plus the chart bucket size
@@ -35,18 +40,17 @@ export const RANGES = {
   "90d": { days: 90, bucket: 86400 },
 };
 
-export const MIMES = [
-  "all", "html", "image", "video", "audio", "font",
-  "css", "js", "pdf", "json", "xml", "text", "other", "none",
-];
+export const MIMES = ["all", ...MIME_BUCKETS];
 
-export const CACHES = ["all", "hit", "miss", "bypass"];
+export const CACHES = ["all", ...CACHE_OUTCOMES];
+
+const COUNT = "SUM(_sample_interval)";
 
 /**
  * Build the dashboard's SQL. Every interpolated value is picked from the
- * maps/arrays above (or is a clamped integer), so callers cannot inject SQL.
- * Counts are `SUM(_sample_interval)` because Analytics Engine samples busy
- * series automatically — plain `count()` would undercount.
+ * maps/arrays above or the shared schema (or is a clamped integer), so callers
+ * cannot inject SQL. Counts are `SUM(_sample_interval)` because Analytics
+ * Engine samples busy series automatically — plain `count()` would undercount.
  */
 export function buildQueries({ range = "7d", mime = "all", cache = "all" } = {}) {
   const { days, bucket } = RANGES[range] ?? RANGES["7d"];
@@ -54,24 +58,37 @@ export function buildQueries({ range = "7d", mime = "all", cache = "all" } = {})
   const cacheValue = CACHES.includes(cache) ? cache : "all";
 
   const filters = [];
-  if (mimeValue !== "all") filters.push(`blob2 = '${mimeValue}'`);
-  if (cacheValue !== "all") filters.push(`blob4 = '${cacheValue}'`);
+  if (mimeValue !== "all") filters.push(`${blob("mime")} = '${mimeValue}'`);
+  if (cacheValue !== "all") filters.push(`${blob("cache")} = '${cacheValue}'`);
   const filter = filters.length ? ` AND ${filters.join(" AND ")}` : "";
-  const window = `timestamp > NOW() - INTERVAL '${days}' DAY`;
+  const where = `WHERE timestamp > NOW() - INTERVAL '${days}' DAY${filter}`;
+
+  // One "count per value of a field" breakdown, largest first.
+  const breakdown = (field, alias, { limit, extra = "" } = {}) =>
+    `SELECT ${blob(field)} AS ${alias}, ${COUNT} AS n FROM ${DATASET} ${where}${extra} GROUP BY ${alias} ORDER BY n DESC${limit ? ` LIMIT ${limit}` : ""}`;
+
+  const status = `toUInt32(${blob("status")})`;
+  const duration = double("durationMs");
+  const bytes = double("bytes");
 
   return {
-    series: `SELECT intDiv(toUInt32(timestamp), ${bucket}) * ${bucket} AS t, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY t ORDER BY t`,
-    countries: `SELECT blob1 AS country, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY country ORDER BY n DESC LIMIT 20`,
-    origins: `SELECT blob6 AS origin, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY origin ORDER BY n DESC LIMIT 20`,
-    clients: `SELECT blob7 AS client, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY client ORDER BY n DESC`,
-    mimes: `SELECT blob2 AS mime, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY mime ORDER BY n DESC`,
-    caches: `SELECT blob4 AS cache, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY cache ORDER BY n DESC`,
-    statuses: `SELECT blob3 AS status, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} GROUP BY status ORDER BY n DESC`,
-    hosts: `SELECT blob5 AS host, blob3 AS status, SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window}${filter} AND toUInt32(blob3) >= 400 AND blob5 != '' GROUP BY host, status ORDER BY n DESC LIMIT 20`,
+    series: `SELECT intDiv(toUInt32(timestamp), ${bucket}) * ${bucket} AS t, ${COUNT} AS n FROM ${DATASET} ${where} GROUP BY t ORDER BY t`,
+    countries: breakdown("country", "country", { limit: 20 }),
+    origins: breakdown("origin", "origin", { limit: 20 }),
+    clients: breakdown("client", "client"),
+    mimes: breakdown("mime", "mime"),
+    caches: breakdown("cache", "cache"),
+    statuses: breakdown("status", "status"),
+    errors: breakdown("errorKind", "kind", { extra: ` AND ${blob("errorKind")} != ''` }),
+    hosts: `SELECT ${blob("host")} AS host, ${blob("status")} AS status, ${COUNT} AS n FROM ${DATASET} ${where} AND ${status} >= 400 AND ${blob("host")} != '' GROUP BY host, status ORDER BY n DESC LIMIT 20`,
+    // Mean time to answer from origin (misses only; hits are ~instant).
+    timing: `SELECT SUM(_sample_interval * ${duration}) / SUM(_sample_interval) AS ms FROM ${DATASET} ${where} AND ${blob("cache")} = 'miss'`,
+    // Advertised bytes served; chunked responses (-1) are unknown, so skipped.
+    volume: `SELECT SUM(_sample_interval * ${bytes}) AS bytes FROM ${DATASET} ${where} AND ${bytes} >= 0`,
     // Deliberately unfiltered by MIME: this is the headline "pure article
     // count" — HTML pages fetched from origin (edge-cache misses), one per
     // ingest, ignoring the image/CSS/JS noise each article produces.
-    articles: `SELECT SUM(_sample_interval) AS n FROM ${DATASET} WHERE ${window} AND blob2 = 'html' AND blob4 = 'miss'`,
+    articles: `SELECT ${COUNT} AS n FROM ${DATASET} WHERE timestamp > NOW() - INTERVAL '${days}' DAY AND ${blob("mime")} = 'html' AND ${blob("cache")} = 'miss'`,
   };
 }
 
@@ -110,23 +127,30 @@ function timingSafeEqual(a, b) {
   return diff === 0;
 }
 
-function accessKeyFrom(request) {
-  const auth = request.headers.get("authorization") || "";
-  if (auth.startsWith("Bearer ")) return auth.slice(7);
-  const fromQuery = new URL(request.url).searchParams.get("key");
-  if (fromQuery) return fromQuery;
-  const cookie = request.headers.get("cookie") || "";
-  const match = cookie.match(/(?:^|;\s*)stats_key=([^;]+)/);
-  return match ? decodeURIComponent(match[1]) : null;
+/**
+ * The cookie holds a value derived from STATS_KEY rather than the key itself,
+ * so a leaked cookie can't be replayed as a bearer token, and rotating the key
+ * signs every browser out.
+ */
+export async function sessionToken(key) {
+  const digest = await crypto.subtle.digest(
+    "SHA-256",
+    new TextEncoder().encode(`savr-cors-stats-session:${key}`)
+  );
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function isAuthorized(request, env) {
+async function isAuthorized(request, env) {
   if (!env.STATS_KEY) return false; // fail closed when unconfigured
-  return timingSafeEqual(accessKeyFrom(request) || "", env.STATS_KEY);
+  const auth = request.headers.get("authorization") || "";
+  if (auth.startsWith("Bearer ")) return timingSafeEqual(auth.slice(7), env.STATS_KEY);
+  const cookie = request.headers.get("cookie") || "";
+  const match = cookie.match(/(?:^|;\s*)stats_session=([^;]+)/);
+  return Boolean(match) && timingSafeEqual(match[1], await sessionToken(env.STATS_KEY));
 }
 
-function sessionCookie(key) {
-  return `stats_key=${encodeURIComponent(key)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000`;
+async function sessionCookie(env) {
+  return `stats_session=${await sessionToken(env.STATS_KEY)}; HttpOnly; Secure; SameSite=Strict; Path=/; Max-Age=2592000`;
 }
 
 function html(body, status = 200, headers = {}) {
@@ -154,26 +178,48 @@ function json(body, status = 200, headers = {}) {
   });
 }
 
+/**
+ * The unlock form POSTs the key in the body, never the URL — URLs end up in
+ * Workers Logs (observability is on) and browser history.
+ */
+async function unlock(request, env) {
+  let key = "";
+  try {
+    key = String((await request.formData()).get("key") || "").trim();
+  } catch {
+    // not a form body; treat as an empty key
+  }
+  if (!env.STATS_KEY || !timingSafeEqual(key, env.STATS_KEY)) {
+    return html(renderUnlock("That key was not accepted."), 401);
+  }
+  return new Response(null, {
+    status: 303,
+    headers: { location: "/", "set-cookie": await sessionCookie(env) },
+  });
+}
+
+const firstNumber = (rows, column) => (rows && rows[0] ? Number(rows[0][column]) || 0 : 0);
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+
+    if (url.pathname === "/" && request.method === "POST") return unlock(request, env);
     if (request.method !== "GET") {
       return json({ error: "method not allowed" }, 405);
     }
 
     if (url.pathname === "/api/stats") {
-      if (!isAuthorized(request, env)) return json({ error: "unauthorized" }, 401);
+      if (!(await isAuthorized(request, env))) return json({ error: "unauthorized" }, 401);
       try {
         const queries = buildQueries(Object.fromEntries(url.searchParams));
-        const results = await runQueries(env, queries);
-        const headers = {};
-        // Persist a key presented via ?key= so the unlock flow can redirect.
-        if (url.searchParams.get("key")) {
-          headers["set-cookie"] = sessionCookie(env.STATS_KEY);
-        }
-        const articles = results.articles[0] ? Number(results.articles[0].n) : 0;
-        delete results.articles;
-        return json({ ...results, articles }, 200, headers);
+        const { articles, timing, volume, ...results } = await runQueries(env, queries);
+        return json({
+          ...results,
+          articles: firstNumber(articles, "n"),
+          originMs: firstNumber(timing, "ms"),
+          bytes: firstNumber(volume, "bytes"),
+        });
       } catch (error) {
         return json({ error: error.message }, 502);
       }
@@ -181,18 +227,7 @@ export default {
 
     if (url.pathname !== "/") return json({ error: "not found" }, 404);
 
-    const key = url.searchParams.get("key");
-    if (key) {
-      if (!timingSafeEqual(key, env.STATS_KEY || "")) {
-        return html(renderUnlock("That key was not accepted."), 401);
-      }
-      return new Response(null, {
-        status: 303,
-        headers: { location: "/", "set-cookie": sessionCookie(env.STATS_KEY) },
-      });
-    }
-
-    if (!isAuthorized(request, env)) return html(renderUnlock());
+    if (!(await isAuthorized(request, env))) return html(renderUnlock());
 
     return html(
       renderDashboard({ ranges: Object.keys(RANGES), mimes: MIMES, caches: CACHES })
