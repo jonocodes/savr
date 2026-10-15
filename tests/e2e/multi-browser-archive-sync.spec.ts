@@ -8,6 +8,7 @@ import {
   getWorkerStorageAddress,
   getWorkerToken,
   getContentServerUrl,
+  clearAllArticles,
 } from "./utils/remotestorage-helper";
 import { loadTestEnv } from "./utils/test-helpers";
 
@@ -48,6 +49,9 @@ test.describe("Multi-Browser Archive Sync", () => {
       await page1.waitForLoadState("networkidle");
       await connectToRemoteStorage(page1, storageAddress, token);
       await waitForRemoteStorageSync(page1);
+      // The storage user is shared per worker; start from an empty store so
+      // articles left by other specs don't show up in Browser 2.
+      await clearAllArticles(page1);
       console.log("✅ Browser 1: Connected and synced");
 
       console.log("📱 Browser 2: Setting up...");

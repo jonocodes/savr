@@ -2,6 +2,9 @@
 
 ## 2026-10-14
 
+- Extension saves now download the article's images through the extension too (#89): the background fetches them with its host permissions (CORS-exempt), so a Firefox or Chrome user with the extension needs no proxy at all for an extension save. The app asks per image over a small id-correlated, time-limited bridge; any image the extension cannot supply falls back to the configured proxy (or a placeholder), so a broken extension never blocks a save. URL saves, refetches and bookmarklets are unchanged
+- The extension now holds the all-sites host permission (needed for CORS-exempt image downloads); it reports its version in the delivery handshake
+- Every article and image download now records its downloader — `extension <version>`, `proxy <hostname>` (never the token) or `direct` — with the full fallback chain, in both the article's `fetch.log` and the Diagnostics log, on success and failure
 - The shared CORS proxy now keeps anonymous aggregate usage statistics, and a separate stats worker (`infra/cors-stats`) serves a small dashboard: requests over time, countries, caller apps, client classes, statuses, cache hit rate, failing hosts, and a pure "article count" filter
 - Each request records only country, content class, status, cache outcome, caller app/class, and on failures the host and fetch-error kind — no URLs, IPs, or raw user agents; retained 90 days
 - The portable proxy core emits neutral statistics events through an `onRequest` port; only the public instance carries the Analytics Engine binding, so self-hosted proxies write nothing
