@@ -111,6 +111,31 @@ input {
   min-height: 1.4em;
 }
 
+/* Firefox for Android opens the popup and options as full pages: fill the
+   screen width and give the buttons phone-sized tap targets. Desktop popups
+   (fine pointer) keep their fixed widths. */
+@media (pointer: coarse) {
+  .panel,
+  .panel.narrow,
+  .panel.wide {
+    width: auto;
+    padding: 16px;
+    gap: 12px;
+  }
+
+  body {
+    font-size: 16px;
+  }
+
+  h1 {
+    font-size: 20px;
+  }
+
+  button {
+    padding: 12px 14px;
+  }
+}
+
 @media (prefers-color-scheme: dark) {
   button.secondary,
   .links a {
