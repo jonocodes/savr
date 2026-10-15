@@ -26,8 +26,11 @@ Added anonymous aggregate usage statistics to the shared CORS proxy (Analytics E
 - The stats worker's SQL reads are 9 per dashboard load; free tier allows 10k read queries/day.
 - `wrangler deploy` for the stats worker needs `ACCOUNT_ID` in its wrangler.toml plus two secrets (`CF_API_TOKEN`, `STATS_KEY`); the AE dataset auto-creates on first write.
 - The public instance deploy is `npx wrangler deploy --env public` (default deploy would create an open `savr-cors-proxy` instead).
+- Analytics Engine must be enabled once per account in the dashboard before any AE binding can deploy (`wrangler` fails with error `10089` otherwise).
 
 **Open threads**
-- Deploy both workers (proxy `--env public` to add the binding; then cors-stats secrets + deploy) and eyeball the dashboard against real traffic.
 - Response `bytes` is recorded but not surfaced in the dashboard UI — only queryable via the SQL API.
 - Release attribution remains unsolved without a preflight-free mechanism.
+
+**Notes**
+- Deployed 2026-10-15: proxy `--env public` with the `STATS` binding, and `savr-cors-stats` (account ID pinned in its wrangler.toml; `CF_API_TOKEN` + `STATS_KEY` secrets). Dashboard: https://savr-cors-stats.cloudflare8899.workers.dev — verified end-to-end against real traffic.
