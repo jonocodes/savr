@@ -32,6 +32,9 @@ export interface EnvironmentConfig {
 }
 
 const EXTENSION_README_URL = "https://github.com/jonocodes/savr/tree/main/browser-extension";
+// Stable install link for the signed, self-hosted Firefox build: a savr.link
+// redirect (public/_redirects) to the newest XPI on GitHub Releases.
+const FIREFOX_EXTENSION_INSTALL_URL = "https://savr.link/extension/firefox.xpi";
 
 // Get environment variables
 const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
@@ -80,7 +83,7 @@ export const environmentConfig: EnvironmentConfig = {
     repo: getEnvVar("VITE_FAILURE_REPORT_REPO", "") || "",
   },
   extension: {
-    firefoxUrl: getEnvVar("VITE_FIREFOX_EXTENSION_URL", EXTENSION_README_URL) || "",
+    firefoxUrl: getEnvVar("VITE_FIREFOX_EXTENSION_URL", FIREFOX_EXTENSION_INSTALL_URL) || "",
     chromeUrl: getEnvVar("VITE_CHROME_EXTENSION_URL", EXTENSION_README_URL) || "",
   },
 };

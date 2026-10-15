@@ -26,6 +26,10 @@ jobs:
       - name: Cloudflare worker tests
         # bash expands the globs; the workers have no dependencies to install.
         run: node --test infra/cors-worker/*.test.mjs infra/cors-stats/*.test.mjs
+      - name: Extension release script tests
+        run: node --test scripts/extension-release.test.mjs
+      - name: Extension lint (AMO's unlisted rules)
+        run: npx --yes web-ext@10 lint --self-hosted --source-dir browser-extension
 
   e2e-smoke:
     runs-on: ubuntu-latest

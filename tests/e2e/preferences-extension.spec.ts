@@ -3,8 +3,9 @@ import { test, expect } from "@playwright/test";
 /**
  * Preferences offers the browser extension next to the bookmarklets. The
  * install targets are build-configurable (VITE_FIREFOX_EXTENSION_URL /
- * VITE_CHROME_EXTENSION_URL); until store listings exist they default to the
- * extension README, which is what this test asserts.
+ * VITE_CHROME_EXTENSION_URL). Firefox defaults to the stable savr.link install
+ * link for the signed self-hosted XPI; Chrome, until a store listing exists,
+ * defaults to the extension README.
  */
 test.describe("Preferences: browser extension", () => {
   test("links to the extension install targets", async ({ page }) => {
@@ -15,7 +16,7 @@ test.describe("Preferences: browser extension", () => {
 
     await expect(page.getByTestId("extension-firefox-link")).toHaveAttribute(
       "href",
-      /browser-extension/
+      "https://savr.link/extension/firefox.xpi"
     );
     await expect(page.getByTestId("extension-chrome-link")).toHaveAttribute(
       "href",

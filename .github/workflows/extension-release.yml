@@ -1,0 +1,118 @@
+name: Extension release
+
+# Signs browser-extension/ as an unlisted Firefox add-on, attaches it to a
+# GitHub release, and opens a PR that publishes it to existing installs
+# (public/extension/updates.json + the savr.link/extension/firefox.xpi link).
+# Process and recovery steps: browser-extension/README.md#releasing.
+
+on:
+  push:
+    tags: ["ext-v*"]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency: extension-release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # AMO documents signing as taking up to 24 hours; unlisted is usually minutes.
+    timeout-minutes: 90
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Check the tag matches the manifest version
+        run: node scripts/extension-release.mjs check-tag "$TAG"
+
+      - name: Release script tests
+        run: node --test scripts/extension-release.test.mjs
+
+      - name: Lint (the rules AMO applies to unlisted uploads)
+        run: npx --yes web-ext@10 lint --self-hosted --source-dir browser-extension
+
+      - name: Sign on AMO (unlisted)
+        env:
+          WEB_EXT_API_KEY: ${{ secrets.WEB_EXT_API_KEY }}
+          WEB_EXT_API_SECRET: ${{ secrets.WEB_EXT_API_SECRET }}
+        run: >-
+          npx --yes web-ext@10 sign
+          --channel unlisted
+          --source-dir browser-extension
+          --artifacts-dir signed
+          --ignore-files README.md
+          --approval-timeout 4800000
+
+      - name: Build the Chromium zip
+        run: npx --yes web-ext@10 build --source-dir browser-extension --artifacts-dir chromium --ignore-files README.md
+
+      - name: Name the artifacts
+        id: files
+        run: |
+          version="${TAG#ext-v}"
+          xpi="savr-firefox-$version.xpi"
+          zip="savr-chromium-$version.zip"
+          mv signed/*.xpi "$xpi"
+          mv chromium/*.zip "$zip"
+          {
+            echo "version=$version"
+            echo "xpi=$xpi"
+            echo "zip=$zip"
+            echo "link=https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/$xpi"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Create the GitHub release
+        env:
+          VERSION: ${{ steps.files.outputs.version }}
+          XPI: ${{ steps.files.outputs.xpi }}
+          ZIP: ${{ steps.files.outputs.zip }}
+        run: |
+          # --latest=false: the repo's "latest release" belongs to the app.
+          gh release create "$TAG" "$ZIP" --latest=false \
+            --title "Browser extension $VERSION" \
+            --notes "Signed Firefox add-on (install from savr.link/extension/firefox.xpi) and an unsigned Chromium zip for Load unpacked / store upload."
+          # gh uploads .xpi as application/octet-stream; Firefox only starts its
+          # install flow for application/x-xpinstall, so upload through the API.
+          release_id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .id)
+          curl --fail --silent --show-error -X POST \
+            -H "Authorization: Bearer $GH_TOKEN" \
+            -H "Content-Type: application/x-xpinstall" \
+            --data-binary "@$XPI" \
+            "https://uploads.github.com/repos/$GITHUB_REPOSITORY/releases/$release_id/assets?name=$XPI" > /dev/null
+          type=$(gh api "repos/$GITHUB_REPOSITORY/releases/$release_id/assets" \
+            --jq ".[] | select(.name == \"$XPI\") | .content_type")
+          if [ "$type" != "application/x-xpinstall" ]; then
+            echo "::error::$XPI was stored as '$type'"
+            exit 1
+          fi
+
+      - name: Open the publish PR
+        env:
+          VERSION: ${{ steps.files.outputs.version }}
+          XPI: ${{ steps.files.outputs.xpi }}
+          LINK: ${{ steps.files.outputs.link }}
+        run: |
+          git show "$TAG:browser-extension/manifest.json" > "$RUNNER_TEMP/manifest.json"
+          branch="ext-release/$VERSION"
+          git switch -c "$branch" origin/main
+          node scripts/extension-release.mjs publish \
+            --xpi "$XPI" --link "$LINK" --manifest "$RUNNER_TEMP/manifest.json"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/extension/updates.json public/_redirects
+          git commit -m "Publish browser extension $VERSION"
+          git push origin "$branch"
+          body="Lists $VERSION in updates.json and points savr.link/extension/firefox.xpi at it. Merging (and the savr.link deploy) rolls it out to existing installs."
+          if ! gh pr create --base main --head "$branch" \
+            --title "Publish browser extension $VERSION" --body "$body"; then
+            echo "::warning::Could not open the PR (Settings → Actions → General → 'Allow GitHub Actions to create and approve pull requests'). Open one from $branch."
+          fi

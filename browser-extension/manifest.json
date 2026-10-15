@@ -32,7 +32,14 @@
   "browser_specific_settings": {
     "gecko": {
       "id": "savr@jonocodes.github.io",
-      "strict_min_version": "128.0"
+      "strict_min_version": "142.0",
+      "update_url": "https://savr.link/extension/updates.json",
+      "data_collection_permissions": {
+        "required": ["websiteContent", "browsingActivity"]
+      }
+    },
+    "gecko_android": {
+      "strict_min_version": "142.0"
     }
   }
 }

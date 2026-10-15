@@ -123,7 +123,7 @@ A working example lives in [`browser-extension/youtube-transcript.js`](browser-e
 
 On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button with **Save current page** and **Visit Savr**. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself. The article's images are downloaded by the extension too, so an extension save needs no proxy at all; any image the extension cannot fetch falls back to your configured proxy (or a placeholder). URL saves and bookmarklets still use the proxy as before.
 
-It is not on addons.mozilla.org or the Chrome Web Store yet, so it installs by sideloading: a temporary add-on in Firefox, **Load unpacked** in Chrome. See [browser-extension/README.md](browser-extension/README.md) for install, settings, and how the delivery flow works — or use the links in **Preferences**, which point at the install targets (configurable at build time once store listings exist).
+Firefox (142+, desktop and Android) installs a signed build from **https://savr.link/extension/firefox.xpi** and keeps it updated. Chrome has no store listing yet, so it installs with **Load unpacked**. See [browser-extension/README.md](browser-extension/README.md) for install, settings, how releases are published, and how the delivery flow works — or use the links in **Preferences** (configurable at build time).
 
 ## In browser
 
