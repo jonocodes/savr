@@ -4,8 +4,7 @@
   "version": "1.0.0",
   "description": "Save the page you are reading to Savr, without re-downloading it.",
   "permissions": ["activeTab", "scripting", "storage"],
-  "host_permissions": ["http://localhost/*", "https://savr.link/*"],
-  "optional_host_permissions": ["*://*/*"],
+  "host_permissions": ["http://localhost/*", "https://savr.link/*", "*://*/*"],
   "background": {
     "scripts": ["background.js"],
     "service_worker": "background.js",

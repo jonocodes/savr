@@ -50,9 +50,6 @@ jest.mock("~/utils/sync/storage", () => ({
 }));
 
 jest.mock("~/utils/article/tools", () => ({
-  fetchAndResizeImage: jest
-    .fn()
-    .mockRejectedValue(new Error("Network disabled in test")),
   fetchWithTimeout: jest
     .fn()
     .mockRejectedValue(new Error("Network disabled in test")),

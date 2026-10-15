@@ -18,12 +18,17 @@ import {
 } from "./lib";
 import { DEFAULT_WPM } from "./readingSpeed";
 import { saveResource } from "~/utils/sync/storage";
+import { fetchWithTimeout, imageToDataUrl, FetchError } from "~/utils/article/tools";
 import {
-  fetchAndResizeImage,
-  fetchWithTimeout,
-  imageToDataUrl,
-  FetchError,
-} from "~/utils/article/tools";
+  downloadImage,
+  formatAttempts,
+  ImageDownloadError,
+  proxyDownloaderLabel,
+  proxyImageSource,
+  type DownloadAttempt,
+  type ImageSource,
+} from "~/utils/net/imageSources";
+import { getCorsProxyValue } from "~/utils/net/corsProxy";
 import { md5 } from "js-md5";
 import { summarizeText, buildSummarySettings, type SummaryProvider } from "~/utils/ai/summarization";
 import {
@@ -239,7 +244,8 @@ export function applyImagePlaceholder(
 async function downloadAndResizeImages(
   imageData: ImageData[],
   article: Article,
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  imageSources: ImageSource[]
 ): Promise<{ successfulDownloads: number; savedBytes: number; savedFileCount: number }> {
   let successfulDownloads = 0;
   let savedBytes = 0;
@@ -261,8 +267,20 @@ async function downloadAndResizeImages(
     // TODO: add support for .avif as on dgt.is
     const mimeType = mime.getType(ext) ?? "image/jpeg";
 
+    let attempts: DownloadAttempt[] = [];
     try {
-      const { blob, width, height } = await fetchAndResizeImage(url, maxDimensionImage);
+      const download = await downloadImage(url, imageSources);
+      attempts = download.attempts;
+      // Every download names the downloader that delivered it (and any
+      // fallback before it) in the fetch log and the Diagnostics log.
+      const downloader = formatAttempts(attempts);
+      sendMessage(null, `image downloaded via ${downloader}: ${url}`);
+      recordLog("info", "image", `Downloaded image via ${download.source}: ${url}`, {
+        slug: article.slug,
+        downloader,
+      });
+
+      const { blob, width, height } = await resizeImage(download.blob, maxDimensionImage);
 
       const dataUrl = await imageToDataUrl(blob);
 
@@ -304,10 +322,19 @@ async function downloadAndResizeImages(
         const [, , imgElement, width, height] = entry;
         applyImagePlaceholder(imgElement, url, width, height);
       }
+      if (e instanceof ImageDownloadError) {
+        attempts = e.attempts;
+        sendMessage(null, `image failed via ${formatAttempts(attempts)}: ${url}`);
+      } else {
+        // Downloaded, but the bytes could not be decoded/resized or saved.
+        sendMessage(null, `image failed after download (${errorMessage(e)}): ${url}`);
+      }
       const meta: Record<string, unknown> = { slug: article.slug, error: errorMessage(e) };
-      if (e instanceof FetchError) {
-        meta.requestUrl = e.requestUrl;
-        meta.status = e.status;
+      if (attempts.length > 0) meta.downloader = formatAttempts(attempts);
+      const cause = e instanceof ImageDownloadError ? e.cause : e;
+      if (cause instanceof FetchError) {
+        meta.requestUrl = cause.requestUrl;
+        meta.status = cause.status;
       }
       recordLog("warn", "image", `Failed to download image: ${url}`, meta);
     }
@@ -352,7 +379,8 @@ async function downloadAndResizeImages(
 async function processHtmlAndImages(
   article: Article,
   htmlText: string,
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  imageSources: ImageSource[]
 ): Promise<{ html: string; successfulDownloads: number; totalImages: number; savedImageBytes: number; savedImageFileCount: number }> {
   const parser = new DOMParser();
   const document = parser.parseFromString(htmlText, "text/html");
@@ -368,7 +396,12 @@ async function processHtmlAndImages(
 
   sendMessage(25, "downloading images");
 
-  const { successfulDownloads, savedBytes, savedFileCount } = await downloadAndResizeImages(imageData, article, sendMessage);
+  const { successfulDownloads, savedBytes, savedFileCount } = await downloadAndResizeImages(
+    imageData,
+    article,
+    sendMessage,
+    imageSources
+  );
 
   sendMessage(95, "creating thumbnail");
 
@@ -583,6 +616,17 @@ export type IngestOverrides = {
   author?: string | null;
 };
 
+export type IngestOptions = {
+  /**
+   * Image sources tried before the proxy/direct fetch — e.g. the browser
+   * extension for an extension-initiated save. Any image they fail on falls
+   * back to the proxy (or the placeholder).
+   */
+  imageSources?: ImageSource[];
+  /** Lines recorded at the top of the fetch log (e.g. how the page was downloaded). */
+  fetchLogPrelude?: string[];
+};
+
 export function readabilityToArticle(
   html: string,
   contentType: string,
@@ -680,10 +724,12 @@ export async function ingestHtml(
   contentType: string,
   url: string | null,
   sendMessage: (percent: number | null, message: string | null) => void,
-  overrides?: IngestOverrides
+  overrides?: IngestOverrides,
+  options?: IngestOptions
 ): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
   const [article, content] = readabilityToArticle(html, contentType, url, overrides);
   return persistArticle(storageClient, article, content, html, sendMessage, {
+    ...options,
     startMessage: `readability finished for ${article.slug}`,
   });
 }
@@ -708,7 +754,8 @@ export async function ingestRaw(
     url?: string | null;
     publishedDate?: string | null;
   },
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  options?: IngestOptions
 ): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
   const requestedType = params.contentType ?? "auto";
   const actualContentType =
@@ -735,6 +782,7 @@ export async function ingestRaw(
   };
 
   return persistArticle(storageClient, article, bodyHtml, bodyHtml, sendMessage, {
+    ...options,
     startMessage: `raw content received for ${article.slug}`,
   });
 }
@@ -753,9 +801,9 @@ async function persistArticle(
   content: string,
   rawHtml: string,
   sendMessage: (percent: number | null, message: string | null) => void,
-  opts?: { startMessage?: string }
+  opts?: IngestOptions & { startMessage?: string }
 ): Promise<{ article: Article; successfulDownloads: number; totalImages: number }> {
-  const logMessages: string[] = [];
+  const logMessages: string[] = [...(opts?.fetchLogPrelude ?? [])];
 
   // Wrapper to collect log messages while still calling the original sendMessage
   const sendMessageWithLog = (percent: number | null, message: string | null) => {
@@ -779,7 +827,10 @@ async function persistArticle(
   const { html: processedHtml, successfulDownloads, totalImages, savedImageBytes, savedImageFileCount } = await processHtmlAndImages(
     article,
     content,
-    sendMessageWithLog
+    sendMessageWithLog,
+    // Supplied sources (the browser extension) first; the proxy/direct fetch
+    // stays as the per-image fallback.
+    [...(opts?.imageSources ?? []), proxyImageSource()]
   );
 
   sendMessageWithLog(null, `${successfulDownloads} of ${totalImages} images downloaded for offline use`);
@@ -872,9 +923,10 @@ export async function ingestPdf(
   storageClient: BaseClient | null,
   pdfBlob: Blob,
   url: string,
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  options?: Pick<IngestOptions, "fetchLogPrelude">
 ): Promise<Article> {
-  const logMessages: string[] = [];
+  const logMessages: string[] = [...(options?.fetchLogPrelude ?? [])];
 
   const sendMessageWithLog = (percent: number | null, message: string | null) => {
     if (message) {
@@ -968,9 +1020,10 @@ export async function ingestImage(
   imageBlob: Blob,
   mimeType: string,
   url: string,
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  options?: Pick<IngestOptions, "fetchLogPrelude">
 ): Promise<Article> {
-  const logMessages: string[] = [];
+  const logMessages: string[] = [...(options?.fetchLogPrelude ?? [])];
 
   const sendMessageWithLog = (percent: number | null, message: string | null) => {
     if (message) {
@@ -1076,6 +1129,9 @@ export async function ingestUrl(
 
   sendMessage(10, "fetching article");
 
+  // The page always comes through the proxy (or directly); name it in both logs.
+  const downloader = proxyDownloaderLabel(getCorsProxyValue());
+
   // TODO: create error if fetch times out. this happens if you are offline
   let response: Response;
   try {
@@ -1086,7 +1142,7 @@ export async function ingestUrl(
   } catch (error) {
     // The article never got far enough to have a slug, so the per-article
     // fetch.log cannot capture this — record it in the app log instead.
-    const meta: Record<string, unknown> = { url, error: errorMessage(error) };
+    const meta: Record<string, unknown> = { url, downloader, error: errorMessage(error) };
 
     if (error instanceof FetchError) {
       // requestUrl is the resolved URL (proxy included). status is only set
@@ -1100,6 +1156,9 @@ export async function ingestUrl(
     recordLog("error", "ingest", "Failed to download article", meta);
     throw error;
   }
+
+  recordLog("info", "ingest", `Downloaded article via ${downloader}: ${url}`, { url, downloader });
+  const options = { fetchLogPrelude: [`article downloaded via ${downloader}: ${url}`] };
 
   const contentTypeHeader = response.headers.get("content-type");
 
@@ -1128,14 +1187,16 @@ export async function ingestUrl(
         await response.text(),
         contentTypeHeader,
         url,
-        sendMessage
+        sendMessage,
+        undefined,
+        options
       );
       article = result.article;
       successfulDownloads = result.successfulDownloads;
       totalImages = result.totalImages;
     } else if (mimeType === "application/pdf") {
       const pdfBlob = await response.blob();
-      article = await ingestPdf(storageClient, pdfBlob, url, sendMessage);
+      article = await ingestPdf(storageClient, pdfBlob, url, sendMessage, options);
     } else if (mimeType === "text/plain" || mimeType === "text/markdown") {
       // Handle plain text and markdown files - convert to HTML and ingest
       const textContent = await response.text();
@@ -1145,7 +1206,9 @@ export async function ingestUrl(
         htmlContent,
         "text/html",
         url,
-        sendMessage
+        sendMessage,
+        undefined,
+        options
       );
       article = result.article;
       successfulDownloads = result.successfulDownloads;
@@ -1153,7 +1216,7 @@ export async function ingestUrl(
     } else if (mimeType.startsWith("image/")) {
       // Handle image files
       const imageBlob = await response.blob();
-      article = await ingestImage(storageClient, imageBlob, mimeType, url, sendMessage);
+      article = await ingestImage(storageClient, imageBlob, mimeType, url, sendMessage, options);
     } else {
       throw new Error(`No handler for content type ${contentTypeHeader}`);
     }

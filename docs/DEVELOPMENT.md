@@ -125,8 +125,8 @@ rm -f tests/e2e/.test-env.json
 | `article-server-persistence.spec.ts` | Persist to RemoteStorage server and restore after local wipe | Serial |
 | `edit-article-info.spec.ts` | Edit-article drawer: metadata fields, persistence | Serial |
 | `bookmarklet-sync.spec.ts` | Bookmarklet `?bookmarklet=` ingestion flow via postMessage | Serial |
-| `extension-delivery.spec.ts` | App-side extension contract: `savr-ready` announced on the app's own window with no opener, page-side `savr-html` ingested | Active |
-| `extension-save.spec.ts` | Loads `browser-extension/` into Chromium and saves a fixture page end to end | Launches its own persistent context; Firefox packaging checked via `web-ext lint` |
+| `extension-delivery.spec.ts` | App-side extension contract: `savr-ready` announced on the app's own window with no opener, page-side `savr-html` ingested; image bridge with a simulated relay (no app-side image requests, downloader logged) | Active |
+| `extension-save.spec.ts` | Loads `browser-extension/` into Chromium and saves a fixture page end to end, incl. images downloaded by the extension | Launches its own persistent context; Firefox packaging checked via `web-ext lint` |
 | `multi-browser-sync.spec.ts` | Add/delete propagation across two browser contexts (manual sync trigger) | Active |
 | `multi-browser-archive-sync.spec.ts` | Deletion, metadata-edit, and archive-state sync across contexts | Active |
 | `natural-sync.spec.ts` | Background-interval sync with no manual trigger | Active |
@@ -167,7 +167,8 @@ npm run dev
 
 ## Fetch governor
 
-All proxied network requests (article pages and every article image) go through
+All proxied network requests (article pages, and every article image the browser
+extension does not supply) go through
 `fetchWithTimeout` in `src/utils/article/tools.ts`, which is wrapped by the fetch
 governor in `src/utils/net/fetchGovernor.ts`. The governor:
 
@@ -185,6 +186,22 @@ re-request a dead remote URL.
 
 Unit tests: `src/utils/net/fetchGovernor.test.ts`,
 `lib/__tests__/ingestion-placeholder.test.ts`.
+
+## Image sources and downloader logging
+
+Ingest downloads each image through an ordered list of image sources
+(`src/utils/net/imageSources.ts`): sources supplied by the caller first, then
+the proxy/direct fetch above. An extension-initiated save passes the browser
+extension's source (`src/utils/extension/extensionBridge.ts`), which asks the
+extension's relay for the bytes over id-correlated, time-limited window
+messages; see `browser-extension/README.md` for the protocol. Every download
+(article page and images) records its downloader — `extension <version>`,
+`proxy <hostname>` or `direct`, plus the fallback chain — in the article's
+`fetch.log` and the Diagnostics log.
+
+Unit tests: `src/utils/net/imageSources.test.ts`,
+`src/utils/extension/extensionBridge.test.ts`,
+`lib/__tests__/ingestion-image-sources.test.ts`.
 
 ## Code Structure
 

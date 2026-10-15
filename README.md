@@ -121,7 +121,7 @@ A working example lives in [`browser-extension/youtube-transcript.js`](browser-e
 
 ## Browser extension (optional)
 
-On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button with **Save current page** and **Visit Savr**. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself.
+On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button with **Save current page** and **Visit Savr**. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself. The article's images are downloaded by the extension too, so an extension save needs no proxy at all; any image the extension cannot fetch falls back to your configured proxy (or a placeholder). URL saves and bookmarklets still use the proxy as before.
 
 It is not on addons.mozilla.org or the Chrome Web Store yet, so it installs by sideloading: a temporary add-on in Firefox, **Load unpacked** in Chrome. See [browser-extension/README.md](browser-extension/README.md) for install, settings, and how the delivery flow works — or use the links in **Preferences**, which point at the install targets (configurable at build time once store listings exist).
 
@@ -350,7 +350,7 @@ You can learn more about CORS on [Wikipedia](https://en.wikipedia.org/wiki/Cross
 
 ## How do I find out why an article failed to save?
 
-Savr keeps an on-device app log of failures — article downloads, image and thumbnail downloads, and summarization errors. Open **Preferences → Diagnostics** to see the most recent 500 entries, filter them, and copy them as text. The log never leaves your device, and it is handy on a phone where there's no JavaScript console to check.
+Savr keeps an on-device app log of failures — article downloads, image and thumbnail downloads, and summarization errors. Each article and image download also records which downloader delivered it — `extension <version>`, `proxy <hostname>` (never the token), or `direct` — including any fallback chain (e.g. `extension 1.0.0 failed (HTTP 403) -> proxy my-worker.workers.dev ok`); the same line goes into the article's own `fetch.log`. Open **Preferences → Diagnostics** to see the most recent 500 entries, filter them, and copy them as text. The log never leaves your device, and it is handy on a phone where there's no JavaScript console to check.
 
 On the hosted app, a failed article save also offers to file a public GitHub issue: Savr shows the diagnostic payload it would send, lets you edit it, and then opens a prefilled new-issue form under your own GitHub account. Nothing is sent unless you press **File on GitHub**, and self-hosted builds don't show the offer at all (see [docs/TELEMETRY.md](docs/TELEMETRY.md) and [docs/ENVIRONMENT_VARIABLES.md](docs/ENVIRONMENT_VARIABLES.md)).
 

@@ -131,6 +131,71 @@ test.describe("Browser extension save flow", () => {
     expect(article?.url).toBe(articleUrl);
     expect(article?.ingestSource).toBe("bookmarklet");
   });
+
+  test("downloads the article's images through the extension and logs its version", async () => {
+    const articleUrl = `${getContentServerUrl()}/input/test-failed-image/`;
+    const goodImageUrl = `${getContentServerUrl()}/input/sample-image/header-transparent.png`;
+    const missingImageUrl = `${getContentServerUrl()}/input/test-failed-image/missing-image.png`;
+    const slug = "failed-image-placeholder";
+    const extensionId = new URL(background.url()).host;
+
+    const articlePage = await context.newPage();
+    await articlePage.goto(articleUrl);
+
+    const popupPage = await context.newPage();
+    await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
+    const version = await popupPage.evaluate(async (appUrl) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const chromeApi = (globalThis as any).chrome;
+      await chromeApi.storage.local.set({ savrAppUrl: appUrl });
+      return chromeApi.runtime.getManifest().version as string;
+    }, APP_URL);
+    await articlePage.bringToFront();
+    const response = await popupPage.evaluate(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return await (globalThis as any).chrome.runtime.sendMessage({ type: "SAVE_ACTIVE_PAGE" });
+    });
+    await popupPage.close();
+    expect(response).toMatchObject({ ok: true });
+
+    let appPage: Page | undefined;
+    await expect
+      .poll(
+        () => {
+          appPage = context
+            .pages()
+            .find((page) => page.url().includes(encodeURIComponent(articleUrl)));
+          return Boolean(appPage);
+        },
+        { timeout: 30000 }
+      )
+      .toBe(true);
+
+    await expect
+      .poll(() => getArticleFromDB(appPage!, slug), { timeout: 60000 })
+      .toMatchObject({ slug });
+
+    // The real background fetched the good image; the 404 fell back to the
+    // app's own (direct, no proxy in tests) fetch and became a placeholder.
+    const imageLogs = await appPage!.evaluate(async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const entries = await (window as any).savrDb.logs.where("category").equals("image").toArray();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return entries.map((entry: any) => ({ message: entry.message, downloader: entry.meta?.downloader }));
+    });
+    expect(imageLogs).toContainEqual({
+      message: `Downloaded image via extension ${version}: ${goodImageUrl}`,
+      downloader: `extension ${version} ok`,
+    });
+    expect(imageLogs).toContainEqual(
+      expect.objectContaining({
+        message: `Failed to download image: ${missingImageUrl}`,
+        downloader: expect.stringMatching(
+          new RegExp(`^extension ${version.replace(/\./g, "\\.")} failed \\(HTTP 404\\) -> direct failed`)
+        ),
+      })
+    );
+  });
 });
 
 /**

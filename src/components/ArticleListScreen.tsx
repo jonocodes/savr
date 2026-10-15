@@ -42,7 +42,12 @@ import {
   Close as CloseIcon,
 } from "@mui/icons-material";
 import { db } from "~/utils/db";
-import { ingestUrl, ingestHtml, ingestRaw } from "../../lib/src/ingestion";
+import { ingestUrl, ingestHtml, ingestRaw, type IngestOptions } from "../../lib/src/ingestion";
+import {
+  createExtensionImageSource,
+  extensionFromMessageEvent,
+  type ExtensionInfo,
+} from "~/utils/extension/extensionBridge";
 import { trackCapture, trackCaptureFailed } from "~/utils/telemetry";
 import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -84,6 +89,15 @@ type RawIngestPayload = {
 function announceSavrReady(): void {
   window.opener?.postMessage({ action: "savr-ready" }, "*");
   window.postMessage({ action: "savr-ready" }, window.location.origin);
+}
+
+/**
+ * An extension-initiated save downloads its images through the extension
+ * first (CORS-exempt, no proxy request); any image it cannot supply falls back
+ * to the proxy. Bookmarklet and URL saves are unchanged.
+ */
+function extensionIngestOptions(extension: ExtensionInfo | null): IngestOptions | undefined {
+  return extension ? { imageSources: [createExtensionImageSource(extension)] } : undefined;
 }
 
 const sampleArticleUrls = [
@@ -344,9 +358,15 @@ export default function ArticleListScreen() {
   const urlFieldRef = useRef<HTMLInputElement>(null);
   // Bookmarklet messages that arrive before the RS client is ready are queued here
   // and processed once client becomes non-null (see bookmarklet useEffect below).
-  const pendingBookmarkletMsg = useRef<{ html: string; url: string } | null>(null);
+  const pendingBookmarkletMsg = useRef<{
+    html: string;
+    url: string;
+    extension: ExtensionInfo | null;
+  } | null>(null);
   // Same idea for raw-ingest payloads (savr-raw) from a site-specific bookmarklet.
-  const pendingRawMsg = useRef<RawIngestPayload | null>(null);
+  const pendingRawMsg = useRef<{ payload: RawIngestPayload; extension: ExtensionInfo | null } | null>(
+    null
+  );
 
   const articles = useLiveQuery(() => {
     console.log("useLiveQuery triggered - fetching articles from IndexedDB");
@@ -498,7 +518,7 @@ export default function ArticleListScreen() {
     // Ingest a bookmarklet HTML payload. Extracted so it can be called both from the
     // message handler (normal path) and from the pending-queue drain (when client was
     // null the first time the message arrived).
-    const processMessage = async (html: string, msgUrl: string) => {
+    const processMessage = async (html: string, msgUrl: string, extension: ExtensionInfo | null) => {
       setIngestStatus("Ingesting...");
       setIngestPercent(10);
       const { article } = await ingestHtml(
@@ -512,6 +532,8 @@ export default function ArticleListScreen() {
             setIngestPercent(percent);
           }
         },
+        undefined,
+        extensionIngestOptions(extension),
       );
 
       await db.articles.put(article);
@@ -549,9 +571,9 @@ export default function ArticleListScreen() {
 
     // If a message arrived while client was still null (previous effect run), process it now.
     if (client && pendingBookmarkletMsg.current) {
-      const { html, url: msgUrl } = pendingBookmarkletMsg.current;
+      const { html, url: msgUrl, extension } = pendingBookmarkletMsg.current;
       pendingBookmarkletMsg.current = null;
-      processMessage(html, msgUrl);
+      processMessage(html, msgUrl, extension);
       return;
     }
 
@@ -574,13 +596,17 @@ export default function ArticleListScreen() {
           // RS client not ready yet — queue the payload and bail. The effect will
           // re-run once client is non-null (it's in the dependency array) and the
           // pending-queue check above will pick it up.
-          pendingBookmarkletMsg.current = { html: event.data.html, url: event.data.url };
+          pendingBookmarkletMsg.current = {
+            html: event.data.html,
+            url: event.data.url,
+            extension: extensionFromMessageEvent(event),
+          };
           return;
         }
 
         ingesting = true;
         try {
-          await processMessage(event.data.html, event.data.url);
+          await processMessage(event.data.html, event.data.url, extensionFromMessageEvent(event));
         } catch (error) {
           console.error("Bookmarklet ingestion error:", error);
         } finally {
@@ -613,7 +639,7 @@ export default function ArticleListScreen() {
     setIngestStatus("Waiting for content...");
     setIngestPercent(0);
 
-    const processRawMessage = async (payload: RawIngestPayload) => {
+    const processRawMessage = async (payload: RawIngestPayload, extension: ExtensionInfo | null) => {
       setUrl(payload.title || payload.url || "raw content");
       setIngestStatus("Ingesting...");
       setIngestPercent(10);
@@ -633,6 +659,7 @@ export default function ArticleListScreen() {
             setIngestPercent(percent);
           }
         },
+        extensionIngestOptions(extension),
       );
 
       await db.articles.put(article);
@@ -663,9 +690,9 @@ export default function ArticleListScreen() {
 
     // If a payload arrived while client was still null, process it now.
     if (client && pendingRawMsg.current) {
-      const payload = pendingRawMsg.current;
+      const { payload, extension } = pendingRawMsg.current;
       pendingRawMsg.current = null;
-      processRawMessage(payload);
+      processRawMessage(payload, extension);
       return;
     }
 
@@ -696,13 +723,13 @@ export default function ArticleListScreen() {
       if (!client) {
         // RS client not ready yet — queue and bail; the effect re-runs when
         // client becomes non-null and the pending check above picks it up.
-        pendingRawMsg.current = payload;
+        pendingRawMsg.current = { payload, extension: extensionFromMessageEvent(event) };
         return;
       }
 
       ingesting = true;
       try {
-        await processRawMessage(payload);
+        await processRawMessage(payload, extensionFromMessageEvent(event));
       } catch (error) {
         console.error("Raw ingestion error:", error);
       } finally {

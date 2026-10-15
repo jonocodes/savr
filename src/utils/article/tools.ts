@@ -4,7 +4,6 @@ import { db } from "../db";
 import { deleteArticleStorage, init } from "../sync/storage";
 import { buildProxiedUrl } from "../net/corsProxy";
 import { getFilePathMetadata, getFilePathThumbnail } from "../../../lib/src/lib";
-import { resizeImage } from "../../../lib/src/ingestion";
 import { markDirty } from "./publicExport";
 import { recordLog, errorMessage } from "../logging";
 import { createFetchGovernor, GovernorError } from "../net/fetchGovernor";
@@ -154,29 +153,6 @@ export async function fetchWithTimeout(url: string, timeoutMs: number = 5000): P
       cause: error,
     });
   }
-}
-
-export async function fetchAndResizeImage(
-  url: string,
-  maxDimension: number
-): Promise<{ blob: Blob; width: number; height: number }> {
-  // TODO: create error if fetch times out. this happens if you are offline. this may work now, not sure.
-  const response = await fetchWithTimeout(url);
-
-  if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
-  }
-
-  const contentType = response.headers.get("content-type");
-  if (!contentType || !contentType.startsWith("image/")) {
-    throw new Error(`Expected image content type, got: ${contentType}`);
-  }
-
-  const blob = await response.blob();
-
-  const { blob: resizedBlob, width, height } = await resizeImage(blob, maxDimension);
-
-  return { blob: resizedBlob, width, height };
 }
 
 export async function imageToDataUrl(blob: Blob): Promise<string> {

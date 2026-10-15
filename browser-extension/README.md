@@ -5,8 +5,9 @@ An optional extension for Firefox and Chrome that saves the page you are already
 Instead of re-downloading the article through a CORS proxy, **Save current page**
 scrapes the loaded DOM out of the tab: it works behind logins and paywalls, needs
 no proxy request for the page, and produces the same reader view as a bookmarklet
-save. (Article images are still fetched by the app through its usual path in
-this version.)
+save. Article images are downloaded by the extension as well, so an extension
+save makes no proxy request at all; an image the extension cannot fetch falls
+back to the app's proxy (or a placeholder) without failing the save.
 
 **YouTube watch pages** are special-cased: the transcript is extracted (opening
 the panel if needed) and delivered as raw content, exactly like the YouTube
@@ -69,9 +70,9 @@ Extension** → **Options** in Firefox, or the details page in Chrome).
 
 The Savr address defaults to the hosted app (`https://savr.link`). Point it at
 your own instance if you self-host — for example `http://localhost:3000`.
-Custom addresses need a one-time host-permission grant, which the options page
-requests when you save them; the hosted app and `localhost` are covered out of
-the box.
+Any address is covered by the all-sites host permission granted at install;
+if you have revoked it (Firefox lets you), the options page asks for access to
+a custom address when you save it.
 
 The options page also links to the project on GitHub
 ([jonocodes/savr](https://github.com/jonocodes/savr)).
@@ -100,6 +101,32 @@ The pending payload is kept in `storage.session` (with an in-memory fast path)
 and is cleared only after the bridge is injected, so the flow survives the
 background being unloaded mid-save (Chrome service workers especially).
 
+### Images
+
+The delivered payload doubles as a handshake: it carries `source: "extension"`
+and `extensionVersion`, which the app takes as "the image bridge is here".
+
+1. Before the delivery bridge, the background injects a small relay into the
+   Savr tab's isolated world (it needs `runtime.sendMessage`). The version is
+   only added to the payload when the relay is in place, so a failed relay
+   injection just means the app uses its proxy as before.
+2. For each image the app posts `{action: "savr-image-request", id, url}` on
+   its own window. The relay forwards it to the background, which fetches the
+   image with its host permissions (CORS-exempt, cookies omitted, http(s)
+   only, image content types only, 25 MB cap) and only for requests coming
+   from the configured Savr address.
+3. The relay posts back `{action: "savr-image-response", id, ok, dataUrl}` (or
+   `{ok: false, error}`). The app matches replies by id with a 15 s timeout (the background gives up on a slow image after 10 s, so
+   the app only times out when the relay itself is gone);
+   after one timeout it stops asking for the rest of that save.
+4. Any image the extension does not supply is fetched through the proxy (or
+   directly) as usual, so a broken or slow extension never blocks a save.
+
+Every download is logged in the article's `fetch.log` and the app's
+Diagnostics log with the downloader that delivered it — `extension 1.0.0`,
+`proxy <hostname>` or `direct` — and the full fallback chain, e.g.
+`extension 1.0.0 failed (HTTP 404) -> direct failed (...)`.
+
 ## Permissions
 
 | Permission        | Why                                                             |
@@ -109,7 +136,7 @@ background being unloaded mid-save (Chrome service workers especially).
 | `storage`         | Remember the Savr address and the pending save across unloads.  |
 | host: `localhost` | Talk to the app and inject the bridge when you self-host/dev.   |
 | host: `savr.link` | Same, for the hosted app.                                       |
-| optional hosts    | Only when you point the extension at a custom address.          |
+| host: all sites   | Download article images for the app (CORS-exempt, so no proxy), and reach a custom Savr address. |
 
 ## Development
 
@@ -127,8 +154,11 @@ background being unloaded mid-save (Chrome service workers especially).
 ### Tests
 
 - `tests/e2e/extension-save.spec.ts` — loads the real extension in Chromium and
-  saves a fixture page end to end, plus the YouTube extractor against fixture
-  DOMs (modern and legacy segment markup, panel opening, no-transcript).
+  saves a fixture page end to end, including an article whose images come
+  through the extension (and a 404 that falls back), plus the YouTube
+  extractor against fixture DOMs (modern and legacy segment markup, panel
+  opening, no-transcript).
 - `tests/e2e/extension-delivery.spec.ts` — pins the app-side delivery contract
   (the `savr-ready` announcement and `savr-html` ingest) that this extension
-  depends on.
+  depends on, plus the image bridge with a simulated relay: zero app-side
+  image requests for supplied images, and the downloader in both logs.

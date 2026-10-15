@@ -90,13 +90,71 @@ function deliverWhenReady(message) {
 }
 
 /**
+ * Runs in the app tab's isolated world (it needs `runtime.sendMessage`, which
+ * the page world lacks). Relays the app's `savr-image-request` messages to the
+ * background, which fetches the image with the extension's host permissions —
+ * CORS-exempt, no proxy — and posts the bytes back as `savr-image-response`,
+ * matched by request id. Stops 10 minutes after the latest save that injected
+ * it, so it never outlives the saves it serves.
+ */
+function startImageRelay() {
+  const RELAY_LIFETIME_MS = 10 * 60 * 1000;
+  const existing = globalThis.__savrImageRelay;
+  if (existing) {
+    // Already listening (an earlier save in this tab): just extend its life.
+    clearTimeout(existing.stopTimer);
+    existing.stopTimer = setTimeout(existing.stop, RELAY_LIFETIME_MS);
+    return;
+  }
+  const runtime = (globalThis.browser ?? globalThis.chrome).runtime;
+  const origin = window.location.origin;
+
+  const onMessage = (event) => {
+    const data = event.data;
+    if (event.origin !== origin || !data || data.action !== "savr-image-request") return;
+    if (typeof data.id !== "string" || typeof data.url !== "string") return;
+    const reply = (body) =>
+      window.postMessage({ action: "savr-image-response", id: data.id, ...body }, origin);
+    runtime.sendMessage({ type: "FETCH_IMAGE", url: data.url }).then(
+      (result) =>
+        reply(
+          result && result.ok
+            ? { ok: true, dataUrl: result.dataUrl }
+            : { ok: false, error: (result && result.error) || "No reply from the extension" }
+        ),
+      (error) => reply({ ok: false, error: String((error && error.message) || error) })
+    );
+  };
+  window.addEventListener("message", onMessage);
+  const stop = () => {
+    window.removeEventListener("message", onMessage);
+    globalThis.__savrImageRelay = undefined;
+  };
+  globalThis.__savrImageRelay = { stop, stopTimer: setTimeout(stop, RELAY_LIFETIME_MS) };
+}
+
+/**
  * Inject the bridge into the app tab. The page (MAIN) world is preferred: its
  * messages behave exactly like the bookmarklet's, which sidesteps the isolated
  * world's message quirks across browsers (Firefox 128+ and Chromium both
  * support MAIN). The isolated world stays as a fallback.
+ *
+ * The image relay goes in first, so it is listening before the payload (and
+ * with it the app's first image request) arrives. The payload carries the
+ * extension version only when the relay is in place — that is the handshake
+ * the app uses to route images through the extension. If the relay cannot be
+ * injected the save still goes ahead and the app uses its proxy as before.
  */
 async function injectDeliveryBridge(tabId, message) {
-  const injection = { target: { tabId }, func: deliverWhenReady, args: [message] };
+  let delivered = message;
+  try {
+    await api.scripting.executeScript({ target: { tabId }, func: startImageRelay });
+    delivered = { ...message, extensionVersion: api.runtime.getManifest().version };
+  } catch (error) {
+    console.warn("[savr] could not inject the image relay:", error);
+  }
+
+  const injection = { target: { tabId }, func: deliverWhenReady, args: [delivered] };
   try {
     await api.scripting.executeScript({ ...injection, world: "MAIN" });
     console.info("[savr] delivery bridge injected into app tab", tabId, message.action);
@@ -297,6 +355,72 @@ async function visitSavr() {
 }
 
 /* ------------------------------------------------------------------------ */
+/* Image downloads for the app                                               */
+/* ------------------------------------------------------------------------ */
+
+// Shorter than the app's per-request timeout (15 s), so a slow image is reported
+// as a failure for that image rather than read by the app as a dead relay.
+const IMAGE_FETCH_TIMEOUT_MS = 10000;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+
+/** Only the configured Savr app may ask the extension to download images. */
+async function isFromSavrApp(sender) {
+  const senderUrl = sender?.url ?? sender?.tab?.url;
+  if (!senderUrl) return false;
+  try {
+    return new URL(senderUrl).origin === new URL(await getAppUrl()).origin;
+  } catch {
+    return false;
+  }
+}
+
+function bytesToBase64(bytes) {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/**
+ * Download an image with the extension's host permissions (CORS-exempt) and
+ * return it as a data URL — runtime messages are JSON, so bytes travel as
+ * base64. Cookies are never sent: this is a plain anonymous image fetch.
+ */
+async function fetchImageAsDataUrl(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: "Invalid image URL" };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, error: "Only http(s) images can be downloaded" };
+  }
+
+  const response = await fetch(parsed.href, {
+    credentials: "omit",
+    signal: AbortSignal.timeout(IMAGE_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    return { ok: false, error: `HTTP ${response.status}` };
+  }
+  const contentType = (response.headers.get("content-type") ?? "").split(";")[0].trim();
+  if (!contentType.startsWith("image/")) {
+    return { ok: false, error: `Expected image content type, got: ${contentType || "none"}` };
+  }
+  if (Number(response.headers.get("content-length")) > MAX_IMAGE_BYTES) {
+    return { ok: false, error: "Image too large" };
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > MAX_IMAGE_BYTES) {
+    return { ok: false, error: "Image too large" };
+  }
+  return { ok: true, dataUrl: `data:${contentType};base64,${bytesToBase64(bytes)}` };
+}
+
+/* ------------------------------------------------------------------------ */
 /* Wiring                                                                    */
 /* ------------------------------------------------------------------------ */
 
@@ -317,8 +441,21 @@ void api.storage.session
   })
   .catch(() => {});
 
-api.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+api.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || typeof message !== "object") return undefined;
+
+  if (message.type === "FETCH_IMAGE") {
+    isFromSavrApp(sender)
+      .then((allowed) =>
+        allowed
+          ? fetchImageAsDataUrl(String(message.url))
+          : { ok: false, error: "Image requests are only accepted from the Savr app" }
+      )
+      .then(sendResponse, (error) =>
+        sendResponse({ ok: false, error: String(error?.message ?? error) })
+      );
+    return true;
+  }
 
   if (message.type === "SAVE_ACTIVE_PAGE") {
     saveActivePage().then(sendResponse, (error) =>

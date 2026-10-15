@@ -91,6 +91,147 @@ test.describe("Browser extension delivery contract", () => {
     expect(article?.url).toBe(articleUrl);
   });
 
+  // Without a proxy (VITE_CORS_PROXY is empty in tests) the fallback is a direct
+  // fetch; with one configured, the extension still supplies the bytes and the
+  // proxy only sees the image the extension could not fetch.
+  for (const proxy of [null, "http://proxy.invalid/?url="]) {
+    test(`downloads images through the extension's relay and logs the downloader per file (${proxy ? "proxy configured" : "no proxy"})`, async ({
+      page,
+    }) => {
+      // The fixture has one good image and one missing (404) image.
+      const fallbackLabel = proxy ? "proxy proxy.invalid" : "direct";
+      const articleUrl = `${getContentServerUrl()}/input/test-failed-image/`;
+      const goodImageUrl = `${getContentServerUrl()}/input/sample-image/header-transparent.png`;
+      const missingImageUrl = `${getContentServerUrl()}/input/test-failed-image/missing-image.png`;
+      const imageSlug = "failed-image-placeholder";
+      const testHtml = await (await page.request.get(articleUrl)).text();
+
+      // Any image request the app makes itself (proxy or direct) is recorded and
+      // refused: the good image must arrive through the extension alone.
+      const appImageRequests: string[] = [];
+      await page.route(/\.png(\?|$)/, (route) => {
+        appImageRequests.push(route.request().url());
+        return route.abort();
+      });
+
+      // Stand-in for the extension's background: downloads the bytes outside the
+      // page (CORS-exempt, like the real background) and replies as it would.
+      await page.exposeFunction("__fakeExtensionFetch", async (url: string) => {
+        const response = await page.request.get(url);
+        if (!response.ok()) return { ok: false, error: `HTTP ${response.status()}` };
+        const type = response.headers()["content-type"];
+        const body = (await response.body()).toString("base64");
+        return { ok: true, dataUrl: `data:${type};base64,${body}` };
+      });
+
+      // Stand-in for the extension's isolated-world relay.
+      await page.addInitScript(() => {
+        window.addEventListener("message", async (event) => {
+          if (event.source !== window || event.data?.action !== "savr-image-request") return;
+          const { id, url } = event.data;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const result = await (window as any).__fakeExtensionFetch(url);
+          window.postMessage(
+            { action: "savr-image-response", id, ...result },
+            window.location.origin,
+          );
+        });
+      });
+
+      if (proxy) {
+        await page.evaluate((value) => localStorage.setItem("savr-cors-proxy", value), proxy);
+      }
+
+      await page.goto(`/?bookmarklet=${encodeURIComponent(articleUrl)}`);
+      await page.waitForLoadState("networkidle");
+
+      // The extension's reply to savr-ready is the handshake: it carries the version.
+      await page.evaluate(
+        ({ html, url }) => {
+          window.postMessage(
+            {
+              action: "savr-html",
+              html,
+              url,
+              source: "extension",
+              extensionVersion: "1.0.0",
+            },
+            window.location.origin,
+          );
+        },
+        { html: testHtml, url: articleUrl },
+      );
+
+      await expect
+        .poll(async () => (await getArticleFromDB(page, imageSlug))?.slug ?? null, {
+          timeout: 60000,
+        })
+        .toBe(imageSlug);
+
+      // The good image never went through the app's own fetch (zero proxy
+      // requests for it); only the missing one fell back (and failed) after the
+      // extension reported a 404.
+      expect(appImageRequests).toEqual([
+        proxy ? `${proxy}${encodeURIComponent(missingImageUrl)}` : missingImageUrl,
+      ]);
+
+      const stored = await page.evaluate(async (slug) => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const client = (window as any).remoteStorageClient;
+        const read = async (path: string) => (await client.getFile(path, false))?.data ?? null;
+        return {
+          html: await read(`saves/${slug}/index.html`),
+          fetchLog: await read(`saves/${slug}/fetch.log`),
+        };
+      }, imageSlug);
+
+      // The good image landed in storage as a local resource.
+      const localPath = /data-local-path="([^"]+)"/.exec(stored.html ?? "")?.[1];
+      expect(localPath).toBeTruthy();
+      const resource = await page.evaluate(
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        async (path) =>
+          (await (window as any).remoteStorageClient.getFile(path, false))?.data ?? null,
+        `saves/${imageSlug}/resources/${localPath}`,
+      );
+      expect(resource).toMatch(/^data:image\/png;base64,/);
+
+      // The fetch log names the downloader for every file, fallback chain included.
+      expect(stored.fetchLog).toContain(`image downloaded via extension 1.0.0 ok: ${goodImageUrl}`);
+      expect(stored.fetchLog).toContain(
+        `image failed via extension 1.0.0 failed (HTTP 404) -> ${fallbackLabel} failed`,
+      );
+
+      // So does the Diagnostics log.
+      const imageLogs = await page.evaluate(async () => {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const entries = await (window as any).savrDb.logs
+          .where("category")
+          .equals("image")
+          .toArray();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        return entries.map((entry: any) => ({
+          message: entry.message,
+          downloader: entry.meta?.downloader,
+        }));
+      });
+      expect(imageLogs).toContainEqual({
+        message: `Downloaded image via extension 1.0.0: ${goodImageUrl}`,
+        downloader: "extension 1.0.0 ok",
+      });
+      expect(imageLogs).toContainEqual(
+        expect.objectContaining({
+          message: `Failed to download image: ${missingImageUrl}`,
+          downloader: expect.stringContaining(
+            `extension 1.0.0 failed (HTTP 404) -> ${fallbackLabel} failed`,
+          ),
+        }),
+      );
+
+      await deleteArticleFromDB(page, imageSlug);
+    });
+  }
+
   test("announces savr-ready on its own window for raw ingest and accepts a page-side savr-raw payload with no opener", async ({
     page,
   }) => {
