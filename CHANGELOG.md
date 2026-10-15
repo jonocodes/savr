@@ -1,5 +1,11 @@
 # Changelog
 
+## 2026-10-14
+
+- The shared CORS proxy now keeps anonymous aggregate usage statistics, and a separate stats worker (`infra/cors-stats`) serves a small dashboard: requests over time, countries, caller apps, client classes, statuses, cache hit rate, failing hosts, and a pure "article count" filter
+- Each request records only country, content class, status, cache outcome, caller app/class, and on failures the host and fetch-error kind — no URLs, IPs, or raw user agents; retained 90 days
+- The portable proxy core emits neutral statistics events through an `onRequest` port; only the public instance carries the Analytics Engine binding, so self-hosted proxies write nothing
+
 ## 2026-10-13
 
 - The CORS proxy can now be token-locked: deploy your own copy in one click with the Deploy to Cloudflare button, and only devices holding the secret can use it (#84)
