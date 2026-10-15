@@ -30,14 +30,19 @@ form.addEventListener("submit", async (event) => {
     return;
   }
 
-  const pattern = hostPatternFor(appUrl);
-  const granted = await api.permissions.contains({ origins: [pattern] });
-  if (!granted) {
-    const allowed = await api.permissions.request({ origins: [pattern] });
-    if (!allowed) {
-      statusEl.textContent = "Access to that address is needed to save pages to it.";
-      return;
-    }
+  // Firefox only honours permissions.request() synchronously inside the user
+  // gesture — any await before it (even permissions.contains) makes it throw.
+  // It resolves true without prompting when access is already granted.
+  let allowed = false;
+  try {
+    allowed = await api.permissions.request({ origins: [hostPatternFor(appUrl)] });
+  } catch (error) {
+    statusEl.textContent = `Could not request access: ${error?.message ?? error}`;
+    return;
+  }
+  if (!allowed) {
+    statusEl.textContent = "Access to that address is needed to save pages to it.";
+    return;
   }
 
   await api.storage.local.set({
