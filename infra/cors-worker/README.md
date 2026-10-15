@@ -100,9 +100,9 @@ The shared public instance writes one Analytics Engine point per recorded
 request (binding `STATS`, dataset `savr_cors_stats`): country, MIME class,
 status, cache outcome (hit/miss/bypass), the caller app (Origin hostname,
 scheme, or `local` for dev/LAN origins) and client class (browser/bot/other,
-from a bucketed UA) — plus, on failures only, the host, and on 502s the
-fetch-error kind. Response size and duration are recorded as numbers. No URLs,
-no IPs, no raw user agent.
+from a bucketed UA) — plus, on failures only, the host, and on 502s (and
+Cloudflare 530 origin-error pages) the fetch-error kind. Response size and
+duration are recorded as numbers. No URLs, no IPs, no raw user agent.
 Preflights, health checks and setup pages are not recorded. The core emits
 these as neutral events through its `onRequest` port; only the Cloudflare entry
 turns them into data points, and only under `[env.public]`, so self-hosted

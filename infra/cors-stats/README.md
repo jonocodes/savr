@@ -31,7 +31,7 @@ and the IP itself is discarded.
 | 5 | host | **failures only** (`status >= 400`), otherwise empty |
 | 6 | caller origin | `savr.link`, a self-hoster's host, `chrome-extension`, `local` (localhost / LAN / IP), `""` (none) |
 | 7 | client class | `browser`, `bot`, `other`, `none` (raw UA never stored) |
-| 8 | fetch error kind | **502s only**: `dns`, `timeout`, `blocked-redirect`, `redirect-loop`, `other` |
+| 8 | fetch error kind | **502s and Cloudflare 530s only** (530 + `error code: 1016` = `dns`): `dns`, `timeout`, `blocked-redirect`, `redirect-loop`, `other` |
 
 Doubles: `[1, duration_ms, bytes]` (`bytes` is the advertised
 `content-length`, or `-1` when unknown/chunked). The single index value is
@@ -50,7 +50,8 @@ protocol overhead, not usage.
 `/` serves a tiny no-build, no-CDN page: totals (articles, requests, errors,
 error rate, edge-cache hit rate, average origin fetch time, data served), a
 time series, and breakdowns by country, caller origin, client class, MIME
-class, cache, status, 502 failure reason, and failing host.
+class, cache, status, fetch-failure reason (502s and Cloudflare 530s), and
+failing host.
 Filters (`24h`/`7d`/`30d`/`90d`, type, cache) are URL params, so views are
 bookmarkable.
 

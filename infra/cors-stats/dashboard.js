@@ -121,7 +121,7 @@ include any non-Savr callers. Retained 90 days.</p>
   <section class="card"><h2>Types</h2><div id="mimes"></div></section>
   <section class="card"><h2>Cache</h2><div id="caches"></div></section>
   <section class="card"><h2>Statuses</h2><div id="statuses"></div></section>
-  <section class="card"><h2>Fetch failures (502)</h2><div id="errors"></div></section>
+  <section class="card"><h2>Fetch failures (502 / 530)</h2><div id="errors"></div></section>
 </div>
 
 <section class="card" style="margin-top:14px">

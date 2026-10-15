@@ -201,7 +201,7 @@ function clientClass(request) {
   return "other";
 }
 
-/** Why an upstream fetch failed, for the 502 breakdown. */
+/** Why an upstream fetch failed, for the failure breakdown. */
 function fetchErrorKind(error) {
   const message = String((error && error.message) || "").toLowerCase();
   if (message.includes("blocked redirect")) return "blocked-redirect";
@@ -209,6 +209,25 @@ function fetchErrorKind(error) {
   if (message.includes("timeout") || message.includes("timed out")) return "timeout";
   if (message.includes("dns") || message.includes("getaddrinfo") || message.includes("resolve")) return "dns";
   return "other";
+}
+
+/**
+ * Cloudflare's runtime doesn't throw when an origin is unreachable: it answers
+ * with its own 530 page whose tiny text body names the error ("error code:
+ * 1016" = origin DNS failure). Classify that like a thrown fetch error so it
+ * lands in the failure breakdown. Only reads small bodies; the client still
+ * gets the 530 unchanged.
+ */
+async function upstreamErrorKind(response) {
+  if (response.status !== 530) return "";
+  const length = Number(response.headers.get("content-length") || "0");
+  if (!(length > 0 && length <= 256)) return "other";
+  try {
+    const code = /error code:\s*(\d+)/i.exec(await response.clone().text());
+    return code && code[1] === "1016" ? "dns" : "other";
+  } catch {
+    return "other";
+  }
 }
 
 /** Fetch, following redirects manually so each hop is SSRF-checked. */
@@ -394,7 +413,7 @@ You can rotate later by adding a second comma-separated token to the secret.</p>
  *  - onRequest: optional (event) => void, one neutral statistics event per
  *    recorded request (preflights, health checks and setup pages are not
  *    recorded). The event carries status, mime, cache, host (failures only),
- *    errorKind (502s only), bytes, origin, client and durationMs.
+ *    errorKind (502s and Cloudflare 530s only), bytes, origin, client and durationMs.
  */
 export async function handleRequest(request, options = {}) {
   const tokens = options.tokens ?? [];
@@ -417,12 +436,13 @@ export async function handleRequest(request, options = {}) {
       ...fields,
     });
   // A response that reached the client (cache hit, upstream, or too large):
-  // its MIME class and size, plus the target host when it failed.
-  const recordResponse = (response, cacheOutcome, hostname) =>
+  // its MIME class and size, plus the target host (and why) when it failed.
+  const recordResponse = (response, cacheOutcome, hostname, errorKind = "") =>
     record(response.status, {
       mime: mimeBucket(response.headers.get("content-type")),
       cache: cacheOutcome,
       host: response.status >= 400 ? hostname : "",
+      errorKind,
       bytes: responseBytes(response.headers),
     });
 
@@ -526,6 +546,8 @@ export async function handleRequest(request, options = {}) {
     return plain(413, "Response too large");
   }
 
+  const errorKind = await upstreamErrorKind(upstream);
+
   const responseHeaders = new Headers(upstream.headers);
   for (const [name, value] of Object.entries(CORS_HEADERS)) {
     responseHeaders.set(name, value);
@@ -546,7 +568,7 @@ export async function handleRequest(request, options = {}) {
     waitUntil(cache.put(cacheKey, response.clone()));
   }
 
-  recordResponse(upstream, request.method === "GET" ? "miss" : "bypass", target.hostname);
+  recordResponse(upstream, request.method === "GET" ? "miss" : "bypass", target.hostname, errorKind);
 
   return response;
 }

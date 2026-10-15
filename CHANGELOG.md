@@ -9,6 +9,7 @@
 - The dashboard adds a 502 failure-reason breakdown, average origin fetch time, and data served
 - A failing statistics write can no longer fail a proxied request; dev/LAN caller origins are recorded only as `local`
 - The statistics schema lives in one module shared by the proxy and the stats worker, with tests that every emitted value has a dashboard filter and label
+- Unresolvable hosts, which Cloudflare answers with its own 530 page (`error code: 1016`) instead of a fetch error, are now counted as DNS failures in the stats; the 530 still passes through to the app unchanged
 - Sharing an article out (⋮ → Share) now opens the system share sheet on Android and other Web Share-capable platforms, sending the title and URL to any app; where the Web Share API is unavailable (most desktop Linux browsers) it still copies the URL to the clipboard
 - Dismissing the share sheet is treated as a cancellation rather than a failure, and the clipboard fallback reports itself with a snackbar instead of an alert
 
