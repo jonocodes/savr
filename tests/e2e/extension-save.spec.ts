@@ -76,7 +76,7 @@ test.describe("Browser extension save flow", () => {
 
     const popupPage = await context.newPage();
     await popupPage.goto(`chrome-extension://${extensionId}/popup.html`);
-    await expect(popupPage.locator("#settings")).toBeVisible();
+    await expect(popupPage.locator("#settings")).toHaveText("Extension settings");
   });
 
   test("saves the active tab's loaded DOM into Savr", async () => {
