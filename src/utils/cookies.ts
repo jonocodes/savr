@@ -398,31 +398,47 @@ export const setSummaryProviderInCookie = (provider: string): void => {
   document.cookie = `${SUMMARY_PROVIDER_COOKIE_NAME}=${provider}; expires=${expires.toUTCString()}; path=/`;
 };
 
-// Get summary model from cookie (defaults to Groq's default model)
-export const getSummaryModelFromCookie = (): string => {
-  if (typeof document === "undefined") return "qwen/qwen3-32b";
+// Summary model is remembered per provider (a model id only means something
+// to the provider that listed it), stored alongside the API keys.
+const SUMMARY_MODELS_STORAGE_KEY = "savr-summary-models";
 
-  const cookies = document.cookie.split(";");
-  const modelCookie = cookies.find((cookie) =>
-    cookie.trim().startsWith(`${SUMMARY_MODEL_COOKIE_NAME}=`)
-  );
-
-  if (modelCookie) {
-    const value = modelCookie.split("=")[1]?.trim();
-    return value || "qwen/qwen3-32b";
+const getModelsFromStorage = (): Record<string, string> => {
+  if (typeof localStorage === "undefined") return {};
+  try {
+    const raw = localStorage.getItem(SUMMARY_MODELS_STORAGE_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
   }
-
-  return "qwen/qwen3-32b";
 };
 
-// Set summary model in cookie
-export const setSummaryModelInCookie = (model: string): void => {
-  if (typeof document === "undefined") return;
+// Before per-provider storage there was one model cookie, implicitly for
+// whichever provider was selected at the time.
+const getLegacyModelCookie = (): string => {
+  if (typeof document === "undefined") return "";
+  const modelCookie = document.cookie
+    .split(";")
+    .find((cookie) => cookie.trim().startsWith(`${SUMMARY_MODEL_COOKIE_NAME}=`));
+  return modelCookie?.split("=")[1]?.trim() ?? "";
+};
 
-  const expires = new Date();
-  expires.setFullYear(expires.getFullYear() + 1);
+// Get the saved model for a provider ("" if none has been chosen yet)
+export const getSummaryModelForProvider = (provider: string): string => {
+  const saved = getModelsFromStorage()[provider];
+  if (saved) return saved;
+  return provider === getSummaryProviderFromCookie() ? getLegacyModelCookie() : "";
+};
 
-  document.cookie = `${SUMMARY_MODEL_COOKIE_NAME}=${model}; expires=${expires.toUTCString()}; path=/`;
+// Save the model for a provider
+export const setSummaryModelForProvider = (provider: string, model: string): void => {
+  if (typeof localStorage === "undefined") return;
+  const models = getModelsFromStorage();
+  if (model) {
+    models[provider] = model;
+  } else {
+    delete models[provider];
+  }
+  localStorage.setItem(SUMMARY_MODELS_STORAGE_KEY, JSON.stringify(models));
 };
 
 // Get custom/local base URL from cookie (used only by the "custom" provider)

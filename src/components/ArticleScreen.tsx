@@ -87,12 +87,12 @@ import {
   summarizeText,
   buildSummarySettings,
   getProviderConfig,
+  getEffectiveSummaryModel,
   type SummarizationProgress,
 } from "~/utils/ai/summarization";
 import {
   getSummarizationEnabledFromCookie,
   getSummaryProviderFromCookie,
-  getSummaryModelFromCookie,
   getSummaryCustomBaseUrlFromCookie,
   getApiKeyForProvider,
 } from "~/utils/cookies";
@@ -265,7 +265,7 @@ export default function ArticleScreen(_props: Props) {
     }
 
     const provider = getSummaryProviderFromCookie();
-    const model = getSummaryModelFromCookie();
+    const model = getEffectiveSummaryModel(provider);
     const apiKey = getApiKeyForProvider(provider) || "";
     const baseUrl = getSummaryCustomBaseUrlFromCookie();
     const providerConfig = getProviderConfig(provider);

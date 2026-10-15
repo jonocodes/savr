@@ -75,8 +75,8 @@ import {
   setSummarizationEnabledInCookie,
   getSummaryProviderFromCookie,
   setSummaryProviderInCookie,
-  getSummaryModelFromCookie,
-  setSummaryModelInCookie,
+  getSummaryModelForProvider,
+  setSummaryModelForProvider,
   getSummaryCustomBaseUrlFromCookie,
   setSummaryCustomBaseUrlInCookie,
   getApiKeyForProvider,
@@ -95,6 +95,7 @@ import {
   DEFAULT_SUMMARY_SETTINGS,
   testApiConnection,
   fetchAvailableModels,
+  pickDefaultModel,
   getProviderConfig,
   type SummaryProvider,
   type DetailLevel,
@@ -231,7 +232,7 @@ export default function PreferencesScreen() {
     useState<PublicExportState>(getPublicExportState);
   const [summarizationEnabled, setSummarizationEnabled] = useState<boolean>(false);
   const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
-  const [summaryModel, setSummaryModel] = useState<string>("qwen/qwen3-32b");
+  const [summaryModel, setSummaryModel] = useState<string>("");
   const [summaryBaseUrl, setSummaryBaseUrl] = useState<string>("");
   const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
@@ -294,7 +295,7 @@ export default function PreferencesScreen() {
     setSummarizationEnabled(getSummarizationEnabledFromCookie());
     const savedProvider = getSummaryProviderFromCookie() as SummaryProvider;
     setSummaryProvider(savedProvider);
-    setSummaryModel(getSummaryModelFromCookie());
+    setSummaryModel(getSummaryModelForProvider(savedProvider));
     setSummaryBaseUrl(getSummaryCustomBaseUrlFromCookie());
     const savedKey = getApiKeyForProvider(savedProvider);
     if (savedKey) setApiKey(savedKey);
@@ -393,9 +394,7 @@ export default function PreferencesScreen() {
 
       setDeleteDialogOpen(false);
 
-      enqueueSnackbar("All articles deleted successfully!", {
-        variant: "success",
-      });
+      enqueueSnackbar("All articles deleted successfully!", { variant: "success" });
     } catch (error) {
       console.error("Error deleting all articles:", error);
       enqueueSnackbar("Failed to delete articles", { variant: "error" });
@@ -506,61 +505,58 @@ export default function PreferencesScreen() {
     }
   };
 
-  const handleProviderChange = (provider: SummaryProvider) => {
-    setSummaryProvider(provider);
-    setSummaryProviderInCookie(provider);
-    // Load API key for this provider
-    const savedKey = getApiKeyForProvider(provider);
-    setApiKey(savedKey || "");
-    // Fetched model list belongs to the previous provider — drop it.
-    setAvailableModels([]);
-  };
-
   // Each fetch gets an id so a slow response for stale credentials can't
   // overwrite the list from a newer one.
   const modelsRequestId = React.useRef(0);
 
-  // Fetch the provider's model list. `silent` is for background refreshes
-  // (key entered, Test pressed) — those shouldn't toast on every keystroke.
-  const loadModels = async ({ silent }: { silent: boolean }) => {
+  const handleProviderChange = (provider: SummaryProvider) => {
+    setSummaryProvider(provider);
+    setSummaryProviderInCookie(provider);
+    // Load API key and model for this provider
+    const savedKey = getApiKeyForProvider(provider);
+    setApiKey(savedKey || "");
+    setSummaryModel(getSummaryModelForProvider(provider));
+    // Fetched model list belongs to the previous provider — drop it, and
+    // invalidate any in-flight fetch so it can't land on the new provider.
+    setAvailableModels([]);
+    modelsRequestId.current++;
+    setIsFetchingModels(false);
+  };
+
+  // Fetch the provider's model list and, if the current model isn't in it,
+  // switch to a sensible default. Resolves to the model now in use. `silent` is
+  // for background refreshes (key entered, Test pressed) — those shouldn't
+  // toast on every keystroke.
+  const loadModels = async ({ silent }: { silent: boolean }): Promise<string> => {
     const providerConfig = getProviderConfig(summaryProvider);
     if (providerConfig?.requiresApiKey && !apiKey.trim()) {
-      if (!silent)
-        enqueueSnackbar("Please enter an API key first", {
-          variant: "warning",
-        });
-      return;
+      if (!silent) enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      return summaryModel;
     }
     if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
-      if (!silent)
-        enqueueSnackbar("Please enter a server URL first", {
-          variant: "warning",
-        });
-      return;
+      if (!silent) enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      return summaryModel;
     }
     const requestId = ++modelsRequestId.current;
     setIsFetchingModels(true);
     try {
       const models = await fetchAvailableModels(summaryProvider, apiKey, summaryBaseUrl);
-      if (requestId !== modelsRequestId.current) return;
+      if (requestId !== modelsRequestId.current) return summaryModel;
       if (models.length === 0) {
-        if (!silent)
-          enqueueSnackbar("Provider returned no models", {
-            variant: "warning",
-          });
-      } else {
-        setAvailableModels(models);
-        if (!silent)
-          enqueueSnackbar(`Found ${models.length} models`, {
-            variant: "success",
-          });
+        if (!silent) enqueueSnackbar("Provider returned no models", { variant: "warning" });
+        return summaryModel;
       }
+      setAvailableModels(models);
+      const model = pickDefaultModel(summaryProvider, models, summaryModel);
+      if (model !== summaryModel) handleModelChange(model);
+      if (!silent) enqueueSnackbar(`Found ${models.length} models`, { variant: "success" });
+      return model;
     } catch (error) {
-      if (silent || requestId !== modelsRequestId.current) return;
-      const detail = error instanceof Error ? error.message : "Unknown error";
-      enqueueSnackbar(`Could not fetch models: ${detail}`, {
-        variant: "error",
-      });
+      if (!silent && requestId === modelsRequestId.current) {
+        const detail = error instanceof Error ? error.message : "Unknown error";
+        enqueueSnackbar(`Could not fetch models: ${detail}`, { variant: "error" });
+      }
+      return summaryModel;
     } finally {
       if (requestId === modelsRequestId.current) setIsFetchingModels(false);
     }
@@ -578,10 +574,10 @@ export default function PreferencesScreen() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [summarizationEnabled, summaryProvider, apiKey, summaryBaseUrl]);
 
-  const handleModelChange = (model: string) => {
+  function handleModelChange(model: string) {
     setSummaryModel(model);
-    setSummaryModelInCookie(model);
-  };
+    setSummaryModelForProvider(summaryProvider, model);
+  }
 
   const handleBaseUrlChange = (url: string) => {
     setSummaryBaseUrl(url);
@@ -600,17 +596,19 @@ export default function PreferencesScreen() {
       return;
     }
     if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
-      enqueueSnackbar("Please enter a server URL first", {
-        variant: "warning",
-      });
+      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
       return;
     }
     setIsTestingApi(true);
-    // Refresh the model list alongside the test — useful even when the
-    // selected model is the reason the test fails.
-    void loadModels({ silent: true });
     try {
-      const result = await testApiConnection(summaryProvider, apiKey, summaryModel, summaryBaseUrl);
+      // Refresh the model list first: it picks a model if none is chosen yet,
+      // and is useful even when the selected model is why the test fails.
+      const model = (await loadModels({ silent: true })) || summaryModel;
+      if (!model) {
+        enqueueSnackbar("Choose a model first", { variant: "warning" });
+        return;
+      }
+      const result = await testApiConnection(summaryProvider, apiKey, model, summaryBaseUrl);
       if (result.success) {
         enqueueSnackbar("API connection successful!", { variant: "success" });
       } else {
@@ -1275,18 +1273,14 @@ export default function PreferencesScreen() {
                     try {
                       const articles = await db.articles.toArray();
                       const dataStr = JSON.stringify(articles, null, 2);
-                      const dataBlob = new Blob([dataStr], {
-                        type: "application/json",
-                      });
+                      const dataBlob = new Blob([dataStr], { type: "application/json" });
                       const url = URL.createObjectURL(dataBlob);
                       const link = document.createElement("a");
                       link.href = url;
                       link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.json`;
                       link.click();
                       URL.revokeObjectURL(url);
-                      enqueueSnackbar("JSON export completed!", {
-                        variant: "success",
-                      });
+                      enqueueSnackbar("JSON export completed!", { variant: "success" });
                     } catch (error) {
                       console.error("Export failed:", error);
                       enqueueSnackbar("Export failed", { variant: "error" });
@@ -1334,18 +1328,14 @@ export default function PreferencesScreen() {
                         .map((row) => row.map((field) => `"${field}"`).join(","))
                         .join("\n");
 
-                      const dataBlob = new Blob([csvContent], {
-                        type: "text/csv",
-                      });
+                      const dataBlob = new Blob([csvContent], { type: "text/csv" });
                       const url = URL.createObjectURL(dataBlob);
                       const link = document.createElement("a");
                       link.href = url;
                       link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.csv`;
                       link.click();
                       URL.revokeObjectURL(url);
-                      enqueueSnackbar("CSV export completed!", {
-                        variant: "success",
-                      });
+                      enqueueSnackbar("CSV export completed!", { variant: "success" });
                     } catch (error) {
                       console.error("Export failed:", error);
                       enqueueSnackbar("Export failed", { variant: "error" });
@@ -1405,13 +1395,9 @@ export default function PreferencesScreen() {
                   if (e.target.checked) {
                     try {
                       await enablePublicExport();
-                      enqueueSnackbar("Public export enabled", {
-                        variant: "success",
-                      });
+                      enqueueSnackbar("Public export enabled", { variant: "success" });
                     } catch {
-                      enqueueSnackbar("Failed to publish export", {
-                        variant: "error",
-                      });
+                      enqueueSnackbar("Failed to publish export", { variant: "error" });
                     }
                   } else {
                     const result = await disablePublicExport();
@@ -1489,9 +1475,7 @@ export default function PreferencesScreen() {
                     onClick={async () => {
                       try {
                         await publishNow();
-                        enqueueSnackbar("Published successfully", {
-                          variant: "success",
-                        });
+                        enqueueSnackbar("Published successfully", { variant: "success" });
                       } catch {
                         enqueueSnackbar("Publish failed", { variant: "error" });
                       }
