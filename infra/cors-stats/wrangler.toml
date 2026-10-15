@@ -6,11 +6,14 @@ compatibility_date = "2025-01-01"
 preview_urls = false
 
 [vars]
-# 32-character Cloudflare account ID (dashboard). The API token
-# (Account Analytics: Read) and the dashboard access key are secrets:
+# 32-character Cloudflare account ID (dashboard). Committed because this is a
+# maintainer-only worker for the hosted instance — there is nothing to see
+# unless the proxy writes statistics. A self-hosted copy must replace it with
+# its own account ID. The API token (Account Analytics: Read) and the
+# dashboard access key are secrets:
 #   npx wrangler secret put CF_API_TOKEN
 #   npx wrangler secret put STATS_KEY
-ACCOUNT_ID = "REPLACE_ME"
+ACCOUNT_ID = "d94a7da950aa16612b63813082875225"
 
 [observability]
 enabled = true

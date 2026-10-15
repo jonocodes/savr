@@ -64,8 +64,11 @@ fails closed.
 
 ## Deploy
 
-1. Enable the proxy's binding first (see `infra/cors-worker/README.md`).
-2. Put your 32-character account ID in `wrangler.toml` (`ACCOUNT_ID`).
+1. Enable Analytics Engine once for the account (Workers & Pages → Analytics
+   Engine) and deploy the proxy's `STATS` binding first (see
+   `infra/cors-worker/README.md`).
+2. The hosted instance's account ID is already in `wrangler.toml`
+   (`ACCOUNT_ID`); a self-hosted copy must replace it with its own.
 3. Create an API token with the **Account Analytics: Read** permission.
 4. Set the secrets:
 
