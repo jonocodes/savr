@@ -29,6 +29,7 @@ import { useSyncProgress } from "~/hooks/useSyncProgress";
 import { subscribeDiagnostic } from "~/utils/sync/storage";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import { isPWAMode } from "~/utils/net/network";
+import { getCorsProxyValue, maskCorsProxyInText } from "~/utils/net/corsProxy";
 import React from "react";
 
 interface RemoteStorageEvent {
@@ -666,9 +667,9 @@ export default function DiagnosticsScreen() {
                             variant="body2"
                             sx={{ fontFamily: "monospace", fontSize: "0.75rem", wordBreak: "break-word" }}
                           >
-                            {entry.message}
+                            {maskCorsProxyInText(entry.message)}
                             {entry.meta && Object.keys(entry.meta).length > 0
-                              ? ` ${JSON.stringify(entry.meta)}`
+                              ? ` ${maskCorsProxyInText(JSON.stringify(entry.meta))}`
                               : ""}
                           </Typography>
                         </TableCell>
@@ -701,62 +702,64 @@ export default function DiagnosticsScreen() {
               Current page details and all stored cookies
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
-              {JSON.stringify(
-                {
-                  pageInfo: {
-                    absoluteUrl: window.location.href,
-                    protocol: window.location.protocol,
-                    host: window.location.host,
-                    pathname: window.location.pathname,
-                    search: window.location.search,
-                    hash: window.location.hash,
-                    userAgent: navigator.userAgent,
-                    language: navigator.language,
-                    cookieEnabled: navigator.cookieEnabled,
-                    isPWA: (() => {
-                      return (
-                        window.matchMedia("(display-mode: standalone)").matches ||
-                        (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
-                        document.referrer.includes("android-app://")
-                      );
+              {maskCorsProxyInText(
+                JSON.stringify(
+                  {
+                    pageInfo: {
+                      absoluteUrl: window.location.href,
+                      protocol: window.location.protocol,
+                      host: window.location.host,
+                      pathname: window.location.pathname,
+                      search: window.location.search,
+                      hash: window.location.hash,
+                      userAgent: navigator.userAgent,
+                      language: navigator.language,
+                      cookieEnabled: navigator.cookieEnabled,
+                      isPWA: (() => {
+                        return (
+                          window.matchMedia("(display-mode: standalone)").matches ||
+                          (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+                          document.referrer.includes("android-app://")
+                        );
+                      })(),
+                    },
+                    cookies: (() => {
+                      const cookies: Record<string, string> = {};
+                      document.cookie.split(";").forEach((cookie) => {
+                        const [name, value] = cookie.trim().split("=");
+                        if (name && value) {
+                          cookies[name] = decodeURIComponent(value);
+                        }
+                      });
+                      return cookies;
+                    })(),
+                    localStorage: (() => {
+                      const SENSITIVE_KEYS = /api.key|api_key|token|secret|password/i;
+                      const items: Record<string, string> = {};
+                      for (let i = 0; i < localStorage.length; i++) {
+                        const key = localStorage.key(i);
+                        if (key) {
+                          items[key] = SENSITIVE_KEYS.test(key)
+                            ? "[redacted]"
+                            : (localStorage.getItem(key) || "");
+                        }
+                      }
+                      return items;
+                    })(),
+                    sessionStorage: (() => {
+                      const items: Record<string, string> = {};
+                      for (let i = 0; i < sessionStorage.length; i++) {
+                        const key = sessionStorage.key(i);
+                        if (key) {
+                          items[key] = sessionStorage.getItem(key) || "";
+                        }
+                      }
+                      return items;
                     })(),
                   },
-                  cookies: (() => {
-                    const cookies: Record<string, string> = {};
-                    document.cookie.split(";").forEach((cookie) => {
-                      const [name, value] = cookie.trim().split("=");
-                      if (name && value) {
-                        cookies[name] = decodeURIComponent(value);
-                      }
-                    });
-                    return cookies;
-                  })(),
-                  localStorage: (() => {
-                    const SENSITIVE_KEYS = /api.key|api_key|token|secret|password/i;
-                    const items: Record<string, string> = {};
-                    for (let i = 0; i < localStorage.length; i++) {
-                      const key = localStorage.key(i);
-                      if (key) {
-                        items[key] = SENSITIVE_KEYS.test(key)
-                          ? "[redacted]"
-                          : (localStorage.getItem(key) || "");
-                      }
-                    }
-                    return items;
-                  })(),
-                  sessionStorage: (() => {
-                    const items: Record<string, string> = {};
-                    for (let i = 0; i < sessionStorage.length; i++) {
-                      const key = sessionStorage.key(i);
-                      if (key) {
-                        items[key] = sessionStorage.getItem(key) || "";
-                      }
-                    }
-                    return items;
-                  })(),
-                },
-                null,
-                2
+                  null,
+                  2
+                )
               )}
             </Typography>
           </Box>
@@ -1035,7 +1038,10 @@ export default function DiagnosticsScreen() {
                   },
                   runtimeEnvironment: {
                     isDebugMode: environmentConfig.isDebugMode,
-                    defaultCorsProxy: environmentConfig.defaultCorsProxy,
+                    // Masked: a self-host build may bake a token into the
+                    // default (`VITE_CORS_PROXY`), and a user can override it.
+                    defaultCorsProxy: maskCorsProxyInText(environmentConfig.defaultCorsProxy),
+                    effectiveCorsProxy: maskCorsProxyInText(getCorsProxyValue()),
                     apiKeysConfigured: {
                       googleDrive: !!environmentConfig.apiKeys.googleDrive,
                       dropbox: !!environmentConfig.apiKeys.dropbox,

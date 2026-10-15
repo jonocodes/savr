@@ -1,4 +1,8 @@
-name = "lively-cors-proxy-b569"
+# Default config: a generic worker name for people deploying their own copy.
+# Locking it down is done with the PROXY_TOKENS secret (see README.md); with
+# neither PROXY_TOKENS nor PUBLIC set, the worker serves a setup page and
+# refuses to proxy anything.
+name = "savr-cors-proxy"
 main = "worker.js"
 compatibility_date = "2023-08-23"
 
@@ -10,9 +14,18 @@ preview_urls = false
 [observability]
 enabled = true
 
-# Aggregate usage statistics (country, MIME class, status, cache hit/miss and,
-# on failures only, the host). One point per non-preflight request. Read and
-# presented by the separate stats worker (infra/cors-stats); see its README.
-[[analytics_engine_datasets]]
+# The shared public instance: open (no token required), under its historical
+# name. Deploy with `npx wrangler deploy --env public`.
+[env.public]
+name = "lively-cors-proxy-b569"
+
+[env.public.vars]
+PUBLIC = "true"
+
+# Usage statistics, shared public instance only: one Analytics Engine point per
+# recorded request, read and displayed by the separate stats worker
+# (infra/cors-stats; see its README). Self-hosted deploys get no binding, so
+# they write nothing.
+[[env.public.analytics_engine_datasets]]
 binding = "STATS"
 dataset = "savr_cors_stats"

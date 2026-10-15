@@ -320,9 +320,18 @@ While Savr provides a default proxy, you can configure your own CORS proxy serve
 - **More control**: You can configure it exactly how you need it
 - **Privacy**: Your requests aren't going through a third-party service
 
-You can learn more about CORS on [Wikipedia](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing).
+**Set up your own proxy (one click)**  
+The shared default proxy has a free-tier request cap that everyone shares. You can deploy your own copy in a couple of minutes, locked with a secret token so only your devices can use it:
 
-If you need to setup a simple free CORS proxy, [follow these instructions](https://gist.github.com/DankTechnologies/8dd399de6a588085eea26517048b7366).
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jonocodes/savr/tree/main/infra/cors-worker)
+
+1. Deploy the worker. If you don't set a token yet, don't worry: an unconfigured proxy refuses to proxy anything, so a missed step can never leave it open to strangers.
+2. Open the deployed worker URL. It shows a setup page with a freshly generated token, the command to set it, and the exact string to paste into Savr.
+3. Paste that string into **Preferences → CORS Proxy**.
+
+The proxy setting is kept in your browser's localStorage (never in a cookie), and the token is masked in the app's diagnostic log and failure reports. Full details, including token rotation, are in [infra/cors-worker/README.md](infra/cors-worker/README.md).
+
+You can learn more about CORS on [Wikipedia](https://en.wikipedia.org/wiki/Cross-origin_resource_sharing).
 
 ## How do I find out why an article failed to save?
 
