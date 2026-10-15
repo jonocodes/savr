@@ -217,8 +217,8 @@ describe("externalCaptureSource", () => {
     expect(externalCaptureSource("html", extension)).toBe("extension");
   });
 
-  it("does the same for pre-extracted (raw) content", () => {
-    expect(externalCaptureSource("raw", null)).toBe("raw");
-    expect(externalCaptureSource("raw", extension)).toBe("extension-raw");
+  it("does the same for content a site-specific extractor pulled out", () => {
+    expect(externalCaptureSource("raw", null)).toBe("bookmarklet-extracted");
+    expect(externalCaptureSource("raw", extension)).toBe("extension-extracted");
   });
 });
