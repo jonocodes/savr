@@ -28,6 +28,7 @@ Savr is:
 - Mark articles as favorites
 - Light, dark, and system themes
 - Toggle between a cleaned reader view and the original page
+- Share an article's URL out to other apps via the system share sheet (clipboard fallback elsewhere)
 - Save content by pasting HTML, Markdown, or plain text, or by uploading PDFs and images
 - Report a failed save by filing a prefilled public GitHub issue, with an editable diagnostic payload (hosted builds; off when self-hosting)
 - Publish a read-only public copy of your collection
@@ -61,6 +62,7 @@ Here are most of the planned features.
 - [x] browser bookmarklet
 - [x] thumbnail generation
 - [x] mobile share action
+- [x] mobile share-out action (system share sheet on Android, clipboard fallback elsewhere)
 - [x] info edit - so you can fix a missing title
 - [x] remember scroll position
 - [x] text to speach read aloud
@@ -148,6 +150,10 @@ If you want to create your own shortcut (particularly if you are hosting Savr yo
 ![iOS-shortcut](./public/screenshots/ios_shortcut.png)
 
 </div>
+
+# Sharing articles out
+
+To send a saved article to another app, open its ⋮ menu (in the list or on the article page) and choose **Share**. On platforms with the Web Share API (Android, iOS, Windows, macOS) this opens the system share sheet with the article's title and URL. Elsewhere — most desktop Linux browsers — Savr falls back to copying the URL to the clipboard.
 
 # Synchronization
 

@@ -119,6 +119,7 @@ rm -f tests/e2e/.test-env.json
 | `main-page.spec.ts` | Main page UI tests | Requires React hydration |
 | `add-article-dialog.spec.ts` | Add-article dialog interactions | Requires React hydration |
 | `failure-report.spec.ts` | Failed-capture report dialog: dismiss, prefilled GitHub issue, mobile reachability | Needs `VITE_FAILURE_REPORT_REPO` (set by the Playwright web-server env) |
+| `share-article.spec.ts` | Share menu on a list article: system share sheet (Web Share stubbed) and clipboard fallback | Active |
 | `ingest-local-article.spec.ts` | Article ingestion via UI, incl. PDF/markdown/image from `test_data/input/` | Serial |
 | `ingest-failed-image.spec.ts` | A failed image is replaced by a local placeholder in saved HTML (#75) | Serial |
 | `article-server-persistence.spec.ts` | Persist to RemoteStorage server and restore after local wipe | Serial |
