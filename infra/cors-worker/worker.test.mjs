@@ -653,6 +653,30 @@ test("toDataPoint lays fields out in schema order", () => {
   assert.equal(toDataPoint({ status: 200 }, undefined).blobs[0], "XX");
 });
 
+test("classifies Cloudflare's 530 origin-DNS page as a dns failure, passing it through", async () => {
+  const errorKind = BLOB_FIELDS.indexOf("errorKind");
+  const { points, env } = makeStatsEnv();
+  for (const body of ["error code: 1016", "error code: 1033"]) {
+    stubGlobals({
+      fetchImpl: async () =>
+        new Response(body, {
+          status: 530,
+          headers: { "content-type": "text/plain; charset=UTF-8", "content-length": String(body.length) },
+        }),
+    });
+    const response = await callWorker(proxyRequest("https://no-such-host.example/"), { env });
+    assert.equal(response.status, 530, "status passes through unchanged");
+    assert.equal(await response.text(), body, "body still readable by the client");
+  }
+  assert.deepEqual(
+    points.map((point) => [point.blobs[2], point.blobs[4], point.blobs[errorKind]]),
+    [
+      ["530", "no-such-host.example", "dns"],
+      ["530", "no-such-host.example", "other"],
+    ]
+  );
+});
+
 test("deploys without the stats binding still proxy", async () => {
   stubGlobals({
     fetchImpl: async () => new Response("ok", { status: 200 }),
