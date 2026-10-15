@@ -98,6 +98,7 @@ import {
   getProviderConfig,
   type SummaryProvider,
   type DetailLevel,
+  type AvailableModel,
 } from "~/utils/ai/summarization";
 import { isPWAMode } from "~/utils/net/network";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -172,7 +173,7 @@ export default function PreferencesScreen() {
   const [summaryProvider, setSummaryProvider] = useState<SummaryProvider>("groq");
   const [summaryModel, setSummaryModel] = useState<string>("qwen/qwen3-32b");
   const [summaryBaseUrl, setSummaryBaseUrl] = useState<string>("");
-  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [availableModels, setAvailableModels] = useState<AvailableModel[]>([]);
   const [isFetchingModels, setIsFetchingModels] = useState(false);
   const [apiKey, setApiKey] = useState<string>("");
   const [showApiKey, setShowApiKey] = useState(false);
@@ -938,19 +939,26 @@ export default function PreferencesScreen() {
                           value={
                             // Keep the current selection valid even if it isn't
                             // in the fetched list.
-                            availableModels.includes(summaryModel) ? summaryModel : ""
+                            availableModels.some((m) => m.id === summaryModel) ? summaryModel : ""
                           }
                           displayEmpty
                           onChange={(e) => handleModelChange(e.target.value)}
                         >
-                          {!availableModels.includes(summaryModel) && (
+                          {!availableModels.some((m) => m.id === summaryModel) && (
                             <MuiMenuItem value="" disabled>
                               Select a model
                             </MuiMenuItem>
                           )}
-                          {availableModels.map((id) => (
-                            <MuiMenuItem key={id} value={id}>
-                              {id}
+                          {availableModels.map((model) => (
+                            <MuiMenuItem key={model.id} value={model.id}>
+                              <ListItemText
+                                primary={model.id}
+                                secondary={
+                                  model.estimate
+                                    ? `~${model.estimate.summariesPerDay} summaries/day`
+                                    : undefined
+                                }
+                              />
                             </MuiMenuItem>
                           ))}
                         </Select>

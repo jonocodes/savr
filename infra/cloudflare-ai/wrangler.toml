@@ -1,0 +1,30 @@
+name = "savr-cloudflare-ai"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Workers AI binding: inference runs against your Cloudflare account, so no
+# Cloudflare API token is stored in the worker or sent to the browser.
+[ai]
+binding = "AI"
+
+# Exposes the running version id/tag and its deploy timestamp to /health and
+# /status (no state; Cloudflare provides the values).
+[version_metadata]
+binding = "CF_VERSION_METADATA"
+
+[vars]
+# Server-side whitelist. Savr's model dropdown is populated from exactly these
+# ids via GET /v1/models. Verify current ids at
+# https://developers.cloudflare.com/workers-ai/models/ (model ids churn).
+ALLOWED_MODELS = "@cf/meta/llama-3.1-8b-instruct-fp8,@cf/meta/llama-3.3-70b-instruct-fp8-fast,@cf/mistralai/mistral-small-3.1-24b-instruct,@cf/qwen/qwen3-30b-a3b-fp8"
+
+# Browser origins allowed to call the worker. "*" is fine because access is
+# gated by AI_API_KEYS; tighten it (comma-separated) if you prefer.
+ALLOWED_ORIGINS = "*"
+
+# Free Workers AI allocation, used to compute the summaries/day estimates in
+# GET /v1/models. Change if you are on a different plan/budget.
+DAILY_NEURON_BUDGET = "10000"
+
+# Secrets are NOT declared here. Set the bearer key with:
+#   wrangler secret put AI_API_KEYS
