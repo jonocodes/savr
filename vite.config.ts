@@ -212,6 +212,9 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ["**/*.{js,css,html,ico,png,svg,webp}"],
+          // /extension/firefox.xpi is a Netlify redirect to the signed add-on;
+          // the app-shell fallback would otherwise swallow that navigation.
+          navigateFallbackDenylist: [/^\/extension\//],
           runtimeCaching: [
             {
               // Never cache or replay analytics — always hit the network, and let

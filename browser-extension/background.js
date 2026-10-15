@@ -31,6 +31,15 @@ const api = globalThis.browser ?? globalThis.chrome;
 
 const PENDING_DELIVERY_KEY = "pendingDelivery";
 
+/**
+ * Version of the payload shape the bridge delivers. The app and the extension
+ * update on different schedules (savr.link deploys, extensions update daily,
+ * self-hosted instances can lag far behind), so every payload says which shape
+ * it is. Bump it only for a breaking change to the payload; the app treats a
+ * payload without it as protocol 1.
+ */
+const BRIDGE_PROTOCOL = 1;
+
 /* ------------------------------------------------------------------------ */
 /* Settings                                                                  */
 /* ------------------------------------------------------------------------ */
@@ -221,7 +230,7 @@ async function openApp(mode, message) {
   const appTab = await api.tabs.create({ url: target });
   if (appTab.id !== undefined) {
     console.info("[savr] opened app tab", appTab.id, "at", target);
-    await queueDelivery(appTab.id, message);
+    await queueDelivery(appTab.id, { ...message, protocol: BRIDGE_PROTOCOL });
   }
   return { ok: true, mode };
 }
@@ -288,7 +297,8 @@ async function visitSavr() {
   const existing = tabs.find((tab) => tab.id !== undefined);
   if (existing) {
     await api.tabs.update(existing.id, { active: true });
-    if (existing.windowId !== undefined) {
+    // Firefox for Android has no windows API; the tab switch is enough there.
+    if (existing.windowId !== undefined && api.windows) {
       await api.windows.update(existing.windowId, { focused: true });
     }
     return;

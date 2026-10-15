@@ -75,7 +75,7 @@ test.describe("Browser extension delivery contract", () => {
     await page.evaluate(
       ({ html, url }) => {
         window.postMessage(
-          { action: "savr-html", html, url, source: "extension" },
+          { action: "savr-html", html, url, source: "extension", protocol: 1 },
           window.location.origin
         );
       },
@@ -130,6 +130,8 @@ test.describe("Browser extension delivery contract", () => {
           title: "Raw Contract Fixture",
           author: "Test Author",
           url: "https://example.com/watch?v=abc123",
+          source: "extension",
+          protocol: 1,
         },
         window.location.origin
       );
