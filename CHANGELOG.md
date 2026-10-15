@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-15
+
+- Telemetry now counts browser-extension saves separately: `capture-extension` (page scraped by the extension) and `capture-extension-raw` (its YouTube transcript extractor), instead of folding them into `capture-bookmarklet` / `capture-raw`. An extension too old to report its version still counts as a bookmarklet save
+
 ## 2026-10-14
 
 - Extension saves now download the article's images through the extension too (#89): the background fetches them with its host permissions (CORS-exempt), so a Firefox or Chrome user with the extension needs no proxy at all for an extension save. The app asks per image over a small id-correlated, time-limited bridge; any image the extension cannot supply falls back to the configured proxy (or a placeholder), so a broken extension never blocks a save. URL saves, refetches and bookmarklets are unchanged

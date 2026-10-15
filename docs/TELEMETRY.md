@@ -19,6 +19,8 @@ This is everything Savr ever sends:
 | `capture-url` | An article is saved from a URL |
 | `capture-bookmarklet` | An article is saved via the bookmarklet |
 | `capture-raw` | An article is saved via a site-specific bookmarklet (pre-extracted content) |
+| `capture-extension` | An article is saved via the browser extension (page scraped in the browser) |
+| `capture-extension-raw` | An article is saved via the browser extension's site-specific extractor (e.g. a YouTube transcript) |
 | `capture-paste` | An article is saved by pasting text, HTML, or Markdown |
 | `capture-file` | An article is saved by uploading a PDF or image |
 | `capture-failed` | An article capture fails (used to spot CORS-proxy trouble; no URL or details attached) |

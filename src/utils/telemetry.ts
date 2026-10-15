@@ -145,7 +145,7 @@ export function trackAppOpen(): void {
   if (isStandalonePwa()) track("app-standalone", "App open (installed PWA)");
 }
 
-/** A successful capture, tagged by source: url | bookmarklet | paste | file. */
+/** A successful capture, tagged by source: url | bookmarklet | raw | extension | extension-raw | paste | file. */
 export function trackCapture(source: string): void {
   track(`capture-${sanitizeName(source)}`, "Article captured");
 }

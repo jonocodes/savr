@@ -46,6 +46,7 @@ import { ingestUrl, ingestHtml, ingestRaw, type IngestOptions } from "../../lib/
 import {
   createExtensionImageSource,
   extensionFromMessageEvent,
+  externalCaptureSource,
   type ExtensionInfo,
 } from "~/utils/extension/extensionBridge";
 import { trackCapture, trackCaptureFailed } from "~/utils/telemetry";
@@ -537,7 +538,7 @@ export default function ArticleListScreen() {
       );
 
       await db.articles.put(article);
-      trackCapture("bookmarklet");
+      trackCapture(externalCaptureSource("html", extension));
       setIngestStatus("Syncing to remote storage...");
       try {
         await remoteStorage?.startSync();
@@ -663,7 +664,7 @@ export default function ArticleListScreen() {
       );
 
       await db.articles.put(article);
-      trackCapture("raw");
+      trackCapture(externalCaptureSource("raw", extension));
       setIngestStatus("Syncing to remote storage...");
       try {
         await remoteStorage?.startSync();
