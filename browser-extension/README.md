@@ -31,9 +31,21 @@ Preferences screen links to it). Firefox asks to allow savr.link to install an
 add-on, then shows the permission prompt. It needs Firefox 142 or newer, and
 updates itself (see [Updates](#updates)).
 
-On Android it installs the same way; the toolbar button lives in the browser
-menu under **Extensions**. **Visit Savr** switches to an open Savr tab (Android
-has no windows to focus). Android support has not been verified on a device yet.
+On Android, opening that link only downloads the file — Firefox for Android
+does not install add-ons from a web link outside addons.mozilla.org. Install
+the downloaded file instead
+([Mozilla's instructions](https://extensionworkshop.com/documentation/publish/install-self-distributed/)):
+
+1. Open **Settings → About Firefox** and tap the Firefox logo five times
+   quickly to unlock the hidden menu items.
+2. Back in **Settings**, choose **Install Extension from File** and pick the
+   downloaded `.xpi`.
+3. Tap **Add** at the permission prompt.
+
+The toolbar button then lives in the browser menu under **Extensions**.
+**Visit Savr** switches to an open Savr tab (Android has no windows to focus).
+Android support has not been verified on a device yet, including whether it
+picks up updates from `update_url`.
 
 For development, load the source as a temporary add-on instead: open
 `about:debugging#/runtime/this-firefox`, click **Load Temporary Add-on…**, and
@@ -151,7 +163,8 @@ These need a manual check on the first release:
 - Release Firefox installs from `savr.link/extension/firefox.xpi` (through the
   Netlify and GitHub redirects) with only the two prompts.
 - An installed copy picks up the next version from `updates.json`.
-- The extension on Firefox for Android: save, YouTube transcript, Visit Savr.
+- The extension on Firefox for Android: install from file, save, YouTube
+  transcript, Visit Savr, and updates from `updates.json`.
 - A Chrome Web Store upload accepts the manifest's dual `background` keys.
 
 ## Settings
