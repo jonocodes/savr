@@ -1,7 +1,18 @@
 {
   "addons": {
     "savr@jonocodes.github.io": {
-      "updates": []
+      "updates": [
+        {
+          "version": "0.1.0",
+          "update_link": "https://github.com/jonocodes/savr/releases/download/ext-v0.1.0/savr-firefox-0.1.0.xpi",
+          "update_hash": "sha256:a784cedc583c63cb22d72daa40362cbd19881a2c45e3233cb6a9d5d4613bd405",
+          "applications": {
+            "gecko": {
+              "strict_min_version": "142.0"
+            }
+          }
+        }
+      ]
     }
   }
 }
