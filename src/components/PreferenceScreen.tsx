@@ -100,7 +100,7 @@ import {
   type DetailLevel,
   type AvailableModel,
 } from "~/utils/ai/summarization";
-import { isPWAMode } from "~/utils/net/network";
+import { isPWAMode, isTouchOnlyDevice } from "~/utils/net/network";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
@@ -148,6 +148,66 @@ const extensionLinkStyle: React.CSSProperties = {
   display: "inline-block",
 };
 
+// A labelled setting whose control sits below the label. Indented to line up
+// with icon rows on wider screens; full width on phones where every pixel counts.
+function SettingField({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: React.ReactNode;
+  children: React.ReactNode;
+}) {
+  return (
+    <ListItem sx={{ display: "block", pl: { xs: 2, sm: 9 }, py: 1 }}>
+      <ListItemText primary={label} secondary={hint} sx={{ mt: 0, mb: 1 }} />
+      {children}
+    </ListItem>
+  );
+}
+
+function ChipGroup<T extends string>({
+  options,
+  value,
+  onChange,
+  size,
+}: {
+  options: readonly { value: T; label: string }[];
+  value: T;
+  onChange: (value: T) => void;
+  size?: "small" | "medium";
+}) {
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+      {options.map((option) => (
+        <Chip
+          key={option.value}
+          label={option.label}
+          onClick={() => onChange(option.value)}
+          variant={value === option.value ? "filled" : "outlined"}
+          color={value === option.value ? "primary" : "default"}
+          size={size}
+        />
+      ))}
+    </Box>
+  );
+}
+
+// For rows with a trailing control: on phones the control drops below the
+// text instead of squeezing it into a one-word-wide column.
+const wrappingRowSx = {
+  flexWrap: "wrap",
+  // Zero basis keeps the text beside its icon; only the control wraps.
+  "& > .MuiListItemText-root": { flex: "1 1 0", minWidth: 0 },
+} as const;
+const trailingControlSx = {
+  flexBasis: { xs: "100%", sm: "auto" },
+  pl: { xs: 7, sm: 0 },
+  ml: { xs: 0, sm: 2 },
+  mt: { xs: 1, sm: 0 },
+} as const;
+
 export default function PreferencesScreen() {
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
   const [corsProxy, setCorsProxy] = React.useState<string>("");
@@ -185,8 +245,9 @@ export default function PreferencesScreen() {
   const bookmarkletRef = React.useRef<HTMLAnchorElement>(null);
   const ytTranscriptBookmarkletRef = React.useRef<HTMLAnchorElement>(null);
 
-  // Check if running as installed PWA
-  const isInstalledPWA = isPWAMode();
+  // Bookmarklets and extensions only make sense in a desktop browser tab —
+  // not in the installed PWA, nor on phones/tablets without a mouse.
+  const showDesktopSaveTools = !isPWAMode() && !isTouchOnlyDevice();
 
   const { connected: rsConnected } = useRemoteStorage();
   const { enqueueSnackbar } = useSnackbar();
@@ -332,7 +393,9 @@ export default function PreferencesScreen() {
 
       setDeleteDialogOpen(false);
 
-      enqueueSnackbar("All articles deleted successfully!", { variant: "success" });
+      enqueueSnackbar("All articles deleted successfully!", {
+        variant: "success",
+      });
     } catch (error) {
       console.error("Error deleting all articles:", error);
       enqueueSnackbar("Failed to delete articles", { variant: "error" });
@@ -437,9 +500,9 @@ export default function PreferencesScreen() {
     setSummarizationEnabled(newValue);
     setSummarizationEnabledInCookie(newValue);
     if (newValue) {
-      enqueueSnackbar("AI summarization enabled");
+      enqueueSnackbar("Summarization enabled");
     } else {
-      enqueueSnackbar("AI summarization disabled");
+      enqueueSnackbar("Summarization disabled");
     }
   };
 
@@ -453,32 +516,67 @@ export default function PreferencesScreen() {
     setAvailableModels([]);
   };
 
-  const handleRefreshModels = async () => {
+  // Each fetch gets an id so a slow response for stale credentials can't
+  // overwrite the list from a newer one.
+  const modelsRequestId = React.useRef(0);
+
+  // Fetch the provider's model list. `silent` is for background refreshes
+  // (key entered, Test pressed) — those shouldn't toast on every keystroke.
+  const loadModels = async ({ silent }: { silent: boolean }) => {
     const providerConfig = getProviderConfig(summaryProvider);
     if (providerConfig?.requiresApiKey && !apiKey.trim()) {
-      enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      if (!silent)
+        enqueueSnackbar("Please enter an API key first", {
+          variant: "warning",
+        });
       return;
     }
     if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
-      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      if (!silent)
+        enqueueSnackbar("Please enter a server URL first", {
+          variant: "warning",
+        });
       return;
     }
+    const requestId = ++modelsRequestId.current;
     setIsFetchingModels(true);
     try {
       const models = await fetchAvailableModels(summaryProvider, apiKey, summaryBaseUrl);
+      if (requestId !== modelsRequestId.current) return;
       if (models.length === 0) {
-        enqueueSnackbar("Provider returned no models", { variant: "warning" });
+        if (!silent)
+          enqueueSnackbar("Provider returned no models", {
+            variant: "warning",
+          });
       } else {
         setAvailableModels(models);
-        enqueueSnackbar(`Found ${models.length} models`, { variant: "success" });
+        if (!silent)
+          enqueueSnackbar(`Found ${models.length} models`, {
+            variant: "success",
+          });
       }
     } catch (error) {
+      if (silent || requestId !== modelsRequestId.current) return;
       const detail = error instanceof Error ? error.message : "Unknown error";
-      enqueueSnackbar(`Could not fetch models: ${detail}`, { variant: "error" });
+      enqueueSnackbar(`Could not fetch models: ${detail}`, {
+        variant: "error",
+      });
     } finally {
-      setIsFetchingModels(false);
+      if (requestId === modelsRequestId.current) setIsFetchingModels(false);
     }
   };
+
+  const handleRefreshModels = () => loadModels({ silent: false });
+
+  // Proactively (re)load models whenever the credentials change — including
+  // on first render with a saved key. Debounced so typing a key doesn't fire
+  // a request per keystroke.
+  React.useEffect(() => {
+    if (!summarizationEnabled) return;
+    const timer = setTimeout(() => void loadModels({ silent: true }), 600);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [summarizationEnabled, summaryProvider, apiKey, summaryBaseUrl]);
 
   const handleModelChange = (model: string) => {
     setSummaryModel(model);
@@ -502,17 +600,17 @@ export default function PreferencesScreen() {
       return;
     }
     if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
-      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      enqueueSnackbar("Please enter a server URL first", {
+        variant: "warning",
+      });
       return;
     }
     setIsTestingApi(true);
+    // Refresh the model list alongside the test — useful even when the
+    // selected model is the reason the test fails.
+    void loadModels({ silent: true });
     try {
-      const result = await testApiConnection(
-        summaryProvider,
-        apiKey,
-        summaryModel,
-        summaryBaseUrl,
-      );
+      const result = await testApiConnection(summaryProvider, apiKey, summaryModel, summaryBaseUrl);
       if (result.success) {
         enqueueSnackbar("API connection successful!", { variant: "success" });
       } else {
@@ -589,8 +687,8 @@ export default function PreferencesScreen() {
           <List>
             <ListSubheader>Fetching content</ListSubheader>
 
-            {!isInstalledPWA && (
-              <ListItem>
+            {showDesktopSaveTools && (
+              <ListItem sx={wrappingRowSx}>
                 <ListItemIcon>
                   <BookmarkAddIcon />
                 </ListItemIcon>
@@ -598,7 +696,7 @@ export default function PreferencesScreen() {
                   primary="Bookmarklet"
                   secondary="Drag this link to your bookmarks bar"
                 />
-                <Box sx={{ ml: 2 }}>
+                <Box sx={trailingControlSx}>
                   <a
                     ref={bookmarkletRef}
                     // draggable="true"
@@ -619,8 +717,8 @@ export default function PreferencesScreen() {
               </ListItem>
             )}
 
-            {!isInstalledPWA && (
-              <ListItem>
+            {showDesktopSaveTools && (
+              <ListItem sx={wrappingRowSx}>
                 <ListItemIcon>
                   <BookmarkAddIcon />
                 </ListItemIcon>
@@ -628,7 +726,7 @@ export default function PreferencesScreen() {
                   primary="YouTube transcript bookmarklet"
                   secondary="Drag to your bookmarks bar — saves a YouTube video's transcript"
                 />
-                <Box sx={{ ml: 2 }}>
+                <Box sx={trailingControlSx}>
                   <a
                     ref={ytTranscriptBookmarkletRef}
                     style={{
@@ -648,8 +746,8 @@ export default function PreferencesScreen() {
               </ListItem>
             )}
 
-            {!isInstalledPWA && (extensionUrls.firefoxUrl || extensionUrls.chromeUrl) && (
-              <ListItem>
+            {showDesktopSaveTools && (extensionUrls.firefoxUrl || extensionUrls.chromeUrl) && (
+              <ListItem sx={wrappingRowSx}>
                 <ListItemIcon>
                   <ExtensionIcon />
                 </ListItemIcon>
@@ -657,7 +755,7 @@ export default function PreferencesScreen() {
                   primary="Browser extension"
                   secondary="Save the page you're reading from your browser's toolbar"
                 />
-                <Box sx={{ ml: 2, display: "flex", gap: 1 }}>
+                <Box sx={{ ...trailingControlSx, display: "flex", gap: 1 }}>
                   {extensionUrls.firefoxUrl && (
                     <a
                       href={extensionUrls.firefoxUrl}
@@ -684,7 +782,7 @@ export default function PreferencesScreen() {
               </ListItem>
             )}
 
-            <ListItem>
+            <ListItem sx={wrappingRowSx}>
               <ListItemIcon>
                 <WebIcon />
               </ListItemIcon>
@@ -710,10 +808,10 @@ export default function PreferencesScreen() {
                 onChange={handleCorsProxyChange}
                 onFocus={handleCorsProxyFocus}
                 onBlur={handleCorsProxyBlur}
-                // placeholder="https://"
-                // size="small"
+                size="small"
                 sx={{
-                  width: "50%",
+                  ...trailingControlSx,
+                  width: { xs: "100%", sm: "50%" },
                   "& .MuiInputBase-input": {
                     color: isCustomCorsProxy ? "text.primary" : "text.disabled",
                   },
@@ -721,7 +819,7 @@ export default function PreferencesScreen() {
               />
             </ListItem>
 
-            <ListItem>
+            <ListItem sx={wrappingRowSx}>
               <ListItemIcon>
                 <BookmarkAddIcon />
               </ListItemIcon>
@@ -729,25 +827,27 @@ export default function PreferencesScreen() {
                 primary="After external save"
                 secondary="What to do after saving an article from a bookmarklet"
               />
-              <select
-                value={afterExternalSave}
-                onChange={handleAfterExternalSaveChange}
-                style={{
-                  padding: "8px",
-                  borderRadius: "4px",
-                  border: "1px solid rgba(128, 128, 128, 0.4)",
-                  backgroundColor: "inherit",
-                  color: "inherit",
-                  fontSize: "14px",
-                  minWidth: "150px",
-                }}
-              >
-                <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE}>
-                  Show article content
-                </option>
-                <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST}>Show article list</option>
-                <option value={AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB}>Close new tab</option>
-              </select>
+              <Box sx={trailingControlSx}>
+                <select
+                  value={afterExternalSave}
+                  onChange={handleAfterExternalSaveChange}
+                  style={{
+                    padding: "8px",
+                    borderRadius: "4px",
+                    border: "1px solid rgba(128, 128, 128, 0.4)",
+                    backgroundColor: "inherit",
+                    color: "inherit",
+                    fontSize: "14px",
+                    minWidth: "150px",
+                  }}
+                >
+                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE}>
+                    Show article content
+                  </option>
+                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST}>Show article list</option>
+                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB}>Close new tab</option>
+                </select>
+              </Box>
             </ListItem>
 
             <ListItem>
@@ -768,7 +868,7 @@ export default function PreferencesScreen() {
             </ListItem>
 
             {syncEnabled && (
-              <ListItem>
+              <ListItem sx={wrappingRowSx}>
                 <ListItemIcon>
                   <SyncIcon />
                 </ListItemIcon>
@@ -776,25 +876,27 @@ export default function PreferencesScreen() {
                   primary="Sync interval"
                   secondary="How often to poll for remote changes"
                 />
-                <select
-                  value={syncInterval}
-                  onChange={handleSyncIntervalChange}
-                  style={{
-                    padding: "8px",
-                    borderRadius: "4px",
-                    border: "1px solid rgba(128, 128, 128, 0.4)",
-                    backgroundColor: "inherit",
-                    color: "inherit",
-                    fontSize: "14px",
-                    minWidth: "120px",
-                  }}
-                >
-                  {SYNC_INTERVAL_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
-                      {opt.label}
-                    </option>
-                  ))}
-                </select>
+                <Box sx={trailingControlSx}>
+                  <select
+                    value={syncInterval}
+                    onChange={handleSyncIntervalChange}
+                    style={{
+                      padding: "8px",
+                      borderRadius: "4px",
+                      border: "1px solid rgba(128, 128, 128, 0.4)",
+                      backgroundColor: "inherit",
+                      color: "inherit",
+                      fontSize: "14px",
+                      minWidth: "120px",
+                    }}
+                  >
+                    {SYNC_INTERVAL_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </Box>
               </ListItem>
             )}
           </List>
@@ -827,9 +929,9 @@ export default function PreferencesScreen() {
             </ListItem>
           </List>
 
-          {/* AI Summarization Section */}
+          {/* Summarization Section */}
           <List>
-            <ListSubheader>AI Summarization</ListSubheader>
+            <ListSubheader>Summarization</ListSubheader>
 
             <ListItem>
               <ListItemIcon>
@@ -838,8 +940,8 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    Enable AI Summarization
-                    <Tooltip title="Generate summaries when saving articles using cloud AI providers (Groq or OpenAI).">
+                    Enable summarization
+                    <Tooltip title="Generate a summary when saving an article, using a language model from the provider you choose — a cloud service or your own server.">
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
                   </Box>
@@ -859,145 +961,41 @@ export default function PreferencesScreen() {
 
             {summarizationEnabled && (
               <>
-                {/* Provider Selection */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Provider" secondary="Choose your AI provider" />
-                  </Box>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
-                    {PROVIDERS.map((provider) => (
-                      <Chip
-                        key={provider.id}
-                        label={provider.name}
-                        onClick={() => handleProviderChange(provider.id)}
-                        variant={summaryProvider === provider.id ? "filled" : "outlined"}
-                        color={summaryProvider === provider.id ? "primary" : "default"}
-                      />
-                    ))}
-                  </Box>
-                </ListItem>
+                <SettingField label="LLM Provider">
+                  <ChipGroup
+                    options={PROVIDERS.map((p) => ({
+                      value: p.id,
+                      label: p.name,
+                    }))}
+                    value={summaryProvider}
+                    onChange={handleProviderChange}
+                  />
+                </SettingField>
 
-                {/* Server URL (custom / local providers only) */}
                 {getProviderConfig(summaryProvider)?.isCustom && (
-                  <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                    <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                      <ListItemIcon>
-                        <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                      </ListItemIcon>
-                      <ListItemText
-                        primary="Server URL"
-                        secondary="OpenAI-compatible endpoint, e.g. http://localhost:8080/v1/chat/completions"
-                      />
-                    </Box>
-                    <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
-                      <TextField
-                        value={summaryBaseUrl}
-                        onChange={(e) => handleBaseUrlChange(e.target.value)}
-                        fullWidth
-                        size="small"
-                        placeholder="http://localhost:8080/v1/chat/completions"
-                      />
-                    </Box>
-                  </ListItem>
+                  <SettingField
+                    label="Server URL"
+                    hint="OpenAI-compatible chat completions endpoint"
+                  >
+                    <TextField
+                      value={summaryBaseUrl}
+                      onChange={(e) => handleBaseUrlChange(e.target.value)}
+                      fullWidth
+                      size="small"
+                      placeholder="http://localhost:8080/v1/chat/completions"
+                    />
+                  </SettingField>
                 )}
 
-                {/* Model Selection */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Model" />
-                  </Box>
-                  <Box
-                    sx={{
-                      ml: 7,
-                      pr: 2,
-                      width: "calc(100% - 56px)",
-                      display: "flex",
-                      gap: 1,
-                      alignItems: "center",
-                    }}
-                  >
-                    {availableModels.length === 0 ? (
-                      // No list fetched yet — let the user type a model id. The ↻
-                      // button fetches the provider's live list to turn this into
-                      // a dropdown.
-                      <TextField
-                        value={summaryModel}
-                        onChange={(e) => handleModelChange(e.target.value)}
-                        fullWidth
-                        size="small"
-                        placeholder="Type a model id, or press ↻ to fetch"
-                      />
-                    ) : (
-                      <FormControl fullWidth size="small">
-                        <Select
-                          value={
-                            // Keep the current selection valid even if it isn't
-                            // in the fetched list.
-                            availableModels.some((m) => m.id === summaryModel) ? summaryModel : ""
-                          }
-                          displayEmpty
-                          onChange={(e) => handleModelChange(e.target.value)}
-                        >
-                          {!availableModels.some((m) => m.id === summaryModel) && (
-                            <MuiMenuItem value="" disabled>
-                              Select a model
-                            </MuiMenuItem>
-                          )}
-                          {availableModels.map((model) => (
-                            <MuiMenuItem key={model.id} value={model.id}>
-                              <ListItemText
-                                primary={model.id}
-                                secondary={
-                                  model.estimate
-                                    ? `~${model.estimate.summariesPerDay} summaries/day`
-                                    : undefined
-                                }
-                              />
-                            </MuiMenuItem>
-                          ))}
-                        </Select>
-                      </FormControl>
-                    )}
-                    <IconButton
-                      onClick={handleRefreshModels}
-                      disabled={isFetchingModels}
-                      title="Fetch available models from provider"
-                      size="small"
-                    >
-                      {isFetchingModels ? (
-                        <CircularProgress size={20} />
-                      ) : (
-                        <RefreshIcon fontSize="small" />
-                      )}
-                    </IconButton>
-                  </Box>
-                </ListItem>
-
-                {/* API Key */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="API Key"
-                      secondary={getProviderConfig(summaryProvider)?.apiKeyHint}
-                    />
-                  </Box>
-                  <Box sx={{ ml: 7, pr: 2, display: "flex", gap: 1, width: "calc(100% - 56px)" }}>
+                <SettingField label="API Key" hint={getProviderConfig(summaryProvider)?.apiKeyHint}>
+                  <Box sx={{ display: "flex", gap: 1 }}>
                     <TextField
                       value={apiKey}
                       onChange={(e) => handleApiKeyChange(e.target.value)}
                       fullWidth
                       size="small"
                       type={showApiKey ? "text" : "password"}
-                      placeholder="Enter API key..."
+                      placeholder="Enter API key"
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
@@ -1005,6 +1003,7 @@ export default function PreferencesScreen() {
                               onClick={() => setShowApiKey(!showApiKey)}
                               edge="end"
                               size="small"
+                              aria-label={showApiKey ? "Hide API key" : "Show API key"}
                             >
                               {showApiKey ? (
                                 <VisibilityOff fontSize="small" />
@@ -1022,29 +1021,85 @@ export default function PreferencesScreen() {
                       onClick={handleTestApiConnection}
                       disabled={
                         isTestingApi ||
-                        (getProviderConfig(summaryProvider)?.requiresApiKey ?? true
+                        ((getProviderConfig(summaryProvider)?.requiresApiKey ?? true)
                           ? !apiKey.trim()
                           : false)
                       }
-                      sx={{ minWidth: 80 }}
+                      sx={{ minWidth: 64, flexShrink: 0 }}
                     >
                       {isTestingApi ? <CircularProgress size={20} /> : "Test"}
                     </Button>
                   </Box>
-                </ListItem>
+                </SettingField>
 
-                {/* Detail Level */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Detail Level"
-                      secondary={DETAIL_LEVELS[summarySettings.detailLevel]}
-                    />
+                <SettingField label="Model">
+                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                    {availableModels.length === 0 ? (
+                      // No list fetched yet — let the user type a model id. The
+                      // list loads once credentials are set, or via ↻.
+                      <TextField
+                        value={summaryModel}
+                        onChange={(e) => handleModelChange(e.target.value)}
+                        fullWidth
+                        size="small"
+                        placeholder="Model id"
+                      />
+                    ) : (
+                      <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
+                        <Select
+                          value={
+                            // Keep the current selection valid even if it isn't
+                            // in the fetched list.
+                            availableModels.some((m) => m.id === summaryModel) ? summaryModel : ""
+                          }
+                          displayEmpty
+                          // Show just the id in the closed field; the estimate
+                          // line is only for the open menu.
+                          renderValue={(value) => value || "Select a model"}
+                          onChange={(e) => handleModelChange(e.target.value)}
+                        >
+                          {availableModels.map((model) => (
+                            <MuiMenuItem key={model.id} value={model.id}>
+                              <ListItemText
+                                primary={model.id}
+                                secondary={
+                                  model.estimate
+                                    ? `~${model.estimate.summariesPerDay} summaries/day`
+                                    : undefined
+                                }
+                                sx={{
+                                  my: 0,
+                                  "& .MuiListItemText-primary": {
+                                    wordBreak: "break-all",
+                                  },
+                                }}
+                              />
+                            </MuiMenuItem>
+                          ))}
+                        </Select>
+                      </FormControl>
+                    )}
+                    <IconButton
+                      onClick={handleRefreshModels}
+                      disabled={isFetchingModels}
+                      title="Fetch available models from provider"
+                      aria-label="Fetch available models from provider"
+                      size="small"
+                    >
+                      {isFetchingModels ? (
+                        <CircularProgress size={20} />
+                      ) : (
+                        <RefreshIcon fontSize="small" />
+                      )}
+                    </IconButton>
                   </Box>
-                  <Box sx={{ ml: 7, mr: 2, width: "calc(100% - 56px)" }}>
+                </SettingField>
+
+                <SettingField
+                  label="Detail level"
+                  hint={DETAIL_LEVELS[summarySettings.detailLevel]}
+                >
+                  <Box sx={{ px: 1 }}>
                     <Slider
                       value={summarySettings.detailLevel}
                       onChange={(_, value) =>
@@ -1052,104 +1107,70 @@ export default function PreferencesScreen() {
                       }
                       min={0}
                       max={4}
-                      marks={DETAIL_LEVELS.map((label, i) => ({
-                        value: i,
-                        label: i === 0 || i === 4 ? label : "",
-                      }))}
+                      step={1}
+                      marks
                       size="small"
+                      aria-label="Detail level"
                     />
                   </Box>
-                </ListItem>
+                  {/* End labels sit outside the slider so they can't overflow narrow screens. */}
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      mt: -1,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      {DETAIL_LEVELS[0]}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {DETAIL_LEVELS[DETAIL_LEVELS.length - 1]}
+                    </Typography>
+                  </Box>
+                </SettingField>
 
-                {/* Format */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Format" />
-                  </Box>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
-                    {FORMAT_OPTIONS.map((option) => (
-                      <Chip
-                        key={option.value}
-                        label={option.label}
-                        onClick={() => handleSettingChange("format", option.value)}
-                        variant={summarySettings.format === option.value ? "filled" : "outlined"}
-                        color={summarySettings.format === option.value ? "primary" : "default"}
-                        size="small"
-                      />
-                    ))}
-                  </Box>
-                </ListItem>
+                <SettingField label="Format">
+                  <ChipGroup
+                    options={FORMAT_OPTIONS}
+                    value={summarySettings.format}
+                    onChange={(v) => handleSettingChange("format", v)}
+                    size="small"
+                  />
+                </SettingField>
 
-                {/* Tone */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Tone" />
-                  </Box>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
-                    {TONE_OPTIONS.map((option) => (
-                      <Chip
-                        key={option.value}
-                        label={option.label}
-                        onClick={() => handleSettingChange("tone", option.value)}
-                        variant={summarySettings.tone === option.value ? "filled" : "outlined"}
-                        color={summarySettings.tone === option.value ? "primary" : "default"}
-                        size="small"
-                      />
-                    ))}
-                  </Box>
-                </ListItem>
+                <SettingField label="Tone">
+                  <ChipGroup
+                    options={TONE_OPTIONS}
+                    value={summarySettings.tone}
+                    onChange={(v) => handleSettingChange("tone", v)}
+                    size="small"
+                  />
+                </SettingField>
 
-                {/* Focus */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText primary="Focus" />
-                  </Box>
-                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1, ml: 7 }}>
-                    {FOCUS_OPTIONS.map((option) => (
-                      <Chip
-                        key={option.value}
-                        label={option.label}
-                        onClick={() => handleSettingChange("focus", option.value)}
-                        variant={summarySettings.focus === option.value ? "filled" : "outlined"}
-                        color={summarySettings.focus === option.value ? "primary" : "default"}
-                        size="small"
-                      />
-                    ))}
-                  </Box>
-                </ListItem>
+                <SettingField label="Focus">
+                  <ChipGroup
+                    options={FOCUS_OPTIONS}
+                    value={summarySettings.focus}
+                    onChange={(v) => handleSettingChange("focus", v)}
+                    size="small"
+                  />
+                </SettingField>
 
-                {/* Custom Prompt */}
-                <ListItem sx={{ flexDirection: "column", alignItems: "stretch" }}>
-                  <Box sx={{ display: "flex", alignItems: "center", width: "100%", mb: 1 }}>
-                    <ListItemIcon>
-                      <AutoAwesomeIcon sx={{ visibility: "hidden" }} />
-                    </ListItemIcon>
-                    <ListItemText
-                      primary="Custom Prompt (Advanced)"
-                      secondary="Override with your own prompt. Use {text} for article text."
-                    />
-                  </Box>
-                  <Box sx={{ ml: 7, pr: 2, width: "calc(100% - 56px)" }}>
-                    <TextField
-                      value={summarySettings.customPrompt}
-                      onChange={(e) => handleSettingChange("customPrompt", e.target.value)}
-                      fullWidth
-                      size="small"
-                      multiline
-                      rows={2}
-                      placeholder="Leave empty to use settings above..."
-                    />
-                  </Box>
-                </ListItem>
+                <SettingField
+                  label="Custom prompt (advanced)"
+                  hint="Replaces the settings above. Use {text} for the article text."
+                >
+                  <TextField
+                    value={summarySettings.customPrompt}
+                    onChange={(e) => handleSettingChange("customPrompt", e.target.value)}
+                    fullWidth
+                    size="small"
+                    multiline
+                    minRows={2}
+                    placeholder="Leave empty to use the settings above"
+                  />
+                </SettingField>
               </>
             )}
           </List>
@@ -1254,14 +1275,18 @@ export default function PreferencesScreen() {
                     try {
                       const articles = await db.articles.toArray();
                       const dataStr = JSON.stringify(articles, null, 2);
-                      const dataBlob = new Blob([dataStr], { type: "application/json" });
+                      const dataBlob = new Blob([dataStr], {
+                        type: "application/json",
+                      });
                       const url = URL.createObjectURL(dataBlob);
                       const link = document.createElement("a");
                       link.href = url;
                       link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.json`;
                       link.click();
                       URL.revokeObjectURL(url);
-                      enqueueSnackbar("JSON export completed!", { variant: "success" });
+                      enqueueSnackbar("JSON export completed!", {
+                        variant: "success",
+                      });
                     } catch (error) {
                       console.error("Export failed:", error);
                       enqueueSnackbar("Export failed", { variant: "error" });
@@ -1309,14 +1334,18 @@ export default function PreferencesScreen() {
                         .map((row) => row.map((field) => `"${field}"`).join(","))
                         .join("\n");
 
-                      const dataBlob = new Blob([csvContent], { type: "text/csv" });
+                      const dataBlob = new Blob([csvContent], {
+                        type: "text/csv",
+                      });
                       const url = URL.createObjectURL(dataBlob);
                       const link = document.createElement("a");
                       link.href = url;
                       link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.csv`;
                       link.click();
                       URL.revokeObjectURL(url);
-                      enqueueSnackbar("CSV export completed!", { variant: "success" });
+                      enqueueSnackbar("CSV export completed!", {
+                        variant: "success",
+                      });
                     } catch (error) {
                       console.error("Export failed:", error);
                       enqueueSnackbar("Export failed", { variant: "error" });
@@ -1376,9 +1405,13 @@ export default function PreferencesScreen() {
                   if (e.target.checked) {
                     try {
                       await enablePublicExport();
-                      enqueueSnackbar("Public export enabled", { variant: "success" });
+                      enqueueSnackbar("Public export enabled", {
+                        variant: "success",
+                      });
                     } catch {
-                      enqueueSnackbar("Failed to publish export", { variant: "error" });
+                      enqueueSnackbar("Failed to publish export", {
+                        variant: "error",
+                      });
                     }
                   } else {
                     const result = await disablePublicExport();
@@ -1456,7 +1489,9 @@ export default function PreferencesScreen() {
                     onClick={async () => {
                       try {
                         await publishNow();
-                        enqueueSnackbar("Published successfully", { variant: "success" });
+                        enqueueSnackbar("Published successfully", {
+                          variant: "success",
+                        });
                       } catch {
                         enqueueSnackbar("Publish failed", { variant: "error" });
                       }
