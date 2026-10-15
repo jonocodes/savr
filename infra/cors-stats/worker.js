@@ -194,6 +194,8 @@ export default {
 
     if (!isAuthorized(request, env)) return html(renderUnlock());
 
-    return html(renderDashboard());
+    return html(
+      renderDashboard({ ranges: Object.keys(RANGES), mimes: MIMES, caches: CACHES })
+    );
   },
 };

@@ -56,7 +56,11 @@ test("bootstraps a session cookie from a correct ?key= and redirects", async () 
 test("unlocks the dashboard with the cookie or a bearer token", async () => {
   const viaCookie = await worker.fetch(authed(""), env());
   assert.equal(viaCookie.status, 200);
-  assert.ok((await viaCookie.text()).includes("Requests over time"));
+  const body = await viaCookie.text();
+  assert.ok(body.includes("Requests over time"));
+  assert.match(body, /"ranges":\["24h","7d","30d","90d"\]/, "range buttons must be populated");
+  assert.match(body, /"mimes":\["all","html"/, "type filter must be populated");
+  assert.match(body, /"caches":\["all","hit","miss","bypass"\]/, "cache filter must be populated");
 
   const viaBearer = await worker.fetch(
     new Request(BASE, { headers: { authorization: `Bearer ${KEY}` } }),
