@@ -13,13 +13,14 @@ back to the app's proxy (or a placeholder) without failing the save.
 the panel if needed) and delivered as raw content, exactly like the YouTube
 transcript bookmarklet — including the video thumbnail, which the app downloads
 like any article image. A video without a transcript falls back to the normal
-page scrape. This is on by default; **Settings → On YouTube, fetch the
+page scrape. This is on by default; **Extension settings → On YouTube, fetch the
 transcript instead of the page** turns it off.
 
 The toolbar button opens a small popup:
 
 - **Save current page** — scrapes the active tab and hands it to Savr.
 - **Visit Savr** — focuses an open Savr tab, or opens one.
+- **Extension settings** — opens the options page (see [Settings](#settings)).
 
 There is deliberately no page context-menu entry.
 
@@ -170,7 +171,7 @@ These need a manual check on the first release:
 
 ## Settings
 
-**Settings** in the popup opens the options page (also reachable from the
+**Extension settings** in the popup opens the options page (also reachable from the
 browser's extension manager: right-click the toolbar button → **Manage
 Extension** → **Options** in Firefox, or the details page in Chrome).
 

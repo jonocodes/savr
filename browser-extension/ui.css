@@ -14,6 +14,10 @@ body {
   gap: 8px;
 }
 
+.panel.narrow {
+  width: 170px;
+}
+
 .panel.wide {
   width: 320px;
 }
@@ -86,16 +90,6 @@ input {
   font: inherit;
 }
 
-button.quiet {
-  background: transparent;
-  border: none;
-  color: #4c6ef5;
-  padding: 4px 0;
-  justify-self: start;
-  font-size: 12px;
-  text-decoration: underline;
-}
-
 .hint,
 #status {
   margin: 0;
@@ -119,7 +113,6 @@ button.quiet {
 
 @media (prefers-color-scheme: dark) {
   button.secondary,
-  button.quiet,
   .links a {
     color: #a5b4fc;
     border-color: #a5b4fc;
