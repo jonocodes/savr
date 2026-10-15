@@ -17,8 +17,9 @@ import { toDataPoint } from "./stats-schema.js";
  * Write one aggregate data point to Analytics Engine. The field order lives in
  * stats-schema.js, shared with the stats worker (infra/cors-stats). `host` is
  * only emitted for failures and `errorKind` only for 502s and Cloudflare
- * 530s, mirroring the error-log hygiene. The binding exists only on the shared public instance
- * ([env.public] in wrangler.toml); self-hosted deploys write nothing.
+ * 530s, mirroring the error-log hygiene. The binding exists only on the
+ * shared public instance ([env.public] in wrangler.toml); self-hosted deploys
+ * write nothing.
  *
  * Statistics must never cost a proxied response, so a failing write is logged
  * and swallowed.
