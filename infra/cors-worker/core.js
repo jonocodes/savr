@@ -24,6 +24,11 @@
  *    token, so it looks dead to scanners. Auth is checked before the edge
  *    cache, so a cache hit is never served without a token. The cache key is
  *    the target URL only, so rotating a token doesn't throw away the cache.
+ *  - stats: an optional `onRequest` port emits one neutral event per recorded
+ *    request (never preflights, health checks, or setup pages) — status, MIME
+ *    class, cache outcome, and on failures the host and fetch-error kind. The
+ *    Cloudflare entry turns those into Analytics Engine points (infra/cors-stats);
+ *    the core itself stores nothing.
  */
 
 export const PROXY_NAME = "savr-cors-proxy";
@@ -120,6 +125,77 @@ function cacheControlFor(status, contentType) {
   if (status >= 500) return "public, max-age=60";
   if (status >= 400) return "public, max-age=300";
   return "public, max-age=60";
+}
+
+/**
+ * Coarse content class for statistics. The stats dashboard counts "articles"
+ * as `html` fetches, so HTML must be distinguishable from the image/CSS/JS
+ * noise a single article generates. Never stores or derives anything
+ * URL-specific.
+ */
+function mimeBucket(contentType) {
+  const type = (contentType || "").split(";")[0].trim().toLowerCase();
+  if (!type) return "none";
+  if (type === "text/html" || type === "application/xhtml+xml") return "html";
+  if (type.startsWith("image/")) return "image";
+  if (type.startsWith("video/")) return "video";
+  if (type.startsWith("audio/")) return "audio";
+  if (type.startsWith("font/") || type.includes("font")) return "font";
+  if (type === "text/css") return "css";
+  if (type.includes("javascript")) return "js";
+  if (type === "application/pdf") return "pdf";
+  if (type === "application/json" || type.endsWith("+json")) return "json";
+  if (type.includes("xml")) return "xml";
+  if (type.startsWith("text/")) return "text";
+  return "other";
+}
+
+/** Advertised response size, or -1 when unknown (chunked/streamed). */
+function responseBytes(headers) {
+  const value = Number(headers.get("content-length"));
+  return Number.isFinite(value) && value >= 0 ? value : -1;
+}
+
+/**
+ * Coarse caller-app identity for statistics: the Origin header's hostname, or
+ * its scheme for non-web origins (`chrome-extension`, `capacitor`, …). It
+ * identifies the app, never the person — no URL, no path, and extension ids
+ * are not stored.
+ */
+function callerOrigin(request) {
+  const origin = request.headers.get("origin");
+  if (!origin) return "";
+  if (origin === "null") return "null";
+  try {
+    const url = new URL(origin);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      return url.hostname.slice(0, 100);
+    }
+    return url.protocol.replace(":", "").slice(0, 40);
+  } catch {
+    return "invalid";
+  }
+}
+
+/** Coarse client class for statistics; the raw UA is never stored. */
+function clientClass(request) {
+  const ua = request.headers.get("user-agent") || "";
+  if (!ua) return "none";
+  if (/bot|crawler|spider|slurp|curl|wget|python|go-http|okhttp|java|headless|node-fetch|axios|httpclient|libwww/i.test(ua)) {
+    return "bot";
+  }
+  if (ua.startsWith("Mozilla/")) return "browser";
+  return "other";
+}
+
+/** Why an upstream fetch failed, for the 502 breakdown. */
+function fetchErrorKind(error) {
+  const message = String((error && error.message) || "").toLowerCase();
+  if (message.includes("blocked redirect")) return "blocked-redirect";
+  if (message.includes("too many redirects")) return "redirect-loop";
+  if (message.includes("timeout") || message.includes("timed out")) return "timeout";
+  if (message.includes("dns") || message.includes("getaddrinfo") || message.includes("resolve")) return "dns";
+  return "other";
 }
 
 /** Fetch, following redirects manually so each hop is SSRF-checked. */
@@ -302,12 +378,31 @@ You can rotate later by adding a second comma-separated token to the secret.</p>
  *  - isPublic: boolean — the shared instance: open, no token required
  *  - cache: optional { match(Request), put(Request, Response) } edge cache
  *  - waitUntil: optional (promise) => void, to keep a cache write alive
+ *  - onRequest: optional (event) => void, one neutral statistics event per
+ *    recorded request (preflights, health checks and setup pages are not
+ *    recorded). The event carries status, mime, cache, host (failures only),
+ *    errorKind (502s only), bytes, origin, client and durationMs.
  */
 export async function handleRequest(request, options = {}) {
   const tokens = options.tokens ?? [];
   const isPublic = options.isPublic === true;
   const cache = options.cache ?? null;
   const waitUntil = options.waitUntil ?? (() => {});
+  const onRequest = options.onRequest ?? (() => {});
+  const startedAt = Date.now();
+  const record = (status, fields = {}) =>
+    onRequest({
+      status,
+      mime: "",
+      cache: "",
+      host: "",
+      errorKind: "",
+      bytes: -1,
+      origin: callerOrigin(request),
+      client: clientClass(request),
+      durationMs: Date.now() - startedAt,
+      ...fields,
+    });
 
   if (request.method === "OPTIONS") {
     return new Response(null, { headers: CORS_HEADERS });
@@ -333,6 +428,7 @@ export async function handleRequest(request, options = {}) {
   }
 
   if (request.method !== "GET" && request.method !== "HEAD") {
+    record(405, { cache: "bypass" });
     return plain(405, "Method not allowed");
   }
 
@@ -346,6 +442,7 @@ export async function handleRequest(request, options = {}) {
 
   const targetUrl = url.searchParams.get("url");
   if (!targetUrl) {
+    record(400, { cache: "bypass" });
     return plain(400, "Missing 'url' parameter");
   }
 
@@ -353,9 +450,11 @@ export async function handleRequest(request, options = {}) {
   try {
     target = new URL(targetUrl);
   } catch {
+    record(400, { cache: "bypass" });
     return plain(400, "Invalid 'url' parameter");
   }
   if (isBlockedTarget(target)) {
+    record(403, { cache: "bypass", host: target.hostname });
     return plain(403, "Target not allowed");
   }
 
@@ -364,7 +463,15 @@ export async function handleRequest(request, options = {}) {
   const cacheKey = new Request(target.toString(), { method: "GET" });
   if (cache && request.method === "GET") {
     const hit = await cache.match(cacheKey);
-    if (hit) return withCors(hit);
+    if (hit) {
+      record(hit.status, {
+        mime: mimeBucket(hit.headers.get("content-type")),
+        cache: "hit",
+        host: hit.status >= 400 ? target.hostname : "",
+        bytes: responseBytes(hit.headers),
+      });
+      return withCors(hit);
+    }
   }
 
   // Forward only what the target genuinely needs. In particular, never leak
@@ -383,11 +490,22 @@ export async function handleRequest(request, options = {}) {
   } catch (error) {
     // Log the host and error only, never the full URL (it may contain secrets).
     console.log(`proxy fetch failed host=${target.hostname} error=${error && error.message}`);
+    record(502, {
+      cache: "miss",
+      host: target.hostname,
+      errorKind: fetchErrorKind(error),
+    });
     return plain(502, "Upstream fetch failed");
   }
 
   const contentLength = Number(upstream.headers.get("content-length") || "0");
   if (contentLength > MAX_BYTES) {
+    record(413, {
+      mime: mimeBucket(upstream.headers.get("content-type")),
+      cache: "miss",
+      host: target.hostname,
+      bytes: responseBytes(upstream.headers),
+    });
     return plain(413, "Response too large");
   }
 
@@ -410,6 +528,13 @@ export async function handleRequest(request, options = {}) {
   if (cache && request.method === "GET" && upstream.status < 500 && upstream.status !== 206) {
     waitUntil(cache.put(cacheKey, response.clone()));
   }
+
+  record(upstream.status, {
+    mime: mimeBucket(upstream.headers.get("content-type")),
+    cache: request.method === "GET" ? "miss" : "bypass",
+    host: upstream.status >= 400 ? target.hostname : "",
+    bytes: responseBytes(upstream.headers),
+  });
 
   return response;
 }

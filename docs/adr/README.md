@@ -12,3 +12,4 @@ One file per decision that is expensive to reverse or likely to be re-litigated.
 | [0002](0002-unconfigured-proxy-fails-closed.md) | An unconfigured proxy serves a setup page and never proxies |
 | [0003](0003-portable-proxy-core.md) | One portable proxy core, thin platform entries |
 | [0004](0004-proxy-token-is-a-secret.md) | The proxy token is a secret the app must not leak |
+| [0005](0005-proxy-usage-statistics.md) | Proxy usage statistics live in Analytics Engine behind a separate stats worker |

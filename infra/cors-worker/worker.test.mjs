@@ -386,3 +386,181 @@ test("never logs the full target url", async () => {
   assert.ok(!joined.includes("SUPERSECRET"), "secret must not be logged");
   assert.ok(joined.includes("example.com"), "host should be logged for diagnosis");
 });
+
+// ---------------------------------------------------------------------------
+// Usage statistics (Analytics Engine)
+// ---------------------------------------------------------------------------
+
+function makeStatsEnv() {
+  const points = [];
+  return {
+    points,
+    env: {
+      PUBLIC: "true",
+      STATS: {
+        writeDataPoint(point) {
+          points.push(point);
+        },
+      },
+    },
+  };
+}
+
+function withCountry(request, country) {
+  Object.defineProperty(request, "cf", { value: { country } });
+  return request;
+}
+
+test("records an aggregate stat for a proxied article html fetch", async () => {
+  stubGlobals({
+    fetchImpl: async () =>
+      new Response("<html>", {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8", "content-length": "6" },
+      }),
+  });
+  const { points, env } = makeStatsEnv();
+  const request = withCountry(proxyRequest("https://example.com/article"), "NZ");
+  const response = await callWorker(request, { env });
+
+  assert.equal(response.status, 200);
+  assert.equal(points.length, 1);
+  const [point] = points;
+  assert.deepEqual(point.indexes, ["proxy"]);
+  assert.equal(point.blobs[0], "NZ", "country");
+  assert.equal(point.blobs[1], "html", "MIME class");
+  assert.equal(point.blobs[2], "200", "status");
+  assert.equal(point.blobs[3], "miss", "cache");
+  assert.equal(point.blobs[4], "", "no host on success");
+  assert.equal(point.blobs[5], "", "no origin header");
+  assert.equal(point.blobs[6], "none", "no user agent");
+  assert.equal(point.blobs[7], "", "no error kind on success");
+  assert.equal(point.doubles[0], 1);
+  assert.ok(point.doubles[1] >= 0, "duration in ms");
+  assert.equal(point.doubles[2], 6, "advertised bytes");
+});
+
+test("records caller origin and client class without storing the raw UA", async () => {
+  stubGlobals();
+  const { points, env } = makeStatsEnv();
+
+  const webApp = proxyRequest("https://example.com/a");
+  webApp.headers.set("origin", "https://savr.link");
+  webApp.headers.set("user-agent", "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101 Firefox/136.0");
+  await callWorker(webApp, { env });
+
+  const extension = proxyRequest("https://example.com/b");
+  extension.headers.set("origin", "chrome-extension://abcdefghijklmnop");
+  extension.headers.set("user-agent", "Mozilla/5.0 Chrome/130.0.0.0");
+  await callWorker(extension, { env });
+
+  const script = proxyRequest("https://example.com/c");
+  script.headers.set("user-agent", "curl/8.5.0");
+  await callWorker(script, { env });
+
+  assert.deepEqual(
+    points.map((point) => [point.blobs[5], point.blobs[6]]),
+    [
+      ["savr.link", "browser"],
+      ["chrome-extension", "browser"],
+      ["", "bot"],
+    ]
+  );
+  assert.ok(
+    points.every((point) => point.blobs.every((blob) => !blob.includes("Mozilla") && !blob.includes("abcdefghijklmnop"))),
+    "raw UA and extension id must never be stored"
+  );
+});
+
+test("records a cache hit separately, with no upstream fetch", async () => {
+  const cache = stubGlobals();
+  cache.store.set(
+    "https://example.com/hit.jpg",
+    new Response("cached", {
+      status: 200,
+      headers: { "content-type": "image/jpeg", "content-length": "6" },
+    })
+  );
+  const { points, env } = makeStatsEnv();
+  await callWorker(withCountry(proxyRequest("https://example.com/hit.jpg"), "DE"), { env, cache });
+
+  assert.equal(points.length, 1);
+  const [point] = points;
+  assert.equal(point.blobs[1], "image");
+  assert.equal(point.blobs[3], "hit");
+  assert.equal(point.blobs[4], "");
+  assert.equal(point.doubles[2], 6, "cached size");
+});
+
+test("records the host only on failures", async () => {
+  stubGlobals({
+    fetchImpl: async () => new Response("gone", { status: 404 }),
+  });
+  const { points, env } = makeStatsEnv();
+  const response = await callWorker(
+    withCountry(proxyRequest("https://example.com/missing"), "US"),
+    { env }
+  );
+
+  assert.equal(response.status, 404);
+  assert.equal(points.length, 1);
+  const [point] = points;
+  assert.equal(point.blobs[2], "404");
+  assert.equal(point.blobs[4], "example.com", "failing host recorded");
+});
+
+test("does not record preflights, health checks, or requests without a url", async () => {
+  stubGlobals();
+  const { points, env } = makeStatsEnv();
+
+  await callWorker(urlRequest(`${PROXY}?url=https%3A%2F%2Fexample.com%2F`, { method: "OPTIONS" }), { env });
+  await callWorker(urlRequest(`${PROXY}health`), { env });
+  await callWorker(urlRequest(PROXY), { env });
+  await callWorker(proxyRequest("http://127.0.0.1/"), { env });
+
+  assert.equal(points.length, 2, "only the missing-url and blocked-target errors");
+  assert.deepEqual(
+    points.map((point) => point.blobs[2]),
+    ["400", "403"]
+  );
+  assert.equal(points[1].blobs[3], "bypass", "no cache consult");
+  assert.equal(points[1].blobs[4], "127.0.0.1", "blocked target host is diagnostic");
+});
+
+test("records blocked and failed upstreams with fallback country", async () => {
+  stubGlobals({
+    fetchImpl: async () => { throw new Error("boom"); },
+  });
+  const { points, env } = makeStatsEnv();
+  await callWorker(proxyRequest("https://example.com/x"), { env });
+
+  assert.equal(points.length, 1);
+  assert.equal(points[0].blobs[0], "XX", "no cf.country -> XX");
+  assert.equal(points[0].blobs[2], "502");
+  assert.equal(points[0].blobs[3], "miss", "cache was consulted before the failure");
+  assert.equal(points[0].blobs[4], "example.com");
+  assert.equal(points[0].blobs[7], "other", "unclassified fetch error");
+  assert.equal(points[0].doubles[2], -1, "unknown size");
+});
+
+test("classifies redirect failures for the 502 breakdown", async () => {
+  stubGlobals({
+    fetchImpl: async () =>
+      new Response(null, { status: 302, headers: { location: "http://127.0.0.1/secret" } }),
+  });
+  const { points, env } = makeStatsEnv();
+  await callWorker(proxyRequest("https://example.com/redirect"), { env });
+
+  assert.equal(points[0].blobs[2], "502");
+  assert.equal(points[0].blobs[7], "blocked-redirect");
+});
+
+test("deploys without the stats binding still proxy", async () => {
+  stubGlobals({
+    fetchImpl: async () => new Response("ok", { status: 200 }),
+  });
+  const response = await callWorker(proxyRequest("https://example.com/a"), {
+    env: { PUBLIC: "true" },
+  });
+  assert.equal(response.status, 200, "a self-hosted deploy must not require Analytics Engine");
+});
