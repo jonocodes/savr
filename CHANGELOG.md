@@ -2,7 +2,8 @@
 
 ## 2026-10-15
 
-- Telemetry now counts browser-extension saves separately: `capture-extension` (page scraped by the extension) and `capture-extension-raw` (its YouTube transcript extractor), instead of folding them into `capture-bookmarklet` / `capture-raw`. An extension too old to report its version still counts as a bookmarklet save
+- Telemetry now counts browser-extension saves separately: `capture-extension` (page scraped by the extension) and `capture-extension-extracted` (its YouTube transcript extractor), instead of folding them into the bookmarklet events. An extension too old to report its version still counts as a bookmarklet save
+- The `capture-raw` event is renamed `capture-bookmarklet-extracted` ("raw" was an internal term); GoatCounter keeps the old history under `capture-raw` and counts restart under the new name
 
 ## 2026-10-14
 

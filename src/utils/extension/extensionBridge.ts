@@ -169,6 +169,6 @@ export function externalCaptureSource(
   payload: "html" | "raw",
   extension: ExtensionInfo | null
 ): string {
-  if (payload === "raw") return extension ? "extension-raw" : "raw";
+  if (payload === "raw") return extension ? "extension-extracted" : "bookmarklet-extracted";
   return extension ? "extension" : "bookmarklet";
 }
