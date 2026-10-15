@@ -40,6 +40,33 @@ If you choose to file, the browser opens GitHub's prefilled new-issue form **und
 
 Filing also asks GitHub to apply the `failed-url` label. GitHub only applies labels for reporters who have permission on the target repo, so reports from outside contributors arrive labelled only by the `[failed-url]` title prefix.
 
+## CORS proxy statistics (maintainers)
+
+The hosted CORS proxy (used to fetch pages and images from hosts without CORS
+headers) keeps aggregate statistics so its reliability and quota can be
+watched. Each request records only: the country Cloudflare derives from the
+caller's IP (the IP itself is discarded), a coarse content class
+(HTML/image/CSS/JS/…), the HTTP status, whether the edge cache served it, the
+calling site (the `Origin` hostname of whatever site called the proxy — e.g.
+`savr.link` or a self-hoster's domain — its scheme for extensions, or just
+`local` for localhost/LAN/IP origins), a coarse client class
+(browser/bot/other; the raw user agent is never stored), how long the request
+took, and the advertised response size. The **hostname of the fetched site is
+recorded only on failures**, and for network failures a coarse reason
+(DNS/timeout/redirect/other), for error triage. No URLs, no IPs, and no identity
+are stored, and nothing is shared with third parties. The hosted app's regular
+usage telemetry stays as described above; the proxy statistics are a separate
+dataset with 90-day retention, and self-hosters run their own proxy (or none),
+so they are unaffected.
+
+Because the proxy is open to any public host, these counts include any non-Savr
+callers; treat them as a rough operational signal, not an audience measure.
+
+The opt-out below covers the app's GoatCounter telemetry only — the proxy can't
+see that preference. To keep your requests out of the proxy statistics, point
+**Preferences → CORS Proxy** at your own proxy; self-hosted proxies record
+nothing.
+
 ## Opting out
 
 It is on by default but you can turn it off any time under **Preferences → Privacy → "Share anonymous usage statistics."** It is also automatically disabled if your browser sends a [Global Privacy Control](https://globalprivacycontrol.org/) signal — in that case the preference is shown disabled, since Savr is already honoring your browser.

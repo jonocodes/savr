@@ -28,6 +28,7 @@ Savr is:
 - Mark articles as favorites
 - Light, dark, and system themes
 - Toggle between a cleaned reader view and the original page
+- Share an article's URL out to other apps via the system share sheet (clipboard fallback elsewhere)
 - Save content by pasting HTML, Markdown, or plain text, or by uploading PDFs and images
 - Report a failed save by filing a prefilled public GitHub issue, with an editable diagnostic payload (hosted builds; off when self-hosting)
 - Publish a read-only public copy of your collection
@@ -62,6 +63,7 @@ Here are most of the planned features.
 - [x] browser bookmarklet
 - [x] thumbnail generation
 - [x] mobile share action
+- [x] mobile share-out action (system share sheet on Android, clipboard fallback elsewhere)
 - [x] info edit - so you can fix a missing title
 - [x] remember scroll position
 - [x] text to speach read aloud
@@ -155,6 +157,10 @@ If you want to create your own shortcut (particularly if you are hosting Savr yo
 ![iOS-shortcut](./public/screenshots/ios_shortcut.png)
 
 </div>
+
+# Sharing articles out
+
+To send a saved article to another app, open its ⋮ menu (in the list or on the article page) and choose **Share**. On platforms with the Web Share API (Android, iOS, Windows, macOS) this opens the system share sheet with the article's title and URL. Elsewhere — most desktop Linux browsers — Savr falls back to copying the URL to the clipboard.
 
 # Synchronization
 
@@ -335,6 +341,8 @@ The shared default proxy has a free-tier request cap that everyone shares. You c
 1. Deploy the worker. If you don't set a token yet, don't worry: an unconfigured proxy refuses to proxy anything, so a missed step can never leave it open to strangers.
 2. Open the deployed worker URL. It shows a setup page with a freshly generated token, the command to set it, and the exact string to paste into Savr.
 3. Paste that string into **Preferences → CORS Proxy**.
+
+The shared default proxy keeps anonymous aggregate usage statistics (country, content type, status, calling site — never URLs or IPs) so its reliability and quota can be watched; your own proxy records nothing. See [docs/TELEMETRY.md](docs/TELEMETRY.md#cors-proxy-statistics-maintainers) and [infra/cors-stats](infra/cors-stats/README.md).
 
 The proxy setting is kept in your browser's localStorage (never in a cookie), and the token is masked in the app's diagnostic log and failure reports. Full details, including token rotation, are in [infra/cors-worker/README.md](infra/cors-worker/README.md).
 

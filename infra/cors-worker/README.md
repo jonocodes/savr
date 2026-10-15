@@ -10,12 +10,17 @@ core (`core.js`), so a Deno Deploy entry point can reuse it later.
 
 ## Files
 
-- `core.js` — portable `handleRequest(request, { tokens, isPublic, cache })`:
-  auth, routing, setup page, caching, SSRF guard. No Cloudflare globals.
+- `core.js` — portable
+  `handleRequest(request, { tokens, isPublic, cache, waitUntil, onRequest })`:
+  auth, routing, setup page, caching, SSRF guard, and the neutral statistics
+  event port. No Cloudflare globals.
 - `worker.js` — Cloudflare entry: reads `PROXY_TOKENS`/`PUBLIC` from the
-  environment and supplies `caches.default`.
+  environment, supplies `caches.default`, and writes statistics events to
+  Analytics Engine (a failed write is logged, never fails the request).
+- `stats-schema.js` — the statistics schema (field order, vocabularies,
+  dataset) shared with the stats worker in `infra/cors-stats`.
 - `wrangler.toml` — default (generic, locked) config plus the `[env.public]`
-  open instance.
+  open instance (which carries the stats binding).
 - `.dev.vars.example` — the `PROXY_TOKENS` secret, for local `wrangler dev`
   and the Deploy to Cloudflare button.
 - `worker.test.mjs` — unit tests (`node --test`).
@@ -89,12 +94,27 @@ with `Access-Control-Allow-Origin: *`. `OPTIONS` answers preflight.
 There is intentionally **no host allowlist** — it must work for arbitrary
 public sites.
 
+## Usage statistics
+
+The shared public instance writes one Analytics Engine point per recorded
+request (binding `STATS`, dataset `savr_cors_stats`): country, MIME class,
+status, cache outcome (hit/miss/bypass), the caller app (Origin hostname,
+scheme, or `local` for dev/LAN origins) and client class (browser/bot/other,
+from a bucketed UA) — plus, on failures only, the host, and on 502s the
+fetch-error kind. Response size and duration are recorded as numbers. No URLs,
+no IPs, no raw user agent.
+Preflights, health checks and setup pages are not recorded. The core emits
+these as neutral events through its `onRequest` port; only the Cloudflare entry
+turns them into data points, and only under `[env.public]`, so self-hosted
+deploys write nothing. The separate stats worker (`infra/cors-stats`) queries
+and displays them; see its README for the schema and the dashboard.
+
 ## Test
 
 ```bash
 cd infra/cors-worker && node --test
 # or, from the repo root:
-node --test "infra/cors-worker/*.test.mjs"
+node --test "infra/cors-worker/*.test.mjs" "infra/cors-stats/*.test.mjs"
 ```
 
 ## What this does *not* fix

@@ -25,9 +25,9 @@ export default tseslint.config(
     },
   },
   {
-    // The Cloudflare CORS worker is deployed as-is (no build step) and runs on
-    // the Workers runtime, so it needs the platform globals declared.
-    files: ['infra/cors-worker/**/*.{js,mjs}'],
+    // The Cloudflare workers are deployed as-is (no build step) and run on
+    // the Workers runtime, so they need the platform globals declared.
+    files: ['infra/cors-worker/**/*.{js,mjs}', 'infra/cors-stats/**/*.{js,mjs}'],
     languageOptions: {
       globals: {
         fetch: 'readonly',
@@ -35,6 +35,7 @@ export default tseslint.config(
         Request: 'readonly',
         Response: 'readonly',
         URL: 'readonly',
+        URLSearchParams: 'readonly',
         TextEncoder: 'readonly',
         crypto: 'readonly',
         caches: 'readonly',

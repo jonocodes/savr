@@ -40,3 +40,6 @@ lib/__tests__/*.test.d.ts
 tests/e2e/.test-env.json
 
 .flox
+
+# Wrangler local state (Cloudflare workers)
+.wrangler

@@ -60,6 +60,7 @@ import { useSyncProgress } from "~/hooks/useSyncProgress";
 import { useFailureReport } from "~/hooks/useFailureReport";
 import { errorMessage } from "~/utils/logging";
 import { normalizeUrl } from "~/utils/net/url";
+import { shareArticle } from "~/utils/share";
 import FailureReportDialog from "./FailureReportDialog";
 
 import { keyframes } from "@mui/system";
@@ -167,13 +168,17 @@ function ArticleItem({ article }: { article: Article }) {
     setAnchorEl(null);
   };
 
-  const handleShare = (event: React.MouseEvent) => {
+  const handleShare = async (event: React.MouseEvent) => {
     event.stopPropagation();
-    if (article.url) {
-      navigator.clipboard.writeText(article.url);
-      alert("Url copied to clipboard: " + article.url);
+    closeMenu(event);
+    if (!article.url) return;
+
+    const outcome = await shareArticle(article.url, article.title);
+    if (outcome === "copied") {
+      enqueueSnackbar("URL copied to clipboard");
+    } else if (outcome === "failed") {
+      enqueueSnackbar("Failed to share article", { variant: "error" });
     }
-    closeMenu();
   };
 
   const handleArchive = async (event: React.MouseEvent) => {
@@ -315,7 +320,7 @@ function ArticleItem({ article }: { article: Article }) {
           </ListItemIcon>
           {article.favorite ? "Unmark favorite" : "Mark favorite"}
         </MenuItem>
-        <MenuItem onClick={handleShare}>
+        <MenuItem onClick={handleShare} data-testid="article-menu-share">
           <ListItemIcon>
             <ShareIcon fontSize="small" />
           </ListItemIcon>

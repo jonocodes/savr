@@ -21,3 +21,11 @@ name = "lively-cors-proxy-b569"
 
 [env.public.vars]
 PUBLIC = "true"
+
+# Usage statistics, shared public instance only: one Analytics Engine point per
+# recorded request, read and displayed by the separate stats worker
+# (infra/cors-stats; see its README). Self-hosted deploys get no binding, so
+# they write nothing.
+[[env.public.analytics_engine_datasets]]
+binding = "STATS"
+dataset = "savr_cors_stats"
