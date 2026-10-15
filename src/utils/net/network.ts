@@ -41,6 +41,15 @@ export function isPWAMode(): boolean {
 }
 
 /**
+ * Checks if the device has no mouse or trackpad (phones, touch-only tablets).
+ * Bookmarklets need dragging to a bookmarks bar and the browser extensions are
+ * desktop-only, so those save tools are hidden on such devices.
+ */
+export function isTouchOnlyDevice(): boolean {
+  return !window.matchMedia("(any-pointer: fine)").matches;
+}
+
+/**
  * Checks if the Network Information API is supported
  *
  * @returns true if the API is available
