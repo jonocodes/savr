@@ -80,8 +80,9 @@ is a documented path: ship one last self-hosted version **without**
 `update_url`, and Firefox switches those installs to AMO for updates.
 
 - **Install link.** `https://savr.link/extension/firefox.xpi` is a Netlify
-  redirect (`public/_redirects`) to the newest release asset, so the link the
-  app shows never changes. The asset is uploaded as
+  redirect (`public/_redirects`) to the newest release asset, so that link
+  never changes. Preferences links to the GitHub release list instead: clicked
+  from the app, Firefox blocked the install through the redirect. The asset is uploaded as
   `Content-Type: application/x-xpinstall`, which is what makes Firefox start
   its install flow instead of downloading the file. Any site other than AMO
   gets Firefox's "Allow *site* to install an add-on?" prompt first; that is
