@@ -44,7 +44,7 @@ Deploy a token-locked proxy of your own from `infra/cors-worker/` (there is a De
 
 ### `VITE_FIREFOX_EXTENSION_URL` / `VITE_CHROME_EXTENSION_URL`
 
-- **Default**: Firefox → `https://savr.link/extension/firefox.xpi` (stable link to the newest signed XPI; see [Releasing](../browser-extension/README.md#releasing)). Chrome → the [browser extension README](https://github.com/jonocodes/savr/tree/main/browser-extension) (install instructions) until a Chrome Web Store listing exists.
+- **Default**: Firefox → `https://github.com/jonocodes/savr/releases/latest` (the newest extension release; install the signed `.xpi` from its assets). Chrome → empty (hidden) until a Chrome Web Store listing exists.
 - **Description**: Where the Preferences screen links to install the browser extension. Set one to an empty string to hide that link.
 - **Usage**: `VITE_CHROME_EXTENSION_URL=https://chromewebstore.google.com/detail/… npm run build`
 
