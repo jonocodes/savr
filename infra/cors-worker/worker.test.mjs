@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "./worker.js";
-import { handleRequest, parseTokens } from "./core.js";
+import { handleRequest, parseOriginPatterns, parseTokens } from "./core.js";
 import {
   BLOB_FIELDS,
   CACHE_OUTCOMES,
@@ -685,4 +685,161 @@ test("deploys without the stats binding still proxy", async () => {
     env: { PUBLIC: "true" },
   });
   assert.equal(response.status, 200, "a self-hosted deploy must not require Analytics Engine");
+});
+
+// ---------------------------------------------------------------------------
+// Origin allowlist
+// ---------------------------------------------------------------------------
+
+const PUBLIC_ALLOWED_ORIGINS =
+  "https://savr.link,https://*--savrlist.netlify.app,http://localhost:*,http://127.0.0.1:*";
+
+function fromOrigin(origin, target = "https://example.com/a") {
+  return proxyRequest(target, origin ? { headers: { origin } } : {});
+}
+
+function countingFetch() {
+  const calls = [];
+  stubGlobals({
+    fetchImpl: async (url) => {
+      calls.push(String(url));
+      return new Response("<html>ok</html>", {
+        status: 200,
+        headers: { "content-type": "text/html" },
+      });
+    },
+  });
+  return calls;
+}
+
+test("origin allowlist admits the listed sites, previews and local dev", async () => {
+  countingFetch();
+  const env = { PUBLIC: "true", ALLOWED_ORIGINS: PUBLIC_ALLOWED_ORIGINS };
+  for (const origin of [
+    "https://savr.link",
+    "https://deploy-preview-116--savrlist.netlify.app",
+    "https://feature-x--savrlist.netlify.app",
+    "http://localhost:3000",
+    "http://localhost",
+    "http://127.0.0.1:8000",
+  ]) {
+    const response = await callWorker(fromOrigin(origin), { env });
+    assert.equal(response.status, 200, `${origin} should be allowed`);
+    assert.equal(response.headers.get("access-control-allow-origin"), origin);
+    assert.equal(response.headers.get("vary"), "Origin");
+  }
+});
+
+test("origin allowlist refuses other callers with 404 and never fetches", async () => {
+  const calls = countingFetch();
+  const env = { PUBLIC: "true", ALLOWED_ORIGINS: PUBLIC_ALLOWED_ORIGINS };
+  for (const origin of [
+    undefined, // curl, server-side scripts, <img> hotlinks
+    "null", // sandboxed iframes, file://
+    "https://evil.example",
+    "http://savr.link", // wrong scheme
+    "https://savr.link.evil.example",
+    "https://evilsavr.link",
+    "https://savr.link:8443", // non-default port not listed
+    "https://savrlist.netlify.app", // the bare site isn't a preview
+    "https://evil.x--savrlist.netlify.app", // `*` never spans a dot
+    "https://x--savrlist.netlify.app.evil.example",
+    "https://localhost:3000", // wrong scheme
+    "chrome-extension://abcdefghijklmnop",
+  ]) {
+    const response = await callWorker(fromOrigin(origin), { env });
+    assert.equal(response.status, 404, `${origin} should be refused`);
+  }
+  assert.deepEqual(calls, [], "refused callers must not reach fetch");
+});
+
+test("origin allowlist restricts callers, never targets", async () => {
+  const calls = countingFetch();
+  const env = { PUBLIC: "true", ALLOWED_ORIGINS: "https://savr.link" };
+  for (const target of [
+    "https://some-blog.example/post",
+    "https://news.example.org/2026/article?x=1",
+    "http://plain-http.example/",
+  ]) {
+    const response = await callWorker(fromOrigin("https://savr.link", target), { env });
+    assert.equal(response.status, 200, `${target} should be fetchable`);
+  }
+  assert.equal(calls.length, 3);
+});
+
+test("origin allowlist is checked before the edge cache", async () => {
+  const cache = stubGlobals();
+  cache.store.set(
+    "https://example.com/hit.jpg",
+    new Response("cached", { status: 200, headers: { "content-type": "image/jpeg" } })
+  );
+  const env = { PUBLIC: "true", ALLOWED_ORIGINS: "https://savr.link" };
+
+  const denied = await callWorker(fromOrigin("https://evil.example", "https://example.com/hit.jpg"), { env, cache });
+  assert.equal(denied.status, 404);
+
+  const allowed = await callWorker(fromOrigin("https://savr.link", "https://example.com/hit.jpg"), { env, cache });
+  assert.equal(allowed.status, 200);
+  assert.equal(await allowed.text(), "cached");
+  assert.equal(allowed.headers.get("access-control-allow-origin"), "https://savr.link");
+});
+
+test("origin allowlist leaves preflight and health open", async () => {
+  stubGlobals();
+  const env = { PUBLIC: "true", ALLOWED_ORIGINS: "https://savr.link" };
+  const preflight = await callWorker(
+    urlRequest(`${PROXY}?url=https%3A%2F%2Fexample.com%2F`, { method: "OPTIONS" }),
+    { env }
+  );
+  assert.equal(preflight.status, 200);
+  const health = await callWorker(urlRequest(`${PROXY}health`), { env });
+  assert.equal(health.status, 200);
+});
+
+test("origin allowlist composes with a token", async () => {
+  countingFetch();
+  const env = { PROXY_TOKENS: TOKEN, ALLOWED_ORIGINS: "https://savr.link" };
+  const ok = await callWorker(
+    pathTokenRequest("https://example.com/a", TOKEN, { headers: { origin: "https://savr.link" } }),
+    { env }
+  );
+  assert.equal(ok.status, 200);
+  const noToken = await callWorker(fromOrigin("https://savr.link"), { env });
+  assert.equal(noToken.status, 404, "the allowlist does not replace the token");
+  const wrongOrigin = await callWorker(
+    pathTokenRequest("https://example.com/a", TOKEN, { headers: { origin: "https://evil.example" } }),
+    { env }
+  );
+  assert.equal(wrongOrigin.status, 404, "the token does not bypass the allowlist");
+});
+
+test("without ALLOWED_ORIGINS any caller may proxy, with a wildcard CORS header", async () => {
+  countingFetch();
+  for (const origin of [undefined, "https://my-self-hosted-savr.example"]) {
+    const response = await callWorker(fromOrigin(origin), { env: { PUBLIC: "true" } });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("access-control-allow-origin"), "*");
+  }
+});
+
+test("records refused origins so the dashboard shows who was turned away", async () => {
+  countingFetch();
+  const { points, env } = makeStatsEnv();
+  env.ALLOWED_ORIGINS = "https://savr.link";
+  await callWorker(fromOrigin("https://evil.example"), { env });
+  assert.equal(points.length, 1);
+  const [point] = points;
+  assert.equal(point.blobs[BLOB_FIELDS.indexOf("status")], "404");
+  assert.equal(point.blobs[BLOB_FIELDS.indexOf("cache")], "bypass");
+  assert.equal(point.blobs[BLOB_FIELDS.indexOf("origin")], "evil.example");
+});
+
+test("parseOriginPatterns drops malformed entries and tolerates spacing and case", () => {
+  assert.deepEqual(parseOriginPatterns(""), []);
+  assert.deepEqual(parseOriginPatterns(undefined), []);
+  assert.equal(
+    parseOriginPatterns(" https://Savr.link/ , savr.link, ftp://x.example, https://a.example/path ").length,
+    1,
+    "only the well-formed origin survives"
+  );
 });

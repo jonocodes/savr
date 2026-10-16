@@ -2,7 +2,7 @@
  * Savr CORS proxy — Cloudflare Worker entry point.
  *
  * Thin wrapper around the portable core in `core.js`; all behaviour (token
- * auth, setup page, health, caching, SSRF guard) lives there so it can be
+ * auth, origin allowlist, setup page, health, caching, SSRF guard) lives there so it can be
  * reused by the Deno entry point. This file adds the one Cloudflare-specific
  * piece: writing the core's statistics events to Analytics Engine.
  *
@@ -10,7 +10,7 @@
  * The shared public instance deploys with `npx wrangler deploy --env public`.
  */
 
-import { handleRequest, parseTokens } from "./core.js";
+import { handleRequest, parseOriginPatterns, parseTokens } from "./core.js";
 import { toDataPoint } from "./stats-schema.js";
 
 /**
@@ -38,6 +38,7 @@ export default {
     return handleRequest(request, {
       tokens: parseTokens(env.PROXY_TOKENS),
       isPublic: String(env.PUBLIC || "").toLowerCase() === "true",
+      allowedOrigins: parseOriginPatterns(env.ALLOWED_ORIGINS),
       cache: globalThis.caches?.default,
       waitUntil: (promise) => ctx.waitUntil(promise),
       onRequest: (event) => recordStat(env, request, event),

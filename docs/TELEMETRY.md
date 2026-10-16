@@ -61,8 +61,10 @@ usage telemetry stays as described above; the proxy statistics are a separate
 dataset with 90-day retention, and self-hosters run their own proxy (or none),
 so they are unaffected.
 
-Because the proxy is open to any public host, these counts include any non-Savr
-callers; treat them as a rough operational signal, not an audience measure.
+The proxy only serves allowlisted calling sites, but refused callers are
+counted too (as `404`/`bypass` with no host), and non-browser clients can forge
+their origin; treat the counts as a rough operational signal, not an audience
+measure.
 
 The opt-out below covers the app's GoatCounter telemetry only — the proxy can't
 see that preference. To keep your requests out of the proxy statistics, point

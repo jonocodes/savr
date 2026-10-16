@@ -21,6 +21,11 @@ name = "lively-cors-proxy-b569"
 
 [env.public.vars]
 PUBLIC = "true"
+# Only these calling sites may use the shared instance: production, Netlify
+# preview/branch deploys, and local dev. Self-hosted Savr frontends should run
+# their own proxy. Restricts callers only — any public article host can still
+# be fetched. Syntax: README.md "Origin allowlist".
+ALLOWED_ORIGINS = "https://savr.link,https://*--savrlist.netlify.app,http://localhost:*,http://127.0.0.1:*"
 
 # Usage statistics, shared public instance only: one Analytics Engine point per
 # recorded request, read and displayed by the separate stats worker

@@ -11,10 +11,10 @@ core (`core.js`), so a Deno Deploy entry point can reuse it later.
 ## Files
 
 - `core.js` — portable
-  `handleRequest(request, { tokens, isPublic, cache, waitUntil, onRequest })`:
-  auth, routing, setup page, caching, SSRF guard, and the neutral statistics
+  `handleRequest(request, { tokens, isPublic, allowedOrigins, cache, waitUntil, onRequest })`:
+  auth, origin allowlist, routing, setup page, caching, SSRF guard, and the neutral statistics
   event port. No Cloudflare globals.
-- `worker.js` — Cloudflare entry: reads `PROXY_TOKENS`/`PUBLIC` from the
+- `worker.js` — Cloudflare entry: reads `PROXY_TOKENS`/`PUBLIC`/`ALLOWED_ORIGINS` from the
   environment, supplies `caches.default`, and writes statistics events to
   Analytics Engine (a failed write is logged, never fails the request).
 - `stats-schema.js` — the statistics schema (field order, vocabularies,
@@ -71,10 +71,40 @@ https://proxy.example/?token=<token>&url=…    ← query parameter
   `{ name: "savr-cors-proxy", version, authRequired }`. On the public
   instance `/health` needs no token and reports `authRequired: false`.
 
+## Origin allowlist
+
+`ALLOWED_ORIGINS` (a plain var, not a secret) restricts which **calling sites**
+may use the proxy. It never restricts which article hosts it fetches. The
+shared public instance sets it in `[env.public.vars]`:
+
+```toml
+ALLOWED_ORIGINS = "https://savr.link,https://*--savrlist.netlify.app,http://localhost:*,http://127.0.0.1:*"
+```
+
+- Entries are origins, `scheme://host[:port]`. `*` in the host matches one or
+  more of `[a-z0-9-]` and never crosses a `.`, so `https://*--savrlist.netlify.app`
+  covers `deploy-preview-116--savrlist.netlify.app` and branch deploys, but
+  not `evil.x--savrlist.netlify.app`. `:*` matches any port; no port means the
+  default port only. Malformed entries are ignored.
+- A missing, `null` or unlisted `Origin` gets the same **404** as a bad token,
+  checked before the edge cache and before any upstream fetch. Refusals are
+  recorded in the stats (status `404`, cache `bypass`, no host).
+- Allowed responses echo the caller's origin in `Access-Control-Allow-Origin`
+  with `Vary: Origin`. `OPTIONS` and `/health` stay open.
+- It composes with `PROXY_TOKENS`: both must pass.
+- Unset (the default) means any caller, as before.
+
+Change it by editing `wrangler.toml` and redeploying (`npx wrangler deploy
+--env public`). This stops other websites from spending the quota through
+their visitors' browsers; it does **not** stop scripts, which can forge
+`Origin`. See [ADR 0006](../../docs/adr/0006-public-proxy-origin-allowlist.md)
+and #117 (rate limiting).
+
 ## What it does
 
 `GET|HEAD /?url=<absolute-url>` fetches `<absolute-url>` and streams it back
-with `Access-Control-Allow-Origin: *`. `OPTIONS` answers preflight.
+with `Access-Control-Allow-Origin: *` (or the caller's origin, behind an
+allowlist). `OPTIONS` answers preflight.
 
 ## Hardening beyond the original
 
@@ -91,8 +121,8 @@ with `Access-Control-Allow-Origin: *`. `OPTIONS` answers preflight.
   full `?url=` (which can carry API keys). The old per-request logging was also
   needlessly expensive.
 
-There is intentionally **no host allowlist** — it must work for arbitrary
-public sites.
+There is intentionally **no target-host allowlist** — it must work for
+arbitrary public sites. (The origin allowlist above restricts callers only.)
 
 ## Usage statistics
 

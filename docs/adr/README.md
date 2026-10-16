@@ -13,3 +13,4 @@ One file per decision that is expensive to reverse or likely to be re-litigated.
 | [0003](0003-portable-proxy-core.md) | One portable proxy core, thin platform entries |
 | [0004](0004-proxy-token-is-a-secret.md) | The proxy token is a secret the app must not leak |
 | [0005](0005-proxy-usage-statistics.md) | Proxy usage statistics live in Analytics Engine behind a separate stats worker |
+| [0006](0006-public-proxy-origin-allowlist.md) | The public proxy only serves allowlisted calling sites |

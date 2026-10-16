@@ -335,7 +335,7 @@ While Savr provides a default proxy, you can configure your own CORS proxy serve
 - **Privacy**: Your requests aren't going through a third-party service
 
 **Set up your own proxy (one click)**  
-The shared default proxy has a free-tier request cap that everyone shares. You can deploy your own copy in a couple of minutes, locked with a secret token so only your devices can use it:
+The shared default proxy has a free-tier request cap that everyone shares, so it only serves the hosted app (savr.link, its preview deploys, and localhost for development). It still fetches articles from any site; it just refuses other calling sites. If you self-host the Savr app on your own domain, you need your own proxy. You can deploy your own copy in a couple of minutes, locked with a secret token so only your devices can use it:
 
 [![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/jonocodes/savr/tree/main/infra/cors-worker)
 
