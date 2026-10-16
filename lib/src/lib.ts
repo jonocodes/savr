@@ -2,6 +2,7 @@ import { ArticleAndRender, ArticleRenderExtra, Article } from "./models";
 // import { version } from '../package.json' with { type: "json" };
 
 import { DEFAULT_WPM } from "./readingSpeed";
+import { getLocale, t } from "./messages";
 export const DB_FILE_NAME = "db.json";
 
 // TODO: maybe dont need this mapping since the subtype is the extension
@@ -65,17 +66,31 @@ export function formatReadTime(minutes: number): string {
   const mins = minutes % 60;
 
   if (totalHours === 0) {
-    return `${mins} min`;
+    return `${mins} ${t("min")}`;
   }
 
   if (totalHours >= 24) {
     const days = Math.floor(totalHours / 24);
     const hours = totalHours % 24;
-    const dayLabel = days === 1 ? "day" : "days";
-    return hours > 0 ? `${days} ${dayLabel} ${hours} hr` : `${days} ${dayLabel}`;
+    const dayLabel = days === 1 ? t("day") : t("days");
+    return hours > 0 ? `${days} ${dayLabel} ${hours} ${t("hr")}` : `${days} ${dayLabel}`;
   }
 
-  return mins > 0 ? `${totalHours} hr ${mins} min` : `${totalHours} hr`;
+  return mins > 0 ? `${totalHours} ${t("hr")} ${mins} ${t("min")}` : `${totalHours} ${t("hr")}`;
+}
+
+// Publication date as shown on cards/article info. English keeps the historic
+// toDateString() format ("Jan 15 2023"); other locales get the equivalent
+// short localized form.
+function formatDate(date: Date): string {
+  const currentLocale = getLocale();
+  if (currentLocale.toLowerCase().startsWith("en")) return date.toDateString();
+  return date.toLocaleDateString(currentLocale, {
+    weekday: "short",
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 }
 
 export function generateInfoForCard(article: Article, wpm: number = DEFAULT_WPM): string {
@@ -89,9 +104,9 @@ export function generateInfoForCard(article: Article, wpm: number = DEFAULT_WPM)
     const pubDate = new Date(article.publishedDate);
 
     if (result == "") {
-      result = pubDate.toDateString();
+      result = formatDate(pubDate);
     } else {
-      result = result + ", " + pubDate.toDateString();
+      result = result + ", " + formatDate(pubDate);
     }
   }
 
@@ -150,9 +165,9 @@ export function generateInfoForArticle(article: Article): string {
     const pubDate = new Date(article.publishedDate);
 
     if (result == "") {
-      result = pubDate.toDateString();
+      result = formatDate(pubDate);
     } else {
-      result = result + " &#x2022; " + pubDate.toDateString();
+      result = result + " &#x2022; " + formatDate(pubDate);
     }
   }
 

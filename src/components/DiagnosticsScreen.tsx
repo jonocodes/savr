@@ -30,6 +30,7 @@ import { subscribeDiagnostic } from "~/utils/sync/storage";
 import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import { isPWAMode } from "~/utils/net/network";
 import { getCorsProxyValue, maskCorsProxyInText } from "~/utils/net/corsProxy";
+import { useTranslation } from "react-i18next";
 import React from "react";
 
 interface RemoteStorageEvent {
@@ -39,6 +40,7 @@ interface RemoteStorageEvent {
 }
 
 export default function DiagnosticsScreen() {
+  const { t } = useTranslation();
   // Get all articles from the database
   const articles = useLiveQuery(() => db.articles.toArray());
   const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
@@ -91,11 +93,11 @@ export default function DiagnosticsScreen() {
   const handleCopyLogs = React.useCallback(async () => {
     try {
       await navigator.clipboard.writeText(formatLogsForCopy(filteredLogs));
-      alert(`Copied ${filteredLogs.length} log entries to clipboard`);
+      alert(t("diagnostics.copiedLogs", { count: filteredLogs.length }));
     } catch {
-      alert("Failed to copy logs to clipboard");
+      alert(t("diagnostics.copyLogsFailed"));
     }
-  }, [filteredLogs]);
+  }, [filteredLogs, t]);
 
   const { client: remoteStorageClient, remoteStorage } = useRemoteStorage();
 
@@ -176,7 +178,7 @@ export default function DiagnosticsScreen() {
         if (!existingDirs.has(article.slug)) {
           orphaned.push({
             article,
-            reason: "Missing remote storage directory",
+            reason: t("diagnostics.reasonMissingDir"),
           });
         }
       }
@@ -188,7 +190,7 @@ export default function DiagnosticsScreen() {
     } finally {
       setIsScanningOrphaned(false);
     }
-  }, [remoteStorageClient, articles?.length]);
+  }, [remoteStorageClient, articles?.length, t]);
 
   React.useEffect(() => {
     if (remoteStorageClient && articles) {
@@ -410,10 +412,10 @@ export default function DiagnosticsScreen() {
         <Container maxWidth="lg">
           <Paper elevation={2} sx={{ p: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom>
-              Diagnostics
+              {t("diagnostics.title")}
             </Typography>
             <Typography variant="body1" color="text.secondary">
-              Loading articles...
+              {t("diagnostics.loadingArticles")}
             </Typography>
           </Paper>
         </Container>
@@ -426,13 +428,13 @@ export default function DiagnosticsScreen() {
       <Container maxWidth="lg">
         <Paper elevation={2} sx={{ p: 4 }}>
           <Typography variant="h4" component="h1" gutterBottom>
-            Diagnostics
+            {t("diagnostics.title")}
           </Typography>
 
           {/* RemoteStorage Status Section */}
           <Box sx={{ mt: 2, mb: 4 }}>
             <Typography variant="h6" component="h2" gutterBottom>
-              RemoteStorage Status
+              {t("diagnostics.remoteStorageStatus")}
             </Typography>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 2 }}>
               {/* Connection Status */}
@@ -442,15 +444,21 @@ export default function DiagnosticsScreen() {
               >
                 <Box sx={{ flex: 1 }}>
                   <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
-                    {remoteStorageState.connected ? "Connected" : "Not Connected"}
+                    {remoteStorageState.connected
+                      ? t("diagnostics.connected")
+                      : t("diagnostics.notConnected")}
                   </Typography>
                   {remoteStorageState.connected && (
                     <>
                       <Typography variant="body2" sx={{ mt: 0.5 }}>
-                        User: {remoteStorageState.userAddress || "Unknown"}
+                        {t("diagnostics.userLabel", {
+                          value: remoteStorageState.userAddress || t("diagnostics.unknown"),
+                        })}
                       </Typography>
                       <Typography variant="body2">
-                        Backend: {remoteStorageState.backend || "Unknown"}
+                        {t("diagnostics.backendLabel", {
+                          value: remoteStorageState.backend || t("diagnostics.unknown"),
+                        })}
                       </Typography>
                     </>
                   )}
@@ -460,12 +468,21 @@ export default function DiagnosticsScreen() {
               {/* Sync Progress */}
               <Alert severity={syncProgress.isSyncing ? "info" : "success"}>
                 <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
-                  {syncProgress.isSyncing ? "Sync in Progress" : "Last Sync Status"}
+                  {syncProgress.isSyncing
+                    ? t("diagnostics.syncInProgress")
+                    : t("diagnostics.lastSyncStatus")}
                 </Typography>
-                <Typography variant="body2">Phase: {syncProgress.phase}</Typography>
                 <Typography variant="body2">
-                  Progress: {syncProgress.processedArticles} / {syncProgress.totalArticles}{" "}
-                  {syncProgress.totalArticles === 0 ? "(preparing...)" : "articles"}
+                  {t("diagnostics.phaseLabel", { value: syncProgress.phase })}
+                </Typography>
+                <Typography variant="body2">
+                  {t("diagnostics.progressLabel", {
+                    processed: syncProgress.processedArticles,
+                    total: syncProgress.totalArticles,
+                  })}{" "}
+                  {syncProgress.totalArticles === 0
+                    ? t("diagnostics.preparing")
+                    : t("diagnostics.articlesCount", { count: syncProgress.totalArticles })}
                 </Typography>
                 {syncProgress.processedArticles < syncProgress.totalArticles &&
                   !syncProgress.isSyncing && (
@@ -480,7 +497,7 @@ export default function DiagnosticsScreen() {
                           alert(result);
                         }}
                       >
-                        Manually Sync Missing Articles
+                        {t("diagnostics.manualSync")}
                       </Button>
                     </Box>
                   )}
@@ -497,14 +514,14 @@ export default function DiagnosticsScreen() {
                   }}
                 >
                   <Typography variant="subtitle2" sx={{ fontWeight: "bold" }}>
-                    RemoteStorage Events (Last 1000)
+                    {t("diagnostics.eventsTitle")}
                   </Typography>
                   <Button
                     size="small"
                     startIcon={<RefreshIcon />}
                     onClick={() => setRemoteStorageEvents([])}
                   >
-                    Clear
+                    {t("diagnostics.clear")}
                   </Button>
                 </Box>
                 <Box
@@ -520,9 +537,13 @@ export default function DiagnosticsScreen() {
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell sx={{ fontWeight: "bold", width: "100px" }}>Time</TableCell>
-                          <TableCell sx={{ fontWeight: "bold", width: "150px" }}>Event</TableCell>
-                          <TableCell sx={{ fontWeight: "bold" }}>Data</TableCell>
+                          <TableCell sx={{ fontWeight: "bold", width: "100px" }}>
+                            {t("diagnostics.time")}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: "bold", width: "150px" }}>
+                            {t("diagnostics.event")}
+                          </TableCell>
+                          <TableCell sx={{ fontWeight: "bold" }}>{t("diagnostics.data")}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -558,7 +579,7 @@ export default function DiagnosticsScreen() {
                       color="text.secondary"
                       sx={{ textAlign: "center", py: 2 }}
                     >
-                      No events yet. Events will appear here as RemoteStorage operations occur.
+                      {t("diagnostics.noEventsYet")}
                     </Typography>
                   )}
                 </Box>
@@ -577,7 +598,7 @@ export default function DiagnosticsScreen() {
               }}
             >
               <Typography variant="h6" component="h3">
-                App Log ({filteredLogs.length})
+                {t("diagnostics.appLog", { count: filteredLogs.length })}
               </Typography>
               <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
@@ -586,34 +607,33 @@ export default function DiagnosticsScreen() {
                   onClick={handleCopyLogs}
                   disabled={filteredLogs.length === 0}
                 >
-                  Copy
+                  {t("diagnostics.copy")}
                 </Button>
                 <Button
                   size="small"
                   startIcon={<RefreshIcon />}
                   onClick={() => {
-                    if (confirm("Clear all app log entries?")) {
+                    if (confirm(t("diagnostics.confirmClearLogs"))) {
                       void clearLogs();
                     }
                   }}
                 >
-                  Clear
+                  {t("diagnostics.clear")}
                 </Button>
               </Box>
             </Box>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Failures recorded by the app — article downloads, image/thumbnail downloads, and
-              summaries. Copy this to share when something goes wrong on a phone.
+              {t("diagnostics.logDescription")}
             </Typography>
             <Box sx={{ display: "flex", gap: 1, flexWrap: "wrap", mb: 2 }}>
               {[
-                { value: "all", label: "All" },
-                { value: "error", label: "Errors" },
-                { value: "warn", label: "Warnings" },
-                { value: "ingest", label: "Ingest" },
-                { value: "image", label: "Images" },
-                { value: "thumbnail", label: "Thumbnails" },
-                { value: "summary", label: "Summaries" },
+                { value: "all", label: t("diagnostics.filterAll") },
+                { value: "error", label: t("diagnostics.filterErrors") },
+                { value: "warn", label: t("diagnostics.filterWarnings") },
+                { value: "ingest", label: t("diagnostics.filterIngest") },
+                { value: "image", label: t("diagnostics.filterImages") },
+                { value: "thumbnail", label: t("diagnostics.filterThumbnails") },
+                { value: "summary", label: t("diagnostics.filterSummaries") },
               ].map((option) => (
                 <Chip
                   key={option.value}
@@ -638,10 +658,16 @@ export default function DiagnosticsScreen() {
                 <Table size="small">
                   <TableHead>
                     <TableRow>
-                      <TableCell sx={{ fontWeight: "bold", width: "180px" }}>Time</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", width: "80px" }}>Level</TableCell>
-                      <TableCell sx={{ fontWeight: "bold", width: "100px" }}>Category</TableCell>
-                      <TableCell sx={{ fontWeight: "bold" }}>Message</TableCell>
+                      <TableCell sx={{ fontWeight: "bold", width: "180px" }}>
+                        {t("diagnostics.time")}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: "bold", width: "80px" }}>
+                        {t("diagnostics.level")}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: "bold", width: "100px" }}>
+                        {t("diagnostics.category")}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: "bold" }}>{t("diagnostics.message")}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -688,7 +714,9 @@ export default function DiagnosticsScreen() {
                 }}
               >
                 <Typography variant="body1" color="text.secondary">
-                  No log entries{logFilter === "all" ? "" : " for this filter"}.
+                  {logFilter === "all"
+                    ? t("diagnostics.noLogEntries")
+                    : t("diagnostics.noLogEntriesFiltered")}
                 </Typography>
               </Box>
             )}
@@ -696,10 +724,10 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Page & Session Information
+              {t("diagnostics.pageInfoTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Current page details and all stored cookies
+              {t("diagnostics.pageInfoDescription")}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {maskCorsProxyInText(
@@ -766,10 +794,10 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Network Connection Information
+              {t("diagnostics.networkInfoTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Connection type and network status (WiFi vs Cellular)
+              {t("diagnostics.networkInfoDescription")}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {JSON.stringify(
@@ -828,10 +856,10 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Current Status
+              {t("diagnostics.currentStatusTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Current sync and network status used by the indicator
+              {t("diagnostics.currentStatusDescription")}
             </Typography>
             <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
@@ -913,12 +941,12 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Sync Indicator Preview
+              {t("diagnostics.syncIndicatorPreview")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               {isNetworkSupported && syncStatus !== "disabled"
-                ? "The 3 possible indicator states (current state is highlighted)"
-                : "Indicator not visible (Network API not supported or sync disabled)"}
+                ? t("diagnostics.indicatorStatesDescription")
+                : t("diagnostics.indicatorHiddenDescription")}
             </Typography>
             <Box sx={{ display: "flex", gap: 3, alignItems: "center", flexWrap: "wrap" }}>
               {/* Active state */}
@@ -946,7 +974,7 @@ export default function DiagnosticsScreen() {
                     fontWeight: isNetworkSupported && syncStatus === "active" ? "bold" : "normal",
                   }}
                 >
-                  Active
+                  {t("diagnostics.stateActive")}
                 </Typography>
               </Box>
 
@@ -975,7 +1003,7 @@ export default function DiagnosticsScreen() {
                     fontWeight: isNetworkSupported && syncStatus === "paused" ? "bold" : "normal",
                   }}
                 >
-                  Paused
+                  {t("diagnostics.statePaused")}
                 </Typography>
               </Box>
 
@@ -1005,7 +1033,9 @@ export default function DiagnosticsScreen() {
                       !isNetworkSupported || syncStatus === "disabled" ? "bold" : "normal",
                   }}
                 >
-                  {!isNetworkSupported ? "Not Supported" : "Disabled"}
+                  {!isNetworkSupported
+                    ? t("diagnostics.stateNotSupported")
+                    : t("diagnostics.stateDisabled")}
                 </Typography>
               </Box>
             </Box>
@@ -1013,10 +1043,10 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Build-Time Environment Configuration
+              {t("diagnostics.buildEnvTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              These values were baked into the build at build time (static hosting)
+              {t("diagnostics.buildEnvDescription")}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {JSON.stringify(
@@ -1056,7 +1086,7 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              Database Summary
+              {t("diagnostics.databaseSummary")}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {JSON.stringify(
@@ -1078,10 +1108,10 @@ export default function DiagnosticsScreen() {
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>
             <Typography variant="h6" component="h3" gutterBottom>
-              IndexedDB Diagnostics
+              {t("diagnostics.indexedDbTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              Detailed statistics from the IndexedDB database
+              {t("diagnostics.indexedDbDescription")}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {indexedDbStats
@@ -1106,14 +1136,14 @@ export default function DiagnosticsScreen() {
                     null,
                     2
                   )
-                : "Calculating..."}
+                : t("diagnostics.calculating")}
             </Typography>
           </Box>
 
           <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
-            Dangling Remote Storage Directories ({danglingItems.length})
+            {t("diagnostics.danglingTitle", { count: danglingItems.length })}
             {isScanningDangling && (
-              <Chip label="Scanning..." size="small" color="info" sx={{ ml: 2 }} />
+              <Chip label={t("diagnostics.scanning")} size="small" color="info" sx={{ ml: 2 }} />
             )}
           </Typography>
 
@@ -1123,7 +1153,7 @@ export default function DiagnosticsScreen() {
                 <TableHead>
                   <TableRow>
                     <TableCell>
-                      <strong>Path</strong>
+                      <strong>{t("diagnostics.path")}</strong>
                     </TableCell>
                   </TableRow>
                 </TableHead>
@@ -1155,14 +1185,14 @@ export default function DiagnosticsScreen() {
             >
               <Typography variant="body1" color="text.secondary">
                 {isScanningDangling
-                  ? "Scanning remote storage for directories..."
-                  : "No dangling directories found in remote storage."}
+                  ? t("diagnostics.scanningDirs")
+                  : t("diagnostics.noDanglingFound")}
               </Typography>
             </Box>
           )}
 
           <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
-            Articles ({articles.length})
+            {t("diagnostics.articlesTitle", { count: articles.length })}
           </Typography>
 
           <TableContainer component={Paper} variant="outlined" sx={{ mt: 2, maxHeight: 400, overflowY: "auto" }}>
@@ -1170,13 +1200,13 @@ export default function DiagnosticsScreen() {
               <TableHead>
                 <TableRow>
                   <TableCell>
-                    <strong>Title</strong>
+                    <strong>{t("diagnostics.articleTitle")}</strong>
                   </TableCell>
                   <TableCell>
-                    <strong>State</strong>
+                    <strong>{t("diagnostics.state")}</strong>
                   </TableCell>
                   <TableCell>
-                    <strong>Ingest Date</strong>
+                    <strong>{t("diagnostics.ingestDate")}</strong>
                   </TableCell>
                 </TableRow>
               </TableHead>
@@ -1185,7 +1215,7 @@ export default function DiagnosticsScreen() {
                   <TableRow key={article.slug}>
                     <TableCell>
                       <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-word" }}>
-                        {article.title || "No title"}
+                        {article.title || t("diagnostics.noTitle")}
                       </Typography>
                     </TableCell>
                     <TableCell>
@@ -1197,7 +1227,7 @@ export default function DiagnosticsScreen() {
                       <Typography variant="body2">
                         {article.ingestDate
                           ? new Date(article.ingestDate).toLocaleString()
-                          : "Unknown"}
+                          : t("diagnostics.unknown")}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -1207,9 +1237,9 @@ export default function DiagnosticsScreen() {
           </TableContainer>
 
           <Typography variant="h6" component="h2" gutterBottom sx={{ mt: 3 }}>
-            Orphaned Database Articles ({orphanedArticles.length})
+            {t("diagnostics.orphanedTitle", { count: orphanedArticles.length })}
             {isScanningOrphaned && (
-              <Chip label="Scanning..." size="small" color="info" sx={{ ml: 2 }} />
+              <Chip label={t("diagnostics.scanning")} size="small" color="info" sx={{ ml: 2 }} />
             )}
           </Typography>
 
@@ -1219,16 +1249,16 @@ export default function DiagnosticsScreen() {
                 <TableHead>
                   <TableRow>
                     <TableCell>
-                      <strong>Title</strong>
+                      <strong>{t("diagnostics.articleTitle")}</strong>
                     </TableCell>
                     <TableCell>
-                      <strong>Slug</strong>
+                      <strong>{t("diagnostics.slug")}</strong>
                     </TableCell>
                     <TableCell>
-                      <strong>URL</strong>
+                      <strong>{t("diagnostics.url")}</strong>
                     </TableCell>
                     <TableCell>
-                      <strong>Reason</strong>
+                      <strong>{t("diagnostics.reason")}</strong>
                     </TableCell>
                   </TableRow>
                 </TableHead>
@@ -1237,7 +1267,7 @@ export default function DiagnosticsScreen() {
                     <TableRow key={index}>
                       <TableCell>
                         <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-word" }}>
-                          {item.article.title || "No title"}
+                          {item.article.title || t("diagnostics.noTitle")}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -1247,7 +1277,7 @@ export default function DiagnosticsScreen() {
                       </TableCell>
                       <TableCell>
                         <Typography variant="body2" sx={{ maxWidth: 200, wordBreak: "break-all" }}>
-                          {item.article.url || "No URL"}
+                          {item.article.url || t("diagnostics.noUrl")}
                         </Typography>
                       </TableCell>
                       <TableCell>
@@ -1270,8 +1300,8 @@ export default function DiagnosticsScreen() {
             >
               <Typography variant="body1" color="text.secondary">
                 {isScanningOrphaned
-                  ? "Scanning database for orphaned articles..."
-                  : "No orphaned articles found in database."}
+                  ? t("diagnostics.scanningOrphaned")
+                  : t("diagnostics.noOrphanedFound")}
               </Typography>
             </Box>
           )}
@@ -1287,7 +1317,7 @@ export default function DiagnosticsScreen() {
               }}
             >
               <Typography variant="body1" color="text.secondary">
-                No articles found in the database.
+                {t("diagnostics.noArticlesFound")}
               </Typography>
             </Box>
           )}

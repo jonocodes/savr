@@ -4,6 +4,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { createRouter } from "./router";
 import { initTelemetry, trackAppOpen } from "./utils/telemetry";
 import { getStoredCorsProxy } from "./utils/net/corsProxy";
+import "./i18n";
 import "./styles/app.css";
 
 const router = createRouter();

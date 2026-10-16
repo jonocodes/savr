@@ -1,6 +1,7 @@
 // @ts-expect-error - Storybook react-vite types
 import type { Preview } from "@storybook/react-vite";
 import React from "react";
+import "../src/i18n";
 import {
   RouterProvider,
   createMemoryHistory,

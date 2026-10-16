@@ -1,0 +1,20 @@
+{
+  "common": {
+    "notFoundMessage": "The page you are looking for does not exist.",
+    "currentUrl": "Current URL: {{url}}",
+    "goBack": "Go back",
+    "startOver": "Start Over",
+    "tryAgain": "Try Again",
+    "home": "Home",
+    "themeToDark": "Switch to dark mode",
+    "themeToSystem": "Switch to system mode",
+    "themeToLight": "Switch to light mode",
+    "themeToggle": "Toggle theme",
+    "pwaInstall": "Install",
+    "pwaInstallMessage": "Install Savr as a PWA for a better experience",
+    "pwaUpdate": "Update",
+    "pwaUpdateMessage": "A new version is available",
+    "corsTestPage": "CORS Test Page",
+    "corsTestIframeTitle": "Savr GitHub Repository"
+  }
+}

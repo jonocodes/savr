@@ -1,8 +1,9 @@
 {
   "manifest_version": 3,
-  "name": "Savr",
+  "name": "__MSG_extName__",
   "version": "0.1.2",
-  "description": "Save the page you are reading to Savr, without re-downloading it.",
+  "default_locale": "en",
+  "description": "__MSG_extDescription__",
   "permissions": ["activeTab", "scripting", "storage"],
   "host_permissions": ["http://localhost/*", "https://savr.link/*", "*://*/*"],
   "background": {

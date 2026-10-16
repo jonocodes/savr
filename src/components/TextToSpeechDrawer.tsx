@@ -1,4 +1,5 @@
 import React from "react";
+import { useTranslation } from "react-i18next";
 import {
   Drawer,
   Box,
@@ -33,6 +34,7 @@ export default function TextToSpeechDrawer({
   ttsState,
   ttsControls,
 }: TextToSpeechDrawerProps) {
+  const { t } = useTranslation();
   const { isPlaying, isPaused, rate, voice, availableVoices, isSupported, progress, currentTime, totalTime } = ttsState;
   const { play, pause, resume, stop, restart, setRate, setVoice } = ttsControls;
 
@@ -88,7 +90,7 @@ export default function TextToSpeechDrawer({
       >
         <Box sx={{ p: 3, textAlign: "center" }}>
           <Typography variant="h6" color="error">
-            Text-to-speech is not supported in this browser
+            {t("tts.notSupported")}
           </Typography>
         </Box>
       </Drawer>
@@ -118,13 +120,21 @@ export default function TextToSpeechDrawer({
     >
       <Box sx={{ p: 3 }}>
         <Typography variant="h6" sx={{ mb: 3, textAlign: "center" }}>
-          Text to Speech
+          {t("tts.title")}
         </Typography>
 
         <Stack spacing={3}>
           {/* Playback Controls */}
           <Box sx={{ display: "flex", justifyContent: "center", gap: 2 }}>
-            <Tooltip title={isPlaying && !isPaused ? "Pause" : isPaused ? "Resume" : "Play"}>
+            <Tooltip
+              title={
+                isPlaying && !isPaused
+                  ? t("tts.pause")
+                  : isPaused
+                    ? t("tts.resume")
+                    : t("tts.play")
+              }
+            >
               <IconButton
                 onClick={handlePlayPause}
                 sx={{
@@ -143,7 +153,7 @@ export default function TextToSpeechDrawer({
               </IconButton>
             </Tooltip>
 
-            <Tooltip title="Stop">
+            <Tooltip title={t("tts.stop")}>
               <IconButton
                 onClick={handleStop}
                 disabled={!isPlaying && !isPaused}
@@ -201,7 +211,7 @@ export default function TextToSpeechDrawer({
             <Box sx={{ display: "flex", alignItems: "center", mb: 1 }}>
               <SpeedIcon sx={{ mr: 1, color: "text.secondary" }} />
               <Typography variant="body2" color="text.secondary">
-                Speed: {rate}x
+                {t("tts.speed", { rate })}
               </Typography>
             </Box>
             <Slider
@@ -218,11 +228,11 @@ export default function TextToSpeechDrawer({
 
           {/* Voice Selection */}
           <FormControl fullWidth>
-            <InputLabel id="voice-select-label">Voice</InputLabel>
+            <InputLabel id="voice-select-label">{t("tts.voice")}</InputLabel>
             <Select
               labelId="voice-select-label"
               value={voice?.name || ""}
-              label="Voice"
+              label={t("tts.voice")}
               onChange={handleVoiceChange}
             >
               {availableVoices.map((v) => (
@@ -240,7 +250,7 @@ export default function TextToSpeechDrawer({
               color="text.secondary"
               sx={{ textAlign: "center" }}
             >
-              {isPaused ? "Paused" : "Reading..."}
+              {isPaused ? t("tts.paused") : t("tts.reading")}
             </Typography>
           )}
         </Stack>

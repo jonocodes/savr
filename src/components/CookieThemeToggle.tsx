@@ -6,6 +6,7 @@ import {
   SettingsBrightness as SettingsBrightnessIcon,
 } from "@mui/icons-material";
 import { getThemeFromCookie, toggleTheme, ThemeMode } from "~/utils/cookies";
+import { useTranslation } from "react-i18next";
 
 interface CookieThemeToggleProps {
   size?: "small" | "medium" | "large";
@@ -17,6 +18,7 @@ export const CookieThemeToggle: React.FC<CookieThemeToggleProps> = ({
   onThemeChange,
 }) => {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getThemeFromCookie());
+  const { t } = useTranslation();
 
   const handleToggle = () => {
     const newTheme = toggleTheme();
@@ -46,13 +48,13 @@ export const CookieThemeToggle: React.FC<CookieThemeToggleProps> = ({
   const getTooltip = () => {
     switch (currentTheme) {
       case "light":
-        return "Switch to dark mode";
+        return t("common.themeToDark");
       case "dark":
-        return "Switch to system mode";
+        return t("common.themeToSystem");
       case "system":
-        return "Switch to light mode";
+        return t("common.themeToLight");
       default:
-        return "Toggle theme";
+        return t("common.themeToggle");
     }
   };
 

@@ -12,6 +12,7 @@ export const AFTER_EXTERNAL_SAVE_COOKIE_NAME = "savr-after-external-save";
 export const SYNC_ENABLED_COOKIE_NAME = "savr-sync-enabled";
 export const SYNC_SETTING_EVENT = "savr:sync-setting-changed";
 export const SYNC_INTERVAL_COOKIE_NAME = "savr-sync-interval";
+export const LANGUAGE_COOKIE_NAME = "savr-language";
 export const DEFAULT_SYNC_INTERVAL_MS = 10000;
 
 export const SYNC_INTERVAL_OPTIONS = [
@@ -552,4 +553,25 @@ export const setSummarySettingsInCookie = (settings: Partial<SummarySettingsCook
   const newSettings = { ...currentSettings, ...settings };
 
   document.cookie = `${SUMMARY_SETTINGS_COOKIE_NAME}=${encodeURIComponent(JSON.stringify(newSettings))}; expires=${expires.toUTCString()}; path=/`;
+};
+
+// Get the user-chosen UI language from the cookie (null when never chosen,
+// meaning "detect from the browser" — see src/i18n.ts).
+export const getLanguageFromCookie = (): string | null => {
+  if (typeof document === "undefined") return null;
+
+  const cookies = document.cookie.split(";");
+  const cookie = cookies.find((c) => c.trim().startsWith(`${LANGUAGE_COOKIE_NAME}=`));
+
+  return cookie ? cookie.split("=")[1].trim() : null;
+};
+
+// Set the UI language cookie (1 year, like the other preferences)
+export const setLanguageInCookie = (language: string): void => {
+  if (typeof document === "undefined") return;
+
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+
+  document.cookie = `${LANGUAGE_COOKIE_NAME}=${language}; expires=${expires.toUTCString()}; path=/`;
 };

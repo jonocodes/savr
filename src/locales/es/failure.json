@@ -1,0 +1,12 @@
+{
+  "failure": {
+    "dialogTitle": "¿Reportar este artículo fallido?",
+    "body": "Savr no pudo cargar esta página. Enviar un reporte ayuda a corregir fallos como este.",
+    "whatGetsShared": "Qué se comparte",
+    "reportsPublic": "Los reportes son issues públicas de GitHub publicadas con tu cuenta. Edita lo que no quieras compartir.",
+    "invalidPayload": "Los detalles del reporte deben ser JSON válido con una URL http(s) completa",
+    "notNow": "Ahora no",
+    "fileOnGitHub": "Reportar en GitHub",
+    "filingNote": "Para enviar el reporte necesitas una cuenta de GitHub. Recibirás un aviso cuando se corrija."
+  }
+}

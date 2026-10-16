@@ -1,11 +1,13 @@
 import React from "react";
 import { Box, Typography } from "@mui/material";
+import { useTranslation } from "react-i18next";
 
 export default function CorsTestScreen() {
+  const { t } = useTranslation();
   return (
     <Box sx={{ p: 2 }}>
       <Typography variant="h6" gutterBottom>
-        CORS Test Page
+        {t("common.corsTestPage")}
       </Typography>
       <Box
         sx={{
@@ -22,7 +24,7 @@ export default function CorsTestScreen() {
             height: "100%",
             border: "none",
           }}
-          title="Savr GitHub Repository"
+          title={t("common.corsTestIframeTitle")}
         />
       </Box>
     </Box>

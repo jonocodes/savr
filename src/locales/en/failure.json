@@ -1,0 +1,12 @@
+{
+  "failure": {
+    "dialogTitle": "Report this failed article?",
+    "body": "Savr couldn't load this page. Filing a report helps get failures like this fixed.",
+    "whatGetsShared": "What gets shared",
+    "reportsPublic": "Reports are public GitHub issues posted under your account. Edit anything you don't want to share.",
+    "invalidPayload": "Report details must be valid JSON with a full http(s) url",
+    "notNow": "Not now",
+    "fileOnGitHub": "File on GitHub",
+    "filingNote": "Filing needs a GitHub account. You'll be notified when it's fixed."
+  }
+}

@@ -50,6 +50,7 @@ import {
   Speed as SpeedIcon,
   Refresh as RefreshIcon,
   Extension as ExtensionIcon,
+  Language as LanguageIcon,
 } from "@mui/icons-material";
 import { getStoredCorsProxy, setCorsProxyValue } from "~/utils/net/corsProxy";
 import { getDefaultCorsProxy, getExtensionUrls, isTelemetryConfigured } from "~/config/environment";
@@ -88,7 +89,6 @@ import {
 } from "~/utils/cookies";
 import {
   PROVIDERS,
-  DETAIL_LEVELS,
   TONE_OPTIONS,
   FOCUS_OPTIONS,
   FORMAT_OPTIONS,
@@ -106,6 +106,9 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSnackbar } from "notistack";
+import { useTranslation } from "react-i18next";
+import { SUPPORTED_LOCALES, getAppLanguage, setAppLanguage } from "~/i18n";
+import type { AppLanguage } from "~/i18n";
 import {
   calculateStorageUsage,
   clearLocalRemoteStorageCache,
@@ -210,7 +213,9 @@ const trailingControlSx = {
 } as const;
 
 export default function PreferencesScreen() {
+  const { t } = useTranslation();
   const [currentTheme, setCurrentTheme] = React.useState(getThemeFromCookie());
+  const [language, setLanguage] = React.useState<AppLanguage>(getAppLanguage);
   const [corsProxy, setCorsProxy] = React.useState<string>("");
   const [isCustomCorsProxy, setIsCustomCorsProxy] = React.useState<boolean>(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false);
@@ -394,10 +399,10 @@ export default function PreferencesScreen() {
 
       setDeleteDialogOpen(false);
 
-      enqueueSnackbar("All articles deleted successfully!", { variant: "success" });
+      enqueueSnackbar(t("prefs.deleteSuccess"), { variant: "success" });
     } catch (error) {
       console.error("Error deleting all articles:", error);
-      enqueueSnackbar("Failed to delete articles", { variant: "error" });
+      enqueueSnackbar(t("prefs.deleteFailed"), { variant: "error" });
     }
   };
 
@@ -499,9 +504,9 @@ export default function PreferencesScreen() {
     setSummarizationEnabled(newValue);
     setSummarizationEnabledInCookie(newValue);
     if (newValue) {
-      enqueueSnackbar("Summarization enabled");
+      enqueueSnackbar(t("prefs.summarizationEnabled"));
     } else {
-      enqueueSnackbar("Summarization disabled");
+      enqueueSnackbar(t("prefs.summarizationDisabled"));
     }
   };
 
@@ -530,11 +535,11 @@ export default function PreferencesScreen() {
   const loadModels = async ({ silent }: { silent: boolean }): Promise<string> => {
     const providerConfig = getProviderConfig(summaryProvider);
     if (providerConfig?.requiresApiKey && !apiKey.trim()) {
-      if (!silent) enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      if (!silent) enqueueSnackbar(t("prefs.enterApiKeyFirst"), { variant: "warning" });
       return summaryModel;
     }
     if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
-      if (!silent) enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      if (!silent) enqueueSnackbar(t("prefs.enterServerUrlFirst"), { variant: "warning" });
       return summaryModel;
     }
     const requestId = ++modelsRequestId.current;
@@ -543,18 +548,19 @@ export default function PreferencesScreen() {
       const models = await fetchAvailableModels(summaryProvider, apiKey, summaryBaseUrl);
       if (requestId !== modelsRequestId.current) return summaryModel;
       if (models.length === 0) {
-        if (!silent) enqueueSnackbar("Provider returned no models", { variant: "warning" });
+        if (!silent) enqueueSnackbar(t("prefs.noModels"), { variant: "warning" });
         return summaryModel;
       }
       setAvailableModels(models);
       const model = pickDefaultModel(summaryProvider, models, summaryModel);
       if (model !== summaryModel) handleModelChange(model);
-      if (!silent) enqueueSnackbar(`Found ${models.length} models`, { variant: "success" });
+      if (!silent)
+        enqueueSnackbar(t("prefs.foundModels", { count: models.length }), { variant: "success" });
       return model;
     } catch (error) {
       if (!silent && requestId === modelsRequestId.current) {
-        const detail = error instanceof Error ? error.message : "Unknown error";
-        enqueueSnackbar(`Could not fetch models: ${detail}`, { variant: "error" });
+        const detail = error instanceof Error ? error.message : t("prefs.unknownError");
+        enqueueSnackbar(t("prefs.fetchModelsFailed", { detail }), { variant: "error" });
       }
       return summaryModel;
     } finally {
@@ -592,11 +598,11 @@ export default function PreferencesScreen() {
   const handleTestApiConnection = async () => {
     const providerConfig = getProviderConfig(summaryProvider);
     if (providerConfig?.requiresApiKey && !apiKey.trim()) {
-      enqueueSnackbar("Please enter an API key first", { variant: "warning" });
+      enqueueSnackbar(t("prefs.enterApiKeyFirst"), { variant: "warning" });
       return;
     }
     if (providerConfig?.isCustom && !summaryBaseUrl.trim()) {
-      enqueueSnackbar("Please enter a server URL first", { variant: "warning" });
+      enqueueSnackbar(t("prefs.enterServerUrlFirst"), { variant: "warning" });
       return;
     }
     setIsTestingApi(true);
@@ -605,17 +611,17 @@ export default function PreferencesScreen() {
       // and is useful even when the selected model is why the test fails.
       const model = (await loadModels({ silent: true })) || summaryModel;
       if (!model) {
-        enqueueSnackbar("Choose a model first", { variant: "warning" });
+        enqueueSnackbar(t("prefs.chooseModelFirst"), { variant: "warning" });
         return;
       }
       const result = await testApiConnection(summaryProvider, apiKey, model, summaryBaseUrl);
       if (result.success) {
-        enqueueSnackbar("API connection successful!", { variant: "success" });
+        enqueueSnackbar(t("prefs.apiSuccess"), { variant: "success" });
       } else {
-        enqueueSnackbar(`API error: ${result.error}`, { variant: "error" });
+        enqueueSnackbar(t("prefs.apiError", { error: result.error }), { variant: "error" });
       }
     } catch {
-      enqueueSnackbar("Failed to test API connection", { variant: "error" });
+      enqueueSnackbar(t("prefs.apiTestFailed"), { variant: "error" });
     } finally {
       setIsTestingApi(false);
     }
@@ -646,13 +652,13 @@ export default function PreferencesScreen() {
   const getThemeLabel = () => {
     switch (currentTheme) {
       case "light":
-        return "Light";
+        return t("prefs.themeLight");
       case "dark":
-        return "Dark";
+        return t("prefs.themeDark");
       case "system":
-        return "System";
+        return t("prefs.themeSystem");
       default:
-        return "Light";
+        return t("prefs.themeLight");
     }
   };
 
@@ -673,7 +679,7 @@ export default function PreferencesScreen() {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Preferences
+            {t("prefs.title")}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -683,7 +689,7 @@ export default function PreferencesScreen() {
         <Paper elevation={1}>
           {/* Fetching Content Section */}
           <List>
-            <ListSubheader>Fetching content</ListSubheader>
+            <ListSubheader>{t("prefs.fetchingContent")}</ListSubheader>
 
             {showDesktopSaveTools && (
               <ListItem sx={wrappingRowSx}>
@@ -691,8 +697,8 @@ export default function PreferencesScreen() {
                   <BookmarkAddIcon />
                 </ListItemIcon>
                 <ListItemText
-                  primary="Bookmarklet"
-                  secondary="Drag this link to your bookmarks bar"
+                  primary={t("prefs.bookmarklet")}
+                  secondary={t("prefs.bookmarkletHint")}
                 />
                 <Box sx={trailingControlSx}>
                   <a
@@ -721,8 +727,8 @@ export default function PreferencesScreen() {
                   <BookmarkAddIcon />
                 </ListItemIcon>
                 <ListItemText
-                  primary="YouTube transcript bookmarklet"
-                  secondary="Drag to your bookmarks bar — saves a YouTube video's transcript"
+                  primary={t("prefs.ytBookmarklet")}
+                  secondary={t("prefs.ytBookmarkletHint")}
                 />
                 <Box sx={trailingControlSx}>
                   <a
@@ -750,8 +756,8 @@ export default function PreferencesScreen() {
                   <ExtensionIcon />
                 </ListItemIcon>
                 <ListItemText
-                  primary="Browser extension"
-                  secondary="Save the page you're reading from your browser's toolbar"
+                  primary={t("prefs.browserExtension")}
+                  secondary={t("prefs.browserExtensionHint")}
                 />
                 <Box sx={{ ...trailingControlSx, display: "flex", gap: 1 }}>
                   {extensionUrls.firefoxUrl && (
@@ -787,8 +793,8 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    CORS Proxy
-                    <Tooltip title="CORS (Cross-Origin Resource Sharing) is a security feature that prevents websites from making requests to different domains. We need it to save articles from external websites. Using your own proxy can be more reliable and faster than public ones.">
+                    {t("prefs.corsProxy")}
+                    <Tooltip title={t("prefs.corsProxyTooltip")}>
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
                   </Box>
@@ -796,7 +802,7 @@ export default function PreferencesScreen() {
                 secondary={
                   <Box>
                     <Typography variant="body2" component="span">
-                      Proxy server for cross-origin requests
+                      {t("prefs.corsProxyHint")}
                     </Typography>
                   </Box>
                 }
@@ -822,8 +828,8 @@ export default function PreferencesScreen() {
                 <BookmarkAddIcon />
               </ListItemIcon>
               <ListItemText
-                primary="After external save"
-                secondary="What to do after saving an article from a bookmarklet"
+                primary={t("prefs.afterExternalSave")}
+                secondary={t("prefs.afterExternalSaveHint")}
               />
               <Box sx={trailingControlSx}>
                 <select
@@ -840,10 +846,14 @@ export default function PreferencesScreen() {
                   }}
                 >
                   <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_ARTICLE}>
-                    Show article content
+                    {t("prefs.afterShowArticle")}
                   </option>
-                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST}>Show article list</option>
-                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB}>Close new tab</option>
+                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST}>
+                    {t("prefs.afterShowList")}
+                  </option>
+                  <option value={AFTER_EXTERNAL_SAVE_ACTIONS.CLOSE_TAB}>
+                    {t("prefs.afterCloseTab")}
+                  </option>
                 </select>
               </Box>
             </ListItem>
@@ -855,8 +865,8 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    Enable synchronization
-                    <Tooltip title="Allows you to sync your articles across devices using a cloud service">
+                    {t("prefs.enableSync")}
+                    <Tooltip title={t("prefs.enableSyncTooltip")}>
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
                   </Box>
@@ -871,8 +881,8 @@ export default function PreferencesScreen() {
                   <SyncIcon />
                 </ListItemIcon>
                 <ListItemText
-                  primary="Sync interval"
-                  secondary="How often to poll for remote changes"
+                  primary={t("prefs.syncInterval")}
+                  secondary={t("prefs.syncIntervalHint")}
                 />
                 <Box sx={trailingControlSx}>
                   <select
@@ -890,7 +900,7 @@ export default function PreferencesScreen() {
                   >
                     {SYNC_INTERVAL_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
-                        {opt.label}
+                        {t("prefs.syncIntervalOption." + opt.value)}
                       </option>
                     ))}
                   </select>
@@ -901,14 +911,52 @@ export default function PreferencesScreen() {
 
           {/* Reading Section */}
           <List>
-            <ListSubheader>Reading</ListSubheader>
+            <ListSubheader>{t("prefs.reading")}</ListSubheader>
 
             <ListItem onClick={handleThemeToggle}>
               <ListItemIcon>{getThemeIcon()}</ListItemIcon>
               <ListItemText
-                primary="Theme"
-                secondary={`${getThemeLabel()} (${getEffectiveTheme(currentTheme) === "dark" ? "Dark" : "Light"})`}
+                primary={t("prefs.theme")}
+                secondary={t("prefs.themeSummary", {
+                  mode: getThemeLabel(),
+                  effective:
+                    getEffectiveTheme(currentTheme) === "dark"
+                      ? t("prefs.themeDark")
+                      : t("prefs.themeLight"),
+                })}
               />
+            </ListItem>
+
+            <ListItem sx={wrappingRowSx}>
+              <ListItemIcon>
+                <LanguageIcon />
+              </ListItemIcon>
+              <ListItemText primary={t("prefs.language")} secondary={t("prefs.languageHint")} />
+              <Box sx={trailingControlSx}>
+                <select
+                  value={language}
+                  onChange={(event) => {
+                    const value = event.target.value as AppLanguage;
+                    setLanguage(value);
+                    void setAppLanguage(value);
+                  }}
+                  style={{
+                    padding: "8px",
+                    borderRadius: "4px",
+                    border: "1px solid rgba(128, 128, 128, 0.4)",
+                    backgroundColor: "inherit",
+                    color: "inherit",
+                    fontSize: "14px",
+                    minWidth: "150px",
+                  }}
+                >
+                  {SUPPORTED_LOCALES.map((locale) => (
+                    <option key={locale.code} value={locale.code}>
+                      {locale.label}
+                    </option>
+                  ))}
+                </select>
+              </Box>
             </ListItem>
 
             <ListItem>
@@ -916,8 +964,8 @@ export default function PreferencesScreen() {
                 <DragHandleIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Auto-hide header while reading (experimental)"
-                secondary="Automatically hide the header when scrolling down in articles"
+                primary={t("prefs.autoHideHeader")}
+                secondary={t("prefs.autoHideHeaderHint")}
               />
               <Switch
                 edge="end"
@@ -929,7 +977,7 @@ export default function PreferencesScreen() {
 
           {/* Summarization Section */}
           <List>
-            <ListSubheader>Summarization</ListSubheader>
+            <ListSubheader>{t("prefs.summarization")}</ListSubheader>
 
             <ListItem>
               <ListItemIcon>
@@ -938,16 +986,14 @@ export default function PreferencesScreen() {
               <ListItemText
                 primary={
                   <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                    Enable summarization
-                    <Tooltip title="Generate a summary when saving an article, using a language model from the provider you choose — a cloud service or your own server.">
+                    {t("prefs.enableSummarization")}
+                    <Tooltip title={t("prefs.enableSummarizationTooltip")}>
                       <HelpIcon fontSize="small" color="action" />
                     </Tooltip>
                   </Box>
                 }
                 secondary={
-                  summarizationEnabled
-                    ? "Summaries will be generated for new articles"
-                    : "Summaries are disabled"
+                  summarizationEnabled ? t("prefs.summariesOn") : t("prefs.summariesOff")
                 }
               />
               <Switch
@@ -959,11 +1005,11 @@ export default function PreferencesScreen() {
 
             {summarizationEnabled && (
               <>
-                <SettingField label="LLM Provider">
+                <SettingField label={t("prefs.llmProvider")}>
                   <ChipGroup
                     options={PROVIDERS.map((p) => ({
                       value: p.id,
-                      label: p.name,
+                      label: t("prefs.provider." + p.id),
                     }))}
                     value={summaryProvider}
                     onChange={handleProviderChange}
@@ -972,8 +1018,8 @@ export default function PreferencesScreen() {
 
                 {getProviderConfig(summaryProvider)?.isCustom && (
                   <SettingField
-                    label="Server URL"
-                    hint="OpenAI-compatible chat completions endpoint"
+                    label={t("prefs.serverUrl")}
+                    hint={t("prefs.serverUrlHint")}
                   >
                     <TextField
                       value={summaryBaseUrl}
@@ -985,7 +1031,14 @@ export default function PreferencesScreen() {
                   </SettingField>
                 )}
 
-                <SettingField label="API Key" hint={getProviderConfig(summaryProvider)?.apiKeyHint}>
+                <SettingField
+                  label={t("prefs.apiKey")}
+                  hint={
+                    getProviderConfig(summaryProvider)?.apiKeyHint
+                      ? t("prefs.apiKeyHint." + summaryProvider)
+                      : undefined
+                  }
+                >
                   <Box sx={{ display: "flex", gap: 1 }}>
                     <TextField
                       value={apiKey}
@@ -993,7 +1046,7 @@ export default function PreferencesScreen() {
                       fullWidth
                       size="small"
                       type={showApiKey ? "text" : "password"}
-                      placeholder="Enter API key"
+                      placeholder={t("prefs.apiKeyPlaceholder")}
                       InputProps={{
                         endAdornment: (
                           <InputAdornment position="end">
@@ -1001,7 +1054,9 @@ export default function PreferencesScreen() {
                               onClick={() => setShowApiKey(!showApiKey)}
                               edge="end"
                               size="small"
-                              aria-label={showApiKey ? "Hide API key" : "Show API key"}
+                              aria-label={
+                                showApiKey ? t("prefs.hideApiKey") : t("prefs.showApiKey")
+                              }
                             >
                               {showApiKey ? (
                                 <VisibilityOff fontSize="small" />
@@ -1025,12 +1080,12 @@ export default function PreferencesScreen() {
                       }
                       sx={{ minWidth: 64, flexShrink: 0 }}
                     >
-                      {isTestingApi ? <CircularProgress size={20} /> : "Test"}
+                      {isTestingApi ? <CircularProgress size={20} /> : t("prefs.testButton")}
                     </Button>
                   </Box>
                 </SettingField>
 
-                <SettingField label="Model">
+                <SettingField label={t("prefs.model")}>
                   <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
                     {availableModels.length === 0 ? (
                       // No list fetched yet — let the user type a model id. The
@@ -1040,7 +1095,7 @@ export default function PreferencesScreen() {
                         onChange={(e) => handleModelChange(e.target.value)}
                         fullWidth
                         size="small"
-                        placeholder="Model id"
+                        placeholder={t("prefs.modelIdPlaceholder")}
                       />
                     ) : (
                       <FormControl fullWidth size="small" sx={{ minWidth: 0 }}>
@@ -1053,7 +1108,7 @@ export default function PreferencesScreen() {
                           displayEmpty
                           // Show just the id in the closed field; the estimate
                           // line is only for the open menu.
-                          renderValue={(value) => value || "Select a model"}
+                          renderValue={(value) => value || t("prefs.selectModel")}
                           onChange={(e) => handleModelChange(e.target.value)}
                         >
                           {availableModels.map((model) => (
@@ -1062,7 +1117,9 @@ export default function PreferencesScreen() {
                                 primary={model.id}
                                 secondary={
                                   model.estimate
-                                    ? `~${model.estimate.summariesPerDay} summaries/day`
+                                    ? t("prefs.summariesPerDay", {
+                                        count: model.estimate.summariesPerDay,
+                                      })
                                     : undefined
                                 }
                                 sx={{
@@ -1080,8 +1137,8 @@ export default function PreferencesScreen() {
                     <IconButton
                       onClick={handleRefreshModels}
                       disabled={isFetchingModels}
-                      title="Fetch available models from provider"
-                      aria-label="Fetch available models from provider"
+                      title={t("prefs.refreshModels")}
+                      aria-label={t("prefs.refreshModels")}
                       size="small"
                     >
                       {isFetchingModels ? (
@@ -1094,8 +1151,8 @@ export default function PreferencesScreen() {
                 </SettingField>
 
                 <SettingField
-                  label="Detail level"
-                  hint={DETAIL_LEVELS[summarySettings.detailLevel]}
+                  label={t("prefs.detailLevelLabel")}
+                  hint={t("prefs.detailLevel." + summarySettings.detailLevel)}
                 >
                   <Box sx={{ px: 1 }}>
                     <Slider
@@ -1108,7 +1165,7 @@ export default function PreferencesScreen() {
                       step={1}
                       marks
                       size="small"
-                      aria-label="Detail level"
+                      aria-label={t("prefs.detailLevelLabel")}
                     />
                   </Box>
                   {/* End labels sit outside the slider so they can't overflow narrow screens. */}
@@ -1120,35 +1177,44 @@ export default function PreferencesScreen() {
                     }}
                   >
                     <Typography variant="caption" color="text.secondary">
-                      {DETAIL_LEVELS[0]}
+                      {t("prefs.detailLevel.0")}
                     </Typography>
                     <Typography variant="caption" color="text.secondary">
-                      {DETAIL_LEVELS[DETAIL_LEVELS.length - 1]}
+                      {t("prefs.detailLevel.4")}
                     </Typography>
                   </Box>
                 </SettingField>
 
-                <SettingField label="Format">
+                <SettingField label={t("prefs.formatLabel")}>
                   <ChipGroup
-                    options={FORMAT_OPTIONS}
+                    options={FORMAT_OPTIONS.map((o) => ({
+                      ...o,
+                      label: t("prefs.format." + o.value),
+                    }))}
                     value={summarySettings.format}
                     onChange={(v) => handleSettingChange("format", v)}
                     size="small"
                   />
                 </SettingField>
 
-                <SettingField label="Tone">
+                <SettingField label={t("prefs.toneLabel")}>
                   <ChipGroup
-                    options={TONE_OPTIONS}
+                    options={TONE_OPTIONS.map((o) => ({
+                      ...o,
+                      label: t("prefs.tone." + o.value),
+                    }))}
                     value={summarySettings.tone}
                     onChange={(v) => handleSettingChange("tone", v)}
                     size="small"
                   />
                 </SettingField>
 
-                <SettingField label="Focus">
+                <SettingField label={t("prefs.focusLabel")}>
                   <ChipGroup
-                    options={FOCUS_OPTIONS}
+                    options={FOCUS_OPTIONS.map((o) => ({
+                      ...o,
+                      label: t("prefs.focus." + o.value),
+                    }))}
                     value={summarySettings.focus}
                     onChange={(v) => handleSettingChange("focus", v)}
                     size="small"
@@ -1156,8 +1222,8 @@ export default function PreferencesScreen() {
                 </SettingField>
 
                 <SettingField
-                  label="Custom prompt (advanced)"
-                  hint="Replaces the settings above. Use {text} for the article text."
+                  label={t("prefs.customPrompt")}
+                  hint={t("prefs.customPromptHint")}
                 >
                   <TextField
                     value={summarySettings.customPrompt}
@@ -1166,7 +1232,7 @@ export default function PreferencesScreen() {
                     size="small"
                     multiline
                     minRows={2}
-                    placeholder="Leave empty to use the settings above"
+                    placeholder={t("prefs.customPromptPlaceholder")}
                   />
                 </SettingField>
               </>
@@ -1175,23 +1241,25 @@ export default function PreferencesScreen() {
 
           {/* About Section */}
           <List>
-            <ListSubheader>Catalog Info</ListSubheader>
+            <ListSubheader>{t("prefs.catalogInfo")}</ListSubheader>
 
             <ListItem>
               <ListItemIcon>
                 <ArticleIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Unread Articles"
+                primary={t("prefs.unreadArticles")}
                 secondary={
                   unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                     <>
-                      {unreadCount} articles
+                      {t("prefs.articlesCount", { count: unreadCount })}
                       <br />
-                      Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
+                      {t("prefs.readingTime", {
+                        time: formatReadTime(Math.ceil(unreadWordCountSum / readingWpm)),
+                      })}
                     </>
                   ) : (
-                    "Loading..."
+                    t("prefs.loading")
                   )
                 }
               />
@@ -1202,16 +1270,18 @@ export default function PreferencesScreen() {
                 <ArchiveIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Archived Articles"
+                primary={t("prefs.archivedArticles")}
                 secondary={
                   archivedCount !== undefined && archivedWordCountSum !== undefined ? (
                     <>
-                      {archivedCount} articles
+                      {t("prefs.articlesCount", { count: archivedCount })}
                       <br />
-                      Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
+                      {t("prefs.readingTime", {
+                        time: formatReadTime(Math.ceil(archivedWordCountSum / readingWpm)),
+                      })}
                     </>
                   ) : (
-                    "Loading..."
+                    t("prefs.loading")
                   )
                 }
               />
@@ -1221,7 +1291,7 @@ export default function PreferencesScreen() {
               secondaryAction={
                 readingSpeedSampleCount > 0 ? (
                   <Button size="small" onClick={() => resetReadingSpeed()}>
-                    Reset
+                    {t("prefs.reset")}
                   </Button>
                 ) : undefined
               }
@@ -1230,17 +1300,16 @@ export default function PreferencesScreen() {
                 <SpeedIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Reading speed"
+                primary={t("prefs.readingSpeed")}
                 secondary={
                   readingSpeedSampleCount > 0 ? (
                     <>
-                      {Math.round(readingWpm)} words/min
+                      {t("prefs.wordsPerMin", { wpm: Math.round(readingWpm) })}
                       <br />
-                      Learned from {readingSpeedSampleCount} reading
-                      {readingSpeedSampleCount === 1 ? " session" : " sessions"}
+                      {t("prefs.learnedFrom", { count: readingSpeedSampleCount })}
                     </>
                   ) : (
-                    `${DEFAULT_WPM} words/min (default — read some articles to personalize)`
+                    t("prefs.readingSpeedDefault", { wpm: DEFAULT_WPM })
                   )
                 }
               />
@@ -1251,11 +1320,15 @@ export default function PreferencesScreen() {
                 <StorageIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Catalog size"
+                primary={t("prefs.catalogSize")}
                 secondary={
                   storageUsage
-                    ? `${formatBytes(storageUsage.size)} (${storageUsage.articles} articles, ${storageUsage.files} files)`
-                    : "Calculating..."
+                    ? t("prefs.catalogSizeValue", {
+                        size: formatBytes(storageUsage.size),
+                        articles: storageUsage.articles,
+                        files: storageUsage.files,
+                      })
+                    : t("prefs.calculating")
                 }
               />
             </ListItem>
@@ -1264,7 +1337,10 @@ export default function PreferencesScreen() {
               <ListItemIcon>
                 <ArchiveIcon />
               </ListItemIcon>
-              <ListItemText primary="Export catalog" secondary="Download all article metadata" />
+              <ListItemText
+                primary={t("prefs.exportCatalog")}
+                secondary={t("prefs.exportCatalogHint")}
+              />
               <Box sx={{ display: "flex", gap: 1 }}>
                 <Button
                   variant="outlined"
@@ -1280,10 +1356,10 @@ export default function PreferencesScreen() {
                       link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.json`;
                       link.click();
                       URL.revokeObjectURL(url);
-                      enqueueSnackbar("JSON export completed!", { variant: "success" });
+                      enqueueSnackbar(t("prefs.jsonExportDone"), { variant: "success" });
                     } catch (error) {
                       console.error("Export failed:", error);
-                      enqueueSnackbar("Export failed", { variant: "error" });
+                      enqueueSnackbar(t("prefs.exportFailed"), { variant: "error" });
                     }
                   }}
                 >
@@ -1335,10 +1411,10 @@ export default function PreferencesScreen() {
                       link.download = `savr-articles-${new Date().toISOString().split("T")[0]}.csv`;
                       link.click();
                       URL.revokeObjectURL(url);
-                      enqueueSnackbar("CSV export completed!", { variant: "success" });
+                      enqueueSnackbar(t("prefs.csvExportDone"), { variant: "success" });
                     } catch (error) {
                       console.error("Export failed:", error);
-                      enqueueSnackbar("Export failed", { variant: "error" });
+                      enqueueSnackbar(t("prefs.exportFailed"), { variant: "error" });
                     }
                   }}
                 >
@@ -1351,20 +1427,20 @@ export default function PreferencesScreen() {
           {/* Privacy Section — only shown on builds where telemetry is configured */}
           {isTelemetryConfigured() && (
             <List>
-              <ListSubheader>Privacy</ListSubheader>
+              <ListSubheader>{t("prefs.privacy")}</ListSubheader>
 
               <ListItem>
                 <ListItemIcon>
                   <InsightsIcon />
                 </ListItemIcon>
                 <ListItemText
-                  primary="Share anonymous usage statistics"
+                  primary={t("prefs.shareStats")}
                   secondary={
                     gpcActive
-                      ? "Disabled by your browser's Global Privacy Control signal. Savr honors that, so this setting is ignored while it's on."
+                      ? t("prefs.statsGpc")
                       : telemetryEnabled
-                        ? "Sends anonymous counts (app opens, captures, installs) and your country. No account, no article URLs or content. Respects Global Privacy Control."
-                        : "Off — no usage data is collected."
+                        ? t("prefs.statsOn")
+                        : t("prefs.statsOff")
                   }
                 />
                 <Switch
@@ -1379,15 +1455,15 @@ export default function PreferencesScreen() {
 
           {/* Public Export Section */}
           <List>
-            <ListSubheader>Public Export</ListSubheader>
+            <ListSubheader>{t("prefs.publicExport")}</ListSubheader>
 
             <ListItem>
               <ListItemIcon>
                 <PublicIcon />
               </ListItemIcon>
               <ListItemText
-                primary="Publish public database export"
-                secondary="Publishes a public read-only copy of your Savr database JSON through your RemoteStorage provider. This file may include deleted records if they exist in your database."
+                primary={t("prefs.publishPublicExport")}
+                secondary={t("prefs.publishPublicExportHint")}
               />
               <Switch
                 checked={publicExportState.enabled}
@@ -1395,17 +1471,17 @@ export default function PreferencesScreen() {
                   if (e.target.checked) {
                     try {
                       await enablePublicExport();
-                      enqueueSnackbar("Public export enabled", { variant: "success" });
+                      enqueueSnackbar(t("prefs.publicExportEnabled"), { variant: "success" });
                     } catch {
-                      enqueueSnackbar("Failed to publish export", { variant: "error" });
+                      enqueueSnackbar(t("prefs.publicExportPublishFailed"), { variant: "error" });
                     }
                   } else {
                     const result = await disablePublicExport();
                     if (result.success) {
-                      enqueueSnackbar("Public export disabled");
+                      enqueueSnackbar(t("prefs.publicExportDisabled"));
                     } else {
                       enqueueSnackbar(
-                        `Export disabled but failed to delete remote file: ${result.error}`,
+                        t("prefs.publicExportDeleteFailed", { error: result.error }),
                         {
                           variant: "warning",
                         },
@@ -1420,12 +1496,12 @@ export default function PreferencesScreen() {
               <>
                 <ListItem>
                   <ListItemText
-                    primary="Public export is enabled"
+                    primary={t("prefs.publicExportActive")}
                     secondary={
                       <>
                         {publicExportState.publicUrl ? (
                           <>
-                            URL:{" "}
+                            {t("prefs.publicExportUrlLabel")}{" "}
                             <span style={{ wordBreak: "break-all" }}>
                               {publicExportState.publicUrl}
                             </span>
@@ -1433,34 +1509,35 @@ export default function PreferencesScreen() {
                           </>
                         ) : publicExportState.lastPublishedAt ? (
                           <>
-                            URL: not available for this provider
+                            {t("prefs.publicExportUrlUnavailable")}
                             <br />
                           </>
                         ) : (
                           <>
-                            URL: pending first publish…
+                            {t("prefs.publicExportUrlPending")}
                             <br />
                           </>
                         )}
-                        Status:{" "}
+                        {t("prefs.publicExportStatusLabel")}{" "}
                         {publicExportState.publishing
-                          ? "Publishing…"
+                          ? t("prefs.statusPublishing")
                           : publicExportState.lastError
-                            ? "Failed"
+                            ? t("prefs.statusFailed")
                             : publicExportState.dirty
-                              ? "Pending changes"
-                              : "Up to date"}
+                              ? t("prefs.statusPending")
+                              : t("prefs.statusUpToDate")}
                         {publicExportState.lastPublishedAt && (
                           <>
                             <br />
-                            Last published:{" "}
-                            {new Date(publicExportState.lastPublishedAt).toLocaleString()}
+                            {t("prefs.lastPublished", {
+                              date: new Date(publicExportState.lastPublishedAt).toLocaleString(),
+                            })}
                           </>
                         )}
                         {publicExportState.lastError && (
                           <>
                             <br />
-                            Error: {publicExportState.lastError}
+                            {t("prefs.publicExportError", { error: publicExportState.lastError })}
                           </>
                         )}
                       </>
@@ -1475,13 +1552,13 @@ export default function PreferencesScreen() {
                     onClick={async () => {
                       try {
                         await publishNow();
-                        enqueueSnackbar("Published successfully", { variant: "success" });
+                        enqueueSnackbar(t("prefs.publishSuccess"), { variant: "success" });
                       } catch {
-                        enqueueSnackbar("Publish failed", { variant: "error" });
+                        enqueueSnackbar(t("prefs.publishFailed"), { variant: "error" });
                       }
                     }}
                   >
-                    Publish now
+                    {t("prefs.publishNow")}
                   </Button>
                 </ListItem>
               </>
@@ -1495,14 +1572,14 @@ export default function PreferencesScreen() {
               {/* <ListItemIcon>
                 <DeleteIcon />
               </ListItemIcon> */}
-              <ListItemText primary="Version" secondary={version} />
+              <ListItemText primary={t("prefs.version")} secondary={version} />
             </ListItem>
             <ListItem>
-              <ListItemText primary="Deployed" secondary={buildDate} />
+              <ListItemText primary={t("prefs.deployed")} secondary={buildDate} />
             </ListItem>
             <ListItem>
               <ListItemText
-                primary="Source code"
+                primary={t("prefs.sourceCode")}
                 secondary={
                   <a href="https://github.com/jonocodes/savr" target="_blank">
                     github.com/jonocodes/savr
@@ -1514,21 +1591,19 @@ export default function PreferencesScreen() {
 
           {/* Danger Zone Section */}
           <List sx={{ mb: 10 }}>
-            <ListSubheader sx={{ color: "error.main" }}>Danger Zone</ListSubheader>
+            <ListSubheader sx={{ color: "error.main" }}>{t("prefs.dangerZone")}</ListSubheader>
 
             <ListItem>
               <ListItemIcon>
                 <DeleteIcon color="error" />
               </ListItemIcon>
               <ListItemText
-                primary="Delete All Articles"
+                primary={t("prefs.deleteAllArticles")}
                 secondary={
-                  rsConnected
-                    ? "Disconnect from remote storage first to delete all articles"
-                    : "Permanently remove all articles from the database"
+                  rsConnected ? t("prefs.deleteAllHintConnected") : t("prefs.deleteAllHint")
                 }
               />
-              <Tooltip title={rsConnected ? "Disconnect from remote storage first" : ""}>
+              <Tooltip title={rsConnected ? t("prefs.disconnectFirst") : ""}>
                 <span>
                   <Button
                     variant="outlined"
@@ -1538,7 +1613,7 @@ export default function PreferencesScreen() {
                     sx={{ mb: 2 }}
                     data-testid="delete-all-articles-button"
                   >
-                    Delete All
+                    {t("prefs.deleteAll")}
                   </Button>
                 </span>
               </Tooltip>
@@ -1555,22 +1630,21 @@ export default function PreferencesScreen() {
         aria-describedby="delete-dialog-description"
         data-testid="delete-all-articles-dialog"
       >
-        <DialogTitle id="delete-dialog-title">Delete All Articles</DialogTitle>
+        <DialogTitle id="delete-dialog-title">{t("prefs.deleteAllArticles")}</DialogTitle>
         <DialogContent>
           <Typography>
-            Are you sure you want to delete all {totalArticleCount} articles? This action cannot be
-            undone.
+            {t("prefs.deleteConfirmBody", { count: totalArticleCount })}
           </Typography>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDeleteDialogOpen(false)}>Cancel</Button>
+          <Button onClick={() => setDeleteDialogOpen(false)}>{t("prefs.cancel")}</Button>
           <Button
             onClick={handleDeleteAllArticles}
             color="error"
             variant="contained"
             data-testid="confirm-delete-all-button"
           >
-            Delete All Articles
+            {t("prefs.deleteAllArticles")}
           </Button>
         </DialogActions>
       </Dialog>

@@ -1,0 +1,31 @@
+{
+  "lib": {
+    "min": "min",
+    "hr": "h",
+    "day": "día",
+    "days": "días",
+    "minuteRead": "{{count}} min de lectura",
+    "starting": "iniciando",
+    "fetchingArticle": "obteniendo artículo",
+    "scrapingContent": "extrayendo contenido",
+    "downloadingImages": "descargando imágenes",
+    "creatingThumbnail": "creando miniatura",
+    "generatingSummary": "generando resumen",
+    "summaryGenerated": "resumen generado",
+    "summaryGenerationSkipped": "generación de resumen omitida (error de API)",
+    "processingPdf": "procesando PDF",
+    "savingPdf": "guardando PDF",
+    "savingMetadata": "guardando metadatos",
+    "processingImage": "procesando imagen",
+    "savingImage": "guardando imagen",
+    "done": "listo",
+    "collectingImages": "recopilando imágenes",
+    "downloadingImage": "descargando imagen {{current}} de {{total}}",
+    "imageDownloadedVia": "imagen descargada vía {{downloader}}: {{url}}",
+    "resizingImage": "redimensionando imagen {{current}} de {{total}}",
+    "imageFailedVia": "imagen fallida vía {{attempts}}: {{url}}",
+    "imageFailedAfterDownload": "imagen fallida después de la descarga ({{error}}): {{url}}",
+    "imagesDownloadedForOfflineUse": "{{downloaded}} de {{total}} imágenes descargadas para uso sin conexión",
+    "imageFallback": "imagen {{timestamp}}"
+  }
+}

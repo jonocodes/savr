@@ -1,0 +1,14 @@
+{
+  "tts": {
+    "title": "Text to Speech",
+    "notSupported": "Text-to-speech is not supported in this browser",
+    "play": "Play",
+    "pause": "Pause",
+    "resume": "Resume",
+    "stop": "Stop",
+    "speed": "Speed: {{rate}}x",
+    "voice": "Voice",
+    "paused": "Paused",
+    "reading": "Reading..."
+  }
+}

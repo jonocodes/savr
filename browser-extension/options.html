@@ -3,14 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Savr options</title>
+    <title data-i18n="optionsTitle">Savr options</title>
     <link rel="stylesheet" href="ui.css" />
   </head>
   <body>
     <main class="panel wide">
       <h1>Savr</h1>
       <form id="options-form">
-        <label for="app-url">Savr address</label>
+        <label for="app-url" data-i18n="optionsAddressLabel">Savr address</label>
         <input
           id="app-url"
           type="url"
@@ -18,7 +18,7 @@
           placeholder="https://savr.link"
           required
         />
-        <p class="hint">
+        <p class="hint" data-i18n-html="optionsAddressHint">
           Point this at your own Savr if you self-host (for example
           <code>http://localhost:3000</code>). Granting access to that address
           may be required the first time.
@@ -26,20 +26,20 @@
         <hr />
         <div class="choice">
           <input id="youtube-transcripts" type="checkbox" />
-          <label for="youtube-transcripts">
+          <label for="youtube-transcripts" data-i18n="optionsYoutubeLabel">
             On YouTube, fetch the transcript instead of the page
           </label>
         </div>
-        <p class="hint">
+        <p class="hint" data-i18n="optionsYoutubeHint">
           Saves the transcript and the video thumbnail. A video without a
           transcript is saved as a normal page instead.
         </p>
-        <button type="submit">Save</button>
+        <button type="submit" data-i18n="optionsSave">Save</button>
       </form>
       <p id="status" role="status" aria-live="polite"></p>
       <footer class="links">
         <a href="https://github.com/jonocodes/savr" target="_blank" rel="noopener noreferrer">
-          Savr is open source — project and issues on GitHub
+          <span data-i18n="optionsGithub">Savr is open source — project and issues on GitHub</span>
         </a>
       </footer>
     </main>

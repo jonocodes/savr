@@ -1,0 +1,95 @@
+{
+  "extName": {
+    "message": "Savr"
+  },
+  "extDescription": {
+    "message": "Guarda la página que estás leyendo en Savr sin volver a descargarla."
+  },
+  "popupSave": {
+    "message": "Guardar la página actual"
+  },
+  "popupVisit": {
+    "message": "Visitar Savr"
+  },
+  "popupSettings": {
+    "message": "Configuración de la extensión"
+  },
+  "popupSaving": {
+    "message": "Guardando…"
+  },
+  "popupNoTranscript": {
+    "message": "No se encontró la transcripción — guardando la página en su lugar…"
+  },
+  "popupSavingTranscript": {
+    "message": "Guardando la transcripción…"
+  },
+  "popupOpeningDialog": {
+    "message": "Abriendo el diálogo de guardado de Savr…"
+  },
+  "popupCouldNotSave": {
+    "message": "No se pudo guardar esta página."
+  },
+  "popupNoBackground": {
+    "message": "No se pudo contactar con el proceso de la extensión."
+  },
+  "popupCouldNotOpen": {
+    "message": "No se pudo abrir Savr."
+  },
+  "optionsTitle": {
+    "message": "Opciones de Savr"
+  },
+  "optionsAddressLabel": {
+    "message": "Dirección de Savr"
+  },
+  "optionsAddressHint": {
+    "message": "Apunta a tu propio Savr si lo alojas tú mismo (por ejemplo <code>http://localhost:3000</code>). Puede ser necesario conceder acceso a esa dirección la primera vez."
+  },
+  "optionsYoutubeLabel": {
+    "message": "En YouTube, obtener la transcripción en lugar de la página"
+  },
+  "optionsYoutubeHint": {
+    "message": "Guarda la transcripción y la miniatura del vídeo. Un vídeo sin transcripción se guarda como una página normal."
+  },
+  "optionsSave": {
+    "message": "Guardar"
+  },
+  "optionsGithub": {
+    "message": "Savr es de código abierto — proyecto e incidencias en GitHub"
+  },
+  "optionsInvalidUrl": {
+    "message": "Introduce una dirección http(s) válida."
+  },
+  "optionsAccessError": {
+    "message": "No se pudo solicitar acceso: {{message}}"
+  },
+  "optionsAccessNeeded": {
+    "message": "Se necesita acceso a esa dirección para guardar páginas en ella."
+  },
+  "optionsSaved": {
+    "message": "Guardado."
+  },
+  "errNoReply": {
+    "message": "Sin respuesta de la extensión"
+  },
+  "errNoActiveTab": {
+    "message": "No hay ninguna pestaña activa para guardar."
+  },
+  "errNotScrapable": {
+    "message": "Esta página no se puede extraer (las páginas internas del navegador están fuera de los límites)."
+  },
+  "errReadContent": {
+    "message": "No se pudo leer el contenido de esta página."
+  },
+  "errInvalidImageUrl": {
+    "message": "URL de imagen no válida"
+  },
+  "errOnlyHttpImages": {
+    "message": "Solo se pueden descargar imágenes http(s)"
+  },
+  "errImageTooLarge": {
+    "message": "Imagen demasiado grande"
+  },
+  "errOnlyFromApp": {
+    "message": "Las solicitudes de imágenes solo se aceptan desde la aplicación Savr"
+  }
+}
