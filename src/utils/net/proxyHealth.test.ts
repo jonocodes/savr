@@ -8,6 +8,7 @@ import {
   proxyProblemSummary,
   type ProbeEvidence,
 } from "./proxyHealth";
+import i18next, { setAppLanguage } from "~/i18n";
 
 const PROXY = "https://proxy.example/?url=";
 
@@ -267,25 +268,38 @@ describe("createProxyHealthMonitor", () => {
   });
 });
 
-describe("proxyProblemSummary", () => {
-  it("is a short clause for save-failure notices", () => {
-    expect(proxyProblemSummary("rate-limited")).toBe("your CORS proxy is rate-limiting requests");
-    expect(proxyProblemSummary("not-working")).toBe("your CORS proxy isn't working");
-    expect(proxyProblemSummary("unreachable")).toBe("your CORS proxy isn't responding");
+describe("proxy problem copy", () => {
+  afterEach(async () => {
+    await setAppLanguage("en");
   });
-});
 
-describe("proxyProblemMessage", () => {
   it("says only what was observed", () => {
-    expect(proxyProblemMessage("rate-limited", 429)).toBe(
+    const t = i18next.t.bind(i18next);
+    expect(proxyProblemMessage(t, "rate-limited", 429)).toBe(
       "Your CORS proxy is rate-limiting requests (HTTP 429)."
     );
-    expect(proxyProblemMessage("not-working")).toBe(
+    expect(proxyProblemMessage(t, "not-working")).toBe(
       "Your CORS proxy is responding but not working. It may have hit a usage limit or be misconfigured."
     );
-    expect(proxyProblemMessage("unreachable")).toBe(
+    expect(proxyProblemMessage(t, "unreachable")).toBe(
       "Your CORS proxy isn't responding. Check the URL in Preferences."
     );
+  });
+
+  it("has a short clause for save-failure notices", () => {
+    const t = i18next.t.bind(i18next);
+    expect(proxyProblemSummary(t, "rate-limited")).toBe("your CORS proxy is rate-limiting requests");
+    expect(proxyProblemSummary(t, "not-working")).toBe("your CORS proxy isn't working");
+    expect(proxyProblemSummary(t, "unreachable")).toBe("your CORS proxy isn't responding");
+  });
+
+  it("is translated", async () => {
+    await setAppLanguage("es");
+    const t = i18next.t.bind(i18next);
+    expect(proxyProblemMessage(t, "rate-limited", 429)).toBe(
+      "Tu proxy CORS está limitando las solicitudes (HTTP 429)."
+    );
+    expect(proxyProblemSummary(t, "unreachable")).toBe("tu proxy CORS no responde");
   });
 });
 

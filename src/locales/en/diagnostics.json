@@ -78,6 +78,8 @@
     "noUrl": "No URL",
     "scanningOrphaned": "Scanning database for orphaned articles...",
     "noOrphanedFound": "No orphaned articles found in database.",
-    "noArticlesFound": "No articles found in the database."
+    "noArticlesFound": "No articles found in the database.",
+    "proxyHealthTitle": "CORS Proxy Health",
+    "proxyHealthDescription": "What Savr observed about the proxy, and why it said so. The probe fetches the proxy prefix with an empty target twice: with CORS (our worker answers with CORS headers, even on errors) and with no-cors (resolves whenever anything answered)."
   }
 }

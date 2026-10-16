@@ -836,9 +836,11 @@ export default function PreferencesScreen() {
                       sx={{ mt: 0.5 }}
                     >
                       {proxyHealthState.problem
-                        ? proxyProblemMessage(proxyHealthState.problem, proxyHealthState.status)
-                        : "No problems observed."}{" "}
-                      ~{getProxiedRequestsTodayCount()} requests from this device today.
+                        ? proxyProblemMessage(t, proxyHealthState.problem, proxyHealthState.status)
+                        : t("common.proxyHealth.noProblems")}{" "}
+                      {t("common.proxyHealth.requestsToday", {
+                        count: getProxiedRequestsTodayCount(),
+                      })}
                     </Typography>
                     {proxyHealthState.problem && !isCustomCorsProxy && (
                       <Link
@@ -847,7 +849,7 @@ export default function PreferencesScreen() {
                         rel="noopener noreferrer"
                         variant="body2"
                       >
-                        Set up your own proxy
+                        {t("common.proxyHealth.selfHost")}
                       </Link>
                     )}
                   </Box>

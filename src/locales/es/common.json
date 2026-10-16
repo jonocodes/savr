@@ -15,6 +15,24 @@
     "pwaUpdate": "Actualizar",
     "pwaUpdateMessage": "Hay una nueva versión disponible",
     "corsTestPage": "Página de prueba de CORS",
-    "corsTestIframeTitle": "Repositorio de GitHub de Savr"
+    "corsTestIframeTitle": "Repositorio de GitHub de Savr",
+    "proxyHealth": {
+      "rateLimited": "Tu proxy CORS está limitando las solicitudes (HTTP {{status}}).",
+      "notWorking": "Tu proxy CORS responde pero no funciona. Puede que haya alcanzado un límite de uso o que esté mal configurado.",
+      "unreachable": "Tu proxy CORS no responde. Revisa la URL en Preferencias.",
+      "rateLimitedSummary": "tu proxy CORS está limitando las solicitudes",
+      "notWorkingSummary": "tu proxy CORS no funciona",
+      "unreachableSummary": "tu proxy CORS no responde",
+      "saveFailed": "No se pudo guardar: {{reason}}. Consulta el aviso de arriba.",
+      "refetchFailed": "No se pudo recargar: {{reason}}. Revisa Preferencias → Proxy CORS.",
+      "proxySettings": "Ajustes del proxy",
+      "selfHost": "Configura tu propio proxy",
+      "extensionHintBefore": "Guardar con la",
+      "extensionHintLink": "extensión de Savr para el navegador",
+      "extensionHintAfter": "no necesita el proxy.",
+      "bannerRequestsToday": "Este dispositivo envió ~{{count}} solicitudes al proxy hoy.",
+      "noProblems": "No se han detectado problemas.",
+      "requestsToday": "~{{count}} solicitudes desde este dispositivo hoy."
+    }
   }
 }

@@ -1050,13 +1050,10 @@ export default function DiagnosticsScreen() {
             data-testid="proxy-health-diagnostics"
           >
             <Typography variant="h6" component="h3" gutterBottom>
-              CORS Proxy Health
+              {t("diagnostics.proxyHealthTitle")}
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-              What Savr observed about the proxy, and why it said so. The probe fetches the
-              proxy prefix with an empty target twice: with CORS (our worker answers with
-              CORS headers, even on errors) and with no-cors (resolves whenever anything
-              answered).
+              {t("diagnostics.proxyHealthDescription")}
             </Typography>
             <Typography
               variant="body2"
@@ -1065,8 +1062,8 @@ export default function DiagnosticsScreen() {
               sx={{ mb: 1 }}
             >
               {proxyHealthState.problem
-                ? proxyProblemMessage(proxyHealthState.problem, proxyHealthState.status)
-                : "No problems observed."}
+                ? proxyProblemMessage(t, proxyHealthState.problem, proxyHealthState.status)
+                : t("common.proxyHealth.noProblems")}
             </Typography>
             <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
               {maskCorsProxyInText(

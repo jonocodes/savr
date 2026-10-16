@@ -826,7 +826,7 @@ export default function ArticleListScreen() {
         const proxyProblem = proxyHealth.getState().problem;
         enqueueSnackbar(
           proxyProblem
-            ? `Couldn't save: ${proxyProblemSummary(proxyProblem)}. See the notice above.`
+            ? t("common.proxyHealth.saveFailed", { reason: proxyProblemSummary(t, proxyProblem) })
             : t("list.saveError", { error: errorMessage(error) }),
           { variant: "error" }
         );

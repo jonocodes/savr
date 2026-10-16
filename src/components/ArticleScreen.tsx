@@ -476,7 +476,9 @@ export default function ArticleScreen(_props: Props) {
         const proxyProblem = proxyHealth.getState().problem;
         enqueueSnackbar(
           proxyProblem
-            ? `Couldn't refetch: ${proxyProblemSummary(proxyProblem)}. Check Preferences → CORS Proxy.`
+            ? t("common.proxyHealth.refetchFailed", {
+                reason: proxyProblemSummary(t, proxyProblem),
+              })
             : t("article.refetchFailed"),
           { variant: "error" }
         );

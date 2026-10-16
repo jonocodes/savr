@@ -204,27 +204,33 @@ export function createProxyHealthMonitor(options: ProxyHealthMonitorOptions): Pr
   };
 }
 
+/**
+ * The app's translate function (i18next `t`), injected so this module stays
+ * free of i18n setup. Keys live under `common.proxyHealth` in src/locales.
+ */
+export type Translate = (key: string, options?: { status?: number }) => string;
+
 /** User-facing copy: what was observed, cause hedged, no reset times. */
-export function proxyProblemMessage(problem: ProxyProblem, status = 429): string {
+export function proxyProblemMessage(t: Translate, problem: ProxyProblem, status = 429): string {
   switch (problem) {
     case "rate-limited":
-      return `Your CORS proxy is rate-limiting requests (HTTP ${status}).`;
+      return t("common.proxyHealth.rateLimited", { status });
     case "not-working":
-      return "Your CORS proxy is responding but not working. It may have hit a usage limit or be misconfigured.";
+      return t("common.proxyHealth.notWorking");
     case "unreachable":
-      return "Your CORS proxy isn't responding. Check the URL in Preferences.";
+      return t("common.proxyHealth.unreachable");
   }
 }
 
 /** The same observation as a clause, for "Couldn't save: …" notices. */
-export function proxyProblemSummary(problem: ProxyProblem): string {
+export function proxyProblemSummary(t: Translate, problem: ProxyProblem): string {
   switch (problem) {
     case "rate-limited":
-      return "your CORS proxy is rate-limiting requests";
+      return t("common.proxyHealth.rateLimitedSummary");
     case "not-working":
-      return "your CORS proxy isn't working";
+      return t("common.proxyHealth.notWorkingSummary");
     case "unreachable":
-      return "your CORS proxy isn't responding";
+      return t("common.proxyHealth.unreachableSummary");
   }
 }
 

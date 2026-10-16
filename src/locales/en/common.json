@@ -15,6 +15,24 @@
     "pwaUpdate": "Update",
     "pwaUpdateMessage": "A new version is available",
     "corsTestPage": "CORS Test Page",
-    "corsTestIframeTitle": "Savr GitHub Repository"
+    "corsTestIframeTitle": "Savr GitHub Repository",
+    "proxyHealth": {
+      "rateLimited": "Your CORS proxy is rate-limiting requests (HTTP {{status}}).",
+      "notWorking": "Your CORS proxy is responding but not working. It may have hit a usage limit or be misconfigured.",
+      "unreachable": "Your CORS proxy isn't responding. Check the URL in Preferences.",
+      "rateLimitedSummary": "your CORS proxy is rate-limiting requests",
+      "notWorkingSummary": "your CORS proxy isn't working",
+      "unreachableSummary": "your CORS proxy isn't responding",
+      "saveFailed": "Couldn't save: {{reason}}. See the notice above.",
+      "refetchFailed": "Couldn't refetch: {{reason}}. Check Preferences → CORS Proxy.",
+      "proxySettings": "Proxy settings",
+      "selfHost": "Set up your own proxy",
+      "extensionHintBefore": "Saving with the",
+      "extensionHintLink": "Savr browser extension",
+      "extensionHintAfter": "doesn't need the proxy.",
+      "bannerRequestsToday": "This device sent ~{{count}} requests to the proxy today.",
+      "noProblems": "No problems observed.",
+      "requestsToday": "~{{count}} requests from this device today."
+    }
   }
 }
