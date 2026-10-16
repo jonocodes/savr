@@ -31,6 +31,10 @@ const api = globalThis.browser ?? globalThis.chrome;
 
 const PENDING_DELIVERY_KEY = "pendingDelivery";
 
+// Localised copy for messages that surface in the popup/UI. chrome.i18n picks
+// the browser locale, with _locales/en as the default.
+const msg = (key, substitutions) => api.i18n.getMessage(key, substitutions);
+
 /**
  * Version of the payload shape the bridge delivers. The app and the extension
  * update on different schedules (savr.link deploys, extensions update daily,
@@ -129,7 +133,10 @@ function startImageRelay() {
         reply(
           result && result.ok
             ? { ok: true, dataUrl: result.dataUrl }
-            : { ok: false, error: (result && result.error) || "No reply from the extension" }
+            : { ok: false, error:
+              (result && result.error) ||
+              (globalThis.browser ?? globalThis.chrome).i18n?.getMessage("errNoReply") ||
+              "No reply from the extension" }
         ),
       (error) => reply({ ok: false, error: String((error && error.message) || error) })
     );
@@ -296,7 +303,7 @@ async function openApp(mode, message) {
 async function saveActivePage() {
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
   if (!tab || tab.id === undefined) {
-    return { ok: false, error: "No active tab to save." };
+    return { ok: false, error: msg("errNoActiveTab") };
   }
 
   const handler = await findSiteHandler(tab.url ?? "");
@@ -332,11 +339,11 @@ async function saveActivePage() {
   } catch {
     return {
       ok: false,
-      error: "This page cannot be scraped (browser-internal pages are off limits).",
+      error: msg("errNotScrapable"),
     };
   }
   if (!page || !page.html) {
-    return { ok: false, error: "Could not read this page's content." };
+    return { ok: false, error: msg("errReadContent") };
   }
 
   const outcome = await openApp("html", {
@@ -403,10 +410,10 @@ async function fetchImageAsDataUrl(url) {
   try {
     parsed = new URL(url);
   } catch {
-    return { ok: false, error: "Invalid image URL" };
+    return { ok: false, error: msg("errInvalidImageUrl") };
   }
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return { ok: false, error: "Only http(s) images can be downloaded" };
+    return { ok: false, error: msg("errOnlyHttpImages") };
   }
 
   const response = await fetch(parsed.href, {
@@ -421,11 +428,11 @@ async function fetchImageAsDataUrl(url) {
     return { ok: false, error: `Expected image content type, got: ${contentType || "none"}` };
   }
   if (Number(response.headers.get("content-length")) > MAX_IMAGE_BYTES) {
-    return { ok: false, error: "Image too large" };
+    return { ok: false, error: msg("errImageTooLarge") };
   }
   const bytes = new Uint8Array(await response.arrayBuffer());
   if (bytes.length > MAX_IMAGE_BYTES) {
-    return { ok: false, error: "Image too large" };
+    return { ok: false, error: msg("errImageTooLarge") };
   }
   return { ok: true, dataUrl: `data:${contentType};base64,${bytesToBase64(bytes)}` };
 }
@@ -459,7 +466,7 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((allowed) =>
         allowed
           ? fetchImageAsDataUrl(String(message.url))
-          : { ok: false, error: "Image requests are only accepted from the Savr app" }
+          : { ok: false, error: msg("errOnlyFromApp") }
       )
       .then(sendResponse, (error) =>
         sendResponse({ ok: false, error: String(error?.message ?? error) })

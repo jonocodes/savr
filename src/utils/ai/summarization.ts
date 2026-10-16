@@ -7,6 +7,7 @@
 // not new code. The "custom" provider lets the user point at any base URL and
 // type a model name by hand (e.g. a local llama-server or a self-hosted model).
 import { getSummaryModelForProvider, getSummarySettingsFromCookie } from "../cookies";
+import { getAppLanguage } from "../../i18n";
 
 // Provider ids are open-ended now that providers are just data, so this is a
 // plain string alias rather than a closed union.
@@ -192,6 +193,8 @@ export function buildPrompt(text: string, settings: SummarySettings): string {
   // stops the open-ended top end (Comprehensive) from running unbounded.
   const lengthCeiling = "Regardless of detail level, keep the summary under 800 words.";
 
+  const languageInstruction = getAppLanguage() === "es" ? "Write the summary in Spanish." : "";
+
   const parts = [
     "Summarize the following text.",
     detailInstructions[settings.detailLevel],
@@ -199,6 +202,7 @@ export function buildPrompt(text: string, settings: SummarySettings): string {
     focusInstructions[settings.focus],
     formatInstruction,
     lengthCeiling,
+    languageInstruction,
   ].filter(Boolean);
 
   return `${parts.join(" ")}\n\nText:\n${text}\n\nSummary:`;

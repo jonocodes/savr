@@ -68,6 +68,7 @@ import { errorMessage } from "~/utils/logging";
 import { normalizeUrl } from "~/utils/net/url";
 import { shareArticle } from "~/utils/share";
 import FailureReportDialog from "./FailureReportDialog";
+import { useTranslation } from "react-i18next";
 
 import { keyframes } from "@mui/system";
 
@@ -120,6 +121,7 @@ const sampleArticleUrls = [
 
 function ArticleItem({ article }: { article: Article }) {
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const readingWpm = useReadingWpm();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [thumbnailSrc, setThumbnailSrc] = useState<string>("/static/article_bw.webp");
@@ -190,9 +192,9 @@ function ArticleItem({ article }: { article: Article }) {
 
     const outcome = await shareArticle(article.url, article.title);
     if (outcome === "copied") {
-      enqueueSnackbar("URL copied to clipboard");
+      enqueueSnackbar(t("list.urlCopied"));
     } else if (outcome === "failed") {
-      enqueueSnackbar("Failed to share article", { variant: "error" });
+      enqueueSnackbar(t("list.shareFailed"), { variant: "error" });
     }
   };
 
@@ -200,10 +202,10 @@ function ArticleItem({ article }: { article: Article }) {
     event.stopPropagation();
     try {
       await patchArticleMetadata(storage.client!, article.slug, { state: "archived" });
-      enqueueSnackbar("Article archived");
+      enqueueSnackbar(t("list.articleArchived"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to archive article", { variant: "error" });
+      enqueueSnackbar(t("list.archiveFailed"), { variant: "error" });
     }
     closeMenu();
   };
@@ -214,10 +216,10 @@ function ArticleItem({ article }: { article: Article }) {
 
     try {
       await patchArticleMetadata(storage.client!, article.slug, { state: "unread" });
-      enqueueSnackbar("Article unarchived");
+      enqueueSnackbar(t("list.articleUnarchived"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to unarchive article", { variant: "error" });
+      enqueueSnackbar(t("list.unarchiveFailed"), { variant: "error" });
     }
     closeMenu();
   };
@@ -226,10 +228,10 @@ function ArticleItem({ article }: { article: Article }) {
     event.stopPropagation();
     try {
       await patchArticleMetadata(storage.client!, article.slug, { favorite: !article.favorite });
-      enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
+      enqueueSnackbar(article.favorite ? t("list.removedFromFavorites") : t("list.addedToFavorites"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to update favorite", { variant: "error" });
+      enqueueSnackbar(t("list.favoriteFailed"), { variant: "error" });
     }
     closeMenu();
   };
@@ -238,10 +240,10 @@ function ArticleItem({ article }: { article: Article }) {
     event.stopPropagation();
     try {
       await removeArticle(article.slug);
-      enqueueSnackbar("Article deleted");
+      enqueueSnackbar(t("list.articleDeleted"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to delete article", { variant: "error" });
+      enqueueSnackbar(t("list.deleteFailed"), { variant: "error" });
     }
     closeMenu();
   };
@@ -264,7 +266,7 @@ function ArticleItem({ article }: { article: Article }) {
       <ListItemAvatar sx={{ position: "relative" }}>
         <img
           src={thumbnailSrc}
-          alt="Article"
+          alt={t("list.articleAlt")}
           style={{ width: 100, height: 100, objectFit: "cover" }}
         />
         {article.favorite && (
@@ -293,11 +295,11 @@ function ArticleItem({ article }: { article: Article }) {
           <Typography variant="caption" color="text.secondary">
             {contentExists
               ? article.mimeType === "application/pdf"
-                ? "PDF document"
+                ? t("list.pdfDocument")
                 : article.mimeType?.startsWith("image/")
-                  ? "Image"
+                  ? t("list.imageLabel")
                   : generateInfoForCard(article, readingWpm)
-              : "(content missing)"}
+              : t("list.contentMissing")}
           </Typography>
         }
       />
@@ -315,14 +317,14 @@ function ArticleItem({ article }: { article: Article }) {
             <ListItemIcon>
               <UnarchiveIcon fontSize="small" />
             </ListItemIcon>
-            Unarchive
+            {t("list.unarchiveAction")}
           </MenuItem>
         ) : (
           <MenuItem onClick={handleArchive} data-testid="article-menu-archive">
             <ListItemIcon>
               <ArchiveIcon fontSize="small" />
             </ListItemIcon>
-            Archive
+            {t("list.archiveAction")}
           </MenuItem>
         )}
         <MenuItem onClick={handleToggleFavorite} data-testid="article-menu-favorite">
@@ -333,19 +335,19 @@ function ArticleItem({ article }: { article: Article }) {
               <StarBorderIcon fontSize="small" />
             )}
           </ListItemIcon>
-          {article.favorite ? "Unmark favorite" : "Mark favorite"}
+          {article.favorite ? t("list.unmarkFavorite") : t("list.markFavorite")}
         </MenuItem>
         <MenuItem onClick={handleShare} data-testid="article-menu-share">
           <ListItemIcon>
             <ShareIcon fontSize="small" />
           </ListItemIcon>
-          Share
+          {t("list.shareAction")}
         </MenuItem>
         <MenuItem onClick={handleDelete} data-testid="article-menu-delete">
           <ListItemIcon>
             <DeleteIcon fontSize="small" />
           </ListItemIcon>
-          Delete
+          {t("list.deleteAction")}
         </MenuItem>
       </Menu>
     </ListItem>
@@ -354,6 +356,7 @@ function ArticleItem({ article }: { article: Article }) {
 
 export default function ArticleListScreen() {
   const navigate = useNavigate();
+  const { t } = useTranslation();
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const urlFieldRef = useRef<HTMLInputElement>(null);
@@ -458,7 +461,7 @@ export default function ArticleListScreen() {
     }
 
     console.log("Waiting for RemoteStorage sync to complete before closing...");
-    setIngestStatus("Syncing to server...");
+    setIngestStatus(t("list.syncingToServer"));
 
     await new Promise<void>((resolve) => {
       let resolved = false;
@@ -501,7 +504,7 @@ export default function ArticleListScreen() {
 
     setIngestStatus(null);
     window.close();
-  }, [remoteStorage]);
+  }, [remoteStorage, t]);
 
   useEffect(() => {
     const bookmarklet = new URLSearchParams(window.location.search).get("bookmarklet");
@@ -513,14 +516,14 @@ export default function ArticleListScreen() {
     const decodedUrl = decodeURIComponent(bookmarklet);
     setUrl(decodedUrl);
     setDialogVisible(true);
-    setIngestStatus("Waiting for page to load...");
+    setIngestStatus(t("list.waitingForPageLoad"));
     setIngestPercent(0);
 
     // Ingest a bookmarklet HTML payload. Extracted so it can be called both from the
     // message handler (normal path) and from the pending-queue drain (when client was
     // null the first time the message arrived).
     const processMessage = async (html: string, msgUrl: string, extension: ExtensionInfo | null) => {
-      setIngestStatus("Ingesting...");
+      setIngestStatus(t("list.ingesting"));
       setIngestPercent(10);
       const { article } = await ingestHtml(
         client,
@@ -539,7 +542,7 @@ export default function ArticleListScreen() {
 
       await db.articles.put(article);
       trackCapture(externalCaptureSource("html", extension));
-      setIngestStatus("Syncing to remote storage...");
+      setIngestStatus(t("list.syncingToRemoteStorage"));
       try {
         await remoteStorage?.startSync();
       } catch (error) {
@@ -620,7 +623,7 @@ export default function ArticleListScreen() {
       window.clearInterval(readyPing);
       window.removeEventListener("message", handler);
     };
-  }, [client, remoteStorage, waitForSyncThenClose]);
+  }, [client, remoteStorage, waitForSyncThenClose, t, navigate]);
 
   // Raw-ingest flow (savr-raw). A site-specific bookmarklet does its own extraction
   // (e.g. scraping a YouTube transcript that Savr cannot fetch or that Readability
@@ -637,12 +640,12 @@ export default function ArticleListScreen() {
     }
 
     setDialogVisible(true);
-    setIngestStatus("Waiting for content...");
+    setIngestStatus(t("list.waitingForContent"));
     setIngestPercent(0);
 
     const processRawMessage = async (payload: RawIngestPayload, extension: ExtensionInfo | null) => {
-      setUrl(payload.title || payload.url || "raw content");
-      setIngestStatus("Ingesting...");
+      setUrl(payload.title || payload.url || t("list.rawContent"));
+      setIngestStatus(t("list.ingesting"));
       setIngestPercent(10);
 
       const { article } = await ingestRaw(
@@ -665,7 +668,7 @@ export default function ArticleListScreen() {
 
       await db.articles.put(article);
       trackCapture(externalCaptureSource("raw", extension));
-      setIngestStatus("Syncing to remote storage...");
+      setIngestStatus(t("list.syncingToRemoteStorage"));
       try {
         await remoteStorage?.startSync();
       } catch (error) {
@@ -743,7 +746,7 @@ export default function ArticleListScreen() {
       window.clearInterval(readyPing);
       window.removeEventListener("message", handler);
     };
-  }, [client, remoteStorage, waitForSyncThenClose, navigate]);
+  }, [client, remoteStorage, waitForSyncThenClose, navigate, t]);
 
   const saveUrl = useCallback(
     async (afterExternalSave: AfterExternalSaveAction = AFTER_EXTERNAL_SAVE_ACTIONS.SHOW_LIST) => {
@@ -755,7 +758,7 @@ export default function ArticleListScreen() {
         return;
       }
 
-      setIngestStatus("Ingesting...");
+      setIngestStatus(t("list.ingesting"));
       // Only a failed download is reportable; a later local-save failure is not
       // an article-load problem and must not be filed as one.
       let ingestSucceeded = false;
@@ -813,9 +816,9 @@ export default function ArticleListScreen() {
       } catch (error) {
         console.error(error);
         trackCaptureFailed();
-        enqueueSnackbar(`Error saving article: ${errorMessage(error)}`, { variant: "error" });
+        enqueueSnackbar(t("list.saveError", { error: errorMessage(error) }), { variant: "error" });
         if (!ingestSucceeded) {
-          reportFailure(targetUrl, error, "Failed to download article");
+          reportFailure(targetUrl, error, t("list.downloadFailed"));
         }
         setIngestStatus(null);
         setIngestPercent(0);
@@ -834,6 +837,7 @@ export default function ArticleListScreen() {
       navigate,
       waitForSyncThenClose,
       reportFailure,
+      t,
     ],
   );
 
@@ -942,7 +946,7 @@ export default function ArticleListScreen() {
           backgroundColor: "background.paper",
         }}
       >
-        <Tooltip title="Add article">
+        <Tooltip title={t("list.addArticleTooltip")}>
           <IconButton
             onClick={() => {
               setDialogVisible(true);
@@ -964,14 +968,14 @@ export default function ArticleListScreen() {
               onKeyDown={(e) => {
                 if (e.key === "Escape") closeSearch();
               }}
-              placeholder="Search title, author, publication…"
+              placeholder={t("list.searchPlaceholder")}
               size="small"
               fullWidth
               sx={{ maxWidth: 480 }}
               InputProps={{
                 startAdornment: <SearchIcon sx={{ mr: 1, color: "text.secondary" }} />,
                 endAdornment: (
-                  <IconButton size="small" onClick={closeSearch} aria-label="Close search">
+                  <IconButton size="small" onClick={closeSearch} aria-label={t("list.closeSearch")}>
                     <CloseIcon fontSize="small" />
                   </IconButton>
                 ),
@@ -990,25 +994,25 @@ export default function ArticleListScreen() {
             >
               <ToggleButton value="unread">
                 <ArticleIcon sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-                Saves
+                {t("list.savesFilter")}
               </ToggleButton>
               <ToggleButton value="archived">
                 <ArchiveIcon2 sx={{ mr: 1, display: { xs: "none", sm: "inline-block" } }} />
-                Archive
+                {t("list.archiveFilter")}
               </ToggleButton>
             </ToggleButtonGroup>
           )}
         </Box>
 
         {!searchOpen && (
-          <Tooltip title="Search">
-            <IconButton onClick={() => setSearchOpen(true)} aria-label="Search">
+          <Tooltip title={t("list.search")}>
+            <IconButton onClick={() => setSearchOpen(true)} aria-label={t("list.search")}>
               <SearchIcon />
             </IconButton>
           </Tooltip>
         )}
 
-        <Tooltip title="Settings">
+        <Tooltip title={t("list.settings")}>
           <IconButton onClick={() => navigate({ to: "/prefs" })}>
             <SettingsIcon />
           </IconButton>
@@ -1034,16 +1038,23 @@ export default function ArticleListScreen() {
               {syncProgress.totalArticles === 0 ? (
                 // During RemoteStorage sync phase (downloading to cache)
                 syncProgress.phase === "initial" ? (
-                  "Preparing to sync..."
+                  t("list.preparingToSync")
                 ) : (
-                  "Syncing..."
+                  t("list.syncing")
                 )
               ) : (
                 // During article processing phase (we know the count)
-                <>
-                  {syncProgress.phase === "initial" ? "Initial sync: " : "Syncing: "}
-                  {syncProgress.processedArticles} / {syncProgress.totalArticles} articles
-                </>
+                syncProgress.phase === "initial" ? (
+                  t("list.initialSyncProgress", {
+                    processed: syncProgress.processedArticles,
+                    total: syncProgress.totalArticles,
+                  })
+                ) : (
+                  t("list.syncingProgress", {
+                    processed: syncProgress.processedArticles,
+                    total: syncProgress.totalArticles,
+                  })
+                )
               )}
             </Typography>
           </Box>
@@ -1075,23 +1086,27 @@ export default function ArticleListScreen() {
             {filter === "unread" ? (
               unreadCount !== undefined && unreadWordCountSum !== undefined ? (
                 <>
-                  Saves: {unreadCount} articles
+                  {t("list.savesSummary", { count: unreadCount })}
                   <br />
-                  Reading time: {formatReadTime(Math.ceil(unreadWordCountSum / readingWpm))}
-                  {" "}· {Math.round(readingWpm)} wpm
+                  {t("list.readingTimeSummary", {
+                    time: formatReadTime(Math.ceil(unreadWordCountSum / readingWpm)),
+                    wpm: Math.round(readingWpm),
+                  })}
                 </>
               ) : (
-                "Loading..."
+                t("list.loading")
               )
             ) : archivedCount !== undefined && archivedWordCountSum !== undefined ? (
               <>
-                Archive: {archivedCount} articles
+                {t("list.archiveSummary", { count: archivedCount })}
                 <br />
-                Reading time: {formatReadTime(Math.ceil(archivedWordCountSum / readingWpm))}
-                {" "}· {Math.round(readingWpm)} wpm
+                {t("list.readingTimeSummary", {
+                  time: formatReadTime(Math.ceil(archivedWordCountSum / readingWpm)),
+                  wpm: Math.round(readingWpm),
+                })}
               </>
             ) : (
-              "Loading..."
+              t("list.loading")
             )}
           </Typography>
         )}
@@ -1114,9 +1129,7 @@ export default function ArticleListScreen() {
             }}
           >
             <Typography variant="body1" color="text.secondary" gutterBottom>
-              {filter === "unread"
-                ? "Start saving articles to see them here"
-                : "No archived articles yet"}
+              {filter === "unread" ? t("list.emptySaves") : t("list.emptyArchived")}
             </Typography>
 
             {filter === "unread" ? (
@@ -1131,7 +1144,7 @@ export default function ArticleListScreen() {
                 }}
                 sx={{ mt: 2 }}
               >
-                Add Article
+                {t("list.addArticle")}
               </Button>
             ) : (
               <></>
@@ -1142,11 +1155,11 @@ export default function ArticleListScreen() {
 
       {/* Add Article Dialog */}
       <Dialog open={dialogVisible} onClose={() => setDialogVisible(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Article</DialogTitle>
+        <DialogTitle>{t("list.addArticle")}</DialogTitle>
         <DialogContent>
           <TextField
             inputRef={urlFieldRef}
-            label="URL"
+            label={t("list.url")}
             value={url}
             onChange={(e) => setUrl(e.target.value)}
             fullWidth
@@ -1172,11 +1185,11 @@ export default function ArticleListScreen() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => { setDialogVisible(false); navigate({ to: "/submit" }); }}>
-            Advanced
+            {t("list.advanced")}
           </Button>
           <Box sx={{ flexGrow: 1 }} />
           {articles && articles.length > 0 && (
-            <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
+            <Button onClick={() => setDialogVisible(false)}>{t("list.cancel")}</Button>
           )}
           <div style={{ position: "relative", display: "flex", alignItems: "center", gap: 2 }}>
             {articles && articles.length === 0 && (
@@ -1187,7 +1200,7 @@ export default function ArticleListScreen() {
                   fontWeight: "bold",
                 }}
               >
-                Click here
+                {t("list.clickHere")}
               </Typography>
             )}
             {articles && articles.length === 0 && (
@@ -1206,7 +1219,7 @@ export default function ArticleListScreen() {
               variant="contained"
               disabled={ingestStatus !== null || !url.trim()}
             >
-              Save
+              {t("list.save")}
             </Button>
           </div>
         </DialogActions>

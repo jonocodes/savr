@@ -259,6 +259,13 @@ Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
   (`--self-hosted` because the manifest has an `update_url`; CI runs the same).
 - Icons come from the app: `public/favicon-16x16.png` and `favicon-32x32.png`
   are used as-is, and 48/96/128 are resized from `public/icon.png`.
+- Strings are localised through the standard WebExtension mechanism:
+  `_locales/en/messages.json` is the `default_locale`, `_locales/es/…` carries
+  Spanish, and the manifest resolves `__MSG_*__` names. HTML uses
+  `data-i18n` / `data-i18n-html` attributes (resolved at load), scripts call
+  `api.i18n.getMessage(...)`. The extension follows the browser's language —
+  there is no separate switch in the extension. Add every new key to both
+  locale files.
 
 ### Tests
 

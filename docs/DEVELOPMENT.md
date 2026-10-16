@@ -219,6 +219,21 @@ Unit tests: `src/utils/net/imageSources.test.ts`,
 - `infra/cors-stats/` - Usage dashboard for the proxy, backed by Analytics Engine (see its README)
 - `test-server/` - Armadietto server for testing
 
+## Internationalization (i18n)
+
+The UI is translated with [i18next](https://www.i18next.com) + `react-i18next`. English and Spanish are supported; the language comes from the `savr-language` cookie if the user picked one in Preferences, otherwise from `navigator.language` (anything starting with `es` resolves to Spanish).
+
+- `src/i18n.ts` — initializes i18next, merges the locale files, exposes `getAppLanguage()` / `setAppLanguage()` / `SUPPORTED_LOCALES`, keeps `<html lang>` and lib's locale in sync.
+- `src/locales/<lang>/<area>.json` — one file per UI area (`prefs`, `list`, `article`, `submit`, `diagnostics`, `tts`, `failure`, `common`), each shaped `{"<area>": { "key": "text" }}` and merged into the default namespace at startup. Keys are addressed as `t("prefs.deleteAllArticles")`.
+- `lib/src/messages.ts` — English strings produced inside `lib/` (read-time formatting, ingestion progress). lib stays framework-free: it owns the English text and a tiny `t()` that the app points at i18next at startup; `src/locales/es/lib.json` carries the Spanish side.
+- `browser-extension/_locales/{en,es}/messages.json` — standard WebExtension `chrome.i18n` messages (the extension follows the browser's language; there is no in-app switch there).
+
+In components: `const { t } = useTranslation();` then `t("area.key")`. Use `{{param}}` placeholders with `t("area.key", { param })` for interpolation and `key_one` / `key_other` with `t("area.key", { count })` for plurals.
+
+To add a string: add the key to **both** `src/locales/en/<area>.json` and `src/locales/es/<area>.json` (same key sets are enforced by `src/i18n.test.ts`, which also checks that `{{placeholders}}` match between languages). To add a language: extend `SUPPORTED_LOCALES` in `src/i18n.ts`, add a `src/locales/<lang>/` directory with every area file (plus `lib.json`), and register it in the resources.
+
+Strings deliberately left in English: console/debug output, thrown `Error` messages surfaced through snackbars, telemetry event names, the prefilled GitHub issue template (`src/utils/failureReport.ts`), CSV export headers, brand/product names, and LLM prompt instructions (summaries are told to answer in Spanish when the UI is in Spanish). The PWA manifest and the static `<title>` in `index.html` are build-time English too — the tab title itself is set at runtime by `useDocumentTitle`.
+
 ## Debugging Tips
 
 1. **Check browser console output**: Add `page.on('console', msg => console.log('[BROWSER]', msg.text()))` to tests

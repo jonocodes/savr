@@ -14,6 +14,7 @@ import {
   Typography,
 } from "@mui/material";
 import { ExpandMore as ExpandMoreIcon } from "@mui/icons-material";
+import { useTranslation } from "react-i18next";
 import { getFailureReportRepo } from "~/config/environment";
 import {
   buildIssueUrl,
@@ -32,6 +33,7 @@ interface FailureReportDialogProps {
  * a prefilled new-issue form in a new tab. Savr itself makes no request.
  */
 export default function FailureReportDialog({ payload, onClose }: FailureReportDialogProps) {
+  const { t } = useTranslation();
   const [text, setText] = useState(() => JSON.stringify(payload, null, 2));
 
   // A new failure resets any edits from a previous report.
@@ -54,20 +56,19 @@ export default function FailureReportDialog({ payload, onClose }: FailureReportD
       aria-labelledby="failure-report-title"
       data-testid="failure-report-dialog"
     >
-      <DialogTitle id="failure-report-title">Report this failed article?</DialogTitle>
+      <DialogTitle id="failure-report-title">{t("failure.dialogTitle")}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" sx={{ mb: 2 }}>
-          Savr couldn&apos;t load this page. Filing a report helps get failures like this fixed.
+          {t("failure.body")}
         </Typography>
         <Accordion disableGutters>
           <AccordionSummary expandIcon={<ExpandMoreIcon />}>
-            <Typography variant="body2">What gets shared</Typography>
+            <Typography variant="body2">{t("failure.whatGetsShared")}</Typography>
           </AccordionSummary>
           <AccordionDetails>
             <Stack spacing={1.5}>
               <Typography variant="body2" color="text.secondary">
-                Reports are public GitHub issues posted under your account. Edit anything you
-                don&apos;t want to share.
+                {t("failure.reportsPublic")}
               </Typography>
               <TextField
                 multiline
@@ -78,9 +79,7 @@ export default function FailureReportDialog({ payload, onClose }: FailureReportD
                 onChange={(event) => setText(event.target.value)}
                 error={parsed === null}
                 helperText={
-                  parsed === null
-                    ? "Report details must be valid JSON with a full http(s) url"
-                    : undefined
+                  parsed === null ? t("failure.invalidPayload") : undefined
                 }
                 inputProps={{ "data-testid": "failure-report-payload", spellCheck: false }}
                 sx={{ "& textarea": { fontFamily: "monospace", fontSize: 12 } }}
@@ -92,7 +91,7 @@ export default function FailureReportDialog({ payload, onClose }: FailureReportD
       <DialogActions sx={{ px: 3, pb: 2, display: "block" }}>
         <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1 }}>
           <Button onClick={onClose} data-testid="failure-report-dismiss">
-            Not now
+            {t("failure.notNow")}
           </Button>
           <Button
             variant="contained"
@@ -104,11 +103,11 @@ export default function FailureReportDialog({ payload, onClose }: FailureReportD
             onClick={onClose}
             data-testid="failure-report-file"
           >
-            File on GitHub
+            {t("failure.fileOnGitHub")}
           </Button>
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mt: 1 }}>
-          Filing needs a GitHub account. You&apos;ll be notified when it&apos;s fixed.
+          {t("failure.filingNote")}
         </Typography>
       </DialogActions>
     </Dialog>

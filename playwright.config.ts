@@ -35,6 +35,11 @@ export default defineConfig({
     /* Base URL to use in actions like `await page.goto('/')`. */
     baseURL: process.env.PLAYWRIGHT_BASE_URL || defaultBaseURL,
 
+    /* Pin the browser language so the UI locale is deterministic: the app
+       falls back to navigator.language when no savr-language cookie is set,
+       and the specs assert English strings. spanish.spec.ts opts into es. */
+    locale: "en-US",
+
     /* Collect trace when retrying the failed test. See https://playwright.dev/docs/trace-viewer */
     trace: "on-first-retry",
 

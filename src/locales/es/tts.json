@@ -1,0 +1,14 @@
+{
+  "tts": {
+    "title": "Texto a voz",
+    "notSupported": "El texto a voz no está disponible en este navegador",
+    "play": "Reproducir",
+    "pause": "Pausar",
+    "resume": "Reanudar",
+    "stop": "Detener",
+    "speed": "Velocidad: {{rate}}x",
+    "voice": "Voz",
+    "paused": "En pausa",
+    "reading": "Leyendo..."
+  }
+}

@@ -54,9 +54,11 @@ import {
   CONTENT_TYPE_OPTIONS,
   type ContentTypeOption,
 } from "lib/src/contentType";
+import { useTranslation } from "react-i18next";
 
 export default function SubmitScreen() {
   const { enqueueSnackbar } = useSnackbar();
+  const { t } = useTranslation();
 
   const [dialogVisible, setDialogVisible] = useState(false);
 
@@ -135,7 +137,7 @@ export default function SubmitScreen() {
         return;
       }
 
-      setIngestStatus("Ingesting...");
+      setIngestStatus(t("submit.ingesting"));
       try {
         // Determine the actual content type
         const actualContentType: "text/html" | "text/markdown" | "text/plain" =
@@ -206,7 +208,7 @@ export default function SubmitScreen() {
         recordLog("error", "ingest", "Failed to save pasted content", {
           error: errorMessage(error),
         });
-        enqueueSnackbar("Error requesting article", { variant: "error" });
+        enqueueSnackbar(t("submit.errorRequestingArticle"), { variant: "error" });
         setIngestStatus(null);
         setIngestPercent(0);
       }
@@ -225,6 +227,7 @@ export default function SubmitScreen() {
       setDetectedType,
       enqueueSnackbar,
       navigate,
+      t,
     ],
   );
 
@@ -240,7 +243,7 @@ export default function SubmitScreen() {
 
       if (isPdf) {
         // Handle PDF files directly - ingest them without showing in textarea
-        setIngestStatus("Ingesting PDF...");
+        setIngestStatus(t("submit.ingestingPdf"));
         setUploadedFileName(file.name);
         try {
           const article = await ingestPdf(
@@ -270,14 +273,14 @@ export default function SubmitScreen() {
             fileName: file.name,
             error: errorMessage(error),
           });
-          enqueueSnackbar("Error uploading PDF file", { variant: "error" });
+          enqueueSnackbar(t("submit.errorUploadingPdf"), { variant: "error" });
           setIngestStatus(null);
           setIngestPercent(0);
           setUploadedFileName(null);
         }
       } else if (isImage) {
         // Handle image files directly - ingest them without showing in textarea (like PDFs)
-        setIngestStatus("Ingesting image...");
+        setIngestStatus(t("submit.ingestingImage"));
         setUploadedFileName(file.name);
 
         // Determine MIME type from extension
@@ -320,7 +323,7 @@ export default function SubmitScreen() {
             fileName: file.name,
             error: errorMessage(error),
           });
-          enqueueSnackbar("Error uploading image file", { variant: "error" });
+          enqueueSnackbar(t("submit.errorUploadingImage"), { variant: "error" });
           setIngestStatus(null);
           setIngestPercent(0);
           setUploadedFileName(null);
@@ -350,7 +353,7 @@ export default function SubmitScreen() {
           }
         };
         reader.onerror = () => {
-          enqueueSnackbar("Error reading file", { variant: "error" });
+          enqueueSnackbar(t("submit.errorReadingFile"), { variant: "error" });
         };
         reader.readAsText(file);
       }
@@ -360,12 +363,12 @@ export default function SubmitScreen() {
         fileInputRef.current.value = "";
       }
     },
-    [client, enqueueSnackbar, navigate]
+    [client, enqueueSnackbar, navigate, t]
   );
 
   const handleTestSummary = async () => {
     if (!content.trim()) {
-      enqueueSnackbar("Please enter some content first", { variant: "warning" });
+      enqueueSnackbar(t("submit.enterContentFirst"), { variant: "warning" });
       return;
     }
 
@@ -377,12 +380,12 @@ export default function SubmitScreen() {
     const providerConfig = getProviderConfig(provider);
 
     if (providerConfig?.requiresApiKey && !apiKey) {
-      enqueueSnackbar("Please set up your API key in Preferences", { variant: "warning" });
+      enqueueSnackbar(t("submit.apiKeyRequired"), { variant: "warning" });
       return;
     }
 
     if (providerConfig?.isCustom && !baseUrl.trim()) {
-      enqueueSnackbar("Please set the server URL in Preferences", { variant: "warning" });
+      enqueueSnackbar(t("submit.serverUrlRequired"), { variant: "warning" });
       return;
     }
 
@@ -402,7 +405,7 @@ export default function SubmitScreen() {
       const plainText = doc.body.textContent || "";
 
       if (plainText.length < 100) {
-        enqueueSnackbar("Content is too short to summarize", { variant: "warning" });
+        enqueueSnackbar(t("submit.contentTooShort"), { variant: "warning" });
         setIsSummarizing(false);
         setSummaryProgress(null);
         return;
@@ -424,10 +427,25 @@ export default function SubmitScreen() {
       setSummaryProgress(null);
     } catch (error) {
       console.error("Failed to generate test summary:", error);
-      const detail = error instanceof Error ? error.message : "Unknown error";
-      enqueueSnackbar(`Failed to generate summary: ${detail}`, { variant: "error" });
+      const detail = error instanceof Error ? error.message : t("submit.unknownError");
+      enqueueSnackbar(t("submit.summaryFailed", { error: detail }), { variant: "error" });
     } finally {
       setIsSummarizing(false);
+    }
+  };
+
+  const contentTypeName = (value: string): string => {
+    switch (value) {
+      case "auto":
+        return t("submit.contentTypeOptions.auto");
+      case "text/html":
+        return t("submit.contentTypeOptions.html");
+      case "text/markdown":
+        return t("submit.contentTypeOptions.markdown");
+      case "text/plain":
+        return t("submit.contentTypeOptions.plainText");
+      default:
+        return value;
     }
   };
 
@@ -448,7 +466,7 @@ export default function SubmitScreen() {
             <ArrowBackIcon />
           </IconButton>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Save raw content
+            {t("submit.pageTitle")}
           </Typography>
         </Toolbar>
       </AppBar>
@@ -466,17 +484,17 @@ export default function SubmitScreen() {
       <Container maxWidth="md" sx={{ mt: 2 }}>
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
           <Typography variant="body1">
-            Paste content or upload a file
+            {t("submit.pasteHint")}
           </Typography>
           <Tooltip
             title={
               <Box sx={{ p: 0.5 }}>
-                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>Supported formats:</Typography>
-                <Typography variant="body2">• HTML (.html, .htm)</Typography>
-                <Typography variant="body2">• Markdown (.md)</Typography>
-                <Typography variant="body2">• Plain text (.txt)</Typography>
-                <Typography variant="body2">• PDF (.pdf)</Typography>
-                <Typography variant="body2">• Images (.jpg, .png, .gif, .webp)</Typography>
+                <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>{t("submit.supportedFormats")}</Typography>
+                <Typography variant="body2">{t("submit.formatHtml")}</Typography>
+                <Typography variant="body2">{t("submit.formatMarkdown")}</Typography>
+                <Typography variant="body2">{t("submit.formatPlainText")}</Typography>
+                <Typography variant="body2">{t("submit.formatPdf")}</Typography>
+                <Typography variant="body2">{t("submit.formatImages")}</Typography>
               </Box>
             }
             arrow
@@ -489,7 +507,7 @@ export default function SubmitScreen() {
               disabled={ingestStatus !== null}
               size="small"
             >
-              Upload File
+              {t("submit.uploadFile")}
             </Button>
           </Tooltip>
         </Box>
@@ -497,7 +515,7 @@ export default function SubmitScreen() {
         {/* Show uploaded file name */}
         {uploadedFileName && !ingestStatus && (
           <Chip
-            label={`File: ${uploadedFileName}`}
+            label={t("submit.fileChip", { name: uploadedFileName })}
             onDelete={() => {
               setUploadedFileName(null);
               setContent("");
@@ -512,7 +530,7 @@ export default function SubmitScreen() {
         {ingestStatus && uploadedFileName && (
           <Box sx={{ mb: 2 }}>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              {ingestStatus} - {uploadedFileName}
+              {t("submit.uploadStatusLine", { status: ingestStatus, file: uploadedFileName })}
             </Typography>
             <LinearProgress variant="determinate" value={ingestPercent} />
           </Box>
@@ -522,52 +540,52 @@ export default function SubmitScreen() {
             Readability derives from the content. */}
         <Stack spacing={2} sx={{ mb: 2 }}>
           <TextField
-            label="Title"
+            label={t("submit.titleLabel")}
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
             fullWidth
             variant="outlined"
             size="small"
             disabled={ingestStatus !== null}
-            helperText="Optional — leave blank to auto-detect from content"
+            helperText={t("submit.optionalFromContent")}
           />
           <TextField
-            label="Author"
+            label={t("submit.authorLabel")}
             value={editAuthor}
             onChange={(e) => setEditAuthor(e.target.value)}
             fullWidth
             variant="outlined"
             size="small"
             disabled={ingestStatus !== null}
-            helperText="Optional — leave blank to auto-detect from content"
+            helperText={t("submit.optionalFromContent")}
           />
           <TextField
-            label="URL"
+            label={t("submit.url")}
             value={editUrl}
             onChange={(e) => setEditUrl(e.target.value)}
             fullWidth
             variant="outlined"
             size="small"
             disabled={ingestStatus !== null}
-            helperText="Optional — source link; also resolves relative image paths"
+            helperText={t("submit.optionalSourceLink")}
           />
         </Stack>
 
         {/* Content Type Selector */}
         <Box sx={{ display: "flex", gap: 2, alignItems: "center", mb: 2, flexWrap: "wrap" }}>
           <FormControl size="small" sx={{ minWidth: 180 }}>
-            <InputLabel id="content-type-label">Content Type</InputLabel>
+            <InputLabel id="content-type-label">{t("submit.contentTypeLabel")}</InputLabel>
             <Select
               labelId="content-type-label"
               id="content-type-select"
               value={contentType}
-              label="Content Type"
+              label={t("submit.contentTypeLabel")}
               onChange={(e) => setContentType(e.target.value as ContentTypeOption)}
               disabled={ingestStatus !== null}
             >
               {CONTENT_TYPE_OPTIONS.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
-                  {option.label}
+                  {contentTypeName(option.value)}
                 </MenuItem>
               ))}
             </Select>
@@ -576,7 +594,7 @@ export default function SubmitScreen() {
           {/* Show detected/effective type with a prominent chip */}
           {content.trim() && (
             <Chip
-              label={`Will save as: ${CONTENT_TYPE_OPTIONS.find((o) => o.value === effectiveContentType)?.label || effectiveContentType}`}
+              label={t("submit.willSaveAs", { type: contentTypeName(effectiveContentType) })}
               color={
                 effectiveContentType === "text/html" ? "primary" :
                 effectiveContentType === "text/markdown" ? "secondary" :
@@ -590,7 +608,7 @@ export default function SubmitScreen() {
           {/* Auto-detect indicator */}
           {contentType === "auto" && detectedType && (
             <Typography variant="body2" color="text.secondary">
-              (auto-detected)
+              {t("submit.autoDetected")}
             </Typography>
           )}
         </Box>
@@ -598,7 +616,7 @@ export default function SubmitScreen() {
         <TextField
           multiline
           minRows={10}
-          label="Content"
+          label={t("submit.contentLabel")}
           value={content}
           onChange={(e) => {
             const newContent = e.target.value;
@@ -614,7 +632,7 @@ export default function SubmitScreen() {
           margin="normal"
           autoFocus
           disabled={ingestStatus !== null}
-          placeholder="Paste HTML, Markdown, or plain text content here..."
+          placeholder={t("submit.contentPlaceholder")}
         />
         <Box sx={{ display: "flex", gap: 2, mt: 2, flexWrap: "wrap" }}>
           <Button
@@ -622,14 +640,14 @@ export default function SubmitScreen() {
             variant="contained"
             disabled={ingestStatus !== null || !content.trim()}
           >
-            Save
+            {t("submit.save")}
           </Button>
           <Button
             onClick={handleTestSummary}
             variant="outlined"
             disabled={isSummarizing || !content.trim()}
           >
-            {isSummarizing ? "Summarizing..." : "Test Summary"}
+            {isSummarizing ? t("submit.summarizing") : t("submit.testSummary")}
           </Button>
           <Button
             onClick={() => setShowPreview(!showPreview)}
@@ -638,7 +656,7 @@ export default function SubmitScreen() {
             endIcon={showPreview ? <ExpandLessIcon /> : <ExpandMoreIcon />}
             disabled={!content.trim()}
           >
-            {showPreview ? "Hide Preview" : "Show Preview"}
+            {showPreview ? t("submit.hidePreview") : t("submit.showPreview")}
           </Button>
         </Box>
 
@@ -657,10 +675,10 @@ export default function SubmitScreen() {
           >
             <Typography variant="subtitle2" color="text.secondary" gutterBottom sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <PreviewIcon fontSize="small" />
-              Live Preview
+              {t("submit.livePreview")}
               {effectiveContentType && (
                 <Chip
-                  label={CONTENT_TYPE_OPTIONS.find((o) => o.value === effectiveContentType)?.label}
+                  label={contentTypeName(effectiveContentType)}
                   size="small"
                   variant="outlined"
                   sx={{ ml: 1 }}
@@ -738,7 +756,7 @@ export default function SubmitScreen() {
         {isSummarizing && (
           <Box sx={{ mt: 2 }}>
             <Typography variant="body2" color="text.secondary" gutterBottom>
-              Generating summary...
+              {t("submit.generatingSummary")}
             </Typography>
             <LinearProgress />
           </Box>
@@ -747,7 +765,7 @@ export default function SubmitScreen() {
         {testSummary && (
           <Paper sx={{ mt: 2, p: 2, bgcolor: "background.paper" }}>
             <Typography variant="subtitle2" color="text.secondary" gutterBottom>
-              Generated Summary:
+              {t("submit.generatedSummary")}
             </Typography>
             <Box
               sx={{
@@ -767,7 +785,7 @@ export default function SubmitScreen() {
 
       {/* Add Article Dialog */}
       <Dialog open={dialogVisible} onClose={() => setDialogVisible(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Add Article</DialogTitle>
+        <DialogTitle>{t("submit.addArticle")}</DialogTitle>
         <DialogContent>
           {ingestPercent > 0 && (
             <Box sx={{ mt: 2 }}>
@@ -779,7 +797,7 @@ export default function SubmitScreen() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setDialogVisible(false)}>Cancel</Button>
+          <Button onClick={() => setDialogVisible(false)}>{t("submit.cancel")}</Button>
         </DialogActions>
       </Dialog>
     </Box>

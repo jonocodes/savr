@@ -1,0 +1,95 @@
+{
+  "extName": {
+    "message": "Savr"
+  },
+  "extDescription": {
+    "message": "Save the page you are reading to Savr, without re-downloading it."
+  },
+  "popupSave": {
+    "message": "Save current page"
+  },
+  "popupVisit": {
+    "message": "Visit Savr"
+  },
+  "popupSettings": {
+    "message": "Extension settings"
+  },
+  "popupSaving": {
+    "message": "Saving…"
+  },
+  "popupNoTranscript": {
+    "message": "No transcript found — saving the page instead…"
+  },
+  "popupSavingTranscript": {
+    "message": "Saving the transcript…"
+  },
+  "popupOpeningDialog": {
+    "message": "Opening the Savr save dialog…"
+  },
+  "popupCouldNotSave": {
+    "message": "Could not save this page."
+  },
+  "popupNoBackground": {
+    "message": "Could not reach the extension background."
+  },
+  "popupCouldNotOpen": {
+    "message": "Could not open Savr."
+  },
+  "optionsTitle": {
+    "message": "Savr options"
+  },
+  "optionsAddressLabel": {
+    "message": "Savr address"
+  },
+  "optionsAddressHint": {
+    "message": "Point this at your own Savr if you self-host (for example <code>http://localhost:3000</code>). Granting access to that address may be required the first time."
+  },
+  "optionsYoutubeLabel": {
+    "message": "On YouTube, fetch the transcript instead of the page"
+  },
+  "optionsYoutubeHint": {
+    "message": "Saves the transcript and the video thumbnail. A video without a transcript is saved as a normal page instead."
+  },
+  "optionsSave": {
+    "message": "Save"
+  },
+  "optionsGithub": {
+    "message": "Savr is open source — project and issues on GitHub"
+  },
+  "optionsInvalidUrl": {
+    "message": "Enter a valid http(s) address."
+  },
+  "optionsAccessError": {
+    "message": "Could not request access: {{message}}"
+  },
+  "optionsAccessNeeded": {
+    "message": "Access to that address is needed to save pages to it."
+  },
+  "optionsSaved": {
+    "message": "Saved."
+  },
+  "errNoReply": {
+    "message": "No reply from the extension"
+  },
+  "errNoActiveTab": {
+    "message": "No active tab to save."
+  },
+  "errNotScrapable": {
+    "message": "This page cannot be scraped (browser-internal pages are off limits)."
+  },
+  "errReadContent": {
+    "message": "Could not read this page's content."
+  },
+  "errInvalidImageUrl": {
+    "message": "Invalid image URL"
+  },
+  "errOnlyHttpImages": {
+    "message": "Only http(s) images can be downloaded"
+  },
+  "errImageTooLarge": {
+    "message": "Image too large"
+  },
+  "errOnlyFromApp": {
+    "message": "Image requests are only accepted from the Savr app"
+  }
+}

@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { getAppLanguage } from "../i18n";
 
 export interface TTSState {
   isPlaying: boolean;
@@ -194,11 +195,12 @@ export function useTextToSpeech(text: string): [TTSState, TTSControls] {
       console.log("TTS: Loaded", voices.length, "voices");
       if (voices.length > 0) {
         setAvailableVoices(voices);
-        // Set default voice (prefer English voices)
-        const englishVoice = voices.find(
-          (v) => v.lang.startsWith("en") && v.localService
+        // Set default voice (prefer voices for the current app language)
+        const preferredLanguage = getAppLanguage();
+        const languageVoice = voices.find(
+          (v) => v.lang.startsWith(preferredLanguage) && v.localService
         );
-        const defaultVoice = englishVoice || voices[0];
+        const defaultVoice = languageVoice || voices[0];
         if (!voice) {
           console.log("TTS: Setting default voice:", defaultVoice?.name);
           setVoiceState(defaultVoice);

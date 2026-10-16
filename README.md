@@ -27,6 +27,7 @@ Savr is:
 - Learns your reading speed over time and personalizes estimated reading times
 - Mark articles as favorites
 - Light, dark, and system themes
+- English and Spanish interface — detected from your browser, switchable in Preferences (the browser extension follows the browser's language)
 - Toggle between a cleaned reader view and the original page
 - Share an article's URL out to other apps via the system share sheet (clipboard fallback elsewhere)
 - Save content by pasting HTML, Markdown, or plain text, or by uploading PDFs and images

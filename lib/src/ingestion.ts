@@ -38,6 +38,7 @@ import {
 } from "~/utils/cookies";
 import { convertToHtml, detectContentType } from "./contentType";
 import { recordLog, errorMessage } from "~/utils/logging";
+import { t } from "./messages";
 
 export const maxDimensionImage = 1024;
 export const maxDimensionThumb = 256;
@@ -259,7 +260,10 @@ async function downloadAndResizeImages(
   let maxArea = 0;
 
   for (const [url, localPath] of imageData) {
-    sendMessage(percent, `downloading image ${successfulDownloads + 1} of ${imageData.length}`);
+    sendMessage(
+      percent,
+      t("downloadingImage", { current: successfulDownloads + 1, total: imageData.length })
+    );
 
     const ext = getImageExtensionFromUrl(url);
 
@@ -273,7 +277,7 @@ async function downloadAndResizeImages(
       // Every download names the downloader that delivered it (and any
       // fallback before it) in the fetch log and the Diagnostics log.
       const downloader = formatAttempts(attempts);
-      sendMessage(null, `image downloaded via ${downloader}: ${url}`);
+      sendMessage(null, t("imageDownloadedVia", { downloader, url }));
       recordLog("info", "image", `Downloaded image via ${download.source}: ${url}`, {
         slug: article.slug,
         downloader,
@@ -285,7 +289,10 @@ async function downloadAndResizeImages(
 
       percent = percent + step;
 
-      sendMessage(percent, `resizing image ${successfulDownloads + 1} of ${imageData.length}`);
+      sendMessage(
+        percent,
+        t("resizingImage", { current: successfulDownloads + 1, total: imageData.length })
+      );
 
       const outputFilePath = await saveResource(localPath, article.slug, dataUrl, mimeType);
 
@@ -323,10 +330,10 @@ async function downloadAndResizeImages(
       }
       if (e instanceof ImageDownloadError) {
         attempts = e.attempts;
-        sendMessage(null, `image failed via ${formatAttempts(attempts)}: ${url}`);
+        sendMessage(null, t("imageFailedVia", { attempts: formatAttempts(attempts), url }));
       } else {
         // Downloaded, but the bytes could not be decoded/resized or saved.
-        sendMessage(null, `image failed after download (${errorMessage(e)}): ${url}`);
+        sendMessage(null, t("imageFailedAfterDownload", { error: errorMessage(e), url }));
       }
       const meta: Record<string, unknown> = { slug: article.slug, error: errorMessage(e) };
       if (attempts.length > 0) meta.downloader = formatAttempts(attempts);
@@ -393,7 +400,7 @@ async function processHtmlAndImages(
 
   const imageData = await extractImageUrls(document, article.url);
 
-  sendMessage(25, "downloading images");
+  sendMessage(25, t("downloadingImages"));
 
   const { successfulDownloads, savedBytes, savedFileCount } = await downloadAndResizeImages(
     imageData,
@@ -402,7 +409,7 @@ async function processHtmlAndImages(
     imageSources
   );
 
-  sendMessage(95, "creating thumbnail");
+  sendMessage(95, t("creatingThumbnail"));
 
   // const artObj = createArticleObject(article);
 
@@ -821,7 +828,7 @@ async function persistArticle(
   // TODO: sanitize out the js before saving raw
   await storageClient?.storeFile("text/html", getFilePathRaw(article.slug), rawHtml);
 
-  sendMessageWithLog(20, "collecting images");
+  sendMessageWithLog(20, t("collectingImages"));
 
   const { html: processedHtml, successfulDownloads, totalImages, savedImageBytes, savedImageFileCount } = await processHtmlAndImages(
     article,
@@ -832,13 +839,16 @@ async function persistArticle(
     [...(opts?.imageSources ?? []), proxyImageSource()]
   );
 
-  sendMessageWithLog(null, `${successfulDownloads} of ${totalImages} images downloaded for offline use`);
+  sendMessageWithLog(
+    null,
+    t("imagesDownloadedForOfflineUse", { downloaded: successfulDownloads, total: totalImages })
+  );
 
   const rendered = ArticleTemplate({
     title: article.title,
     byline: article.author || "",
     published: generateInfoForArticle(article),
-    readTime: `${Math.ceil((article.wordCount ?? 0) / DEFAULT_WPM)} minute read`,
+    readTime: t("minuteRead", { count: Math.ceil((article.wordCount ?? 0) / DEFAULT_WPM) }),
     content: processedHtml,
   });
 
@@ -850,7 +860,7 @@ async function persistArticle(
   const apiKey = getApiKeyForProvider(provider);
 
   if (summarizationEnabled && apiKey) {
-    sendMessageWithLog(80, "generating summary");
+    sendMessageWithLog(80, t("generatingSummary"));
     try {
       const plainText = extractTextFromHtml(content);
       if (plainText.length > 100) {
@@ -858,7 +868,7 @@ async function persistArticle(
         const summary = await summarizeText(plainText, buildSummarySettings(), provider, apiKey, model);
         if (summary) {
           article.summary = summary;
-          sendMessageWithLog(null, "summary generated");
+          sendMessageWithLog(null, t("summaryGenerated"));
         }
       }
     } catch (error) {
@@ -868,7 +878,7 @@ async function persistArticle(
         provider,
         error: errorMessage(error),
       });
-      sendMessageWithLog(null, "summary generation skipped (API error)");
+      sendMessageWithLog(null, t("summaryGenerationSkipped"));
     }
   }
 
@@ -934,7 +944,7 @@ export async function ingestPdf(
     sendMessage(percent, message);
   };
 
-  sendMessageWithLog(20, "processing PDF");
+  sendMessageWithLog(20, t("processingPdf"));
 
   const title = getTitleFromPdfUrl(url);
   const slug = stringToSlug(title);
@@ -958,7 +968,7 @@ export async function ingestPdf(
 
   await finalizeSlug(storageClient, article);
 
-  sendMessageWithLog(40, "saving PDF");
+  sendMessageWithLog(40, t("savingPdf"));
 
   // Convert blob to ArrayBuffer for storage
   const arrayBuffer = await pdfBlob.arrayBuffer();
@@ -970,7 +980,7 @@ export async function ingestPdf(
     arrayBuffer
   );
 
-  sendMessageWithLog(70, "saving metadata");
+  sendMessageWithLog(70, t("savingMetadata"));
 
   // Write the fetch log
   const fetchLogPath = getFileFetchLog(article.slug);
@@ -990,7 +1000,7 @@ export async function ingestPdf(
     JSON.stringify(article, null, 2)
   );
 
-  sendMessageWithLog(90, "done");
+  sendMessageWithLog(90, t("done"));
 
   return article;
 }
@@ -1011,7 +1021,7 @@ function getTitleFromImageUrl(url: string): string {
   } catch (e) {
     // URL parsing failed
   }
-  return `image ${Date.now()}`;
+  return t("imageFallback", { timestamp: Date.now() });
 }
 
 export async function ingestImage(
@@ -1031,7 +1041,7 @@ export async function ingestImage(
     sendMessage(percent, message);
   };
 
-  sendMessageWithLog(20, "processing image");
+  sendMessageWithLog(20, t("processingImage"));
 
   const title = getTitleFromImageUrl(url);
   const slug = stringToSlug(title);
@@ -1056,7 +1066,7 @@ export async function ingestImage(
 
   await finalizeSlug(storageClient, article);
 
-  sendMessageWithLog(40, "saving image");
+  sendMessageWithLog(40, t("savingImage"));
 
   // Convert blob to ArrayBuffer for storage
   const arrayBuffer = await imageBlob.arrayBuffer();
@@ -1069,7 +1079,7 @@ export async function ingestImage(
   );
 
   // Also create a thumbnail from the image
-  sendMessageWithLog(60, "creating thumbnail");
+  sendMessageWithLog(60, t("creatingThumbnail"));
   let thumbnailBytes = 0;
   let thumbnailFileCount = 0;
   try {
@@ -1094,7 +1104,7 @@ export async function ingestImage(
     console.error("Failed to create thumbnail:", e);
   }
 
-  sendMessageWithLog(80, "saving metadata");
+  sendMessageWithLog(80, t("savingMetadata"));
 
   // Write the fetch log
   const fetchLogPath = getFileFetchLog(article.slug);
@@ -1114,7 +1124,7 @@ export async function ingestImage(
     JSON.stringify(article, null, 2)
   );
 
-  sendMessageWithLog(90, "done");
+  sendMessageWithLog(90, t("done"));
 
   return article;
 }
@@ -1124,9 +1134,9 @@ export async function ingestUrl(
   url: string,
   sendMessage: (percent: number | null, message: string | null) => void
 ) {
-  sendMessage(0, "starting");
+  sendMessage(0, t("starting"));
 
-  sendMessage(10, "fetching article");
+  sendMessage(10, t("fetchingArticle"));
 
   // The page always comes through the proxy (or directly); name it in both logs.
   const downloader = proxyDownloaderLabel(getCorsProxyValue());
@@ -1166,7 +1176,7 @@ export async function ingestUrl(
     throw new Error("cant determine content type");
   }
 
-  sendMessage(15, "scraping content");
+  sendMessage(15, t("scrapingContent"));
 
   var article: Article | null = null;
   var successfulDownloads = 0;
@@ -1240,7 +1250,13 @@ export async function ingestUrl(
     JSON.stringify(article, null, 2)
   );
 
-  const imageMessage = totalImages > 0 ? `. ${successfulDownloads} of ${totalImages} images downloaded for offline use` : "";
+  const imageMessage =
+    totalImages > 0
+      ? `. ${t("imagesDownloadedForOfflineUse", {
+          downloaded: successfulDownloads,
+          total: totalImages,
+        })}`
+      : "";
 
   sendMessage(
     100,

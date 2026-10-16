@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Button, Snackbar, Alert } from "@mui/material";
 import { trackPwaInstall } from "~/utils/telemetry";
+import { useTranslation } from "react-i18next";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
@@ -8,6 +9,7 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 export function PWARegister() {
+  const { t } = useTranslation();
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [showInstallPrompt, setShowInstallPrompt] = useState(false);
   const [showUpdatePrompt, setShowUpdatePrompt] = useState(false);
@@ -75,11 +77,11 @@ export function PWARegister() {
           severity="info"
           action={
             <Button color="inherit" size="small" onClick={handleInstallClick}>
-              Install
+              {t("common.pwaInstall")}
             </Button>
           }
         >
-          Install Savr as a PWA for a better experience
+          {t("common.pwaInstallMessage")}
         </Alert>
       </Snackbar>
 
@@ -88,11 +90,11 @@ export function PWARegister() {
           severity="info"
           action={
             <Button color="inherit" size="small" onClick={handleUpdateClick}>
-              Update
+              {t("common.pwaUpdate")}
             </Button>
           }
         >
-          A new version is available
+          {t("common.pwaUpdateMessage")}
         </Alert>
       </Snackbar>
     </>

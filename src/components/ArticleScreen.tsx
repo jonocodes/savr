@@ -57,6 +57,7 @@ import { db } from "~/utils/db";
 import { Article, SummaryMeta } from "../../lib/src/models";
 import { removeArticle, patchArticleMetadata, clearFetchFailures } from "~/utils/article/tools";
 import { useSnackbar } from "notistack";
+import { useTranslation } from "react-i18next";
 import ArticleComponent from "./ArticleComponent";
 import TextToSpeechDrawer from "./TextToSpeechDrawer";
 import { useTextToSpeech } from "~/hooks/useTextToSpeech";
@@ -115,6 +116,7 @@ export default function ArticleScreen(_props: Props) {
   const storage = useRemoteStorage();
 
   const { enqueueSnackbar } = useSnackbar();
+  const { t } = useTranslation();
   const { pendingFailureReport, reportFailure, dismissFailureReport } = useFailureReport();
 
   const navigate = useNavigate();
@@ -136,6 +138,12 @@ export default function ArticleScreen(_props: Props) {
   const [currentTheme, setCurrentTheme] = useState<ThemeMode>(() => getThemeFromCookie());
   const [fontFamily, setFontFamily] = useState<FontFamily>(() => getFontFamilyFromCookie());
   const currentFontCss = FONT_FAMILY_OPTIONS.find((o) => o.value === fontFamily)?.css;
+  const fontFamilyLabels: Record<FontFamily, string> = {
+    sans: t("article.fontFamilySans"),
+    serif: t("article.fontFamilySerif"),
+    humanist: t("article.fontFamilyHumanist"),
+    mono: t("article.fontFamilyMono"),
+  };
   const [_summaryProgress, setSummaryProgress] = useState<SummarizationProgress | null>(null);
   const [isSummarizing, setIsSummarizing] = useState(false);
 
@@ -221,17 +229,17 @@ export default function ArticleScreen(_props: Props) {
   const handleToggleFavorite = async () => {
     closeMenu();
     if (!storage.client) {
-      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      enqueueSnackbar(t("article.storageNotReady"), { variant: "warning" });
       return;
     }
     try {
       await patchArticleMetadata(storage.client, article.slug, {
         favorite: !article.favorite,
       });
-      enqueueSnackbar(article.favorite ? "Removed from favorites" : "Added to favorites");
+      enqueueSnackbar(article.favorite ? t("article.removedFromFavorites") : t("article.addedToFavorites"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to update favorite", { variant: "error" });
+      enqueueSnackbar(t("article.failedToUpdateFavorite"), { variant: "error" });
     }
   };
 
@@ -241,9 +249,9 @@ export default function ArticleScreen(_props: Props) {
 
     const outcome = await shareArticle(article.url, article.title);
     if (outcome === "copied") {
-      enqueueSnackbar("URL copied to clipboard");
+      enqueueSnackbar(t("article.urlCopied"));
     } else if (outcome === "failed") {
-      enqueueSnackbar("Failed to share article", { variant: "error" });
+      enqueueSnackbar(t("article.failedToShare"), { variant: "error" });
     }
   };
 
@@ -251,16 +259,16 @@ export default function ArticleScreen(_props: Props) {
     try {
       await removeArticle(article.slug);
       navigate({ to: "/" });
-      enqueueSnackbar("Article deleted");
+      enqueueSnackbar(t("article.articleDeleted"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to delete article", { variant: "error" });
+      enqueueSnackbar(t("article.failedToDelete"), { variant: "error" });
     }
   };
 
   const runSummarize = async (successMessage: string) => {
     if (!articleText) {
-      enqueueSnackbar("No article content to summarize", { variant: "error" });
+      enqueueSnackbar(t("article.noContentToSummarize"), { variant: "error" });
       return;
     }
 
@@ -271,12 +279,12 @@ export default function ArticleScreen(_props: Props) {
     const providerConfig = getProviderConfig(provider);
 
     if (providerConfig?.requiresApiKey && !apiKey) {
-      enqueueSnackbar("Please set up your API key in Preferences", { variant: "warning" });
+      enqueueSnackbar(t("article.setApiKey"), { variant: "warning" });
       return;
     }
 
     if (providerConfig?.isCustom && !baseUrl.trim()) {
-      enqueueSnackbar("Please set the server URL in Preferences", { variant: "warning" });
+      enqueueSnackbar(t("article.setServerUrl"), { variant: "warning" });
       return;
     }
 
@@ -313,8 +321,8 @@ export default function ArticleScreen(_props: Props) {
         model,
         error: errorMessage(error),
       });
-      const detail = error instanceof Error ? error.message : "Unknown error";
-      enqueueSnackbar(`Failed to generate summary: ${detail}`, { variant: "error" });
+      const detail = error instanceof Error ? error.message : t("article.unknownError");
+      enqueueSnackbar(t("article.failedToGenerateSummary", { detail }), { variant: "error" });
     } finally {
       setIsSummarizing(false);
       setSummaryProgress(null);
@@ -325,40 +333,40 @@ export default function ArticleScreen(_props: Props) {
     closeMenu();
     setSummaryDrawerOpen(true);
     if (article.summary) return;
-    await runSummarize("Summary generated");
+    await runSummarize(t("article.summaryGenerated"));
   };
 
   const handleArchive = async () => {
     if (!storage.client) {
-      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      enqueueSnackbar(t("article.storageNotReady"), { variant: "warning" });
       return;
     }
     try {
       await patchArticleMetadata(storage.client, article.slug, { state: "archived" });
 
-      enqueueSnackbar("Article archived");
+      enqueueSnackbar(t("article.articleArchived"));
       navigate({ to: "/" });
     } catch (e) {
       console.error(e);
 
-      enqueueSnackbar("Failed to archive article", { variant: "error" });
+      enqueueSnackbar(t("article.failedToArchive"), { variant: "error" });
     }
   };
 
   const handleUnarchive = async () => {
     if (!storage.client) {
-      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      enqueueSnackbar(t("article.storageNotReady"), { variant: "warning" });
       return;
     }
     try {
       await patchArticleMetadata(storage.client, article.slug, { state: "unread" });
 
-      enqueueSnackbar("Article unarchived");
+      enqueueSnackbar(t("article.articleUnarchived"));
       navigate({ to: "/" });
     } catch (e) {
       console.error(e);
 
-      enqueueSnackbar("Failed to unarchive article", { variant: "error" });
+      enqueueSnackbar(t("article.failedToUnarchive"), { variant: "error" });
     }
   };
 
@@ -384,7 +392,7 @@ export default function ArticleScreen(_props: Props) {
 
   const handleRefetch = async () => {
     if (!article.url) {
-      enqueueSnackbar("No URL available to refetch", { variant: "error" });
+      enqueueSnackbar(t("article.noUrlToRefetch"), { variant: "error" });
       closeMenu();
       return;
     }
@@ -393,7 +401,7 @@ export default function ArticleScreen(_props: Props) {
 
     closeMenu();
     setRefetchDrawerOpen(true);
-    setRefetchStatus("Starting refetch...");
+    setRefetchStatus(t("article.refetchStarting"));
     setRefetchPercent(0);
 
     // An explicit refetch is a deliberate "try again": forget any URLs the
@@ -450,16 +458,16 @@ export default function ArticleScreen(_props: Props) {
         setRefetchDrawerOpen(false);
         setRefetchPercent(0);
         setRefetchStatus(null);
-        enqueueSnackbar("Article refetched successfully");
+        enqueueSnackbar(t("article.refetchSuccess"));
       }, 1000);
     } catch (error) {
       console.error("Refetch error:", error);
-      setRefetchStatus("Failed to refetch article");
+      setRefetchStatus(t("article.refetchFailed"));
       setTimeout(() => {
         setRefetchDrawerOpen(false);
         setRefetchPercent(0);
         setRefetchStatus(null);
-        enqueueSnackbar("Failed to refetch article", { variant: "error" });
+        enqueueSnackbar(t("article.refetchFailed"), { variant: "error" });
         if (!ingestSucceeded) {
           reportFailure(targetUrl, error, "Failed to refetch article");
         }
@@ -469,7 +477,7 @@ export default function ArticleScreen(_props: Props) {
 
   const handleSaveEdit = async () => {
     if (!storage.client) {
-      enqueueSnackbar("Storage not ready yet", { variant: "warning" });
+      enqueueSnackbar(t("article.storageNotReady"), { variant: "warning" });
       return;
     }
     try {
@@ -528,10 +536,10 @@ export default function ArticleScreen(_props: Props) {
         }
 
       setInfoDrawerOpen(false);
-      enqueueSnackbar("Article info updated");
+      enqueueSnackbar(t("article.infoUpdated"));
     } catch (e) {
       console.error(e);
-      enqueueSnackbar("Failed to update article info", { variant: "error" });
+      enqueueSnackbar(t("article.failedToUpdateInfo"), { variant: "error" });
     }
   };
 
@@ -816,14 +824,14 @@ export default function ArticleScreen(_props: Props) {
     if (!html || !article.summary) return html;
 
     // Inject summary link after the reading time div
-    const summaryLinkHtml = ` · <a id="savr-summary-link-anchor" href="#" style="color: inherit; text-decoration: underline; cursor: pointer;">View Summary</a>`;
+    const summaryLinkHtml = ` · <a id="savr-summary-link-anchor" href="#" style="color: inherit; text-decoration: underline; cursor: pointer;">${t("article.viewSummary")}</a>`;
 
     // Find the savr-readTime div and append the link inside it
     return html.replace(
       /(<div id="savr-readTime"[^>]*>)(.*?)(<\/div>)/,
       `$1$2${summaryLinkHtml}$3`
     );
-  }, [html, article.summary]);
+  }, [html, article.summary, t]);
 
   return (
     <Box
@@ -866,7 +874,7 @@ export default function ArticleScreen(_props: Props) {
             {/* {article.title} */}
           </Typography>
 
-          <Tooltip title="Reading styles">
+          <Tooltip title={t("article.readingStyles")}>
             <IconButton
               color="inherit"
               onClick={() => setStylesDrawerOpen(true)}
@@ -875,7 +883,7 @@ export default function ArticleScreen(_props: Props) {
             </IconButton>
           </Tooltip>
 
-          <Tooltip title="Listen to article">
+          <Tooltip title={t("article.listenToArticle")}>
             <IconButton
               color="inherit"
               onClick={() => setTtsDrawerOpen(true)}
@@ -886,13 +894,13 @@ export default function ArticleScreen(_props: Props) {
           </Tooltip>
 
           {article.state === "archived" ? (
-            <Tooltip title="Unarchive">
+            <Tooltip title={t("article.unarchive")}>
               <IconButton color="inherit" onClick={handleUnarchive}>
                 <UnarchiveIcon />
               </IconButton>
             </Tooltip>
           ) : (
-            <Tooltip title="Archive">
+            <Tooltip title={t("article.archive")}>
               <IconButton color="inherit" onClick={handleArchive}>
                 <ArchiveIcon />
               </IconButton>
@@ -946,7 +954,7 @@ export default function ArticleScreen(_props: Props) {
                 <ListItemIcon>
                   <CodeIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>Show Original</ListItemText>
+                <ListItemText>{t("article.showOriginal")}</ListItemText>
               </MenuItem>
             )}
 
@@ -961,7 +969,7 @@ export default function ArticleScreen(_props: Props) {
                 <ListItemIcon>
                   <TextFieldsIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>Show Cleaned</ListItemText>
+                <ListItemText>{t("article.showCleaned")}</ListItemText>
               </MenuItem>
             )}
 
@@ -969,14 +977,14 @@ export default function ArticleScreen(_props: Props) {
               <ListItemIcon>
                 <OpenInNewIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Visit Original</ListItemText>
+              <ListItemText>{t("article.visitOriginal")}</ListItemText>
             </MenuItem>
 
             <MenuItem onClick={handleEditInfo} sx={{ py: 1 }}>
               <ListItemIcon>
                 <EditIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Edit Info</ListItemText>
+              <ListItemText>{t("article.editInfo")}</ListItemText>
             </MenuItem>
 
             <MenuItem
@@ -988,7 +996,7 @@ export default function ArticleScreen(_props: Props) {
               <ListItemIcon>
                 <RefreshIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Refetch</ListItemText>
+              <ListItemText>{t("article.refetch")}</ListItemText>
             </MenuItem>
             {/* Only show Summarize option if summarization is enabled */}
             {getSummarizationEnabledFromCookie() && (
@@ -996,7 +1004,7 @@ export default function ArticleScreen(_props: Props) {
                 <ListItemIcon>
                   <AutoAwesomeIcon fontSize="small" />
                 </ListItemIcon>
-                <ListItemText>{article.summary ? "View Summary" : "Summarize"}</ListItemText>
+                <ListItemText>{article.summary ? t("article.viewSummary") : t("article.summarize")}</ListItemText>
               </MenuItem>
             )}
 
@@ -1008,21 +1016,21 @@ export default function ArticleScreen(_props: Props) {
                   <StarBorderIcon fontSize="small" />
                 )}
               </ListItemIcon>
-              <ListItemText>{article.favorite ? "Unmark favorite" : "Mark favorite"}</ListItemText>
+              <ListItemText>{article.favorite ? t("article.unmarkFavorite") : t("article.markFavorite")}</ListItemText>
             </MenuItem>
 
             <MenuItem onClick={handleShare} sx={{ py: 1 }} data-testid="article-page-menu-share">
               <ListItemIcon>
                 <ShareIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Share</ListItemText>
+              <ListItemText>{t("article.share")}</ListItemText>
             </MenuItem>
 
             <MenuItem onClick={handleDelete} sx={{ py: 1 }} data-testid="article-page-menu-delete">
               <ListItemIcon>
                 <DeleteIcon fontSize="small" />
               </ListItemIcon>
-              <ListItemText>Delete</ListItemText>
+              <ListItemText>{t("article.delete")}</ListItemText>
             </MenuItem>
           </Menu>
         </Toolbar>
@@ -1045,7 +1053,7 @@ export default function ArticleScreen(_props: Props) {
                 height: "100%",
                 border: "none",
               }}
-              title={article.title || "PDF Document"}
+              title={article.title || t("article.pdfDocument")}
             />
           </Box>
         ) : article.mimeType?.startsWith("image/") && imageUrl ? (
@@ -1062,7 +1070,7 @@ export default function ArticleScreen(_props: Props) {
           >
             <img
               src={imageUrl}
-              alt={article.title || "Image"}
+              alt={article.title || t("article.imageAlt")}
               style={{
                 maxWidth: "100%",
                 maxHeight: "calc(100vh - 96px)",
@@ -1093,13 +1101,13 @@ export default function ArticleScreen(_props: Props) {
       >
         <Box sx={{ p: 3, overflowY: "auto" }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Article Info
+            {t("article.articleInfo")}
           </Typography>
 
           {/* Editable fields */}
           <Stack spacing={3}>
             <TextField
-              label="Title"
+              label={t("article.title")}
               value={editTitle}
               onChange={(e) => setEditTitle(e.target.value)}
               fullWidth
@@ -1107,7 +1115,7 @@ export default function ArticleScreen(_props: Props) {
             />
 
             <TextField
-              label="Author"
+              label={t("article.author")}
               value={editAuthor}
               onChange={(e) => setEditAuthor(e.target.value)}
               fullWidth
@@ -1118,34 +1126,43 @@ export default function ArticleScreen(_props: Props) {
             <Box>
               <Stack spacing={1}>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Size:</strong>{" "}
+                  <strong>{t("article.size")}:</strong>{" "}
                   {article.sizeBytes != null
                     ? formatBytes(article.sizeBytes)
                     : storageSize
                       ? formatBytes(storageSize.totalSize)
-                      : "Calculating..."}
+                      : t("article.calculating")}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Offline resources:</strong>{" "}
+                  <strong>{t("article.offlineResources")}:</strong>{" "}
                   {article.assetCount != null
-                    ? `${article.assetCount} files`
+                    ? t("article.filesCount", {
+                        count: article.assetCount,
+                        files: article.assetCount.toLocaleString(),
+                      })
                     : storageSize
-                      ? `${storageSize.files.filter((f) => f.path.includes("/resources/")).length} files`
-                      : "Calculating..."}
+                      ? t("article.filesCount", {
+                          count: storageSize.files.filter((f) => f.path.includes("/resources/")).length,
+                          files: storageSize.files
+                            .filter((f) => f.path.includes("/resources/"))
+                            .length.toLocaleString(),
+                        })
+                      : t("article.calculating")}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Saved:</strong>{" "}
+                  <strong>{t("article.saved")}:</strong>{" "}
                   {article.ingestDate
                     ? `${new Date(article.ingestDate).toISOString().replace("T", " ").replace("Z", "")} UTC`
-                    : "Unknown"}
+                    : t("article.unknown")}
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  <strong>Content Type:</strong> {article.mimeType || "Unknown"}
+                  <strong>{t("article.contentType")}:</strong> {article.mimeType || t("article.unknown")}
                 </Typography>
                 {wordCount > 0 && (
                   <Typography variant="body2" color="text.secondary">
-                    <strong>Reading time:</strong>{" "}
-                    {formatReadTime(Math.max(1, Math.ceil(wordCount / readingWpm)))} ({wordCount.toLocaleString()} words)
+                    <strong>{t("article.readingTime")}:</strong>{" "}
+                    {formatReadTime(Math.max(1, Math.ceil(wordCount / readingWpm)))} (
+                    {t("article.wordsCount", { count: wordCount, words: wordCount.toLocaleString() })})
                   </Typography>
                 )}
               </Stack>
@@ -1160,7 +1177,7 @@ export default function ArticleScreen(_props: Props) {
                   sx={{ mb: 1, textTransform: "none" }}
                   size="small"
                 >
-                  Ingestion Log
+                  {t("article.ingestionLog")}
                 </Button>
                 <Collapse in={logExpanded}>
                   <Box
@@ -1191,10 +1208,10 @@ export default function ArticleScreen(_props: Props) {
                   setLogExpanded(false);
                 }}
               >
-                Cancel
+                {t("article.cancel")}
               </Button>
               <Button variant="contained" onClick={handleSaveEdit}>
-                Save
+                {t("article.save")}
               </Button>
             </Box>
           </Stack>
@@ -1216,7 +1233,7 @@ export default function ArticleScreen(_props: Props) {
       >
         <Box sx={{ p: 3 }}>
           <Typography variant="h6" sx={{ mb: 2 }}>
-            Refetching Article
+            {t("article.refetchingArticle")}
           </Typography>
           {refetchStatus && (
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
@@ -1243,7 +1260,7 @@ export default function ArticleScreen(_props: Props) {
       >
         <Box sx={{ p: 3 }}>
           <Typography variant="subtitle1" sx={{ mb: 2, fontWeight: 600 }}>
-            Reading styles
+            {t("article.readingStyles")}
           </Typography>
 
           {/* Theme mode */}
@@ -1258,7 +1275,12 @@ export default function ArticleScreen(_props: Props) {
                 ) : (
                   <SettingsBrightnessIcon />
                 );
-              const label = mode.charAt(0).toUpperCase() + mode.slice(1);
+              const label =
+                mode === "light"
+                  ? t("article.themeLight")
+                  : mode === "dark"
+                    ? t("article.themeDark")
+                    : t("article.themeSystem");
               return (
                 <Box
                   key={mode}
@@ -1344,10 +1366,10 @@ export default function ArticleScreen(_props: Props) {
           {/* Font family */}
           <Box sx={{ pt: 2, borderTop: "1px solid", borderColor: "divider", mt: 2 }}>
             <FormControl fullWidth size="small">
-              <InputLabel>Font</InputLabel>
+              <InputLabel>{t("article.font")}</InputLabel>
               <Select
                 value={fontFamily}
-                label="Font"
+                label={t("article.font")}
                 onChange={(e) => {
                   const val = e.target.value as FontFamily;
                   setFontFamily(val);
@@ -1356,7 +1378,7 @@ export default function ArticleScreen(_props: Props) {
               >
                 {FONT_FAMILY_OPTIONS.map((opt) => (
                   <SelectMenuItem key={opt.value} value={opt.value} sx={{ fontFamily: opt.css }}>
-                    {opt.label}
+                    {fontFamilyLabels[opt.value]}
                   </SelectMenuItem>
                 ))}
               </Select>
@@ -1394,14 +1416,14 @@ export default function ArticleScreen(_props: Props) {
             sx={{ mb: 2, display: "flex", alignItems: "center", gap: 1, color: "text.primary" }}
           >
             <AutoAwesomeIcon color="primary" />
-            Summary
+            {t("article.summary")}
           </Typography>
 
           {isSummarizing && (
             <Box sx={{ mb: 2, display: "flex", alignItems: "center", gap: 2 }}>
               <CircularProgress size={20} />
               <Typography variant="body2" color="text.secondary">
-                Generating summary...
+                {t("article.generatingSummary")}
               </Typography>
             </Box>
           )}
@@ -1446,7 +1468,7 @@ export default function ArticleScreen(_props: Props) {
                   color="text.secondary"
                   sx={{ display: "block", mt: 2 }}
                 >
-                  Generated by {article.summaryMeta.model}
+                  {t("article.generatedBy", { model: article.summaryMeta.model })}
                   {article.summaryMeta.provider ? ` (${article.summaryMeta.provider})` : ""}
                   {article.summaryMeta.generatedAt
                     ? ` · ${new Date(article.summaryMeta.generatedAt).toLocaleString()}`
@@ -1458,7 +1480,7 @@ export default function ArticleScreen(_props: Props) {
 
           {!isSummarizing && !article.summary && (
             <Typography variant="body2" color="text.secondary">
-              No summary available. Click "Generate" to create one.
+              {t("article.noSummary")}
             </Typography>
           )}
 
@@ -1475,17 +1497,17 @@ export default function ArticleScreen(_props: Props) {
                         summary: undefined,
                         summaryMeta: undefined,
                       });
-                      enqueueSnackbar("Summary cleared");
+                      enqueueSnackbar(t("article.summaryCleared"));
                     }}
                   >
-                    Clear
+                    {t("article.clear")}
                   </Button>
                   <Button
                     variant="outlined"
                     size="small"
-                    onClick={() => runSummarize("Summary regenerated")}
+                    onClick={() => runSummarize(t("article.summaryRegenerated"))}
                   >
-                    Regenerate
+                    {t("article.regenerate")}
                   </Button>
                 </>
               )}
@@ -1493,14 +1515,14 @@ export default function ArticleScreen(_props: Props) {
                 <Button
                   variant="contained"
                   size="small"
-                  onClick={() => runSummarize("Summary generated")}
+                  onClick={() => runSummarize(t("article.summaryGenerated"))}
                 >
-                  Generate Summary
+                  {t("article.generateSummary")}
                 </Button>
               )}
             </Box>
             <Button variant="outlined" onClick={() => setSummaryDrawerOpen(false)}>
-              Close
+              {t("article.close")}
             </Button>
           </Box>
         </Box>
