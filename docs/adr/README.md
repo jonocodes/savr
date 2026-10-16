@@ -4,7 +4,7 @@ One file per decision that is expensive to reverse or likely to be re-litigated.
 
 - **Format:** Nygard-style — Context / Decision / Consequences, with a `Status` line.
 - **Naming:** `NNNN-kebab-title.md`. Numbers are never reused or renumbered. To change a decision, add a new ADR and set the old one's status to `Superseded by NNNN` (don't rewrite history).
-- **Bar:** architecturally significant — a constraint, contract, or interface that other work must respect. Not for volatile facts (versions, deploy commands — those live in READMEs/runbooks) and not for per-branch session reasoning (that lives in `docs/branch-memory/`).
+- **Bar:** architecturally significant — a constraint, contract, or interface that other work must respect. Not for volatile facts (versions, deploy commands — those live in READMEs/runbooks). (Older per-branch notes in `docs/branch-memory/` are kept as history; new work does not add to them.)
 
 | ADR | Decision |
 | --- | --- |
