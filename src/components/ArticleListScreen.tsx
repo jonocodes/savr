@@ -50,7 +50,13 @@ import {
   type ExtensionInfo,
 } from "~/utils/extension/extensionBridge";
 import { trackCapture, trackCaptureFailed } from "~/utils/telemetry";
-import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
+import {
+  removeArticle,
+  patchArticleMetadata,
+  loadThumbnail,
+  proxyHealth,
+} from "~/utils/article/tools";
+import { proxyProblemSummary } from "~/utils/net/proxyHealth";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -817,7 +823,13 @@ export default function ArticleListScreen() {
       } catch (error) {
         console.error(error);
         trackCaptureFailed();
-        enqueueSnackbar(t("list.saveError", { error: errorMessage(error) }), { variant: "error" });
+        const proxyProblem = proxyHealth.getState().problem;
+        enqueueSnackbar(
+          proxyProblem
+            ? `Couldn't save: ${proxyProblemSummary(proxyProblem)}. See the notice above.`
+            : t("list.saveError", { error: errorMessage(error) }),
+          { variant: "error" }
+        );
         if (!ingestSucceeded) {
           reportFailure(targetUrl, error, t("list.downloadFailed"));
         }

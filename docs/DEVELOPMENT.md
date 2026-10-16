@@ -119,7 +119,7 @@ rm -f tests/e2e/.test-env.json
 | `main-page.spec.ts` | Main page UI tests | Requires React hydration |
 | `add-article-dialog.spec.ts` | Add-article dialog interactions | Requires React hydration |
 | `failure-report.spec.ts` | Failed-capture report dialog: dismiss, prefilled GitHub issue, mobile reachability | Needs `VITE_FAILURE_REPORT_REPO` (set by the Playwright web-server env) |
-| `proxy-health.spec.ts` | CORS proxy health banner (#86): visible 429, capped-edge answer without CORS headers (real local server — `route.fulfill` adds CORS headers itself), unreachable, and a failing target behind a working proxy (no banner) | Active |
+| `proxy-health.spec.ts` | CORS proxy health banner (#86): visible 429 from the proxy, a target's own 429 passed through a working proxy (no banner, report dialog still offered), capped-edge answer ("Couldn't save" notice, no report dialog, extension hint) without CORS headers (real local server — `route.fulfill` adds CORS headers itself), unreachable, and a failing target behind a working proxy (no banner) | Active |
 | `share-article.spec.ts` | Share menu on a list article: system share sheet (Web Share stubbed) and clipboard fallback | Active |
 | `ingest-local-article.spec.ts` | Article ingestion via UI, incl. PDF/markdown/image from `test_data/input/` | Serial |
 | `ingest-failed-image.spec.ts` | A failed image is replaced by a local placeholder in saved HTML (#75) | Serial |
@@ -176,10 +176,11 @@ governor in `src/utils/net/fetchGovernor.ts`. The governor:
 - coalesces concurrent fetches of the same URL into one request,
 - records failures so a URL is not retried until its `nextAttemptAt` passes
   (permanent 4xx wait days; transient 5xx/timeout/429 back off exponentially),
-- opens a circuit breaker on HTTP 429 so a capped proxy isn't hammered,
-- on a network-level failure with no visible status (incl. timeouts), asks
-  `diagnoseNetworkFailure` whether the proxy itself is at fault, and opens the
-  same breaker if so.
+- opens a circuit breaker when the proxy itself is failing, so a capped proxy
+  isn't hammered: on a 429, or a network-level failure with no visible status
+  (incl. timeouts), it asks `diagnoseProxy` whether the proxy is at fault —
+  the worker passes a target's own 429 through, so that only backs off the
+  URL. Without `diagnoseProxy` every 429 trips the breaker.
 
 Failure history is persisted in the Dexie `fetchCache` table (db version 6) via
 `src/utils/net/fetchGovernorStore.ts`. An explicit **Refetch** in the reader
@@ -196,7 +197,8 @@ Unit tests: `src/utils/net/fetchGovernor.test.ts`, `src/utils/net/proxyHealth.te
 A capped Cloudflare worker (error 1027) is answered by the edge without CORS
 headers, so the browser hides its status. `src/utils/net/proxyHealth.ts` (pure,
 injected fetch/clock/storage) probes the proxy prefix with an empty target, once
-with CORS and once with `no-cors`: CORS answer → running; only no-cors answers →
+with CORS and once with `no-cors`: CORS 429 → rate-limited; any other CORS
+answer → running; only no-cors answers →
 "responding but not working"; neither while online → unreachable; offline → no
 verdict. Probes are coalesced and throttled (one per minute, i.e. one per
 breaker cycle). The monitor instance (`proxyHealth`) and its wiring to the
@@ -205,6 +207,8 @@ it via `useProxyHealth` (`ProxyHealthBanner`, Preferences, Diagnostics). A
 response that came back through the proxy with CORS headers clears it; changing
 the proxy setting resets it (`resetProxyHealth`). It also keeps a per-device
 daily count of proxied requests in localStorage (`savr-proxy-requests`).
+While a problem is known, `useFailureReport` offers no "report this article"
+dialog and the save/refetch snackbars name the proxy instead.
 
 ## Image sources and downloader logging
 

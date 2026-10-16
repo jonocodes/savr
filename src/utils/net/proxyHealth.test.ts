@@ -5,6 +5,7 @@ import {
   getProxiedRequestsToday,
   probeProxy,
   proxyProblemMessage,
+  proxyProblemSummary,
   type ProbeEvidence,
 } from "./proxyHealth";
 
@@ -98,7 +99,13 @@ describe("classifyProbe", () => {
     expect(classifyProbe(evidence({ online: false }))).toBe("offline");
   });
 
-  it.each([200, 400, 404, 500])("any CORS response (HTTP %i) → running", (status) => {
+  it("a CORS 429 → the proxy itself is rate-limiting", () => {
+    expect(classifyProbe(evidence({ cors: { ok: true, status: 429 }, noCors: { ok: true } }))).toBe(
+      "rate-limited"
+    );
+  });
+
+  it.each([200, 400, 404, 500])("any other CORS response (HTTP %i) → running", (status) => {
     expect(classifyProbe(evidence({ cors: { ok: true, status }, noCors: { ok: true } }))).toBe(
       "running"
     );
@@ -195,9 +202,9 @@ describe("createProxyHealthMonitor", () => {
     expect(monitor.getState().problem).toBeNull();
   });
 
-  it("records a visible 429 as rate-limited", () => {
-    const { monitor, clock } = setup(probeFetch(400, "resolve"));
-    monitor.reportRateLimited(429);
+  it("blames the proxy when the probe itself is rate-limited", async () => {
+    const { monitor, clock } = setup(probeFetch(429, "resolve"));
+    await expect(monitor.diagnose()).resolves.toBe(true);
     expect(monitor.getState()).toMatchObject({
       problem: "rate-limited",
       status: 429,
@@ -205,9 +212,15 @@ describe("createProxyHealthMonitor", () => {
     });
   });
 
-  it("reportHealthy() clears the problem (breaker closed)", () => {
+  it("does not blame the proxy for a target's 429 when the probe gets its 400", async () => {
     const { monitor } = setup(probeFetch(400, "resolve"));
-    monitor.reportRateLimited(429);
+    await expect(monitor.diagnose()).resolves.toBe(false);
+    expect(monitor.getState().problem).toBeNull();
+  });
+
+  it("reportHealthy() clears the problem (a response came through the proxy)", async () => {
+    const { monitor } = setup(probeFetch(429, "resolve"));
+    await monitor.diagnose();
     monitor.reportHealthy();
     expect(monitor.getState().problem).toBeNull();
   });
@@ -236,21 +249,29 @@ describe("createProxyHealthMonitor", () => {
     const { monitor } = setup(probeFetch("reject", "resolve"));
     const listener = jest.fn();
     const unsubscribe = monitor.subscribe(listener);
-    monitor.reportRateLimited(429);
+    await monitor.diagnose();
     expect(listener).toHaveBeenCalledTimes(1);
     unsubscribe();
     monitor.reportHealthy();
     expect(listener).toHaveBeenCalledTimes(1);
   });
 
-  it("returns a stable snapshot until something changes", () => {
-    const { monitor } = setup(probeFetch(400, "resolve"));
+  it("returns a stable snapshot until something changes", async () => {
+    const { monitor } = setup(probeFetch("reject", "resolve"));
     const a = monitor.getState();
     expect(monitor.getState()).toBe(a);
     monitor.reportHealthy(); // already healthy: no change
     expect(monitor.getState()).toBe(a);
-    monitor.reportRateLimited(429);
+    await monitor.diagnose();
     expect(monitor.getState()).not.toBe(a);
+  });
+});
+
+describe("proxyProblemSummary", () => {
+  it("is a short clause for save-failure notices", () => {
+    expect(proxyProblemSummary("rate-limited")).toBe("your CORS proxy is rate-limiting requests");
+    expect(proxyProblemSummary("not-working")).toBe("your CORS proxy isn't working");
+    expect(proxyProblemSummary("unreachable")).toBe("your CORS proxy isn't responding");
   });
 });
 

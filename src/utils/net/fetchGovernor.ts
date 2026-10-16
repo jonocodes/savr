@@ -14,12 +14,13 @@
  *    `nextAttemptAt` passes (permanent failures wait longest)
  *  - backoff: transient failures (timeout/network/5xx/429) retry with
  *    exponential backoff + jitter; permanent failures (404/410/…) do not
- *  - a circuit breaker: a proxy-level failure (HTTP 429) short-circuits all
- *    fetches for a cooldown, so a capped proxy cannot be hammered
- *  - proxy diagnosis: a network failure with no visible status (a capped
- *    Cloudflare worker answers without CORS headers, so the browser hides its
- *    status) is handed to `diagnoseNetworkFailure`; if that blames the proxy,
- *    the same breaker trips
+ *  - a circuit breaker: a proxy-level failure short-circuits all fetches for
+ *    a cooldown, so a capped proxy cannot be hammered
+ *  - proxy diagnosis: a 429, or a network failure with no visible status (a
+ *    capped Cloudflare worker answers without CORS headers, so the browser
+ *    hides its status), is handed to `diagnoseProxy`; the breaker trips only
+ *    if that blames the proxy, since a proxy passes a target site's own 429
+ *    through. Without `diagnoseProxy`, every 429 trips it
  *
  * The module is intentionally free of browser and Dexie imports so it can be
  * unit-tested in a bare Node environment; persistence is injected through the
@@ -112,6 +113,9 @@ export type GovernorEvent =
 /** Why the breaker opened: a visible 429, or a diagnosis that blamed the proxy. */
 export type BreakerReason = "rate-limited" | "proxy-failure";
 
+/** What made the governor suspect the proxy: a 429, or a status-less error. */
+export type ProxySuspect = { status: 429 } | { error: unknown };
+
 export interface GovernorOptions {
   store: OutcomeStore;
   now?: () => number;
@@ -121,11 +125,11 @@ export interface GovernorOptions {
   permanentTtlMs?: number;
   onEvent?: (event: GovernorEvent) => void;
   /**
-   * Called when an attempt rejects with no HTTP status (timeouts included,
-   * deliberate aborts not).
-   * Resolve `true` when the proxy itself is at fault to open the breaker.
+   * Called on a 429, and when an attempt rejects with no HTTP status
+   * (timeouts included, deliberate aborts not). Resolve `true` when the proxy
+   * itself is at fault to open the breaker.
    */
-  diagnoseNetworkFailure?: (error: unknown) => Promise<boolean>;
+  diagnoseProxy?: (failure: ProxySuspect) => Promise<boolean>;
 }
 
 export interface FetchGovernor {
@@ -227,7 +231,7 @@ export function createFetchGovernor(options: GovernorOptions): FetchGovernor {
     now = () => Date.now(),
     random = Math.random,
     onEvent,
-    diagnoseNetworkFailure,
+    diagnoseProxy,
   } = options;
   const backoff: BackoffConfig = { ...DEFAULT_BACKOFF, ...options.backoff };
   const breaker: BreakerConfig = { ...DEFAULT_BREAKER, ...options.breaker };
@@ -271,14 +275,20 @@ export function createFetchGovernor(options: GovernorOptions): FetchGovernor {
     });
   }
 
-  async function isProxyAtFault(error: unknown): Promise<boolean> {
+  async function isProxyAtFault(failure: ProxySuspect): Promise<boolean> {
     // Timeouts are diagnosed too: a hung proxy should read as unreachable, and a
     // slow target behind a working proxy is cleared by the probe's quick 400.
-    if (!diagnoseNetworkFailure || isAbort(error)) return false;
+    if ("error" in failure && isAbort(failure.error)) return false;
     try {
-      return await diagnoseNetworkFailure(error);
+      return (await diagnoseProxy?.(failure)) ?? false;
     } catch {
       return false;
+    }
+  }
+
+  async function onRateLimited(): Promise<void> {
+    if (!diagnoseProxy || (await isProxyAtFault({ status: 429 }))) {
+      tripBreaker("rate-limited", 429);
     }
   }
 
@@ -334,14 +344,14 @@ export function createFetchGovernor(options: GovernorOptions): FetchGovernor {
         }
         const cls = classifyFailureStatus(response.status);
         await recordFailure(request.key, cls, response.status, previousAttempts);
-        if (response.status === 429) tripBreaker("rate-limited", 429);
+        if (response.status === 429) await onRateLimited();
         return response;
       } catch (error) {
         const status = getErrorStatus(error);
         const cls = classifyFailureStatus(status ?? 0);
         await recordFailure(request.key, cls, status, previousAttempts);
-        if (status === 429) tripBreaker("rate-limited", 429);
-        else if (status === undefined && (await isProxyAtFault(error))) {
+        if (status === 429) await onRateLimited();
+        else if (status === undefined && (await isProxyAtFault({ error }))) {
           tripBreaker("proxy-failure");
         }
         throw error;

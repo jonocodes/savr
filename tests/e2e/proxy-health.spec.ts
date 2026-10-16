@@ -78,13 +78,47 @@ test.describe("CORS proxy health banner", () => {
     // A custom proxy is configured, so no "set up your own" pitch.
     await expect(banner.getByRole("link", { name: "Set up your own proxy" })).toHaveCount(0);
 
-    // The same observation shows next to the setting in Preferences (after
-    // closing the failed-capture report that the save also opened).
-    await page.getByTestId("failure-report-dismiss").click();
+    // Desktop browsers are pointed at the extension, which needs no proxy.
+    await expect(banner.getByTestId("proxy-health-extension-hint")).toBeVisible();
+
+    // The save failure says why, and doesn't ask to report the article: the
+    // article isn't at fault.
+    await expect(
+      page.getByText("Couldn't save: your CORS proxy isn't working. See the notice above.")
+    ).toBeVisible();
+    await expect(page.getByTestId("failure-report-dialog")).toHaveCount(0);
+
+    // The same observation shows next to the setting in Preferences.
     await banner.getByRole("link", { name: "Proxy settings" }).click();
     await expect(page.getByTestId("proxy-health-status")).toContainText(
       "Your CORS proxy is responding but not working."
     );
+  });
+
+  test("a target site's own 429 behind a working proxy shows no banner", async ({ page }) => {
+    await useRoutedProxy(page, (route) => {
+      const target = new URL(route.request().url()).searchParams.get("url");
+      // The worker passes the target's 429 through, CORS headers and all...
+      if (target) {
+        return route.fulfill({
+          status: 429,
+          headers: { "Access-Control-Allow-Origin": "*" },
+          body: "Too Many Requests",
+        });
+      }
+      // ...but answers the probe itself with its usual 400.
+      return route.fulfill({
+        status: 400,
+        headers: { "Access-Control-Allow-Origin": "*" },
+        body: "Missing 'url' parameter",
+      });
+    });
+    await saveUrl(page);
+
+    // The usual failed-capture flow: this article really did fail.
+    await expect(page.getByTestId("failure-report-dialog")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByText(/Error saving article/)).toBeVisible();
+    await expect(page.getByTestId("proxy-health-banner")).toHaveCount(0);
   });
 
   test("no answer at all reads as not responding", async ({ page }) => {

@@ -13,11 +13,16 @@
  * itself (empty target, e.g. `https://…/?url=`), which our worker answers with
  * a CORS 400:
  *
- *  - CORS fetch resolves (any status)          → running; the target failed
+ *  - CORS fetch answers 429                    → the proxy is rate-limiting
+ *  - CORS fetch resolves (any other status)    → running; the target failed
  *  - CORS rejects, `no-cors` fetch resolves    → something answered that is
  *    not our code: likely exhausted, or the worker crashed
  *  - both reject while online                  → unreachable
  *  - offline                                   → no verdict
+ *
+ * A visible 429 is probed the same way: the worker passes a target's own
+ * status through, so only the probe can tell "the proxy is rate-limiting"
+ * (probe gets 429) from "this site is" (probe gets the usual 400).
  *
  * Pure: fetch, clock and storage are injected so this runs in bare Node.
  */
@@ -35,7 +40,7 @@ export interface ProbeEvidence {
   noCors?: ProbeOutcome;
 }
 
-export type ProbeVerdict = "running" | "not-working" | "unreachable" | "offline";
+export type ProbeVerdict = "running" | "rate-limited" | "not-working" | "unreachable" | "offline";
 
 export type ProxyProblem = "rate-limited" | "not-working" | "unreachable";
 
@@ -95,7 +100,7 @@ export function classifyProbe(evidence: ProbeEvidence): ProbeVerdict {
   // Any response carrying CORS headers (400, 404, …) means our code answered.
   // A token-locked proxy's 404 for a bad token lands here too: running, but
   // misconfigured — the per-URL statuses already show that.
-  if (evidence.cors?.ok) return "running";
+  if (evidence.cors?.ok) return evidence.cors.status === 429 ? "rate-limited" : "running";
   return evidence.noCors?.ok ? "not-working" : "unreachable";
 }
 
@@ -110,13 +115,12 @@ export interface ProxyHealthMonitor {
   getState(): ProxyHealthState;
   subscribe(listener: () => void): () => void;
   /**
-   * A proxied fetch failed with no visible status. Probe (throttled and
-   * coalesced) and resolve `true` when the proxy itself is at fault.
+   * A proxied fetch failed with no visible status, or with a 429. Probe
+   * (throttled and coalesced) and resolve `true` when the proxy itself is at
+   * fault.
    */
   diagnose(): Promise<boolean>;
-  /** The proxy answered with a visible 429. */
-  reportRateLimited(status: number): void;
-  /** A proxied fetch succeeded / the breaker closed. */
+  /** A response came back through the proxy / the breaker closed. */
   reportHealthy(): void;
   /** Forget everything, e.g. after the proxy setting changed. */
   reset(): void;
@@ -150,7 +154,7 @@ export function createProxyHealthMonitor(options: ProxyHealthMonitorOptions): Pr
   }
 
   function isBlamed(verdict: ProbeVerdict | undefined): boolean {
-    return verdict === "not-working" || verdict === "unreachable";
+    return verdict === "rate-limited" || verdict === "not-working" || verdict === "unreachable";
   }
 
   async function runProbe(): Promise<boolean> {
@@ -164,7 +168,8 @@ export function createProxyHealthMonitor(options: ProxyHealthMonitorOptions): Pr
     } else if (verdict === "running") {
       setState({ problem: null, lastProbe });
     } else {
-      setState({ ...withProblem(verdict), lastProbe });
+      const status = verdict === "rate-limited" ? 429 : undefined;
+      setState({ ...withProblem(verdict, status), lastProbe });
     }
     return isBlamed(verdict);
   }
@@ -188,9 +193,6 @@ export function createProxyHealthMonitor(options: ProxyHealthMonitorOptions): Pr
       return () => listeners.delete(listener);
     },
     diagnose,
-    reportRateLimited(status) {
-      setState(withProblem("rate-limited", status));
-    },
     reportHealthy() {
       if (state.problem !== null) setState(withProblem(null));
     },
@@ -211,6 +213,18 @@ export function proxyProblemMessage(problem: ProxyProblem, status = 429): string
       return "Your CORS proxy is responding but not working. It may have hit a usage limit or be misconfigured.";
     case "unreachable":
       return "Your CORS proxy isn't responding. Check the URL in Preferences.";
+  }
+}
+
+/** The same observation as a clause, for "Couldn't save: …" notices. */
+export function proxyProblemSummary(problem: ProxyProblem): string {
+  switch (problem) {
+    case "rate-limited":
+      return "your CORS proxy is rate-limiting requests";
+    case "not-working":
+      return "your CORS proxy isn't working";
+    case "unreachable":
+      return "your CORS proxy isn't responding";
   }
 }
 

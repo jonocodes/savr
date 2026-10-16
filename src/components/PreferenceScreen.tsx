@@ -775,7 +775,7 @@ export default function PreferencesScreen() {
             )}
 
             {showDesktopSaveTools && (extensionUrls.firefoxUrl || extensionUrls.chromeUrl) && (
-              <ListItem sx={wrappingRowSx}>
+              <ListItem sx={wrappingRowSx} id="browser-extension">
                 <ListItemIcon>
                   <ExtensionIcon />
                 </ListItemIcon>

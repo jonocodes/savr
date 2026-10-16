@@ -41,8 +41,9 @@ export function getProxiedRequestsTodayCount(): number {
 // survives reloads.
 const fetchGovernor = createFetchGovernor({
   store: createDexieOutcomeStore(),
-  // Direct fetches (no proxy configured) have no proxy to blame.
-  diagnoseNetworkFailure: async () => (getCorsProxyValue() ? proxyHealth.diagnose() : false),
+  // Direct fetches (no proxy configured) have no proxy to blame: a site's own
+  // 429 backs off that URL only.
+  diagnoseProxy: async () => (getCorsProxyValue() ? proxyHealth.diagnose() : false),
   onEvent: (event) => {
     if (event.type === "recorded") {
       recordLog("warn", "fetch", `Fetch failed (${event.class})`, {
@@ -58,9 +59,6 @@ const fetchGovernor = createFetchGovernor({
         retryAt: new Date(event.nextAttemptAt).toISOString(),
         probe: proxyHealth.getState().lastProbe,
       });
-      if (event.reason === "rate-limited" && getCorsProxyValue()) {
-        proxyHealth.reportRateLimited(event.status ?? 429);
-      }
     } else if (event.type === "breaker-close") {
       proxyHealth.reportHealthy();
     }
