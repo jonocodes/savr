@@ -31,6 +31,9 @@ import { environmentConfig, BUILD_TIMESTAMP } from "~/config/environment";
 import { isPWAMode } from "~/utils/net/network";
 import { getCorsProxyValue, maskCorsProxyInText } from "~/utils/net/corsProxy";
 import { useTranslation } from "react-i18next";
+import { useProxyHealth } from "~/hooks/useProxyHealth";
+import { proxyProblemMessage } from "~/utils/net/proxyHealth";
+import { getProxiedRequestsTodayCount } from "~/utils/article/tools";
 import React from "react";
 
 interface RemoteStorageEvent {
@@ -45,6 +48,7 @@ export default function DiagnosticsScreen() {
   const articles = useLiveQuery(() => db.articles.toArray());
   const { status: syncStatus, isWiFi, isNetworkSupported } = useSyncStatus();
   const syncProgress = useSyncProgress();
+  const proxyHealthState = useProxyHealth();
   const [danglingItems, setDanglingItems] = React.useState<
     Array<{
       path: string;
@@ -1039,6 +1043,53 @@ export default function DiagnosticsScreen() {
                 </Typography>
               </Box>
             </Box>
+          </Box>
+
+          <Box
+            sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}
+            data-testid="proxy-health-diagnostics"
+          >
+            <Typography variant="h6" component="h3" gutterBottom>
+              {t("diagnostics.proxyHealthTitle")}
+            </Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+              {t("diagnostics.proxyHealthDescription")}
+            </Typography>
+            <Typography
+              variant="body2"
+              data-testid="proxy-health-diagnostics-status"
+              color={proxyHealthState.problem ? "warning.main" : "text.primary"}
+              sx={{ mb: 1 }}
+            >
+              {proxyHealthState.problem
+                ? proxyProblemMessage(t, proxyHealthState.problem, proxyHealthState.status)
+                : t("common.proxyHealth.noProblems")}
+            </Typography>
+            <Typography variant="body2" component="pre" sx={{ wordBreak: "break-all" }}>
+              {maskCorsProxyInText(
+                JSON.stringify(
+                  {
+                    problem: proxyHealthState.problem,
+                    observedAt: proxyHealthState.observedAt
+                      ? new Date(proxyHealthState.observedAt).toISOString()
+                      : null,
+                    status: proxyHealthState.status ?? null,
+                    lastProbe: proxyHealthState.lastProbe
+                      ? {
+                          ...proxyHealthState.lastProbe,
+                          evidence: {
+                            ...proxyHealthState.lastProbe.evidence,
+                            at: new Date(proxyHealthState.lastProbe.evidence.at).toISOString(),
+                          },
+                        }
+                      : null,
+                    proxiedRequestsToday: getProxiedRequestsTodayCount(),
+                  },
+                  null,
+                  2
+                )
+              )}
+            </Typography>
           </Box>
 
           <Box sx={{ mt: 4, p: 3, backgroundColor: "background.default", borderRadius: 1 }}>

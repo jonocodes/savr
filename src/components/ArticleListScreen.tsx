@@ -50,7 +50,13 @@ import {
   type ExtensionInfo,
 } from "~/utils/extension/extensionBridge";
 import { trackCapture, trackCaptureFailed } from "~/utils/telemetry";
-import { removeArticle, patchArticleMetadata, loadThumbnail } from "~/utils/article/tools";
+import {
+  removeArticle,
+  patchArticleMetadata,
+  loadThumbnail,
+  proxyHealth,
+} from "~/utils/article/tools";
+import { proxyProblemSummary } from "~/utils/net/proxyHealth";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { useSyncStatus } from "./SyncStatusProvider";
 import { useLiveQuery } from "dexie-react-hooks";
@@ -69,6 +75,7 @@ import { normalizeUrl } from "~/utils/net/url";
 import { shareArticle } from "~/utils/share";
 import FailureReportDialog from "./FailureReportDialog";
 import { useTranslation } from "react-i18next";
+import ProxyHealthBanner from "./ProxyHealthBanner";
 
 import { keyframes } from "@mui/system";
 
@@ -816,7 +823,13 @@ export default function ArticleListScreen() {
       } catch (error) {
         console.error(error);
         trackCaptureFailed();
-        enqueueSnackbar(t("list.saveError", { error: errorMessage(error) }), { variant: "error" });
+        const proxyProblem = proxyHealth.getState().problem;
+        enqueueSnackbar(
+          proxyProblem
+            ? t("common.proxyHealth.saveFailed", { reason: proxyProblemSummary(t, proxyProblem) })
+            : t("list.saveError", { error: errorMessage(error) }),
+          { variant: "error" }
+        );
         if (!ingestSucceeded) {
           reportFailure(targetUrl, error, t("list.downloadFailed"));
         }
@@ -1080,6 +1093,7 @@ export default function ArticleListScreen() {
         maxWidth="sm"
         sx={{ mt: 2, mx: "auto", display: "flex", flexDirection: "column", alignItems: "center" }}
       >
+        <ProxyHealthBanner />
         {/* Article count and reading time info */}
         {filteredArticles.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1, textAlign: "center" }}>

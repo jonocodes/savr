@@ -55,7 +55,13 @@ import { Route } from "~/routes/article.$slug";
 import { useRemoteStorage } from "./RemoteStorageProvider";
 import { db } from "~/utils/db";
 import { Article, SummaryMeta } from "../../lib/src/models";
-import { removeArticle, patchArticleMetadata, clearFetchFailures } from "~/utils/article/tools";
+import {
+  removeArticle,
+  patchArticleMetadata,
+  clearFetchFailures,
+  proxyHealth,
+} from "~/utils/article/tools";
+import { proxyProblemSummary } from "~/utils/net/proxyHealth";
 import { useSnackbar } from "notistack";
 import { useTranslation } from "react-i18next";
 import ArticleComponent from "./ArticleComponent";
@@ -467,7 +473,15 @@ export default function ArticleScreen(_props: Props) {
         setRefetchDrawerOpen(false);
         setRefetchPercent(0);
         setRefetchStatus(null);
-        enqueueSnackbar(t("article.refetchFailed"), { variant: "error" });
+        const proxyProblem = proxyHealth.getState().problem;
+        enqueueSnackbar(
+          proxyProblem
+            ? t("common.proxyHealth.refetchFailed", {
+                reason: proxyProblemSummary(t, proxyProblem),
+              })
+            : t("article.refetchFailed"),
+          { variant: "error" }
+        );
         if (!ingestSucceeded) {
           reportFailure(targetUrl, error, "Failed to refetch article");
         }

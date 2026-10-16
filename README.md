@@ -327,6 +327,17 @@ Savr uses a CORS proxy server that acts as a middleman. Instead of your browser 
 
 Savr is also polite about how it uses the proxy: identical requests in flight are de-duplicated, a URL that keeps failing is backed off (a 404 is not retried automatically), and if the proxy itself is rate-limited Savr pauses requests for a cooldown instead of hammering it. If an image can't be downloaded when you save an article, it is replaced with a local placeholder, so reading the saved article never contacts the original site again.
 
+**When the proxy stops working**  
+If the proxy itself fails (rather than the site you're saving), Savr shows a banner on the article list and the add screen, and a status line under **Preferences → CORS Proxy**, saying only what it observed:
+
+| Observed | Message |
+|---|---|
+| The proxy itself answers with HTTP 429 | "Your CORS proxy is rate-limiting requests (HTTP 429)." |
+| Something answers, but not the proxy's own code | "Your CORS proxy is responding but not working. It may have hit a usage limit or be misconfigured." |
+| Nothing answers while you're online | "Your CORS proxy isn't responding. Check the URL in Preferences." |
+
+The middle case is what a capped Cloudflare worker looks like: past the free plan's 100k requests/day the edge serves its own error page (1027) without CORS headers, so the browser hides the status. Savr tells it apart by probing the proxy prefix (with an empty target) twice, once normally and once with `no-cors`: our worker answers with CORS headers even on errors, while a `no-cors` request succeeds whenever anything answered. A 429 is probed too, because the proxy passes a site's own 429 straight through: only if the probe is also refused with 429 is the proxy blamed; otherwise just that page or image backs off. A probe runs at most once per minute, only after a network-level failure or a 429, and a bad verdict pauses proxied requests for a cooldown. Savr never switches proxies by itself and never guesses a reset time. While the proxy is failing, a failed save says so ("Couldn't save: your CORS proxy isn't working…") instead of offering to report the article, which isn't at fault; on desktop the banner also points out that saving with the browser extension needs no proxy. The banner clears as soon as a request or probe succeeds; **Diagnostics → CORS Proxy Health** shows the raw probe results, and roughly how many proxy requests this device sent today (other devices share the same proxy, so it's only a hint).
+
 **Why bring your own proxy?**  
 While Savr provides a default proxy, you can configure your own CORS proxy server for:
 

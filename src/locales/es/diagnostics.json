@@ -78,6 +78,8 @@
     "noUrl": "Sin URL",
     "scanningOrphaned": "Buscando artículos huérfanos en la base de datos...",
     "noOrphanedFound": "No se encontraron artículos huérfanos en la base de datos.",
-    "noArticlesFound": "No se encontraron artículos en la base de datos."
+    "noArticlesFound": "No se encontraron artículos en la base de datos.",
+    "proxyHealthTitle": "Estado del proxy CORS",
+    "proxyHealthDescription": "Lo que Savr observó sobre el proxy y por qué lo dijo. La prueba solicita el prefijo del proxy con un destino vacío dos veces: con CORS (nuestro worker responde con cabeceras CORS, incluso en errores) y sin CORS (no-cors, que se resuelve siempre que algo respondió)."
   }
 }

@@ -43,6 +43,7 @@ import {
 } from "~/utils/ai/summarization";
 import { db } from "~/utils/db";
 import { useRemoteStorage } from "./RemoteStorageProvider";
+import ProxyHealthBanner from "./ProxyHealthBanner";
 import { useSnackbar } from "notistack";
 import { ingestHtml, ingestPdf, ingestImage } from "lib/src/ingestion";
 import { trackCapture } from "~/utils/telemetry";
@@ -482,6 +483,7 @@ export default function SubmitScreen() {
 
       {/* Content */}
       <Container maxWidth="md" sx={{ mt: 2 }}>
+        <ProxyHealthBanner />
         <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", mb: 1 }}>
           <Typography variant="body1">
             {t("submit.pasteHint")}

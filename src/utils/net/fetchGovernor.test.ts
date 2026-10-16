@@ -5,6 +5,7 @@ import {
   createMemoryOutcomeStore,
   GovernorError,
   type BackoffConfig,
+  type GovernorEvent,
   type OutcomeStore,
 } from "./fetchGovernor";
 
@@ -263,5 +264,192 @@ describe("createFetchGovernor", () => {
     await expect(governor.run({ key: "k", requestUrl: "k" }, attempt)).rejects.toBeInstanceOf(
       GovernorError
     );
+  });
+
+  describe("proxy diagnosis on network failures", () => {
+    const failingAttempt = () =>
+      jest.fn(async (): Promise<Response> => {
+        throw new TypeError("Failed to fetch");
+      });
+
+    it("asks for a diagnosis and opens the breaker when the proxy is at fault", async () => {
+      const clock = fakeClock();
+      const events: GovernorEvent[] = [];
+      const diagnoseProxy = jest.fn(async () => true);
+      const governor = createFetchGovernor({
+        store,
+        now: clock.now,
+        breaker: { baseMs: 60_000 },
+        diagnoseProxy,
+        onEvent: (event) => events.push(event),
+      });
+
+      await expect(governor.run({ key: "a", requestUrl: "a" }, failingAttempt())).rejects.toThrow(
+        "Failed to fetch"
+      );
+      expect(diagnoseProxy).toHaveBeenCalledTimes(1);
+      expect(events).toContainEqual({
+        type: "breaker-open",
+        reason: "proxy-failure",
+        nextAttemptAt: clock.now() + 60_000,
+      });
+
+      const untouched = jest.fn(async () => ok());
+      await expect(governor.run({ key: "b", requestUrl: "b" }, untouched)).rejects.toMatchObject({
+        reason: "circuit-open",
+      });
+      expect(untouched).not.toHaveBeenCalled();
+    });
+
+    it("leaves the breaker closed when the proxy is fine (target failure)", async () => {
+      const clock = fakeClock();
+      const governor = createFetchGovernor({
+        store,
+        now: clock.now,
+        diagnoseProxy: async () => false,
+      });
+      await expect(governor.run({ key: "a", requestUrl: "a" }, failingAttempt())).rejects.toThrow();
+
+      const next = jest.fn(async () => ok());
+      await governor.run({ key: "b", requestUrl: "b" }, next);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it("diagnoses a timeout: a hung proxy should read as unreachable", async () => {
+      const clock = fakeClock();
+      const diagnoseProxy = jest.fn(async () => true);
+      const governor = createFetchGovernor({ store, now: clock.now, diagnoseProxy });
+
+      const timeout = jest.fn(async (): Promise<Response> => {
+        throw new DOMException("signal timed out", "TimeoutError");
+      });
+      await expect(governor.run({ key: "t", requestUrl: "t" }, timeout)).rejects.toThrow();
+      expect(diagnoseProxy).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not diagnose aborts or failures with a visible status", async () => {
+      const clock = fakeClock();
+      const diagnoseProxy = jest.fn(async () => true);
+      const governor = createFetchGovernor({ store, now: clock.now, diagnoseProxy });
+
+      const aborted = jest.fn(async (): Promise<Response> => {
+        throw new DOMException("aborted", "AbortError");
+      });
+      await expect(governor.run({ key: "a", requestUrl: "a" }, aborted)).rejects.toThrow();
+      await governor.run(
+        { key: "s", requestUrl: "s" },
+        attemptReturning(new Response("", { status: 502 }))
+      );
+
+      expect(diagnoseProxy).not.toHaveBeenCalled();
+    });
+
+    it("treats a failing diagnosis as 'not the proxy' and still rethrows the fetch error", async () => {
+      const clock = fakeClock();
+      const governor = createFetchGovernor({
+        store,
+        now: clock.now,
+        diagnoseProxy: async () => {
+          throw new Error("probe exploded");
+        },
+      });
+      await expect(governor.run({ key: "a", requestUrl: "a" }, failingAttempt())).rejects.toThrow(
+        "Failed to fetch"
+      );
+      const next = jest.fn(async () => ok());
+      await governor.run({ key: "b", requestUrl: "b" }, next);
+      expect(next).toHaveBeenCalledTimes(1);
+    });
+
+    it("trips the breaker once for a burst of concurrent failures", async () => {
+      const clock = fakeClock();
+      const events: GovernorEvent[] = [];
+      const governor = createFetchGovernor({
+        store,
+        now: clock.now,
+        breaker: { baseMs: 60_000 },
+        diagnoseProxy: async () => true,
+        onEvent: (event) => events.push(event),
+      });
+
+      await Promise.allSettled(
+        ["a", "b", "c"].map((key) => governor.run({ key, requestUrl: key }, failingAttempt()))
+      );
+
+      const opens = events.filter((event) => event.type === "breaker-open");
+      expect(opens).toHaveLength(1);
+      expect(opens[0]).toMatchObject({ nextAttemptAt: clock.now() + 60_000 });
+    });
+  });
+
+  describe("proxy diagnosis on a visible 429", () => {
+    const rateLimited = () => attemptReturning(new Response("", { status: 429 }));
+
+    it("opens the breaker when the probe confirms the proxy is rate-limiting", async () => {
+      const clock = fakeClock();
+      const events: GovernorEvent[] = [];
+      const diagnoseProxy = jest.fn(async () => true);
+      const governor = createFetchGovernor({
+        store,
+        now: clock.now,
+        diagnoseProxy,
+        onEvent: (event) => events.push(event),
+      });
+
+      await governor.run({ key: "a", requestUrl: "a" }, rateLimited());
+
+      expect(diagnoseProxy).toHaveBeenCalledWith({ status: 429 });
+      expect(events).toContainEqual(
+        expect.objectContaining({ type: "breaker-open", reason: "rate-limited", status: 429 })
+      );
+    });
+
+    it("backs off only that URL when the 429 came from the target site", async () => {
+      const clock = fakeClock();
+      const events: GovernorEvent[] = [];
+      const governor = createFetchGovernor({
+        store,
+        now: clock.now,
+        diagnoseProxy: async () => false,
+        onEvent: (event) => events.push(event),
+      });
+
+      await governor.run({ key: "a", requestUrl: "a" }, rateLimited());
+
+      expect(events.some((event) => event.type === "breaker-open")).toBe(false);
+      expect(await store.get("a")).toMatchObject({ class: "transient", status: 429 });
+      const other = jest.fn(async () => ok());
+      await governor.run({ key: "b", requestUrl: "b" }, other);
+      expect(other).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it("tags a 429 breaker trip as rate-limited", async () => {
+    const clock = fakeClock();
+    const events: GovernorEvent[] = [];
+    const governor = createFetchGovernor({ store, now: clock.now, onEvent: (e) => events.push(e) });
+    await governor.run(
+      { key: "a", requestUrl: "a" },
+      attemptReturning(new Response("", { status: 429 }))
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({ type: "breaker-open", reason: "rate-limited", status: 429 })
+    );
+  });
+
+  it("resetBreaker() closes an open breaker immediately", async () => {
+    const clock = fakeClock();
+    const events: GovernorEvent[] = [];
+    const governor = createFetchGovernor({ store, now: clock.now, onEvent: (e) => events.push(e) });
+    await governor.run(
+      { key: "a", requestUrl: "a" },
+      attemptReturning(new Response("", { status: 429 }))
+    );
+
+    governor.resetBreaker();
+    expect(events).toContainEqual({ type: "breaker-close" });
+    const next = jest.fn(async () => ok());
+    await governor.run({ key: "b", requestUrl: "b" }, next);
+    expect(next).toHaveBeenCalledTimes(1);
   });
 });
