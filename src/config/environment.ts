@@ -30,10 +30,11 @@ export interface EnvironmentConfig {
   };
 }
 
-// The newest extension release on GitHub; the signed XPI is installed from the
+// GitHub releases filtered to the extension (newest first; the repo's "latest"
+// release belongs to the app). The signed XPI is installed from the
 // release's asset list. (Linking the savr.link/extension/firefox.xpi redirect
 // directly got blocked by Firefox's install prompt.)
-const FIREFOX_EXTENSION_INSTALL_URL = "https://github.com/jonocodes/savr/releases/latest";
+const FIREFOX_EXTENSION_INSTALL_URL = "https://github.com/jonocodes/savr/releases?q=extension&expanded=true";
 
 // Get environment variables
 const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
