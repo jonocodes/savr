@@ -28,12 +28,13 @@ There is deliberately no page context-menu entry.
 
 ### Firefox (desktop and Android)
 
-Open **https://savr.link/extension/firefox.xpi** in Firefox (the app's
-Preferences screen links to it). Firefox asks to allow savr.link to install an
+Open the [latest release](https://github.com/jonocodes/savr/releases/latest) in
+Firefox (the app's Preferences screen links there) and click the
+`savr-firefox-<version>.xpi` asset. Firefox asks to allow github.com to install an
 add-on, then shows the permission prompt. It needs Firefox 142 or newer, and
 updates itself (see [Updates](#updates)).
 
-On Android, opening that link only downloads the file — Firefox for Android
+On Android, tapping the `.xpi` only downloads it — Firefox for Android
 does not install add-ons from a web link outside addons.mozilla.org. Install
 the downloaded file instead
 ([Mozilla's instructions](https://extensionworkshop.com/documentation/publish/install-self-distributed/)):
@@ -105,8 +106,8 @@ can override it), so a hosted `.crx` would not work for most people. The plan
 is an **unlisted** Chrome Web Store item (a one-time developer registration fee;
 review takes days); Edge, Brave and Vivaldi can install from it too, and Edge
 Add-ons is a free alternative. Until then, the release's Chromium zip is for
-**Load unpacked**. The Preferences link (`VITE_CHROME_EXTENSION_URL`) points at
-this README until a listing exists.
+**Load unpacked**. The Preferences screen shows no Chrome link
+(`VITE_CHROME_EXTENSION_URL` defaults to empty) until a listing exists.
 
 ### Versioning
 

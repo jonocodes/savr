@@ -23,18 +23,17 @@ export interface EnvironmentConfig {
   };
   extension: {
     // Where Preferences links to install the browser extension, per browser.
-    // Defaults to the extension's README (install instructions); the hosted
-    // build can point these at the AMO listing / a hosted signed XPI and the
-    // Chrome Web Store once published. An empty value hides that link.
+    // Firefox defaults to the latest GitHub release; Chrome is hidden until a
+    // Chrome Web Store listing exists. An empty value hides that link.
     firefoxUrl: string;
     chromeUrl: string;
   };
 }
 
-const EXTENSION_README_URL = "https://github.com/jonocodes/savr/tree/main/browser-extension";
-// Stable install link for the signed, self-hosted Firefox build: a savr.link
-// redirect (public/_redirects) to the newest XPI on GitHub Releases.
-const FIREFOX_EXTENSION_INSTALL_URL = "https://savr.link/extension/firefox.xpi";
+// The newest extension release on GitHub; the signed XPI is installed from the
+// release's asset list. (Linking the savr.link/extension/firefox.xpi redirect
+// directly got blocked by Firefox's install prompt.)
+const FIREFOX_EXTENSION_INSTALL_URL = "https://github.com/jonocodes/savr/releases/latest";
 
 // Get environment variables
 const getEnvVar = (key: string, defaultValue?: string): string | undefined => {
@@ -84,7 +83,7 @@ export const environmentConfig: EnvironmentConfig = {
   },
   extension: {
     firefoxUrl: getEnvVar("VITE_FIREFOX_EXTENSION_URL", FIREFOX_EXTENSION_INSTALL_URL) || "",
-    chromeUrl: getEnvVar("VITE_CHROME_EXTENSION_URL", EXTENSION_README_URL) || "",
+    chromeUrl: getEnvVar("VITE_CHROME_EXTENSION_URL", "") || "",
   },
 };
 

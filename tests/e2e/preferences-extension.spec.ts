@@ -3,9 +3,9 @@ import { test, expect } from "@playwright/test";
 /**
  * Preferences offers the browser extension next to the bookmarklets. The
  * install targets are build-configurable (VITE_FIREFOX_EXTENSION_URL /
- * VITE_CHROME_EXTENSION_URL). Firefox defaults to the stable savr.link install
- * link for the signed self-hosted XPI; Chrome, until a store listing exists,
- * defaults to the extension README.
+ * VITE_CHROME_EXTENSION_URL). Firefox defaults to the latest GitHub release
+ * (whose assets include the signed XPI); Chrome is hidden until a store
+ * listing exists.
  */
 test.describe("Preferences: browser extension", () => {
   test("links to the extension install targets", async ({ page }) => {
@@ -16,11 +16,8 @@ test.describe("Preferences: browser extension", () => {
 
     await expect(page.getByTestId("extension-firefox-link")).toHaveAttribute(
       "href",
-      "https://savr.link/extension/firefox.xpi"
+      "https://github.com/jonocodes/savr/releases/latest"
     );
-    await expect(page.getByTestId("extension-chrome-link")).toHaveAttribute(
-      "href",
-      /browser-extension/
-    );
+    await expect(page.getByTestId("extension-chrome-link")).toHaveCount(0);
   });
 });

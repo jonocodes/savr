@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-16
+
+- Preferences now links the Firefox extension to the [latest GitHub release](https://github.com/jonocodes/savr/releases/latest) (install the `.xpi` from its assets) instead of the `savr.link/extension/firefox.xpi` redirect, which Firefox was blocking. The Chrome link is hidden by default (`VITE_CHROME_EXTENSION_URL` now defaults to empty) until a Chrome Web Store listing exists
+
 ## 2026-10-15
 
 - The shared CORS proxy now only serves allowlisted calling sites — savr.link, Netlify preview/branch deploys (`*--savrlist.netlify.app`) and localhost — via a new optional `ALLOWED_ORIGINS` setting. It still fetches articles from any public site; other websites calling it get a 404, recorded in the stats. Self-hosted Savr frontends on their own domain need their own proxy. Unset (the default for self-hosted proxies) changes nothing (ADR 0006; rate limiting tracked in #117)
