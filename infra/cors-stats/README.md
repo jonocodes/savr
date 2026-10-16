@@ -26,7 +26,7 @@ and the IP itself is discarded.
 | ---- | ----- | -------------- |
 | 1 | country (ISO alpha-2) | `US`, `DE`, `T1` (Tor), `XX` (unknown) |
 | 2 | MIME class | `html`, `image`, `css`, `js`, `font`, `video`, `json`, `none`, … |
-| 3 | status | `200`, `404`, `502` |
+| 3 | status | `200`, `404`, `502` (a `404` with cache `bypass` and no host is a caller refused by `ALLOWED_ORIGINS`) |
 | 4 | cache | `hit` (edge cache), `miss` (origin fetch), `bypass` (HEAD / invalid) |
 | 5 | host | **failures only** (`status >= 400`), otherwise empty |
 | 6 | caller origin | `savr.link`, a self-hoster's host, `chrome-extension`, `local` (localhost / LAN / IP), `""` (none) |

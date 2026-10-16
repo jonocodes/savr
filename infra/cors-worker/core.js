@@ -24,6 +24,12 @@
  *    token, so it looks dead to scanners. Auth is checked before the edge
  *    cache, so a cache hit is never served without a token. The cache key is
  *    the target URL only, so rotating a token doesn't throw away the cache.
+ *  - origin allowlist: an optional `ALLOWED_ORIGINS` list restricts which
+ *    *calling sites* may use the proxy (never which targets it fetches). A
+ *    missing or unlisted Origin gets the same dead-looking 404 as a bad token,
+ *    checked before the edge cache. It stops other websites spending the
+ *    quota through their visitors' browsers; it does not stop non-browser
+ *    clients, which can forge the header.
  *  - stats: an optional `onRequest` port emits one neutral event per recorded
  *    request (never preflights, health checks, or setup pages) — status, MIME
  *    class, cache outcome, and on failures the host and fetch-error kind. The
@@ -47,6 +53,16 @@ const CORS_HEADERS = {
   "Access-Control-Max-Age": "0",
 };
 
+/**
+ * CORS headers for a proxied response. Behind an origin allowlist the caller's
+ * own origin is echoed instead of `*`, and `Vary: Origin` keeps browser caches
+ * from serving one site's response to another.
+ */
+function corsHeadersFor(allowOrigin) {
+  if (!allowOrigin) return CORS_HEADERS;
+  return { ...CORS_HEADERS, "Access-Control-Allow-Origin": allowOrigin, Vary: "Origin" };
+}
+
 // Content that never changes for a given URL can be cached aggressively; this
 // is what stops a re-render from re-fetching the same image.
 const IMMUTABLE_TYPE_PREFIXES = [
@@ -66,6 +82,43 @@ export function parseTokens(raw) {
     .split(",")
     .map((token) => token.trim())
     .filter(Boolean);
+}
+
+/**
+ * Compile the `ALLOWED_ORIGINS` setting ("a,b,c") into matchers. Each entry is
+ * an origin, `scheme://host[:port]`, where:
+ *  - `*` in the host matches one or more of `[a-z0-9-]` and never a `.`, so
+ *    `https://*--savrlist.netlify.app` covers Netlify preview deploys but not
+ *    `https://evil.com.x--savrlist.netlify.app`;
+ *  - a `:*` port matches any port (or none), e.g. `http://localhost:*`;
+ *  - no port means the scheme's default port only.
+ * Malformed entries are dropped rather than failing every request.
+ */
+export function parseOriginPatterns(raw) {
+  if (!raw) return [];
+  const patterns = [];
+  for (const entry of String(raw).split(",")) {
+    const match = entry
+      .trim()
+      .toLowerCase()
+      .match(/^(https?):\/\/([a-z0-9*.-]+)(?::(\d+|\*))?\/?$/);
+    if (!match) continue;
+    const [, scheme, host, port] = match;
+    const hostPattern = host
+      .split("*")
+      .map((part) => part.replace(/[.-]/g, "\\$&"))
+      .join("[a-z0-9-]+");
+    const portPattern = port === "*" ? "(?::\\d+)?" : port ? `:${port}` : "";
+    patterns.push(new RegExp(`^${scheme}://${hostPattern}${portPattern}$`));
+  }
+  return patterns;
+}
+
+/** True when the Origin header matches one of the allowlist patterns. */
+function isOriginAllowed(origin, patterns) {
+  if (!origin || origin === "null") return false;
+  const normalized = origin.toLowerCase();
+  return patterns.some((pattern) => pattern.test(normalized));
 }
 
 function isPrivateIPv4(host) {
@@ -247,9 +300,9 @@ async function safeFetch(target, method, headers) {
   throw new Error("too many redirects");
 }
 
-function withCors(response) {
+function withCors(response, corsHeaders = CORS_HEADERS) {
   const headers = new Headers(response.headers);
-  for (const [name, value] of Object.entries(CORS_HEADERS)) headers.set(name, value);
+  for (const [name, value] of Object.entries(corsHeaders)) headers.set(name, value);
   return new Response(response.body, {
     status: response.status,
     statusText: response.statusText,
@@ -408,6 +461,8 @@ You can rotate later by adding a second comma-separated token to the secret.</p>
  * `options`:
  *  - tokens: string[] — configured secret tokens (empty = not locked)
  *  - isPublic: boolean — the shared instance: open, no token required
+ *  - allowedOrigins: RegExp[] — from `parseOriginPatterns`; when non-empty,
+ *    only callers whose Origin matches may proxy (empty = any caller)
  *  - cache: optional { match(Request), put(Request, Response) } edge cache
  *  - waitUntil: optional (promise) => void, to keep a cache write alive
  *  - onRequest: optional (event) => void, one neutral statistics event per
@@ -418,6 +473,7 @@ You can rotate later by adding a second comma-separated token to the secret.</p>
 export async function handleRequest(request, options = {}) {
   const tokens = options.tokens ?? [];
   const isPublic = options.isPublic === true;
+  const allowedOrigins = options.allowedOrigins ?? [];
   const cache = options.cache ?? null;
   const waitUntil = options.waitUntil ?? (() => {});
   const onRequest = options.onRequest ?? (() => {});
@@ -482,6 +538,19 @@ export async function handleRequest(request, options = {}) {
     });
   }
 
+  // After health (a probe fetches nothing) and before the cache lookup, like
+  // the token. Refusals are recorded so the dashboard shows who was turned away.
+  let allowOrigin = "";
+  if (allowedOrigins.length > 0) {
+    const origin = request.headers.get("origin");
+    if (!isOriginAllowed(origin, allowedOrigins)) {
+      record(404, { cache: "bypass" });
+      return notFound();
+    }
+    allowOrigin = origin;
+  }
+  const corsHeaders = corsHeadersFor(allowOrigin);
+
   const targetUrl = url.searchParams.get("url");
   if (!targetUrl) {
     record(400, { cache: "bypass" });
@@ -507,7 +576,7 @@ export async function handleRequest(request, options = {}) {
     const hit = await cache.match(cacheKey);
     if (hit) {
       recordResponse(hit, "hit", target.hostname);
-      return withCors(hit);
+      return withCors(hit, corsHeaders);
     }
   }
 
@@ -549,7 +618,7 @@ export async function handleRequest(request, options = {}) {
   const errorKind = await upstreamErrorKind(upstream);
 
   const responseHeaders = new Headers(upstream.headers);
-  for (const [name, value] of Object.entries(CORS_HEADERS)) {
+  for (const [name, value] of Object.entries(corsHeaders)) {
     responseHeaders.set(name, value);
   }
   responseHeaders.set("Access-Control-Expose-Headers", "*");
