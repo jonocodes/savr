@@ -2,7 +2,7 @@
 
 ## 2026-10-16
 
-- Preferences now links the Firefox extension to the [latest GitHub release](https://github.com/jonocodes/savr/releases/latest) (install the `.xpi` from its assets) instead of the `savr.link/extension/firefox.xpi` redirect, which Firefox was blocking. The Chrome link is hidden by default (`VITE_CHROME_EXTENSION_URL` now defaults to empty) until a Chrome Web Store listing exists
+- Preferences now links the Firefox extension to the [extension releases on GitHub](https://github.com/jonocodes/savr/releases?q=extension&expanded=true) (install the `.xpi` from the newest one) instead of the `savr.link/extension/firefox.xpi` redirect, which Firefox was blocking. The Chrome link is hidden by default (`VITE_CHROME_EXTENSION_URL` now defaults to empty) until a Chrome Web Store listing exists
 
 ## 2026-10-15
 

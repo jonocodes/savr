@@ -28,9 +28,9 @@ There is deliberately no page context-menu entry.
 
 ### Firefox (desktop and Android)
 
-Open the [latest release](https://github.com/jonocodes/savr/releases/latest) in
+Open the [extension releases](https://github.com/jonocodes/savr/releases?q=extension&expanded=true) in
 Firefox (the app's Preferences screen links there) and click the
-`savr-firefox-<version>.xpi` asset. Firefox asks to allow github.com to install an
+`savr-firefox-<version>.xpi` asset of the newest one. Firefox asks to allow github.com to install an
 add-on, then shows the permission prompt. It needs Firefox 142 or newer, and
 updates itself (see [Updates](#updates)).
 
