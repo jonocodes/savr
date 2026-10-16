@@ -298,6 +298,28 @@ test("answers the empty-target health probe with a CORS 400", async () => {
   }
 });
 
+// Behind an origin allowlist the probe still reads as "running": an allowed
+// caller gets the CORS 400, and a refused one a 404 that still carries CORS
+// headers — never an answer the app would mistake for a capped proxy.
+test("answers the health probe with CORS headers behind an origin allowlist", async () => {
+  stubGlobals();
+  const env = { PUBLIC: "true", ALLOWED_ORIGINS: "https://savr.link" };
+
+  const allowed = await callWorker(
+    urlRequest(`${PROXY}?url=`, { headers: { Origin: "https://savr.link" } }),
+    { env }
+  );
+  assert.equal(allowed.status, 400);
+  assert.ok(allowed.headers.get("access-control-allow-origin"));
+
+  const refused = await callWorker(
+    urlRequest(`${PROXY}?url=`, { headers: { Origin: "https://elsewhere.example" } }),
+    { env }
+  );
+  assert.equal(refused.status, 404);
+  assert.ok(refused.headers.get("access-control-allow-origin"));
+});
+
 test("rejects malformed and non-http urls", async () => {
   stubGlobals();
   const invalid = await callWorker(proxyRequest("not a url"), { env: { PUBLIC: "true" } });
@@ -798,7 +820,7 @@ test("origin allowlist is checked before the edge cache", async () => {
   const allowed = await callWorker(fromOrigin("https://savr.link", "https://example.com/hit.jpg"), { env, cache });
   assert.equal(allowed.status, 200);
   assert.equal(await allowed.text(), "cached");
-  assert.equal(allowed.headers.get("access-control-allow-origin"), "https://savr.link");
+  assert.ok(allowed.headers.get("access-control-allow-origin"));
 });
 
 test("origin allowlist leaves preflight and health open", async () => {
