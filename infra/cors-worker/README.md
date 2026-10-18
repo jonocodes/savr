@@ -3,27 +3,42 @@
 Cloudflare Worker behind `https://lively-cors-proxy-b569.cloudflare8899.workers.dev`,
 the default CORS proxy the Savr reader uses to fetch article pages and images
 from hosts that don't send CORS headers. The same code can be deployed as your
-own private, token-locked instance (below).
+own private, token-locked instance (below) — on Cloudflare, or self-hosted on
+any machine with Node or Docker.
 
-The worker is a thin Cloudflare entry (`worker.js`) over a runtime-agnostic
-core (`core.js`), so a Deno Deploy entry point can reuse it later.
+Two thin entry points share one runtime-agnostic core (`core.js`): the
+Cloudflare Worker (`worker.js`) and a Node HTTP server (`node.js`). The same
+behaviour suite runs against both.
 
 ## Files
 
 - `core.js` — portable
-  `handleRequest(request, { tokens, isPublic, allowedOrigins, cache, waitUntil, onRequest })`:
-  auth, origin allowlist, routing, setup page, caching, SSRF guard, and the neutral statistics
-  event port. No Cloudflare globals.
+  `handleRequest(request, { tokens, isPublic, allowedOrigins, cache, waitUntil, onRequest, fetch, setupSecretStep })`:
+  auth, origin allowlist, routing, setup page, caching, the literal-hostname SSRF guard, and
+  the neutral statistics event port. No Cloudflare globals.
 - `worker.js` — Cloudflare entry: reads `PROXY_TOKENS`/`PUBLIC`/`ALLOWED_ORIGINS` from the
   environment, supplies `caches.default`, and writes statistics events to
   Analytics Engine (a failed write is logged, never fails the request).
+- `node.js` — Node entry: an `node:http` server handing standard `Request`s to the
+  core, config from the environment, upstream requests through `guarded-fetch.js`. No
+  cache, no statistics. No dependencies.
+- `guarded-fetch.js` — a `fetch` for Node on `node:http`/`node:https` whose DNS
+  lookup refuses non-public addresses at connect time (see "SSRF guard" below).
+- `ssrf-policy.js` — `isBlockedAddress(ip)`: which resolved addresses a proxy may
+  connect to. Pure JS, for any future non-Cloudflare shell (Deno) to reuse.
+- `Dockerfile` — the Node shell as an image; the repo-root `docker-compose.yml`
+  has a `cors-proxy` service.
 - `stats-schema.js` — the statistics schema (field order, vocabularies,
   dataset) shared with the stats worker in `infra/cors-stats`.
 - `wrangler.toml` — default (generic, locked) config plus the `[env.public]`
   open instance (which carries the stats binding).
 - `.dev.vars.example` — the `PROXY_TOKENS` secret, for local `wrangler dev`
   and the Deploy to Cloudflare button.
-- `worker.test.mjs` — unit tests (`node --test`).
+- Tests (`node --test`): `shell-cases.mjs` is the shared behaviour suite, run against
+  the Cloudflare shell by `worker.test.mjs` (plus its stats and core caching tests) and
+  against the Node shell by `node.test.mjs` (plus DNS-rebinding and HTTP-adapter tests);
+  `guarded-fetch.test.mjs` and `ssrf-policy.test.mjs` cover the guard. Resolvers are
+  injected (`guard-fixtures.mjs`), so no test needs external DNS.
 
 ## Deploy your own (token-locked)
 
@@ -48,6 +63,41 @@ Cloudflare auth: `CLOUDFLARE_API_TOKEN` or `wrangler login`). The explicit
 empty env targets the top-level worker — without it wrangler warns that
 `[env.public]` also exists. The shared public instance deploys with
 `npx wrangler deploy --env public`.
+
+## Self-host without Cloudflare (Node / Docker)
+
+`node.js` runs the same proxy as a plain HTTP server — same token auth, setup
+page, origin allowlist, health and hardening — on Node 20+ with no
+dependencies. From the repo root:
+
+```bash
+docker compose up -d --build cors-proxy     # listens on :8787
+```
+
+1. Open `http://<host>:8787/`. Unconfigured, it serves the **setup page** with
+   a freshly generated token and refuses to proxy anything.
+2. Put that token in a `.env` file next to `docker-compose.yml`
+   (`PROXY_TOKENS=<token>`; `.env` is gitignored) and run the
+   `docker compose up` command again.
+3. Paste `http://<host>:8787/<token>/?url=` into **Preferences → CORS Proxy**.
+
+Without Docker: `PROXY_TOKENS=<token> node infra/cors-worker/node.js`.
+
+| Variable | Meaning |
+|---|---|
+| `PROXY_TOKENS` | Comma-separated tokens, as on Cloudflare (rotation works the same). |
+| `PUBLIC` | `true` for an open proxy. Think twice: see the SSRF note below. |
+| `ALLOWED_ORIGINS` | Caller-origin allowlist, as below. Compose reads it from `PROXY_ALLOWED_ORIGINS`. |
+| `PORT` / `HOST` | Listen address, default `8787` / `0.0.0.0`. |
+
+Savr served over `https://` can't call an `http://` proxy (mixed content), so
+put the proxy behind your TLS reverse proxy (Caddy, nginx, Traefik). The setup
+page honours `X-Forwarded-Proto` when showing the paste string.
+
+Differences from the Cloudflare shell: no edge cache (browsers still cache, per
+the `Cache-Control` the core sets), no usage statistics, and upstream bodies are
+passed through as received (no `Accept-Encoding` is added, nothing is
+decompressed).
 
 ## Token auth
 
@@ -116,6 +166,17 @@ allowlist). `OPTIONS` answers preflight.
   (`caches.default`), so repeats don't reach the origin.
 - **SSRF guard.** Only `http(s)`; loopback, private, link-local, CGNAT and
   reserved addresses are refused, and every redirect hop is re-validated.
+  The core checks the *literal* hostname, which is enough on Cloudflare's
+  edge (it has no LAN). A self-hosted box does, and a hostname can *resolve*
+  to a private address (`127.0.0.1.nip.io`, attacker-controlled DNS), so the
+  Node shell also checks at **connect time**: `guarded-fetch.js` wraps the DNS
+  lookup and refuses the connection if *any* resolved address is non-public
+  (`ssrf-policy.js`: loopback, RFC 1918, CGNAT, link-local incl.
+  `169.254.169.254`, documentation/benchmark/reserved ranges, IPv6 ULA,
+  link-local and multicast, and IPv6 forms embedding a private IPv4 —
+  mapped, compatible, NAT64, 6to4 — plus Teredo). Checking at lookup time
+  leaves no window for DNS to change between check and connect, and each
+  redirect hop goes through the same lookup.
 - **Size cap.** Responses advertising more than 25 MiB are refused with `413`.
 - **Log hygiene.** Only errors are logged, and only the hostname — never the
   full `?url=` (which can carry API keys). The old per-request logging was also
@@ -140,6 +201,8 @@ deploys write nothing. The separate stats worker (`infra/cors-stats`) queries
 and displays them; see its README for the schema and the dashboard.
 
 ## Test
+
+Runs the shared behaviour suite against both shells, plus the guard tests.
 
 ```bash
 cd infra/cors-worker && node --test

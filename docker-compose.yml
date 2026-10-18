@@ -3,3 +3,16 @@ services:
     build: .
     ports:
       - "8080:80"
+
+  # Self-hosted CORS proxy (infra/cors-worker/node.js). Set PROXY_TOKENS in a
+  # .env file next to this one; until then it serves a setup page that
+  # generates a token and refuses to proxy. Then paste
+  # http://<host>:8787/<token>/?url= into Savr's Preferences -> CORS Proxy.
+  cors-proxy:
+    build: infra/cors-worker
+    ports:
+      - "8787:8787"
+    environment:
+      PROXY_TOKENS: ${PROXY_TOKENS:-}
+      ALLOWED_ORIGINS: ${PROXY_ALLOWED_ORIGINS:-}
+    restart: unless-stopped

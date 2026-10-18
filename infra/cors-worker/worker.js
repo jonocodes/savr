@@ -2,8 +2,8 @@
  * Savr CORS proxy — Cloudflare Worker entry point.
  *
  * Thin wrapper around the portable core in `core.js`; all behaviour (token
- * auth, origin allowlist, setup page, health, caching, SSRF guard) lives there so it can be
- * reused by the Deno entry point. This file adds the one Cloudflare-specific
+ * auth, origin allowlist, setup page, health, caching, SSRF guard) lives there so it is
+ * shared with the Node entry point (`node.js`). This file adds the one Cloudflare-specific
  * piece: writing the core's statistics events to Analytics Engine.
  *
  * Deploy: `npx wrangler deploy --env=""` from this directory (see README.md).

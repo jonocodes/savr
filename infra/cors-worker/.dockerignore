@@ -1,0 +1,6 @@
+*
+!package.json
+!core.js
+!node.js
+!guarded-fetch.js
+!ssrf-policy.js
