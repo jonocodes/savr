@@ -71,7 +71,7 @@ page, origin allowlist, health and hardening — on Node 20+ with no
 dependencies. From the repo root:
 
 ```bash
-docker compose up -d --build cors-proxy     # listens on :8787
+docker compose up -d --build cors-proxy     # or: just proxy-up; listens on :8787
 ```
 
 1. Open `http://<host>:8787/`. Unconfigured, it serves the **setup page** with
