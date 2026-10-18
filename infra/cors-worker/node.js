@@ -62,7 +62,9 @@ export function createHandler(env = {}, { fetch = createGuardedFetch(), cache = 
 function toRequest(req) {
   const forwarded = String(req.headers["x-forwarded-proto"] || "").split(",")[0].trim();
   const scheme = forwarded === "https" || forwarded === "http" ? forwarded : "http";
-  const url = new URL(req.url, `${scheme}://${req.headers.host || "localhost"}`);
+  // Concatenate rather than resolve against a base: a path starting with `//`
+  // must stay a path, not become a host.
+  const url = new URL(`${scheme}://${req.headers.host || "localhost"}${req.url}`);
   const headers = new Headers();
   for (let i = 0; i < req.rawHeaders.length; i += 2) {
     const name = req.rawHeaders[i];

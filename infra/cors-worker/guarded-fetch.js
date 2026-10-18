@@ -24,6 +24,9 @@ import { Readable } from "node:stream";
 import { isBlockedAddress } from "./ssrf-policy.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+// Matches core's MAX_BYTES. Core can only refuse an *advertised* oversize
+// length; this also cuts off a chunked body that keeps growing.
+const DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
 
 // Connection-level headers that describe the hop to us, not the resource.
 const HOP_BY_HOP = new Set([
@@ -76,12 +79,14 @@ export function createGuardedLookup({ lookup = dns.lookup, isBlocked = isBlocked
  * connections only ever reach public addresses.
  *
  * `lookup` (a `dns.lookup`-shaped resolver) and `isBlocked` are injectable for
- * tests; `timeoutMs` bounds socket inactivity, before and during the body.
+ * tests; `timeoutMs` bounds socket inactivity, before and during the body;
+ * `maxBytes` cuts the body off (the stream errors) once it exceeds the cap.
  */
 export function createGuardedFetch({
   lookup = dns.lookup,
   isBlocked = isBlockedAddress,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  maxBytes = DEFAULT_MAX_BYTES,
 } = {}) {
   const guardedLookup = createGuardedLookup({ lookup, isBlocked });
   // Own agents, so pooled sockets are never shared with code using another lookup.
@@ -94,7 +99,7 @@ export function createGuardedFetch({
     return new Promise((resolve, reject) => {
       const url = new URL(String(input));
       const agent = agents[url.protocol];
-      if (!agent) throw blockedError(url.protocol);
+      if (!agent) throw new Error(`unsupported protocol ${url.protocol}`);
       const literal = url.hostname.replace(/^\[|\]$/g, "");
       if (net.isIP(literal) && isBlocked(literal)) throw blockedError(url.hostname);
 
@@ -115,6 +120,11 @@ export function createGuardedFetch({
           const status = upstream.statusCode;
           const bodyless = method === "HEAD" || status === 204 || status === 304;
           if (bodyless) upstream.resume();
+          let received = 0;
+          upstream.on("data", (chunk) => {
+            received += chunk.length;
+            if (received > maxBytes) upstream.destroy(new Error("response too large"));
+          });
           resolve(
             new Response(bodyless ? null : Readable.toWeb(upstream), {
               status,

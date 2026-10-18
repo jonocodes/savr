@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import http from "node:http";
 import { createHandler, createServer } from "./node.js";
 import { createGuardedFetch } from "./guarded-fetch.js";
 import {
@@ -221,6 +222,29 @@ test("the real handler over HTTP: setup page uses the Host the caller used", asy
     const response = await fetch(`${server.base}/`);
     assert.equal(response.status, 200);
     assert.match(await response.text(), new RegExp(`${server.base}/[0-9a-f-]{36}/\\?url=`));
+  } finally {
+    await server.close();
+  }
+});
+
+test("a request path starting with // stays a path, not a host", async () => {
+  const seen = [];
+  const server = await listen(async (request) => {
+    seen.push(request.url);
+    return new Response("ok");
+  });
+  try {
+    // fetch would normalise the path, so speak raw HTTP.
+    const { port } = new URL(server.base);
+    await new Promise((resolve, reject) => {
+      const req = http.request({ host: "127.0.0.1", port, path: "//evil.example/x" }, (res) => {
+        res.resume();
+        res.on("end", resolve);
+      });
+      req.on("error", reject);
+      req.end();
+    });
+    assert.equal(seen[0], `${server.base}//evil.example/x`);
   } finally {
     await server.close();
   }

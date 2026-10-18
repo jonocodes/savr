@@ -58,7 +58,7 @@ test("refuses blocked IP literals without a lookup, including forms core lets th
 
 test("refuses non-http(s) targets", async () => {
   const guardedFetch = createGuardedFetch({ lookup: fakeLookup({}).lookup });
-  await assert.rejects(guardedFetch("file:///etc/passwd"), isBlockedError);
+  await assert.rejects(guardedFetch("file:///etc/passwd"), /unsupported protocol file:/);
 });
 
 test("the guarded lookup keeps both dns.lookup callback shapes", async () => {
@@ -137,6 +137,22 @@ test("times out a stalled upstream", async () => {
     const { lookup } = fakeLookup({ "slow.test": ["127.0.0.1"] });
     const guardedFetch = createGuardedFetch({ lookup, isBlocked: allowLoopbackForTest, timeoutMs: 50 });
     await assert.rejects(guardedFetch(`http://slow.test:${server.port}/`), /timeout/);
+  } finally {
+    await server.close();
+  }
+});
+
+test("cuts off a body that grows past the byte cap without advertising a length", async () => {
+  const server = await startServer((req, res) => {
+    res.writeHead(200, { "content-type": "application/octet-stream" }); // chunked
+    res.write(Buffer.alloc(64));
+    res.end(Buffer.alloc(64));
+  });
+  try {
+    const { lookup } = fakeLookup({ "big.test": ["127.0.0.1"] });
+    const guardedFetch = createGuardedFetch({ lookup, isBlocked: allowLoopbackForTest, maxBytes: 100, timeoutMs: 1000 });
+    const response = await guardedFetch(`http://big.test:${server.port}/`);
+    await assert.rejects(response.arrayBuffer(), /too large/);
   } finally {
     await server.close();
   }

@@ -9,9 +9,9 @@
  * Deliberately runtime-agnostic: `handleRequest` takes its cache, its
  * `waitUntil` and (optionally) its `fetch` from the caller, so the same code
  * runs on Cloudflare Workers (`worker.js`) and on Node (`node.js`, whose
- * `fetch` also checks resolved addresses — see `guarded-fetch.js`). It is also deliberately open to
- * any *public* host, so it is hardened against the failure modes seen in
- * production:
+ * `fetch` also checks resolved addresses — see `guarded-fetch.js`). It is
+ * also deliberately open to any *public* host, so it is hardened against the
+ * failure modes seen in production:
  *
  *  - caching: upstream 404s sent `cache-control: no-cache`, so a client that
  *    retried a dead image re-fetched it forever (~234k requests in a day).
