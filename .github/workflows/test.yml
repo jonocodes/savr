@@ -16,20 +16,22 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
+      - uses: extractions/setup-just@v4
       - run: npm ci
+      # Each step is a Justfile recipe, so `just ci` runs the same list locally.
       - name: Lint
-        run: npm run lint
+        run: just lint
       - name: Type check
-        run: npx tsc --noEmit
+        run: just typecheck
       - name: Unit tests
-        run: npm run test
+        run: just test
       - name: Cloudflare worker tests
-        # bash expands the globs; the workers have no dependencies to install.
-        run: node --test infra/cors-worker/*.test.mjs infra/cors-stats/*.test.mjs
+        # The workers have no dependencies to install.
+        run: just test-workers
       - name: Extension release script tests
-        run: node --test scripts/extension-release.test.mjs
+        run: just test-extension
       - name: Extension lint (AMO's unlisted rules)
-        run: npx --yes web-ext@10 lint --self-hosted --source-dir browser-extension
+        run: just lint-extension
 
   e2e-smoke:
     runs-on: ubuntu-latest
