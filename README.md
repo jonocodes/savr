@@ -223,6 +223,8 @@ This is a front end react app. Run like so:
 
 Then visit http://localhost:3000
 
+Common commands are also in the [Justfile](Justfile) (run `just` to list them). `just ci` runs exactly what the unit-test CI job runs.
+
 If you want to test PWA/production then do
 
 > npm run build:prod && npm run start

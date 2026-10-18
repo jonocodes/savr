@@ -147,6 +147,11 @@ Key settings in `playwright.config.ts`:
 
 ## Common Development Tasks
 
+The repo-root `Justfile` collects the common commands (`just` lists them).
+App recipes delegate to the npm scripts. `just ci` runs the same steps, in the
+same order, as the `unit-tests` job in `.github/workflows/test.yml`, which calls
+each recipe directly. Any check added to CI should be added as a recipe and to `ci`.
+
 ### Fix Linting Issues
 
 ```bash
