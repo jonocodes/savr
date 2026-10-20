@@ -24,6 +24,9 @@ import { Readable } from "node:stream";
 import { isBlockedAddress } from "./ssrf-policy.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
+// Inactivity alone can be dodged by an upstream sending a byte every few
+// seconds, which would hold a socket (and a client) open indefinitely.
+const DEFAULT_DEADLINE_MS = 120_000;
 // Matches core's MAX_BYTES. Core can only refuse an *advertised* oversize
 // length; this also cuts off a chunked body that keeps growing.
 const DEFAULT_MAX_BYTES = 25 * 1024 * 1024;
@@ -80,12 +83,14 @@ export function createGuardedLookup({ lookup = dns.lookup, isBlocked = isBlocked
  *
  * `lookup` (a `dns.lookup`-shaped resolver) and `isBlocked` are injectable for
  * tests; `timeoutMs` bounds socket inactivity, before and during the body;
+ * `deadlineMs` bounds the whole exchange, from request to the body's end;
  * `maxBytes` cuts the body off (the stream errors) once it exceeds the cap.
  */
 export function createGuardedFetch({
   lookup = dns.lookup,
   isBlocked = isBlockedAddress,
   timeoutMs = DEFAULT_TIMEOUT_MS,
+  deadlineMs = DEFAULT_DEADLINE_MS,
   maxBytes = DEFAULT_MAX_BYTES,
 } = {}) {
   const guardedLookup = createGuardedLookup({ lookup, isBlocked });
@@ -109,8 +114,21 @@ export function createGuardedFetch({
       const request = client.request(url, { method, headers, agent, lookup: guardedLookup });
 
       request.setTimeout(timeoutMs, () => request.destroy(new Error("upstream timeout")));
-      request.on("error", reject);
+      // Before the response, the deadline fails the request; after it, the
+      // body stream, so the reason reaches whoever is reading it.
+      let inFlight = request;
+      const deadline = setTimeout(
+        () => inFlight.destroy(new Error("upstream deadline timeout")),
+        deadlineMs
+      );
+      deadline.unref();
+      request.on("error", (error) => {
+        clearTimeout(deadline);
+        reject(error);
+      });
       request.on("response", (upstream) => {
+        inFlight = upstream;
+        upstream.on("close", () => clearTimeout(deadline));
         try {
           const responseHeaders = new Headers();
           const raw = upstream.rawHeaders;
