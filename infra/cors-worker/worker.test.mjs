@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import worker from "./worker.js";
-import { handleRequest, parseOriginPatterns, parseTokens } from "./core.js";
+import { handleRequest, parseOriginPatterns, parsePublic, parseTokens, proxyMode } from "./core.js";
 import {
   BLOB_FIELDS,
   CACHE_OUTCOMES,
@@ -39,6 +39,19 @@ test("the Cloudflare setup page gives the wrangler command", async () => {
   stubGlobals();
   const response = await callWorker(urlRequest(PROXY), { env: {} });
   assert.match(await response.text(), /npx wrangler secret put PROXY_TOKENS/);
+});
+
+test("parsePublic accepts only 'true', case-insensitively", () => {
+  for (const raw of ["true", "TRUE", "True"]) assert.equal(parsePublic(raw), true, raw);
+  // Anything else fails closed (ADR 0002), stray whitespace included.
+  for (const raw of [undefined, "", "false", "1", "yes", "truthy", " true "]) assert.equal(parsePublic(raw), false, String(raw));
+});
+
+test("proxyMode: PUBLIC wins over tokens; neither means unconfigured", () => {
+  assert.equal(proxyMode({ tokens: [], isPublic: true }), "public");
+  assert.equal(proxyMode({ tokens: ["a"], isPublic: true }), "public");
+  assert.equal(proxyMode({ tokens: ["a"], isPublic: false }), "locked");
+  assert.equal(proxyMode({ tokens: [], isPublic: false }), "unconfigured");
 });
 
 test("parseTokens trims and drops empty entries", () => {

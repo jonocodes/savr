@@ -22,7 +22,14 @@ import http from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { pathToFileURL } from "node:url";
-import { PROXY_NAME, handleRequest, parseOriginPatterns, parseTokens } from "./core.js";
+import {
+  PROXY_NAME,
+  handleRequest,
+  parseOriginPatterns,
+  parsePublic,
+  parseTokens,
+  proxyMode,
+} from "./core.js";
 import { createGuardedFetch } from "./guarded-fetch.js";
 
 /** The setup page's "set the secret" step for a self-hosted proxy. */
@@ -41,7 +48,7 @@ function envSecretStep(tokenHtml) {
 export function createHandler(env = {}, { fetch = createGuardedFetch(), cache = null } = {}) {
   const options = {
     tokens: parseTokens(env.PROXY_TOKENS),
-    isPublic: String(env.PUBLIC || "").toLowerCase() === "true",
+    isPublic: parsePublic(env.PUBLIC),
     allowedOrigins: parseOriginPatterns(env.ALLOWED_ORIGINS),
     cache,
     // Nothing to keep alive outside a worker; just never leave a rejection unhandled.
@@ -118,13 +125,12 @@ function main() {
   const host = process.env.HOST || "0.0.0.0";
   const server = createServer(createHandler(process.env));
   server.listen(port, host, () => {
-    // Same precedence as core: PUBLIC wins over PROXY_TOKENS.
-    const mode = String(process.env.PUBLIC || "").toLowerCase() === "true"
-      ? "public"
-      : parseTokens(process.env.PROXY_TOKENS).length
-        ? "token-locked"
-        : "unconfigured (serving the setup page)";
-    console.log(`${PROXY_NAME} listening on http://${host}:${port} — ${mode}`);
+    const mode = proxyMode({
+      tokens: parseTokens(process.env.PROXY_TOKENS),
+      isPublic: parsePublic(process.env.PUBLIC),
+    });
+    const label = mode === "unconfigured" ? "unconfigured (serving the setup page)" : mode;
+    console.log(`${PROXY_NAME} listening on http://${host}:${port} — ${label}`);
   });
   // Exit promptly on `docker stop` (PID 1 gets no default SIGTERM handling).
   for (const signal of ["SIGTERM", "SIGINT"]) {
