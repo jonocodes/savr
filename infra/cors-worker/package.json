@@ -3,9 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Token-locked CORS proxy for the Savr reader (Cloudflare Worker)",
+  "description": "Token-locked CORS proxy for the Savr reader (Cloudflare Worker, or self-hosted Node server)",
   "scripts": {
     "test": "node --test",
+    "start": "node node.js",
     "deploy": "wrangler deploy --env=\"\""
   },
   "cloudflare": {
@@ -14,5 +15,8 @@
         "description": "Secret token(s) that lock this proxy — a comma-separated list, so you can rotate without downtime. Paste the UUID shown on the worker's setup page (or generate one with `openssl rand -hex 24`). Leave blank only if you really want an open proxy."
       }
     }
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

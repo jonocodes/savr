@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-17
+
+- The CORS proxy can now be self-hosted without Cloudflare (#124): `infra/cors-worker/node.js` serves the same core (token lock, setup page, origin allowlist, health) as a plain Node HTTP server with no dependencies, and `docker compose up cors-proxy` runs it on port 8787 (`PROXY_TOKENS` from `.env`, now gitignored). Because a self-hosted box has a LAN to protect, its upstream requests check the address a hostname *resolves* to at connect time and refuse loopback, private, CGNAT, link-local/metadata and reserved addresses, including IPv6 forms that embed them (mapped, NAT64, 6to4), on every redirect hop. The existing behaviour tests now run against both the Cloudflare and Node shells; Cloudflare behaviour is unchanged
+
 ## 2026-10-16
 
 - Preferences now links the Firefox extension to the [extension releases on GitHub](https://github.com/jonocodes/savr/releases?q=extension&expanded=true) (install the `.xpi` from the newest one) instead of the `savr.link/extension/firefox.xpi` redirect, which Firefox was blocking. The Chrome link is hidden by default (`VITE_CHROME_EXTENSION_URL` now defaults to empty) until a Chrome Web Store listing exists

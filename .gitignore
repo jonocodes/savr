@@ -43,3 +43,6 @@ tests/e2e/.test-env.json
 
 # Wrangler local state (Cloudflare workers)
 .wrangler
+
+# Local secrets (e.g. PROXY_TOKENS for docker compose)
+.env

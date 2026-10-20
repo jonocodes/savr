@@ -243,7 +243,7 @@ Unit tests: `src/utils/net/imageSources.test.ts`,
   - `global-teardown.ts` - Test server cleanup
 - `lib/` - Shared library code
 - `browser-extension/` - Optional MV3 browser extension for Firefox and Chrome (see its README)
-- `infra/cors-worker/` - The Cloudflare CORS proxy worker (see its README)
+- `infra/cors-worker/` - The CORS proxy: Cloudflare Worker and self-hostable Node shell over one core (see its README)
 - `infra/cors-stats/` - Usage dashboard for the proxy, backed by Analytics Engine (see its README)
 - `test-server/` - Armadietto server for testing
 

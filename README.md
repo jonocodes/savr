@@ -357,6 +357,8 @@ The shared default proxy has a free-tier request cap that everyone shares, so it
 2. Open the deployed worker URL. It shows a setup page with a freshly generated token, the command to set it, and the exact string to paste into Savr.
 3. Paste that string into **Preferences → CORS Proxy**.
 
+**No Cloudflare account?** The same proxy runs on any machine with Docker (or Node 20+): `docker compose up -d --build cors-proxy` from this repo starts it on port 8787, with the same setup page and token lock. Self-hosted, it also refuses hostnames that *resolve* to your private network, so it can't be used to reach your router or other services. See [Self-host without Cloudflare](infra/cors-worker/README.md#self-host-without-cloudflare-node--docker).
+
 The shared default proxy keeps anonymous aggregate usage statistics (country, content type, status, calling site — never URLs or IPs) so its reliability and quota can be watched; your own proxy records nothing. See [docs/TELEMETRY.md](docs/TELEMETRY.md#cors-proxy-statistics-maintainers) and [infra/cors-stats](infra/cors-stats/README.md).
 
 The proxy setting is kept in your browser's localStorage (never in a cookie), and the token is masked in the app's diagnostic log and failure reports. Full details, including token rotation, are in [infra/cors-worker/README.md](infra/cors-worker/README.md).

@@ -6,18 +6,21 @@
  * (the shared public instance), locked behind one or more secret tokens, or
  * unconfigured (serves a setup page and refuses to proxy).
  *
- * Deliberately runtime-agnostic: `handleRequest` takes its cache and its
- * `waitUntil` from the caller, so the same code runs on Cloudflare Workers
- * (`worker.js`) and, later, on Deno Deploy. It is also deliberately open to
- * any *public* host, so it is hardened against the failure modes seen in
- * production:
+ * Deliberately runtime-agnostic: `handleRequest` takes its cache, its
+ * `waitUntil` and (optionally) its `fetch` from the caller, so the same code
+ * runs on Cloudflare Workers (`worker.js`) and on Node (`node.js`, whose
+ * `fetch` also checks resolved addresses — see `guarded-fetch.js`). It is
+ * also deliberately open to any *public* host, so it is hardened against the
+ * failure modes seen in production:
  *
  *  - caching: upstream 404s sent `cache-control: no-cache`, so a client that
  *    retried a dead image re-fetched it forever (~234k requests in a day).
  *    We override the cache headers (200s immutable, errors short-lived) and
  *    cache at the edge so repeats don't hit the origin.
  *  - SSRF guard: only http(s); no private/loopback/link-local targets; every
- *    redirect is re-validated.
+ *    redirect is re-validated. This checks the literal hostname only, which
+ *    is enough on Cloudflare's edge; self-hosted shells add a connect-time
+ *    check of the resolved address through their injected `fetch`.
  *  - size cap: refuses oversized responses.
  *  - log hygiene: never logs the full `?url=` (it can contain API keys).
  *  - token auth: a locked proxy answers 404 (not 401) to a wrong or missing
@@ -284,10 +287,10 @@ async function upstreamErrorKind(response) {
 }
 
 /** Fetch, following redirects manually so each hop is SSRF-checked. */
-async function safeFetch(target, method, headers) {
+async function safeFetch(doFetch, target, method, headers) {
   let current = target;
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
-    const response = await fetch(current, { method, headers, redirect: "manual" });
+    const response = await doFetch(current, { method, headers, redirect: "manual" });
     const location = response.headers.get("location");
     if (response.status >= 300 && response.status < 400 && location) {
       const next = new URL(location, current);
@@ -399,13 +402,21 @@ function escapeHtml(value) {
     .replace(/"/g, "&quot;");
 }
 
+/** The setup page's "set the secret" step on Cloudflare. */
+function wranglerSecretStep(tokenHtml) {
+  return `<p>Set this freshly generated token as the worker secret:</p>
+    <pre>npx wrangler secret put PROXY_TOKENS</pre>
+    <p>When prompted, paste:</p>
+    <pre class="token">${tokenHtml}</pre>`;
+}
+
 /**
  * Shown when neither `PUBLIC` nor `PROXY_TOKENS` is configured. A freshly
  * generated UUID is displayed each load: set it as the `PROXY_TOKENS` secret,
  * then paste the shown proxy URL into Savr. Until then, this worker refuses
  * to proxy anything — a forgotten deploy step can never leave an open proxy.
  */
-function setupPage(request) {
+function setupPage(request, secretStep) {
   // Escape the origin: it is derived from the request Host header.
   const host = escapeHtml(new URL(request.url).origin);
   const token = globalThis.crypto.randomUUID();
@@ -431,10 +442,7 @@ function setupPage(request) {
 so it refuses to proxy anything.</p>
 <ol>
   <li>
-    <p>Set this freshly generated token as the worker secret:</p>
-    <pre>npx wrangler secret put PROXY_TOKENS</pre>
-    <p>When prompted, paste:</p>
-    <pre class="token">${token}</pre>
+    ${secretStep(token)}
   </li>
   <li>
     <p>Use this exact string as the CORS proxy in Savr (Preferences &rarr; CORS Proxy):</p>
@@ -465,6 +473,10 @@ You can rotate later by adding a second comma-separated token to the secret.</p>
  *    only callers whose Origin matches may proxy (empty = any caller)
  *  - cache: optional { match(Request), put(Request, Response) } edge cache
  *  - waitUntil: optional (promise) => void, to keep a cache write alive
+ *  - fetch: optional (url, init) => Promise<Response> for upstream requests
+ *    (default: the global `fetch`); called with `redirect: "manual"`
+ *  - setupSecretStep: optional (tokenHtml) => html, the setup page's "set the
+ *    secret" instructions for this runtime (default: `wrangler secret put`)
  *  - onRequest: optional (event) => void, one neutral statistics event per
  *    recorded request (preflights, health checks and setup pages are not
  *    recorded). The event carries status, mime, cache, host (failures only),
@@ -477,6 +489,8 @@ export async function handleRequest(request, options = {}) {
   const cache = options.cache ?? null;
   const waitUntil = options.waitUntil ?? (() => {});
   const onRequest = options.onRequest ?? (() => {});
+  const doFetch = options.fetch ?? ((input, init) => fetch(input, init));
+  const setupSecretStep = options.setupSecretStep ?? wranglerSecretStep;
   const startedAt = Date.now();
   const record = (status, fields = {}) =>
     onRequest({
@@ -514,7 +528,7 @@ export async function handleRequest(request, options = {}) {
     if (request.method !== "GET" && request.method !== "HEAD") {
       return plain(405, "Method not allowed");
     }
-    return setupPage(request);
+    return setupPage(request, setupSecretStep);
   }
 
   if (!isPublic) {
@@ -592,7 +606,7 @@ export async function handleRequest(request, options = {}) {
 
   let upstream;
   try {
-    upstream = await safeFetch(target, request.method, headers);
+    upstream = await safeFetch(doFetch, target, request.method, headers);
   } catch (error) {
     // Log the host and error only, never the full URL (it may contain secrets).
     console.log(`proxy fetch failed host=${target.hostname} error=${error && error.message}`);

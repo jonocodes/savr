@@ -47,3 +47,7 @@ deploy-proxy:
 # Deploy the SHARED public proxy instance (maintainers only)
 deploy-proxy-public:
     cd infra/cors-worker && npx wrangler deploy --env public
+
+# Self-hosted CORS proxy (Node shell) on :8787; PROXY_TOKENS from .env
+proxy-up:
+    docker compose up -d --build cors-proxy
