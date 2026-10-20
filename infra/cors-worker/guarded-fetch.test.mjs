@@ -142,6 +142,45 @@ test("times out a stalled upstream", async () => {
   }
 });
 
+test("a total deadline ends an upstream that trickles to dodge the inactivity timeout", async () => {
+  let timer;
+  const server = await startServer((req, res) => {
+    res.writeHead(200, { "content-type": "text/plain" });
+    timer = setInterval(() => res.write("."), 20); // never idle long enough to time out
+  });
+  try {
+    const { lookup } = fakeLookup({ "drip.test": ["127.0.0.1"] });
+    const guardedFetch = createGuardedFetch({
+      lookup,
+      isBlocked: allowLoopbackForTest,
+      timeoutMs: 1000,
+      deadlineMs: 150,
+    });
+    const response = await guardedFetch(`http://drip.test:${server.port}/`);
+    assert.equal(response.status, 200);
+    await assert.rejects(response.text(), /deadline/);
+  } finally {
+    clearInterval(timer);
+    await server.close();
+  }
+});
+
+test("the deadline also covers an upstream that never answers", async () => {
+  const server = await startServer(() => {});
+  try {
+    const { lookup } = fakeLookup({ "slow.test": ["127.0.0.1"] });
+    const guardedFetch = createGuardedFetch({
+      lookup,
+      isBlocked: allowLoopbackForTest,
+      timeoutMs: 5000,
+      deadlineMs: 50,
+    });
+    await assert.rejects(guardedFetch(`http://slow.test:${server.port}/`), /deadline/);
+  } finally {
+    await server.close();
+  }
+});
+
 test("cuts off a body that grows past the byte cap without advertising a length", async () => {
   const server = await startServer((req, res) => {
     res.writeHead(200, { "content-type": "application/octet-stream" }); // chunked
