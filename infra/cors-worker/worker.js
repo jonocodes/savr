@@ -10,7 +10,7 @@
  * The shared public instance deploys with `npx wrangler deploy --env public`.
  */
 
-import { handleRequest, parseOriginPatterns, parseTokens } from "./core.js";
+import { handleRequest, parseOriginPatterns, parsePublic, parseTokens } from "./core.js";
 import { toDataPoint } from "./stats-schema.js";
 
 /**
@@ -37,7 +37,7 @@ export default {
   fetch(request, env, ctx) {
     return handleRequest(request, {
       tokens: parseTokens(env.PROXY_TOKENS),
-      isPublic: String(env.PUBLIC || "").toLowerCase() === "true",
+      isPublic: parsePublic(env.PUBLIC),
       allowedOrigins: parseOriginPatterns(env.ALLOWED_ORIGINS),
       cache: globalThis.caches?.default,
       waitUntil: (promise) => ctx.waitUntil(promise),
