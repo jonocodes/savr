@@ -31,6 +31,16 @@
               "strict_min_version": "142.0"
             }
           }
+        },
+        {
+          "version": "0.1.3",
+          "update_link": "https://github.com/jonocodes/savr/releases/download/ext-v0.1.3/savr-firefox-0.1.3.xpi",
+          "update_hash": "sha256:e2718a257618585714bfee12c4706b0d91f252cb30e97a587950d29fcab1fc3c",
+          "applications": {
+            "gecko": {
+              "strict_min_version": "142.0"
+            }
+          }
         }
       ]
     }
