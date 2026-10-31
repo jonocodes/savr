@@ -302,6 +302,10 @@ async function openApp(mode, message) {
 
 async function saveActivePage() {
   const [tab] = await api.tabs.query({ active: true, currentWindow: true });
+  return saveTab(tab);
+}
+
+async function saveTab(tab) {
   if (!tab || tab.id === undefined) {
     return { ok: false, error: msg("errNoActiveTab") };
   }
@@ -372,7 +376,74 @@ async function visitSavr() {
 }
 
 /* ------------------------------------------------------------------------ */
-/* Image downloads for the app                                               */
+/* Toolbar button                                                            */
+/* ------------------------------------------------------------------------ */
+
+// Firefox calls it `menus` and also exposes it as `contextMenus`. Firefox for
+// Android has neither: there the button keeps the manifest's popup, the only
+// way to reach Visit Savr and the settings on a phone.
+const contextMenus = api.contextMenus ?? api.menus;
+
+const DEFAULT_TITLE = api.runtime.getManifest().action?.default_title ?? "Savr";
+const ERROR_BADGE_MS = 8000;
+
+/** (Re)build the button's right-click menu, in the browser's current language. */
+async function createActionMenu() {
+  if (!contextMenus) return;
+  await contextMenus.removeAll();
+  for (const [id, key] of [
+    ["save", "popupSave"],
+    ["visit", "popupVisit"],
+    ["settings", "popupSettings"],
+  ]) {
+    contextMenus.create({ id, title: msg(key), contexts: ["action"] });
+  }
+}
+
+async function setButtonState(tabId, badge, title, color) {
+  try {
+    await api.action.setBadgeText({ tabId, text: badge });
+    if (color) await api.action.setBadgeBackgroundColor({ tabId, color });
+    await api.action.setTitle({ tabId, title });
+  } catch (error) {
+    console.warn("[savr] could not update the toolbar button:", error);
+  }
+}
+
+const savingTabs = new Set();
+
+/**
+ * A save started from the button itself, with no popup to report back to: the
+ * badge shows "…" while it runs and "!" (with the error as the tooltip) when it
+ * fails. Success needs no badge — the Savr tab it opens is the feedback.
+ */
+async function saveFromButton(tab) {
+  if (tab?.id === undefined || savingTabs.has(tab.id)) return;
+  const tabId = tab.id;
+  savingTabs.add(tabId);
+  await setButtonState(tabId, "…", msg("popupSaving"), "#666666");
+  let outcome;
+  try {
+    outcome = await saveTab(tab);
+  } catch (error) {
+    outcome = { ok: false, error: String(error?.message ?? error) };
+  } finally {
+    savingTabs.delete(tabId);
+  }
+  if (outcome.ok) {
+    await setButtonState(tabId, "", DEFAULT_TITLE);
+    return;
+  }
+  const error = outcome.error || msg("popupCouldNotSave");
+  console.warn("[savr] save failed:", error);
+  await setButtonState(tabId, "!", `${DEFAULT_TITLE}: ${error}`, "#d32f2f");
+  setTimeout(() => {
+    if (!savingTabs.has(tabId)) void setButtonState(tabId, "", DEFAULT_TITLE);
+  }, ERROR_BADGE_MS);
+}
+
+/* ------------------------------------------------------------------------ */
+/* Image downloads for the app                                              */
 /* ------------------------------------------------------------------------ */
 
 // Shorter than the app's per-request timeout (15 s), so a slow image is reported
@@ -448,6 +519,32 @@ api.tabs.onUpdated.addListener((tabId, changeInfo) => {
 api.tabs.onRemoved.addListener((tabId) => {
   void clearPending(tabId);
 });
+
+// Click saves; right-click opens the menu. The popup is cleared on every
+// background start (onStartup wakes it with the browser); until then the
+// button falls back to the manifest's popup.
+if (contextMenus) {
+  void api.action.setPopup({ popup: "" }).catch(() => {});
+
+  api.action.onClicked.addListener((tab) => {
+    void saveFromButton(tab);
+  });
+
+  contextMenus.onClicked.addListener((info, tab) => {
+    if (info.menuItemId === "save") {
+      void saveFromButton(tab);
+    } else if (info.menuItemId === "visit") {
+      visitSavr().catch((error) => console.warn("[savr] could not open Savr:", error));
+    } else if (info.menuItemId === "settings") {
+      (api.runtime.openOptionsPage?.() ?? Promise.resolve()).catch(() => {});
+    }
+  });
+}
+
+const rebuildActionMenu = () =>
+  void createActionMenu().catch((error) => console.warn("[savr] could not build the menu:", error));
+api.runtime.onInstalled.addListener(rebuildActionMenu);
+api.runtime.onStartup.addListener(rebuildActionMenu);
 
 // Resume a delivery interrupted by a background unload.
 void api.storage.session
