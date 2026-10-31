@@ -79,6 +79,20 @@ test.describe("Browser extension save flow", () => {
     await expect(popupPage.locator("#settings")).toHaveText("Extension settings");
   });
 
+  test("clicking the toolbar button saves instead of opening the popup", async () => {
+    // With context menus available (desktop), the background clears the
+    // manifest's popup so a click reaches action.onClicked; the popup's other
+    // entries live in the button's right-click menu.
+    await expect
+      .poll(() =>
+        background.evaluate(() =>
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          (globalThis as any).chrome.action.getPopup({})
+        )
+      )
+      .toBe("");
+  });
+
   test("saves the active tab's loaded DOM into Savr", async () => {
     const articleUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
 

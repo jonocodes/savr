@@ -16,11 +16,23 @@ like any article image. A video without a transcript falls back to the normal
 page scrape. This is on by default; **Extension settings → On YouTube, fetch the
 transcript instead of the page** turns it off.
 
-The toolbar button opens a small popup:
+Clicking the toolbar button saves the current page. Right-clicking it adds
+these entries to the button's menu:
 
 - **Save current page** — scrapes the active tab and hands it to Savr.
 - **Visit Savr** — focuses an open Savr tab, or opens one.
 - **Extension settings** — opens the options page (see [Settings](#settings)).
+
+With no popup to report back to, the button's badge shows `…` while a save
+runs (a YouTube transcript can take a few seconds) and `!` for a few seconds
+when it fails; hover the button to read the error. A successful save shows no
+badge, because the Savr tab it opens is the feedback.
+
+Firefox for Android has no right-click menu on extension buttons, so there the
+button still opens a small popup with the same three entries. The manifest
+declares that popup (`default_popup`), and the background clears it whenever
+context menus exist. Until the background has run after a browser start, a
+desktop click may still open the popup.
 
 There is deliberately no page context-menu entry.
 
@@ -170,12 +182,15 @@ These need a manual check on the first release:
 - The extension on Firefox for Android: install from file, save, YouTube
   transcript, Visit Savr, and updates from `updates.json`.
 - A Chrome Web Store upload accepts the manifest's dual `background` keys.
+- Click-to-save and the right-click menu on desktop Firefox (the e2e suite
+  covers Chromium only), and that Firefox for Android still gets the popup.
 
 ## Settings
 
-**Extension settings** in the popup opens the options page (also reachable from the
-browser's extension manager: right-click the toolbar button → **Manage
-Extension** → **Options** in Firefox, or the details page in Chrome).
+**Extension settings** in the toolbar button's right-click menu (or the popup
+on Android) opens the options page. It is also reachable from the browser's
+extension manager: right-click the toolbar button → **Manage Extension** →
+**Options** in Firefox, or the details page in Chrome.
 
 The Savr address defaults to the hosted app (`https://savr.link`). Point it at
 your own instance if you self-host — for example `http://localhost:3000`.
@@ -242,6 +257,7 @@ Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
 | Permission        | Why                                                             |
 | ----------------- | --------------------------------------------------------------- |
 | `activeTab`       | Scrape the page whose toolbar button was clicked.               |
+| `contextMenus`    | The toolbar button's right-click menu (no install prompt).      |
 | `scripting`       | Inject the scraper into that page and the bridge into the app.  |
 | `storage`         | Remember the Savr address and the pending save across unloads.  |
 | host: `localhost` | Talk to the app and inject the bridge when you self-host/dev.   |
@@ -271,7 +287,8 @@ Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
 
 ### Tests
 
-- `tests/e2e/extension-save.spec.ts` — loads the real extension in Chromium and
+- `tests/e2e/extension-save.spec.ts` — checks a toolbar click is wired to save
+  (the popup is cleared), loads the real extension in Chromium and
   saves a fixture page end to end, including an article whose images come
   through the extension (and a 404 that falls back), plus the YouTube
   extractor against fixture DOMs (modern and legacy segment markup, panel

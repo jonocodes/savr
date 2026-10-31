@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-10-30
+
+- Browser extension 0.1.3: clicking the toolbar button now saves the current page straight away; **Visit Savr** and **Extension settings** (and Save) moved to the button's right-click menu (new `contextMenus` permission, which shows no install prompt). The badge shows `…` while a save runs and `!` with the error as the tooltip when it fails. Firefox for Android, which has no right-click menu on extension buttons, keeps the popup
+
 ## 2026-10-17
 
 - The CORS proxy can now be self-hosted without Cloudflare (#124): `infra/cors-worker/node.js` serves the same core (token lock, setup page, origin allowlist, health) as a plain Node HTTP server with no dependencies, and `docker compose up cors-proxy` runs it on port 8787 (`PROXY_TOKENS` from `.env`, now gitignored). Because a self-hosted box has a LAN to protect, its upstream requests check the address a hostname *resolves* to at connect time and refuse loopback, private, CGNAT, link-local/metadata and reserved addresses, including IPv6 forms that embed them (mapped, NAT64, 6to4), on every redirect hop. The existing behaviour tests now run against both the Cloudflare and Node shells; Cloudflare behaviour is unchanged
