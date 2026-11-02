@@ -2,7 +2,7 @@
 
 ## 2026-11-02
 
-- Browser extension 0.1.4: a new **When I click the Savr button** setting (desktop only) chooses whether a click saves the page (the default) or opens the menu like before 0.1.3. Right-click shows the menu either way, and the change applies as soon as it is saved
+- Browser extension 0.1.4: a new **When I click the Savr button** setting (desktop only) chooses whether a click saves the page (the default) or opens the menu like before 0.1.3. Right-click shows the menu either way, and the change applies as soon as it is saved. The options page also fills the space it is shown in (up to a readable width, centred in a tab) instead of a fixed 320px column pushed to the left
 
 ## 2026-10-30
 

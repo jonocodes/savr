@@ -18,8 +18,19 @@ body {
   width: 170px;
 }
 
+/* The options page fills whatever it is embedded in (the Add-ons Manager
+   card in Firefox, the options dialog in Chrome) up to a readable line
+   length, and centres when it has a whole tab. Only the popup needs a fixed
+   width, because it sizes to its content. */
 .panel.wide {
-  width: 320px;
+  width: auto;
+  max-width: 560px;
+  margin: 0 auto;
+}
+
+.panel.wide button[type="submit"] {
+  justify-self: start;
+  min-width: 120px;
 }
 
 h1 {
@@ -142,6 +153,10 @@ input {
 
   button {
     padding: 12px 14px;
+  }
+
+  .panel.wide button[type="submit"] {
+    justify-self: stretch;
   }
 }
 
