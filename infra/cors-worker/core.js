@@ -78,6 +78,24 @@ const IMMUTABLE_TYPE_PREFIXES = [
   "application/javascript",
 ];
 
+/**
+ * Read the `PUBLIC` setting. Only "true" (any case) opens the proxy; anything
+ * else, a typo or stray whitespace included, fails closed.
+ */
+export function parsePublic(raw) {
+  return String(raw || "").toLowerCase() === "true";
+}
+
+/**
+ * How a proxy with this config behaves: "public" (open, no token), "locked"
+ * (token required) or "unconfigured" (setup page only, never proxies).
+ * `PUBLIC` wins over tokens.
+ */
+export function proxyMode({ tokens, isPublic }) {
+  if (isPublic) return "public";
+  return tokens.length > 0 ? "locked" : "unconfigured";
+}
+
 /** Split the `PROXY_TOKENS` secret ("a,b,c") into a trimmed, non-empty list. */
 export function parseTokens(raw) {
   if (!raw) return [];
@@ -523,7 +541,9 @@ export async function handleRequest(request, options = {}) {
   const url = new URL(request.url);
   const segments = pathSegments(url);
 
-  if (!isPublic && tokens.length === 0) {
+  const mode = proxyMode({ tokens, isPublic });
+
+  if (mode === "unconfigured") {
     // Unconfigured. Never proxy; show the human how to lock it down.
     if (request.method !== "GET" && request.method !== "HEAD") {
       return plain(405, "Method not allowed");
@@ -531,7 +551,7 @@ export async function handleRequest(request, options = {}) {
     return setupPage(request, setupSecretStep);
   }
 
-  if (!isPublic) {
+  if (mode === "locked") {
     const presented = presentedToken(url, segments);
     if (!isAuthorized(presented, tokens)) {
       // 404, not 401: a locked proxy should look dead to scanners.
@@ -548,7 +568,7 @@ export async function handleRequest(request, options = {}) {
     return json({
       name: PROXY_NAME,
       version: VERSION,
-      authRequired: !isPublic && tokens.length > 0,
+      authRequired: mode === "locked",
     });
   }
 
