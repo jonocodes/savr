@@ -20,9 +20,11 @@
 
 import {
   APP_URL_KEY,
+  TOOLBAR_CLICK_KEY,
   YOUTUBE_TRANSCRIPTS_KEY,
   hostPatternFor,
   normalizeAppUrl,
+  resolveToolbarClick,
   resolveYoutubeTranscripts,
 } from "./settings.js";
 import { scrapeYouTubeTranscript } from "./youtube-transcript.js";
@@ -400,6 +402,16 @@ async function createActionMenu() {
   }
 }
 
+/**
+ * Apply the "When I click the Savr button" setting: no popup means a click
+ * reaches action.onClicked and saves; the popup means a click shows the menu.
+ */
+async function applyToolbarClick() {
+  const stored = await api.storage.local.get(TOOLBAR_CLICK_KEY);
+  const click = resolveToolbarClick(stored[TOOLBAR_CLICK_KEY]);
+  await api.action.setPopup({ popup: click === "menu" ? "popup.html" : "" });
+}
+
 async function setButtonState(tabId, badge, title, color) {
   try {
     await api.action.setBadgeText({ tabId, text: badge });
@@ -520,11 +532,19 @@ api.tabs.onRemoved.addListener((tabId) => {
   void clearPending(tabId);
 });
 
-// Click saves; right-click opens the menu. The popup is cleared on every
-// background start (onStartup wakes it with the browser); until then the
-// button falls back to the manifest's popup.
+// Click saves (or shows the menu, if the settings say so); right-click always
+// opens the menu. The setting is applied on every background start (onStartup
+// wakes it with the browser) and whenever it changes; until then the button
+// falls back to the manifest's popup.
 if (contextMenus) {
-  void api.action.setPopup({ popup: "" }).catch(() => {});
+  const applyClickSetting = () =>
+    void applyToolbarClick().catch((error) =>
+      console.warn("[savr] could not apply the toolbar click setting:", error)
+    );
+  applyClickSetting();
+  api.storage.onChanged.addListener((changes, area) => {
+    if (area === "local" && TOOLBAR_CLICK_KEY in changes) applyClickSetting();
+  });
 
   api.action.onClicked.addListener((tab) => {
     void saveFromButton(tab);

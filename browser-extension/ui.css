@@ -72,6 +72,15 @@ label {
   font-weight: 400;
 }
 
+.group {
+  display: grid;
+  gap: 6px;
+}
+
+.group[hidden] {
+  display: none;
+}
+
 hr {
   width: 100%;
   margin: 2px 0;

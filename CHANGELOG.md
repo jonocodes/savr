@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-02
+
+- Browser extension 0.1.4: a new **When I click the Savr button** setting (desktop only) chooses whether a click saves the page (the default) or opens the menu like before 0.1.3. Right-click shows the menu either way, and the change applies as soon as it is saved
+
 ## 2026-10-30
 
 - Browser extension 0.1.3: clicking the toolbar button now saves the current page straight away; **Visit Savr** and **Extension settings** (and Save) moved to the button's right-click menu (new `contextMenus` permission, which shows no install prompt). The badge shows `…` while a save runs and `!` with the error as the tooltip when it fails. Firefox for Android, which has no right-click menu on extension buttons, keeps the popup
