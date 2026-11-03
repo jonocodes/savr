@@ -1,9 +1,11 @@
 import {
   APP_URL_KEY,
   DEFAULT_APP_URL,
+  TOOLBAR_CLICK_KEY,
   YOUTUBE_TRANSCRIPTS_KEY,
   hostPatternFor,
   parseAppUrl,
+  resolveToolbarClick,
   resolveYoutubeTranscripts,
 } from "./settings.js";
 
@@ -12,6 +14,7 @@ const api = globalThis.browser ?? globalThis.chrome;
 const form = document.getElementById("options-form");
 const input = document.getElementById("app-url");
 const youtubeToggle = document.getElementById("youtube-transcripts");
+const toolbarClick = document.getElementById("toolbar-click");
 const statusEl = document.getElementById("status");
 
 const msg = (key, substitutions) => api.i18n.getMessage(key, substitutions);
@@ -46,10 +49,19 @@ function applyTranslations() {
 
 applyTranslations();
 
+// The choice only exists where the button has a right-click menu to fall back
+// on; Firefox for Android always opens the menu on a click.
+toolbarClick.hidden = !(api.contextMenus ?? api.menus);
+
 async function load() {
-  const stored = await api.storage.local.get([APP_URL_KEY, YOUTUBE_TRANSCRIPTS_KEY]);
+  const stored = await api.storage.local.get([
+    APP_URL_KEY,
+    YOUTUBE_TRANSCRIPTS_KEY,
+    TOOLBAR_CLICK_KEY,
+  ]);
   input.value = stored[APP_URL_KEY] || DEFAULT_APP_URL;
   youtubeToggle.checked = resolveYoutubeTranscripts(stored[YOUTUBE_TRANSCRIPTS_KEY]);
+  form.elements["toolbar-click"].value = resolveToolbarClick(stored[TOOLBAR_CLICK_KEY]);
 }
 
 form.addEventListener("submit", async (event) => {
@@ -80,6 +92,7 @@ form.addEventListener("submit", async (event) => {
   await api.storage.local.set({
     [APP_URL_KEY]: appUrl,
     [YOUTUBE_TRANSCRIPTS_KEY]: youtubeToggle.checked,
+    [TOOLBAR_CLICK_KEY]: resolveToolbarClick(form.elements["toolbar-click"].value),
   });
   input.value = appUrl;
   statusEl.textContent = msg("optionsSaved");

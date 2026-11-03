@@ -34,6 +34,23 @@
           Saves the transcript and the video thumbnail. A video without a
           transcript is saved as a normal page instead.
         </p>
+        <!-- Hidden where the button has no right-click menu (Firefox for
+             Android): there a click always opens the menu. -->
+        <div id="toolbar-click" class="group" role="radiogroup" aria-labelledby="toolbar-click-label" hidden>
+          <hr />
+          <label id="toolbar-click-label" data-i18n="optionsClickLabel">When I click the Savr button</label>
+          <div class="choice">
+            <input id="toolbar-click-save" name="toolbar-click" type="radio" value="save" />
+            <label for="toolbar-click-save" data-i18n="optionsClickSave">Save the current page</label>
+          </div>
+          <div class="choice">
+            <input id="toolbar-click-menu" name="toolbar-click" type="radio" value="menu" />
+            <label for="toolbar-click-menu" data-i18n="optionsClickMenu">Show the menu</label>
+          </div>
+          <p class="hint" data-i18n="optionsClickHint">
+            Right-clicking the button always shows the menu.
+          </p>
+        </div>
         <button type="submit" data-i18n="optionsSave">Save</button>
       </form>
       <p id="status" role="status" aria-live="polite"></p>

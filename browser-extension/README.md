@@ -28,11 +28,16 @@ runs (a YouTube transcript can take a few seconds) and `!` for a few seconds
 when it fails; hover the button to read the error. A successful save shows no
 badge, because the Savr tab it opens is the feedback.
 
+Prefer the old behaviour? **Extension settings → When I click the Savr button
+→ Show the menu** makes a click open a small popup with the same three entries
+(see [Settings](#settings)).
+
 Firefox for Android has no right-click menu on extension buttons, so there the
-button still opens a small popup with the same three entries. The manifest
-declares that popup (`default_popup`), and the background clears it whenever
-context menus exist. Until the background has run after a browser start, a
-desktop click may still open the popup.
+button always opens the popup and the setting is hidden. The manifest declares
+that popup (`default_popup`), and where context menus exist the background
+clears it on every start unless the setting asks for the menu, and reapplies
+it whenever the setting changes. Until the background has run after a browser
+start, a desktop click may still open the popup.
 
 There is deliberately no page context-menu entry.
 
@@ -192,6 +197,11 @@ on Android) opens the options page. It is also reachable from the browser's
 extension manager: right-click the toolbar button → **Manage Extension** →
 **Options** in Firefox, or the details page in Chrome.
 
+**When I click the Savr button** (desktop only) picks what a left click does:
+**Save the current page** (the default) or **Show the menu** (the popup).
+Right-clicking the button shows the menu either way. The change applies as
+soon as you save it.
+
 The Savr address defaults to the hosted app (`https://savr.link`). Point it at
 your own instance if you self-host — for example `http://localhost:3000`.
 Any address is covered by the all-sites host permission granted at install;
@@ -288,7 +298,8 @@ Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
 ### Tests
 
 - `tests/e2e/extension-save.spec.ts` — checks a toolbar click is wired to save
-  (the popup is cleared), loads the real extension in Chromium and
+  (the popup is cleared) and that the click setting switches it to the menu,
+  loads the real extension in Chromium and
   saves a fixture page end to end, including an article whose images come
   through the extension (and a 404 that falls back), plus the YouTube
   extractor against fixture DOMs (modern and legacy segment markup, panel

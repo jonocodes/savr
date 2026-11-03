@@ -50,6 +50,18 @@
   "optionsYoutubeHint": {
     "message": "Saves the transcript and the video thumbnail. A video without a transcript is saved as a normal page instead."
   },
+  "optionsClickLabel": {
+    "message": "When I click the Savr button"
+  },
+  "optionsClickSave": {
+    "message": "Save the current page"
+  },
+  "optionsClickMenu": {
+    "message": "Show the menu"
+  },
+  "optionsClickHint": {
+    "message": "Right-clicking the button always shows the menu."
+  },
   "optionsSave": {
     "message": "Save"
   },

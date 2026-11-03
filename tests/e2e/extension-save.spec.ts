@@ -93,6 +93,34 @@ test.describe("Browser extension save flow", () => {
       .toBe("");
   });
 
+  test("the click setting switches the toolbar button between saving and the menu", async () => {
+    const extensionId = new URL(background.url()).host;
+    const getPopup = () =>
+      background.evaluate(() =>
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (globalThis as any).chrome.action.getPopup({})
+      );
+
+    const optionsPage = await context.newPage();
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    await expect(optionsPage.getByLabel("Save the current page")).toBeChecked();
+
+    await optionsPage.getByLabel("Show the menu").check();
+    await optionsPage.getByRole("button", { name: "Save" }).click();
+    await expect(optionsPage.locator("#status")).toHaveText("Saved.");
+    await expect.poll(getPopup).toMatch(/\/popup\.html$/);
+
+    await optionsPage.reload();
+    await expect(optionsPage.getByLabel("Show the menu")).toBeChecked();
+
+    // Back to the default, so a click saves again.
+    await optionsPage.getByLabel("Save the current page").check();
+    await optionsPage.getByRole("button", { name: "Save" }).click();
+    await expect(optionsPage.locator("#status")).toHaveText("Saved.");
+    await expect.poll(getPopup).toBe("");
+    await optionsPage.close();
+  });
+
   test("saves the active tab's loaded DOM into Savr", async () => {
     const articleUrl = `${getContentServerUrl()}/input/test-article-for-local-ingestion/`;
 

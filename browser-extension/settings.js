@@ -40,3 +40,13 @@ export function hostPatternFor(appUrl) {
   const url = new URL(appUrl);
   return `${url.protocol}//${url.hostname}/*`;
 }
+
+export const TOOLBAR_CLICK_KEY = "toolbarClick";
+
+/**
+ * What a left click on the toolbar button does, default applied: "save" saves
+ * the page straight away, "menu" opens the popup. Right-click always has the menu.
+ */
+export function resolveToolbarClick(value) {
+  return value === "menu" ? "menu" : "save";
+}

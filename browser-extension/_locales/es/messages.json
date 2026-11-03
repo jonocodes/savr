@@ -50,6 +50,18 @@
   "optionsYoutubeHint": {
     "message": "Guarda la transcripción y la miniatura del vídeo. Un vídeo sin transcripción se guarda como una página normal."
   },
+  "optionsClickLabel": {
+    "message": "Al hacer clic en el botón de Savr"
+  },
+  "optionsClickSave": {
+    "message": "Guardar la página actual"
+  },
+  "optionsClickMenu": {
+    "message": "Mostrar el menú"
+  },
+  "optionsClickHint": {
+    "message": "Al hacer clic derecho en el botón siempre aparece el menú."
+  },
   "optionsSave": {
     "message": "Guardar"
   },
