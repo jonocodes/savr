@@ -69,18 +69,10 @@ actual ports from the environment instead of hardcoding them.
 
 ### Testing with flox
 
-The `savr` flox environment is a FloxHub-managed remote environment
-(`jonocodes/savr`). Because `.flox` is keyed to a directory, git worktrees
-(copied into new directories) don't inherit the environment automatically.
-Two options to share one environment across worktrees:
-
-1. **Activate the managed env remotely** (recommended, fully shared):
-   in each worktree's `.envrc`:
-   ```bash
-   flox activate -r jonocodes/savr
-   ```
-   Env changes (`flox edit`) propagate to every worktree.
-2. **Point direnv at the primary worktree's env**: `flox activate -d <primary-path>`
+The `savr` flox environment is FloxHub-managed (`jonocodes/savr`) and its
+`.flox/` pointer is committed, so every git worktree gets it automatically —
+the committed `.envrc` (`flox activate`) works as-is. Run `direnv allow` once
+in each new worktree. Env changes are shared via FloxHub (`flox push`/`pull`).
 
 ### Known Issues
 
