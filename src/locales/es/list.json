@@ -38,6 +38,7 @@
     "emptyArchived": "Aún no hay artículos archivados",
     "addArticle": "Añadir artículo",
     "directCaptureHint": "Si un sitio bloquea la captura directa, usa la extensión del navegador, pega el contenido en Avanzado o configura un proxy CORS en Preferencias.",
+    "extensionCaptureHint": "Tu extensión de Savr para el navegador descargará esta página, así que no hace falta un proxy CORS.",
     "url": "URL",
     "advanced": "Opciones avanzadas",
     "cancel": "Cancelar",

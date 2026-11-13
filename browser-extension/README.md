@@ -9,6 +9,11 @@ save. Article images are downloaded by the extension as well, so an extension
 save makes no proxy request at all; an image the extension cannot fetch falls
 back to the app's proxy (or a placeholder) without failing the save.
 
+With the extension installed, **saves you start inside Savr** (typing a URL
+into Add Article, or Refetch) also go through it: the extension downloads the
+page and its images instead of the CORS proxy, so they work with no proxy
+configured. See [Saves typed into the app](#saves-typed-into-the-app).
+
 **YouTube watch pages** are special-cased: the transcript is extracted (opening
 the panel if needed) and delivered as raw content, exactly like the YouTube
 transcript bookmarklet — including the video thumbnail, which the app downloads
@@ -257,10 +262,52 @@ and `extensionVersion`, which the app takes as "the image bridge is here".
 4. Any image the extension does not supply is fetched through the proxy (or
    directly) as usual, so a broken or slow extension never blocks a save.
 
+When the [app bridge](#saves-typed-into-the-app) is already in the tab, the
+relay is not injected: the bridge forwards image requests itself, so each
+image is fetched once.
+
 Every download is logged in the article's `fetch.log` and the app's
 Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
 `proxy <hostname>` or `direct` — and the full fallback chain, e.g.
 `extension 0.1.0 failed (HTTP 404) -> direct failed (...)`.
+
+### Saves typed into the app
+
+A URL typed into Add Article (or an article's Refetch) has no delivery to
+carry the handshake, and no tab for the extension to scrape — the app has to
+download the page itself. Without a proxy that is a cross-origin fetch most
+sites block. The app bridge lets the extension do that download instead:
+
+1. The background registers `app-bridge.js` as a content script on the
+   configured Savr address (`scripting.registerContentScripts`, id
+   `savr-app-bridge`, `document_start`), re-checks it on every background
+   start and whenever the address changes, and injects it into Savr tabs that
+   were already open. Match patterns cannot carry a port, so it covers every
+   port on that host; the script itself only answers on the exact Savr origin.
+2. When the Add Article dialog opens (and before Refetch), the app posts
+   `{action: "savr-extension-ping", id}`; the bridge answers
+   `{action: "savr-extension-pong", id, source: "extension", extensionVersion}`
+   straight from the content script, without waking the background. No answer
+   within 750 ms means no extension (or one older than 0.1.5), and the app
+   behaves exactly as before.
+3. For the save the app posts `{action: "savr-page-request", id, url}`. The
+   background downloads it with its host permissions — CORS-exempt, **no
+   cookies**, http(s) only, 25 MB cap, 15 s timeout, and only for the
+   configured Savr address — and the bridge posts back
+   `{action: "savr-page-response", id, ok, contentType, base64}` (or
+   `{ok: false, error}`). The app rebuilds a `Response` from it, so HTML,
+   text, PDFs and images ingest exactly as they do through a proxy. Images
+   then go through the bridge too (`savr-image-request`, as above).
+4. Anything the extension cannot supply — no host permission, an error status,
+   a timeout — falls back to the proxy (or a direct fetch), and the chain is
+   logged: `article downloaded via direct: <url> (extension 0.1.5 failed (HTTP
+   403) -> direct ok)`.
+
+This is the same anonymous fetch a CORS proxy makes, not a logged-in one;
+**Save current page** is still the way to capture what you can see behind a
+login. Like the image relay, it lets any script running on the Savr origin
+fetch public pages through your browser, which is what the app's own proxy
+requests already allow.
 
 ## Permissions
 
@@ -268,11 +315,11 @@ Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
 | ----------------- | --------------------------------------------------------------- |
 | `activeTab`       | Scrape the page whose toolbar button was clicked.               |
 | `contextMenus`    | The toolbar button's right-click menu (no install prompt).      |
-| `scripting`       | Inject the scraper into that page and the bridge into the app.  |
+| `scripting`       | Inject the scraper into that page and the bridges into the app; register the app bridge on the Savr address. |
 | `storage`         | Remember the Savr address and the pending save across unloads.  |
 | host: `localhost` | Talk to the app and inject the bridge when you self-host/dev.   |
 | host: `savr.link` | Same, for the hosted app.                                       |
-| host: all sites   | Download article images for the app (CORS-exempt, so no proxy), and reach a custom Savr address. |
+| host: all sites   | Download articles and images for the app (CORS-exempt, so no proxy), and reach a custom Savr address. |
 
 ## Development
 
@@ -301,7 +348,10 @@ Diagnostics log with the downloader that delivered it — `extension 0.1.0`,
   (the popup is cleared) and that the click setting switches it to the menu,
   loads the real extension in Chromium and
   saves a fixture page end to end, including an article whose images come
-  through the extension (and a 404 that falls back), plus the YouTube
+  through the extension (and a 404 that falls back), a URL typed into the
+  app's Add Article dialog with no proxy (the app bridge registers, stays
+  silent on another port of the same host, and the page downloads through
+  the extension), plus the YouTube
   extractor against fixture DOMs (modern and legacy segment markup, panel
   opening, no-transcript).
 - `tests/e2e/extension-delivery.spec.ts` — pins the app-side delivery contract

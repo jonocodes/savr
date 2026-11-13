@@ -238,6 +238,91 @@ test.describe("Browser extension save flow", () => {
       })
     );
   });
+
+  test("the Add Article form downloads through the extension when no proxy is set", async () => {
+    const articleUrl = `${getContentServerUrl()}/input/test-article-secondary/`;
+    const version = await background.evaluate(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      () => (globalThis as any).chrome.runtime.getManifest().version as string
+    );
+
+    // Pointing the extension at the app registers its app bridge there.
+    await background.evaluate(async (appUrl) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (globalThis as any).chrome.storage.local.set({ savrAppUrl: appUrl });
+    }, APP_URL);
+    await expect
+      .poll(() =>
+        background.evaluate(async () => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const scripts = await (globalThis as any).chrome.scripting.getRegisteredContentScripts();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          return scripts.map((script: any) => script.id);
+        })
+      )
+      .toContain("savr-app-bridge");
+
+    // The registration covers every port on the app's host, but only the app
+    // origin gets an answer: the content server (same host) stays silent.
+    const otherPage = await context.newPage();
+    await otherPage.goto(articleUrl);
+    const otherPong = await otherPage.evaluate(
+      () =>
+        new Promise((resolve) => {
+          window.addEventListener("message", (event) => {
+            if (event.data?.action === "savr-extension-pong") resolve(event.data);
+          });
+          window.postMessage({ action: "savr-extension-ping", id: "x" }, window.location.origin);
+          setTimeout(() => resolve(null), 1500);
+        })
+    );
+    expect(otherPong).toBeNull();
+    await otherPage.close();
+
+    // A fresh app tab, opened the ordinary way (not by an extension save).
+    const appPage = await context.newPage();
+    await appPage.goto(`${APP_URL}/`);
+    await appPage.waitForLoadState("networkidle");
+    expect(await appPage.evaluate(() => localStorage.getItem("savr-cors-proxy"))).toBeNull();
+
+    // The toolbar's add button (its tooltip is the accessible name).
+    await appPage.getByRole("button", { name: "Add article", exact: true }).click();
+    const dialog = appPage.getByRole("dialog");
+    await expect(dialog).toBeVisible();
+    // With no proxy, the hint says the extension will do the download.
+    await expect(dialog).toContainText("Your Savr browser extension will download this page");
+
+    await dialog.locator("input").first().fill(articleUrl);
+    await dialog.locator('button:has-text("Save")').first().click();
+
+    await expect
+      .poll(
+        () =>
+          appPage.evaluate(async () => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const db = (window as any).savrDb;
+            const entries = await db.logs.where("category").equals("ingest").toArray();
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            return entries.map((entry: any) => entry.message as string);
+          }),
+        { timeout: 60000 }
+      )
+      .toContain(`Downloaded article via extension ${version}: ${articleUrl}`);
+
+    await expect
+      .poll(
+        () =>
+          appPage.evaluate(async (url) => {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const db = (window as any).savrDb;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const articles: any[] = await db.articles.toArray();
+            return articles.find((article) => article.url === url)?.ingestSource ?? null;
+          }, articleUrl),
+        { timeout: 60000 }
+      )
+      .toBe("url");
+  });
 });
 
 /**

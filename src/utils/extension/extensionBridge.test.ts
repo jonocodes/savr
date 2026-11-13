@@ -1,5 +1,7 @@
 import {
   createExtensionImageSource,
+  createExtensionPageSource,
+  probeExtension,
   dataUrlToBlob,
   extensionDownloaderLabel,
   extensionFromMessageEvent,
@@ -220,5 +222,121 @@ describe("externalCaptureSource", () => {
   it("does the same for content a site-specific extractor pulled out", () => {
     expect(externalCaptureSource("raw", null)).toBe("bookmarklet-extracted");
     expect(externalCaptureSource("raw", extension)).toBe("extension-extracted");
+  });
+});
+
+describe("probeExtension", () => {
+  const newId = () => "probe-1";
+
+  it("resolves with the version from the bridge's pong", async () => {
+    const fake = fakeChannel();
+    const pending = probeExtension({ channel: fake.channel, newId, timeoutMs: 1000 });
+
+    expect(fake.posted).toEqual([{ action: "savr-extension-ping", id: "probe-1" }]);
+    // A pong for another probe, or one without a version, is not an answer.
+    fake.reply({
+      action: "savr-extension-pong",
+      id: "other",
+      source: "extension",
+      extensionVersion: "9.9.9",
+    });
+    fake.reply({ action: "savr-extension-pong", id: "probe-1", source: "extension" });
+    fake.reply({
+      action: "savr-extension-pong",
+      id: "probe-1",
+      source: "extension",
+      extensionVersion: "0.1.5",
+    });
+
+    await expect(pending).resolves.toEqual({ version: "0.1.5" });
+    expect(fake.listenerCount()).toBe(0);
+  });
+
+  it("resolves null when no extension answers (not installed, or older than the bridge)", async () => {
+    jest.useFakeTimers();
+    try {
+      const fake = fakeChannel();
+      const pending = probeExtension({ channel: fake.channel, newId, timeoutMs: 500 });
+      jest.advanceTimersByTime(500);
+      await expect(pending).resolves.toBeNull();
+      expect(fake.listenerCount()).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
+
+describe("createExtensionPageSource", () => {
+  const newId = () => "page-1";
+  const HTML = "<html><body>café</body></html>";
+  const base64 = Buffer.from(HTML, "utf8").toString("base64");
+
+  it("is labelled with the extension version", () => {
+    const { channel } = fakeChannel();
+    expect(createExtensionPageSource({ version: "0.1.5" }, { channel }).label).toBe(
+      "extension 0.1.5"
+    );
+  });
+
+  it("requests the page and rebuilds a Response from the reply", async () => {
+    const fake = fakeChannel();
+    const source = createExtensionPageSource({ version: "0.1.5" }, { channel: fake.channel, newId });
+
+    const pending = source.fetchPage("https://news.example/story");
+    expect(fake.posted).toEqual([
+      { action: "savr-page-request", id: "page-1", url: "https://news.example/story" },
+    ]);
+    fake.reply({
+      action: "savr-page-response",
+      id: "page-1",
+      ok: true,
+      contentType: "text/html; charset=utf-8",
+      base64,
+    });
+
+    const response = await pending;
+    expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
+    expect(await response.text()).toBe(HTML);
+    expect(fake.listenerCount()).toBe(0);
+  });
+
+  it("rejects with the extension's error", async () => {
+    const fake = fakeChannel();
+    const source = createExtensionPageSource({ version: "0.1.5" }, { channel: fake.channel, newId });
+
+    const pending = source.fetchPage("https://news.example/missing");
+    fake.reply({ action: "savr-page-response", id: "page-1", ok: false, error: "HTTP 404" });
+
+    await expect(pending).rejects.toThrow("HTTP 404");
+  });
+
+  it.each([
+    ["missing body", { ok: true, contentType: "text/html" }],
+    ["missing content type", { ok: true, base64 }],
+    ["body is not base64", { ok: true, contentType: "text/html", base64: "<html>" }],
+  ])("rejects a malformed reply (%s)", async (_name, body) => {
+    const fake = fakeChannel();
+    const source = createExtensionPageSource({ version: "0.1.5" }, { channel: fake.channel, newId });
+
+    const pending = source.fetchPage("https://news.example/story");
+    fake.reply({ action: "savr-page-response", id: "page-1", ...body });
+
+    await expect(pending).rejects.toThrow(/malformed reply/i);
+  });
+
+  it("times out when the extension never answers", async () => {
+    jest.useFakeTimers();
+    try {
+      const fake = fakeChannel();
+      const source = createExtensionPageSource(
+        { version: "0.1.5" },
+        { channel: fake.channel, newId, timeoutMs: 1000 }
+      );
+      const pending = source.fetchPage("https://news.example/slow");
+      jest.advanceTimersByTime(1000);
+      await expect(pending).rejects.toThrow("Extension did not answer within 1000 ms");
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

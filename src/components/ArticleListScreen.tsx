@@ -46,6 +46,8 @@ import { db } from "~/utils/db";
 import { ingestUrl, ingestHtml, ingestRaw, type IngestOptions } from "../../lib/src/ingestion";
 import {
   createExtensionImageSource,
+  detectExtension,
+  extensionFetchSources,
   extensionFromMessageEvent,
   externalCaptureSource,
   type ExtensionInfo,
@@ -368,6 +370,20 @@ export default function ArticleListScreen() {
 
   const [dialogVisible, setDialogVisible] = useState(false);
   const urlFieldRef = useRef<HTMLInputElement>(null);
+  // The browser extension, when its app bridge is in this tab: a URL save then
+  // downloads the page and images through it first, so it works with no proxy.
+  // Probed when the dialog opens so the answer is ready by the time Save is hit.
+  const [extension, setExtension] = useState<ExtensionInfo | null>(null);
+  useEffect(() => {
+    if (!dialogVisible) return;
+    let cancelled = false;
+    void detectExtension().then((info) => {
+      if (!cancelled) setExtension(info);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [dialogVisible]);
   // Bookmarklet messages that arrive before the RS client is ready are queued here
   // and processed once client becomes non-null (see bookmarklet useEffect below).
   const pendingBookmarkletMsg = useRef<{
@@ -771,9 +787,12 @@ export default function ArticleListScreen() {
       // an article-load problem and must not be filed as one.
       let ingestSucceeded = false;
       try {
+        // Usually settled already (probed when the dialog opened); a
+        // ?saveUrl= auto-submit may still be waiting on it.
+        const extensionInfo = await detectExtension();
+        let pageDownloader = "";
         const article = await ingestUrl(
           client,
-          // corsProxy,
           targetUrl,
           (percent: number | null, message: string | null) => {
             if (percent !== null) {
@@ -781,12 +800,18 @@ export default function ArticleListScreen() {
               setIngestPercent(percent);
             }
           },
+          {
+            ...extensionFetchSources(extensionInfo),
+            onPageDownloaded: (source) => {
+              pageDownloader = source;
+            },
+          },
         );
         ingestSucceeded = true;
 
         console.log("About to save article to IndexedDB:", article);
         await db.articles.put(article);
-        trackCapture("url");
+        trackCapture(pageDownloader.startsWith("extension") ? "url-extension" : "url");
         console.log("Article saved to IndexedDB successfully");
 
         // Verify the article was actually saved
@@ -1174,7 +1199,7 @@ export default function ArticleListScreen() {
         <DialogContent>
           {!getCorsProxyValue() && (
             <Typography variant="body2" color="text.secondary">
-              {t("list.directCaptureHint")}
+              {extension ? t("list.extensionCaptureHint") : t("list.directCaptureHint")}
             </Typography>
           )}
           <TextField
