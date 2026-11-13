@@ -97,7 +97,15 @@ async function doPublish(): Promise<void> {
 
     await publicClient.storeFile("application/json", PUBLIC_EXPORT_FILENAME, json);
 
-    const publicUrl = publicClient.getItemURL(PUBLIC_EXPORT_FILENAME) ?? state.publicUrl;
+    // remotestoragejs >= 2.0.0-beta.10 resolves this asynchronously (Dropbox creates a
+    // share link) and throws on backends without public URLs (Google Drive). The file
+    // is already stored at this point, so a missing URL must not fail the publish.
+    let publicUrl = state.publicUrl;
+    try {
+      publicUrl = (await publicClient.getItemURL(PUBLIC_EXPORT_FILENAME)) ?? publicUrl;
+    } catch (e) {
+      console.warn("Public export stored, but no public URL is available:", e);
+    }
 
     const newState = load();
     newState.dirty = false;

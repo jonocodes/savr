@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { getCorsProxyValue } from "~/utils/net/corsProxy";
 import {
   Box,
   List,
@@ -1171,6 +1172,11 @@ export default function ArticleListScreen() {
       <Dialog open={dialogVisible} onClose={() => setDialogVisible(false)} maxWidth="sm" fullWidth>
         <DialogTitle>{t("list.addArticle")}</DialogTitle>
         <DialogContent>
+          {!getCorsProxyValue() && (
+            <Typography variant="body2" color="text.secondary">
+              {t("list.directCaptureHint")}
+            </Typography>
+          )}
           <TextField
             inputRef={urlFieldRef}
             label={t("list.url")}

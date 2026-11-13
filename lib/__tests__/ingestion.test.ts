@@ -344,5 +344,29 @@ describe("ingestion.ts - readabilityToArticle", () => {
         expect(article.author).toBe("Test Author");
       });
     });
+
+    // Readability 0.6 types title/content/byline as nullable.
+    describe("nullable Readability fields", () => {
+      const html = "<html><body><p>Body</p></body></html>";
+      const url = "https://example.com/article";
+
+      it("falls back to a mime-and-timestamp title when Readability finds none", () => {
+        __setMockReadability({ title: null, content: "<p>Body text</p>", byline: null });
+
+        const [article] = readabilityToArticle(html, "text/html", url);
+
+        expect(article.title).toMatch(/^html \d+$/);
+        expect(article.slug).toMatch(/^html-\d+$/);
+        expect(article.author).toBeNull();
+      });
+
+      it("throws instead of saving an empty article when Readability returns no content", () => {
+        __setMockReadability({ title: "Has a title", content: null });
+
+        expect(() => readabilityToArticle(html, "text/html", url)).toThrow(
+          "Readability did not return article content"
+        );
+      });
+    });
   });
 });

@@ -37,6 +37,7 @@
     "emptySaves": "Start saving articles to see them here",
     "emptyArchived": "No archived articles yet",
     "addArticle": "Add Article",
+    "directCaptureHint": "For sites that block direct capture, use the browser extension, paste content in Advanced, or configure a CORS proxy in Preferences.",
     "url": "URL",
     "advanced": "Advanced",
     "cancel": "Cancel",
