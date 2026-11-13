@@ -114,6 +114,9 @@ function deliverWhenReady(message) {
  */
 function startImageRelay() {
   const RELAY_LIFETIME_MS = 10 * 60 * 1000;
+  // The registered app bridge (app-bridge.js) already relays image requests
+  // in every app tab; a second relay would fetch each image twice.
+  if (globalThis.__savrAppBridge) return;
   const existing = globalThis.__savrImageRelay;
   if (existing) {
     // Already listening (an earlier save in this tab): just extend its life.
@@ -462,8 +465,11 @@ async function saveFromButton(tab) {
 // as a failure for that image rather than read by the app as a dead relay.
 const IMAGE_FETCH_TIMEOUT_MS = 10000;
 const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
+// Shorter than the app's page request timeout (20 s), for the same reason.
+const PAGE_FETCH_TIMEOUT_MS = 15000;
+const MAX_PAGE_BYTES = 25 * 1024 * 1024;
 
-/** Only the configured Savr app may ask the extension to download images. */
+/** Only the configured Savr app may ask the extension to download anything. */
 async function isFromSavrApp(sender) {
   const senderUrl = sender?.url ?? sender?.tab?.url;
   if (!senderUrl) return false;
@@ -520,6 +526,101 @@ async function fetchImageAsDataUrl(url) {
   return { ok: true, dataUrl: `data:${contentType};base64,${bytesToBase64(bytes)}` };
 }
 
+/**
+ * Download a page for a save typed into the app (Add Article, Refetch) with
+ * the extension's host permissions — CORS-exempt, so no proxy is needed. Like
+ * images, no cookies are sent: this is the same anonymous fetch a CORS proxy
+ * makes, not a logged-in one (Save current page is the way to capture what
+ * you can see behind a login). The body travels as base64 with its
+ * content-type, and the app rebuilds a Response from it, so HTML, text, PDFs
+ * and images all work.
+ */
+async function fetchPageForApp(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { ok: false, error: msg("errInvalidPageUrl") };
+  }
+  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+    return { ok: false, error: msg("errOnlyHttpPages") };
+  }
+
+  const response = await fetch(parsed.href, {
+    credentials: "omit",
+    signal: AbortSignal.timeout(PAGE_FETCH_TIMEOUT_MS),
+  });
+  if (!response.ok) {
+    return { ok: false, error: `HTTP ${response.status}` };
+  }
+  const contentType = (response.headers.get("content-type") ?? "").trim();
+  if (!contentType) {
+    return { ok: false, error: "No content type" };
+  }
+  if (Number(response.headers.get("content-length")) > MAX_PAGE_BYTES) {
+    return { ok: false, error: msg("errPageTooLarge") };
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > MAX_PAGE_BYTES) {
+    return { ok: false, error: msg("errPageTooLarge") };
+  }
+  return { ok: true, contentType, base64: bytesToBase64(bytes) };
+}
+
+/* ------------------------------------------------------------------------ */
+/* App bridge registration                                                   */
+/* ------------------------------------------------------------------------ */
+
+const APP_BRIDGE_ID = "savr-app-bridge";
+const APP_BRIDGE_FILE = "app-bridge.js";
+
+/**
+ * Keep app-bridge.js registered on the configured Savr address, so the app
+ * can find the extension from any of its tabs. Run on every background start
+ * (registrations persist in Chrome, but re-checking is cheap and covers
+ * browsers that drop them) and whenever the address changes. Tabs already
+ * open get the script injected too — a registration only reaches new loads.
+ */
+async function syncAppBridge() {
+  const appUrl = await getAppUrl();
+  const matches = [hostPatternFor(appUrl)];
+  const registered = await api.scripting.getRegisteredContentScripts({ ids: [APP_BRIDGE_ID] });
+  const current = registered[0];
+  if (current && current.matches?.length === 1 && current.matches[0] === matches[0]) return;
+
+  const script = {
+    id: APP_BRIDGE_ID,
+    js: [APP_BRIDGE_FILE],
+    matches,
+    runAt: "document_start",
+    persistAcrossSessions: true,
+  };
+  if (current) {
+    await api.scripting.updateContentScripts([script]);
+  } else {
+    await api.scripting.registerContentScripts([script]);
+  }
+  console.info("[savr] app bridge registered for", matches[0]);
+  await injectAppBridgeIntoOpenTabs(matches[0]);
+}
+
+async function injectAppBridgeIntoOpenTabs(pattern) {
+  const tabs = await api.tabs.query({ url: pattern });
+  for (const tab of tabs) {
+    if (tab.id === undefined) continue;
+    // The script ignores pages that are not the app (another port, say) and
+    // guards against running twice.
+    await api.scripting
+      .executeScript({ target: { tabId: tab.id }, files: [APP_BRIDGE_FILE] })
+      .catch((error) => console.info("[savr] could not add the app bridge to tab", tab.id, error));
+  }
+}
+
+const syncAppBridgeLogged = () =>
+  void syncAppBridge().catch((error) =>
+    console.warn("[savr] could not register the app bridge:", error)
+  );
+
 /* ------------------------------------------------------------------------ */
 /* Wiring                                                                    */
 /* ------------------------------------------------------------------------ */
@@ -566,6 +667,12 @@ const rebuildActionMenu = () =>
 api.runtime.onInstalled.addListener(rebuildActionMenu);
 api.runtime.onStartup.addListener(rebuildActionMenu);
 
+// Keep the app bridge on the configured Savr address.
+syncAppBridgeLogged();
+api.storage.onChanged.addListener((changes, area) => {
+  if (area === "local" && APP_URL_KEY in changes) syncAppBridgeLogged();
+});
+
 // Resume a delivery interrupted by a background unload.
 void api.storage.session
   .get(PENDING_DELIVERY_KEY)
@@ -583,6 +690,19 @@ api.runtime.onMessage.addListener((message, sender, sendResponse) => {
       .then((allowed) =>
         allowed
           ? fetchImageAsDataUrl(String(message.url))
+          : { ok: false, error: msg("errOnlyFromApp") }
+      )
+      .then(sendResponse, (error) =>
+        sendResponse({ ok: false, error: String(error?.message ?? error) })
+      );
+    return true;
+  }
+
+  if (message.type === "FETCH_PAGE") {
+    isFromSavrApp(sender)
+      .then((allowed) =>
+        allowed
+          ? fetchPageForApp(String(message.url))
           : { ok: false, error: msg("errOnlyFromApp") }
       )
       .then(sendResponse, (error) =>

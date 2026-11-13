@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-12
+
+- Saves typed into Savr can use the browser extension instead of a CORS proxy. With the extension installed (0.1.5+), a URL entered in **Add Article** — and an article's **Refetch** — is downloaded by the extension, images included, so it works with no proxy configured; the dialog says so when no proxy is set. The extension now registers a small content script (`app-bridge.js`) on the configured Savr address that answers the app's probe and forwards page and image requests to the background, which fetches them without cookies, only for the Savr app. Anything it can't fetch falls back to the proxy (or a direct fetch), and the downloader chain is logged as for images. Telemetry counts these as `capture-url-extension`. Older extensions don't answer the probe, so nothing changes for them
+
 ## 2026-11-02
 
 - Browser extension 0.1.4: a new **When I click the Savr button** setting (desktop only) chooses whether a click saves the page (the default) or opens the menu like before 0.1.3. Right-click shows the menu either way, and the change applies as soon as it is saved. The options page also fills the space it is shown in (up to a readable width, centred in a tab) instead of a fixed 320px column pushed to the left

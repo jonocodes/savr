@@ -18,17 +18,16 @@ import {
 } from "./lib";
 import { DEFAULT_WPM } from "./readingSpeed";
 import { saveResource } from "~/utils/sync/storage";
-import { fetchWithTimeout, imageToDataUrl, FetchError } from "~/utils/article/tools";
+import { imageToDataUrl, FetchError } from "~/utils/article/tools";
 import {
   downloadImage,
   formatAttempts,
   ImageDownloadError,
-  proxyDownloaderLabel,
   proxyImageSource,
   type DownloadAttempt,
   type ImageSource,
 } from "~/utils/net/imageSources";
-import { getCorsProxyValue } from "~/utils/net/corsProxy";
+import { downloadPage, PageDownloadError, proxyPageSource, type PageSource } from "~/utils/net/pageSources";
 import { md5 } from "js-md5";
 import { summarizeText, buildSummarySettings, getEffectiveSummaryModel, type SummaryProvider } from "~/utils/ai/summarization";
 import {
@@ -1127,29 +1126,55 @@ export async function ingestImage(
   return article;
 }
 
+export type IngestUrlOptions = {
+  /**
+   * Page sources tried before the proxy/direct fetch — the browser extension,
+   * when the app detected one. Any failure falls back to the proxy.
+   */
+  pageSources?: PageSource[];
+  /** Image sources tried before the proxy/direct fetch (see IngestOptions). */
+  imageSources?: ImageSource[];
+  /** Told which source supplied the page (e.g. to count extension saves). */
+  onPageDownloaded?: (source: string) => void;
+};
+
 export async function ingestUrl(
   storageClient: BaseClient | null,
   url: string,
-  sendMessage: (percent: number | null, message: string | null) => void
+  sendMessage: (percent: number | null, message: string | null) => void,
+  opts?: IngestUrlOptions
 ) {
   sendMessage(0, t("starting"));
 
   sendMessage(10, t("fetchingArticle"));
 
-  // The page always comes through the proxy (or directly); name it in both logs.
-  const downloader = proxyDownloaderLabel(getCorsProxyValue());
+  // Supplied sources (the extension) first; the proxy/direct fetch is the
+  // fallback. The winner is named in both logs.
+  const proxySource = proxyPageSource();
+  const sources = [...(opts?.pageSources ?? []), proxySource];
 
   // TODO: create error if fetch times out. this happens if you are offline
   let response: Response;
+  let downloader: string;
+  let downloadChain = "";
   try {
-    response = await fetchWithTimeout(url);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-    }
-  } catch (error) {
+    const download = await downloadPage(url, sources);
+    response = download.response;
+    downloader = download.source;
+    if (download.attempts.length > 1) downloadChain = formatAttempts(download.attempts);
+  } catch (chainError) {
+    // Callers expect the proxy/direct fetch's own error (FetchError carries
+    // the request URL and status), so that is what is logged and rethrown.
+    const error = chainError instanceof PageDownloadError ? chainError.cause : chainError;
+    const attempts = chainError instanceof PageDownloadError ? chainError.attempts : [];
+
     // The article never got far enough to have a slug, so the per-article
     // fetch.log cannot capture this — record it in the app log instead.
-    const meta: Record<string, unknown> = { url, downloader, error: errorMessage(error) };
+    const meta: Record<string, unknown> = {
+      url,
+      downloader: attempts.length > 1 ? formatAttempts(attempts) : proxySource.label,
+      error: errorMessage(error),
+    };
 
     if (error instanceof FetchError) {
       // requestUrl is the resolved URL (proxy included). status is only set
@@ -1164,8 +1189,17 @@ export async function ingestUrl(
     throw error;
   }
 
-  recordLog("info", "ingest", `Downloaded article via ${downloader}: ${url}`, { url, downloader });
-  const options = { fetchLogPrelude: [`article downloaded via ${downloader}: ${url}`] };
+  opts?.onPageDownloaded?.(downloader);
+  recordLog("info", "ingest", `Downloaded article via ${downloader}: ${url}`, {
+    url,
+    downloader: downloadChain || downloader,
+  });
+  const options: IngestOptions = {
+    fetchLogPrelude: [
+      `article downloaded via ${downloader}: ${url}${downloadChain ? ` (${downloadChain})` : ""}`,
+    ],
+    imageSources: opts?.imageSources,
+  };
 
   const contentTypeHeader = response.headers.get("content-type");
 

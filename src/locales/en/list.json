@@ -38,6 +38,7 @@
     "emptyArchived": "No archived articles yet",
     "addArticle": "Add Article",
     "directCaptureHint": "For sites that block direct capture, use the browser extension, paste content in Advanced, or configure a CORS proxy in Preferences.",
+    "extensionCaptureHint": "Your Savr browser extension will download this page, so no CORS proxy is needed.",
     "url": "URL",
     "advanced": "Advanced",
     "cancel": "Cancel",

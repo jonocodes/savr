@@ -102,6 +102,15 @@
     "message": "Image too large"
   },
   "errOnlyFromApp": {
-    "message": "Image requests are only accepted from the Savr app"
+    "message": "Requests are only accepted from the Savr app"
+  },
+  "errInvalidPageUrl": {
+    "message": "Invalid page URL"
+  },
+  "errOnlyHttpPages": {
+    "message": "Only http(s) pages can be downloaded"
+  },
+  "errPageTooLarge": {
+    "message": "Page too large"
   }
 }

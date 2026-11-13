@@ -85,6 +85,7 @@ import { recordReadingSession, useReadingWpm } from "../utils/readingSpeed";
 import { formatReadTime } from "../../lib/src/lib";
 import { calculateArticleStorageSize, formatBytes } from "~/utils/sync/storage";
 import { ingestUrl } from "../../lib/src/ingestion";
+import { detectExtension, extensionFetchSources } from "~/utils/extension/extensionBridge";
 import { recordLog, errorMessage } from "~/utils/logging";
 import { useFailureReport } from "~/hooks/useFailureReport";
 import { normalizeUrl } from "~/utils/net/url";
@@ -417,6 +418,8 @@ export default function ArticleScreen(_props: Props) {
     // Only a failed download is reportable; later local failures are not.
     let ingestSucceeded = false;
     try {
+      // With the browser extension present, it downloads the page and images
+      // first (no proxy needed); the proxy/direct fetch stays the fallback.
       const updatedArticle = await ingestUrl(
         storage.client,
         targetUrl,
@@ -426,6 +429,7 @@ export default function ArticleScreen(_props: Props) {
             setRefetchPercent(percent);
           }
         },
+        extensionFetchSources(await detectExtension()),
       );
       ingestSucceeded = true;
 

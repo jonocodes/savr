@@ -122,7 +122,7 @@ A working example lives in [`browser-extension/youtube-transcript.js`](browser-e
 
 ## Browser extension (optional)
 
-On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button: click it to save the current page, or right-click it for **Visit Savr** and the extension settings. A setting switches a click back to opening that menu, which is always what happens on Firefox for Android. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself. The article's images are downloaded by the extension too, so an extension save needs no proxy at all; any image the extension cannot fetch falls back to your configured proxy (or a placeholder). URL saves and bookmarklets still use the proxy as before.
+On desktop Firefox and Chrome, the optional [browser extension](browser-extension/) adds a toolbar button: click it to save the current page, or right-click it for **Visit Savr** and the extension settings. A setting switches a click back to opening that menu, which is always what happens on Firefox for Android. Unlike a URL save, it scrapes the page you already have open, so it works behind logins, and no CORS proxy is involved for the page itself. The article's images are downloaded by the extension too, so an extension save needs no proxy at all; any image the extension cannot fetch falls back to your configured proxy (or a placeholder). With the extension installed, URLs you type into **Add Article** (and **Refetch**) are downloaded by the extension too, so they work without any CORS proxy; the Add Article dialog says so when no proxy is set. These are anonymous downloads (no cookies), like a proxy's, and anything the extension can't fetch falls back to the proxy. Bookmarklets still use the proxy as before.
 
 Firefox (142+) installs a signed build from the `.xpi` on the newest **[extension release](https://github.com/jonocodes/savr/releases?q=extension&expanded=true)** and keeps it updated; on Android tapping the `.xpi` only downloads it, which you then install from a hidden settings menu (steps in the extension README). Chrome has no store listing yet, so it installs with **Load unpacked**. See [browser-extension/README.md](browser-extension/README.md) for install, settings, how releases are published, and how the delivery flow works — or use the links in **Preferences** (configurable at build time).
 
@@ -326,6 +326,8 @@ When you save an article, Savr needs to fetch the content from the original webs
 
 **How does Savr solve this?**  
 Savr uses a CORS proxy server that acts as a middleman. Instead of your browser directly requesting content from the original website, it requests it through the proxy server, which then fetches the content and sends it back to Savr.
+
+If you have the [browser extension](#browser-extension-optional) installed, Savr asks it first: the extension isn't bound by CORS, so it downloads pages and images itself and the proxy is only a fallback. With the extension you can leave the proxy unset entirely.
 
 Savr is also polite about how it uses the proxy: identical requests in flight are de-duplicated, a URL that keeps failing is backed off (a 404 is not retried automatically), and if the proxy itself is rate-limited Savr pauses requests for a cooldown instead of hammering it. If an image can't be downloaded when you save an article, it is replaced with a local placeholder, so reading the saved article never contacts the original site again.
 

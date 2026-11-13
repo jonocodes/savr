@@ -16,7 +16,8 @@ This is everything Savr ever sends:
 | ----- | --------- |
 | `app-open` | The app is opened or loaded |
 | `app-standalone` | The app is opened as an installed PWA (fired alongside `app-open`) |
-| `capture-url` | An article is saved from a URL |
+| `capture-url` | An article is saved from a URL (page downloaded through the CORS proxy, or directly) |
+| `capture-url-extension` | An article is saved from a URL typed into Savr, with the page downloaded by the browser extension instead of a proxy |
 | `capture-bookmarklet` | An article is saved via the bookmarklet |
 | `capture-bookmarklet-extracted` | An article is saved via a site-specific bookmarklet that extracted the content itself (e.g. the YouTube transcript bookmarklet). Recorded as `capture-raw` before 2026-10-15 |
 | `capture-extension` | An article is saved via the browser extension (page scraped in the browser) |
