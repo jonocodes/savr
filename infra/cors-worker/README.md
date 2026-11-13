@@ -178,6 +178,11 @@ allowlist). `OPTIONS` answers preflight.
   leaves no window for DNS to change between check and connect, and each
   redirect hop goes through the same lookup.
 - **Size cap.** Responses advertising more than 25 MiB are refused with `413`.
+  The Node shell also cuts off a chunked body once it passes 25 MiB.
+- **Timeouts (Node shell).** An upstream connection is dropped after 30 s of
+  inactivity, and the whole exchange (request to the body's end) after 120 s,
+  so an upstream that trickles bytes can't hold a connection open forever.
+  (On Cloudflare, the platform enforces its own limits.)
 - **Log hygiene.** Only errors are logged, and only the hostname — never the
   full `?url=` (which can carry API keys). The old per-request logging was also
   needlessly expensive.
