@@ -2,7 +2,7 @@
 
 ## 2026-11-12
 
-- Saves typed into Savr can use the browser extension instead of a CORS proxy. With the extension installed (0.1.5+), a URL entered in **Add Article** — and an article's **Refetch** — is downloaded by the extension, images included, so it works with no proxy configured; the dialog says so when no proxy is set. The extension now registers a small content script (`app-bridge.js`) on the configured Savr address that answers the app's probe and forwards page and image requests to the background, which fetches them without cookies, only for the Savr app. Anything it can't fetch falls back to the proxy (or a direct fetch), and the downloader chain is logged as for images. Telemetry counts these as `capture-url-extension`. Older extensions don't answer the probe, so nothing changes for them
+- Browser extension 0.1.5: saves typed into Savr can use the extension instead of a CORS proxy. With it installed, a URL entered in **Add Article** — and an article's **Refetch** — is downloaded by the extension, images included, so it works with no proxy configured; the dialog says so when no proxy is set. The extension now registers a small content script (`app-bridge.js`) on the configured Savr address that answers the app's probe and forwards page and image requests to the background, which fetches them without cookies, only for the Savr app. Anything it can't fetch falls back to the proxy (or a direct fetch), and the downloader chain is logged as for images. Telemetry counts these as `capture-url-extension`. Older extensions don't answer the probe, so nothing changes for them
 
 ## 2026-11-02
 
