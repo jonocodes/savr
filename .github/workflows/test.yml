@@ -34,7 +34,8 @@ jobs:
         run: just lint-extension
 
   e2e-smoke:
-    runs-on: ubuntu-latest
+    # Playwright 1.54's system dependency installer supports Ubuntu 24.04.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

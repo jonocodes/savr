@@ -666,15 +666,13 @@ export function readabilityToArticle(
     throw new Error("Readability did not parse");
   }
 
-  if (readabilityResult.title == "") {
-    readabilityResult.title = `${mimeToExt[contentType]} ${Date.now() + 0}`;
+  const content = readabilityResult.content;
+  if (!content) {
+    throw new Error("Readability did not return article content");
   }
 
-  // TODO: handle case where title is not found?
-
-  const slug = stringToSlug(readabilityResult.title);
-
-  const content = readabilityResult.content;
+  const title = readabilityResult.title || `${mimeToExt[contentType]} ${Date.now()}`;
+  const slug = stringToSlug(title);
 
   // sendMessage(15, "collecting images");
 
@@ -692,11 +690,11 @@ export function readabilityToArticle(
 
   const wordCount = calcWordCount(content);
 
-  const author = readabilityResult.byline;
+  const author = readabilityResult.byline ?? null;
 
   const article: Article = {
     slug: slug,
-    title: readabilityResult.title,
+    title,
     url: url,
     state: "unread", // unread, reading, finished, archived, deleted, ingesting
     publication: null,

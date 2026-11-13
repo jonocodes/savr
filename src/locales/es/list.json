@@ -37,6 +37,7 @@
     "emptySaves": "Empieza a guardar artículos para verlos aquí",
     "emptyArchived": "Aún no hay artículos archivados",
     "addArticle": "Añadir artículo",
+    "directCaptureHint": "Si un sitio bloquea la captura directa, usa la extensión del navegador, pega el contenido en Avanzado o configura un proxy CORS en Preferencias.",
     "url": "URL",
     "advanced": "Opciones avanzadas",
     "cancel": "Cancelar",
