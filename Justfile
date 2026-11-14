@@ -33,12 +33,16 @@ test-workers:
 test-extension:
     node --test scripts/extension-release.test.mjs
 
+# Runs a real `vite build` and checks the build timestamp is baked in (#68)
+test-build:
+    node --test scripts/build-stamp.test.mjs
+
 # AMO's rules for unlisted (self-hosted) Firefox add-ons
 lint-extension:
     npx --yes web-ext@10 lint --self-hosted --source-dir browser-extension
 
 # Everything the unit-tests CI job runs, in the same order
-ci: lint typecheck test test-workers test-extension lint-extension
+ci: lint typecheck test test-workers test-extension test-build lint-extension
 
 # Deploy your own token-locked CORS proxy worker (Cloudflare auth required)
 deploy-proxy:

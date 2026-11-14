@@ -173,9 +173,7 @@ describe("ingestion.ts - readabilityToArticle", () => {
 
       const [article] = readabilityToArticle(html, contentType, url);
 
-      expect(article.ingestPlatform).toContain("typescript/web");
-      expect(article.ingestPlatform).toContain("(");
-      expect(article.ingestPlatform).toContain(")");
+      expect(article.ingestPlatform).toBe("typescript/web (dev)");
     });
 
     it("should handle published date from readability result", () => {

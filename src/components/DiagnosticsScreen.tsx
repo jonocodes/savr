@@ -1109,7 +1109,8 @@ export default function DiagnosticsScreen() {
                   },
                   buildTimeEnvVars: {
                     VITE_DEBUG: import.meta.env.VITE_DEBUG || "undefined",
-                    VITE_BUILD_TIMESTAMP: import.meta.env.VITE_BUILD_TIMESTAMP || "undefined",
+                    VITE_BUILD_TIMESTAMP:
+                      import.meta.env.VITE_BUILD_TIMESTAMP || "undefined (build time used)",
                     // VITE_GOOGLE_DRIVE_API_KEY: import.meta.env.VITE_GOOGLE_DRIVE_API_KEY
                     //   ? "***SET***"
                     //   : "***NOT SET***",

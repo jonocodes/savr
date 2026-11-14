@@ -50,9 +50,9 @@ Deploy a token-locked proxy of your own from `infra/cors-worker/` (there is a De
 
 ### `VITE_BUILD_TIMESTAMP`
 
-- **Default**: Current timestamp
-- **Description**: Build timestamp for versioning
-- **Usage**: Automatically set during build process
+- **Default**: The UTC time `vite build` runs, to the second (e.g. `2026-11-13T04:12:09Z`). The dev server has none.
+- **Description**: The build's identity — Savr has no version numbers (#68). `vite.config.ts` bakes it in as `__BUILD_TIMESTAMP__` (`lib/src/buildInfo.ts`); it is shown as **Deployed** in Preferences and Diagnostics, sent in failure reports, and stamped on every saved article as `ingestPlatform: "typescript/web (<timestamp>)"` (`typescript/web (dev)` from the dev server). Set it only to pin the value, e.g. for a reproducible build.
+- **Usage**: `VITE_BUILD_TIMESTAMP=2026-11-13T04:12:09Z npm run build`
 
 ## Pre-configured Scripts
 

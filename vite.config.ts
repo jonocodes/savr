@@ -4,6 +4,7 @@ import { transform as esbuildTransform } from "esbuild";
 import { defineConfig } from "vite";
 import tsConfigPaths from "vite-tsconfig-paths";
 import { VitePWA } from "vite-plugin-pwa";
+import { resolveBuildTimestamp } from "./lib/src/buildInfo";
 
 // The browser extension owns the YouTube extraction (it serializes the same
 // function into the watch tab), and the prefs page imports that module with
@@ -65,7 +66,7 @@ const bookmarkletPlugin = {
   },
 };
 
-export default defineConfig(() => {
+export default defineConfig(({ command }) => {
   // Use DEBUG environment variable for feature flags.
   // Debug is opt-in (see src/config/environment.ts) so plain builds get
   // production branding/icons unless VITE_DEBUG=true is set explicitly.
@@ -75,6 +76,13 @@ export default defineConfig(() => {
   })();
   const devTitle = "Savr DEV - Save Articles for Reading";
   const prodTitle = "Savr - Save Articles for Reading";
+  // The build's identity (Savr has no version numbers, #68): shown in
+  // Preferences/Diagnostics and stamped on saved articles. See lib/src/buildInfo.ts.
+  const buildTimestamp = resolveBuildTimestamp(
+    command,
+    process.env.VITE_BUILD_TIMESTAMP,
+    new Date()
+  );
 
   return {
     build: {
@@ -111,6 +119,7 @@ export default defineConfig(() => {
     },
     define: {
       __DEV__: true,
+      ...(buildTimestamp ? { __BUILD_TIMESTAMP__: JSON.stringify(buildTimestamp) } : {}),
     },
     plugins: [
       bookmarkletPlugin,

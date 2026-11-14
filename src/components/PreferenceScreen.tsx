@@ -124,7 +124,6 @@ import {
   formatBytes,
   updateSyncInterval,
 } from "~/utils/sync/storage";
-import { version } from "../../package.json" with { type: "json" };
 import { BUILD_TIMESTAMP } from "~/config/environment";
 import {
   setSyncEnabledCookie,
@@ -1616,12 +1615,6 @@ export default function PreferencesScreen() {
           <List>
             <ListSubheader>Savr</ListSubheader>
 
-            <ListItem>
-              {/* <ListItemIcon>
-                <DeleteIcon />
-              </ListItemIcon> */}
-              <ListItemText primary={t("prefs.version")} secondary={version} />
-            </ListItem>
             <ListItem>
               <ListItemText primary={t("prefs.deployed")} secondary={buildDate} />
             </ListItem>
