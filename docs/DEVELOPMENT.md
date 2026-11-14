@@ -157,6 +157,14 @@ npm run lint:fix  # Auto-fix where possible
 npm run build
 ```
 
+There are no app version numbers (#68). `vite build` bakes its UTC start time in
+as `__BUILD_TIMESTAMP__` and `lib/src/buildInfo.ts` reads it. Preferences shows
+it as **Deployed**, and saved articles record it in `ingestPlatform`. Where no
+build has run (dev server, Jest, Storybook) it is absent, and saved articles say
+`typescript/web (dev)`. `just test-build` runs a real build and checks that the
+timestamp made it into the bundle. See `VITE_BUILD_TIMESTAMP` in
+[ENVIRONMENT_VARIABLES.md](ENVIRONMENT_VARIABLES.md) to pin it.
+
 ### Run Dev Server
 
 ```bash

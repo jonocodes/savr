@@ -1,5 +1,9 @@
 # Changelog
 
+## 2026-11-13
+
+- The app no longer has a version number (#68). The "Version" row (stuck at 0.6.0) is gone from Preferences; **Deployed**, the build's time, is now the only build identifier. Saved articles now record which build saved them, as `ingestPlatform: "typescript/web (2026-11-13T04:12:09Z)"` instead of `(0.6.0)`, or `(dev)` when saved from a dev server. Articles saved earlier keep their old value. Every build now gets its timestamp from `vite build` itself, so a plain `vite build` no longer shows 1970. The old `v0.2.0` tag is archived as `archive/v0.2.0`. The browser extension keeps its own version numbers
+
 ## 2026-11-12
 
 - Browser extension 0.1.5: saves typed into Savr can use the extension instead of a CORS proxy. With it installed, a URL entered in **Add Article** — and an article's **Refetch** — is downloaded by the extension, images included, so it works with no proxy configured; the dialog says so when no proxy is set. The extension now registers a small content script (`app-bridge.js`) on the configured Savr address that answers the app's probe and forwards page and image requests to the background, which fetches them without cookies, only for the Savr app. Anything it can't fetch falls back to the proxy (or a direct fetch), and the downloader chain is logged as for images. Telemetry counts these as `capture-url-extension`. Older extensions don't answer the probe, so nothing changes for them

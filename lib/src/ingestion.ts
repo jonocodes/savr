@@ -1,7 +1,7 @@
 import { Readability } from "@mozilla/readability";
 import * as uri from "uri-js";
 import { Article } from "./models";
-import { version } from "../../package.json" with { type: "json" };
+import { INGEST_PLATFORM } from "./buildInfo";
 import mime from "mime";
 import BaseClient from "remotestoragejs/release/types/baseclient";
 import ArticleTemplate, { createArticleObject } from "./article";
@@ -714,7 +714,7 @@ export function readabilityToArticle(
     author: author,
     publishedDate: pubDate?.toISOString(),
     ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${version})`,
+    ingestPlatform: INGEST_PLATFORM,
     ingestSource: "bookmarklet",
     mimeType: contentType,
     wordCount: wordCount,
@@ -790,7 +790,7 @@ export async function ingestRaw(
     author: params.author?.trim() || null,
     publishedDate: params.publishedDate?.trim() || undefined,
     ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${version})`,
+    ingestPlatform: INGEST_PLATFORM,
     ingestSource: "raw",
     mimeType: "text/html",
     wordCount: calcWordCount(bodyHtml),
@@ -969,7 +969,7 @@ export async function ingestPdf(
     author: null,
     publishedDate: null,
     ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${version})`,
+    ingestPlatform: INGEST_PLATFORM,
     ingestSource: "url",
     mimeType: "application/pdf",
     wordCount: null,
@@ -1067,7 +1067,7 @@ export async function ingestImage(
     author: null,
     publishedDate: null,
     ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${version})`,
+    ingestPlatform: INGEST_PLATFORM,
     ingestSource: "url",
     mimeType: mimeType,
     wordCount: null,
@@ -1416,7 +1416,7 @@ export async function ingestUrl(
 //     author: null,
 //     publishedDate: null,
 //     ingestDate: new Date().toISOString(),
-//     ingestPlatform: `typescript/web (${version})`,
+//     ingestPlatform: INGEST_PLATFORM,
 //     ingestSource: "????",
 //     mimeType: "text/plain",
 //     defaultReadTimeMinutes: 1,  // TODO: set this correctly

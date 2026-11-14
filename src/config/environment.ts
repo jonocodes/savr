@@ -1,3 +1,5 @@
+import { BUILD_TIMESTAMP as LIB_BUILD_TIMESTAMP } from "../../lib/src/buildInfo";
+
 // Environment configuration for different deployment modes
 export interface EnvironmentConfig {
   isDebugMode: boolean;
@@ -88,7 +90,8 @@ export const environmentConfig: EnvironmentConfig = {
   },
 };
 
-export const BUILD_TIMESTAMP = import.meta.env.VITE_BUILD_TIMESTAMP || new Date(0).toISOString();
+// The build's UTC timestamp (lib/src/buildInfo.ts); the epoch on the dev server.
+export const BUILD_TIMESTAMP = LIB_BUILD_TIMESTAMP ?? new Date(0).toISOString();
 
 // Helper functions
 export const isDebugMode = () => environmentConfig.isDebugMode;

@@ -2,6 +2,7 @@
 // This avoids importing the full ingestion.ts file which has problematic dependencies
 
 import { Article } from "../src/models";
+import { INGEST_PLATFORM } from "../src/buildInfo";
 
 // Mock DOMParser for Node.js environment
 (global as any).DOMParser = class DOMParser {
@@ -50,9 +51,6 @@ const mockLib = {
     "text/plain": "txt",
   },
 };
-
-// Mock the version import
-const mockVersion = "1.0.0";
 
 // Simple implementation of readabilityToArticle for testing
 function stringToSlug(str: string): string {
@@ -125,7 +123,7 @@ function readabilityToArticle(
     author: author,
     publishedDate: pubDate?.toISOString(),
     ingestDate: new Date().toISOString(),
-    ingestPlatform: `typescript/web (${mockVersion})`,
+    ingestPlatform: INGEST_PLATFORM,
     ingestSource: "????",
     mimeType: contentType,
     wordCount: wordCount,
@@ -272,9 +270,7 @@ describe("ingestion.ts - readabilityToArticle (minimal)", () => {
 
       const [article] = readabilityToArticle(html, contentType, url);
 
-      expect(article.ingestPlatform).toContain("typescript/web");
-      expect(article.ingestPlatform).toContain("(");
-      expect(article.ingestPlatform).toContain(")");
+      expect(article.ingestPlatform).toBe("typescript/web (dev)");
     });
 
     it("should handle published date from readability result", () => {

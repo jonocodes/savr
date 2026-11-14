@@ -1,5 +1,4 @@
 import { ArticleAndRender, ArticleRenderExtra, Article } from "./models";
-// import { version } from '../package.json' with { type: "json" };
 
 import { DEFAULT_WPM } from "./readingSpeed";
 import { getLocale, t } from "./messages";

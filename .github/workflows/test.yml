@@ -30,6 +30,8 @@ jobs:
         run: just test-workers
       - name: Extension release script tests
         run: just test-extension
+      - name: Build stamp test (real vite build)
+        run: just test-build
       - name: Extension lint (AMO's unlisted rules)
         run: just lint-extension
 

@@ -213,7 +213,9 @@ OK, I lied. You do need to use a CORS proxy server to help fetch new articles, b
 
 # Current state of the project
 
-Basic features have been implemented, but I would consider this in a beta stage. While in the 0.x version number range, features will be stabilizing, along with the API contract and database schema.
+Basic features have been implemented, but I would consider this in a beta stage. Features will be stabilizing, along with the API contract and database schema.
+
+The app has no version numbers: it deploys continuously from `main`, and a build is identified by its UTC build time, shown as **Deployed** in Preferences and recorded on every article it saves (`ingestPlatform: "typescript/web (2026-11-13T04:12:09Z)"`). [CHANGELOG.md](CHANGELOG.md) is dated to match. The browser extension is versioned separately, because extension stores require it.
 
 # Development
 
